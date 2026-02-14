@@ -1,0 +1,28 @@
+# Rally Configuration File
+# Copy this to config.toml and fill in your values
+
+[calendars]
+# Get these from Google Calendar: Settings > Integrate Calendar > Secret address in iCal format
+google_family = "https://calendar.google.com/calendar/ical/YOUR_CALENDAR_ID/private-SECRET/basic.ics"
+
+# Get these from iCloud: Calendar.app > Right-click calendar > Share Calendar > Public Calendar
+icloud_parent1 = "https://p01-caldav.icloud.com/published/2/YOUR_ICAL_URL"
+
+# Add more calendars as needed:
+# google_work = "https://..."
+# icloud_parent2 = "https://..."
+# google_kids_activities = "https://..."
+
+[weather]
+# Sign up at https://openweathermap.org/api (free tier: 1000 calls/day)
+api_key = "your_openweather_api_key_here"
+
+# Your home coordinates (find at https://www.latlong.net/)
+# Example coordinates below are for Dallas, TX - replace with your location
+lat = 32.7767
+lon = -96.7970
+
+[anthropic]
+# Get your API key from https://console.anthropic.com/
+# Cost: ~$0.02 per summary generation
+api_key = "your_anthropic_api_key_here"

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally — Dinner Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #000000;
+            --charcoal: #1a1a1a;
+            --dark-gray: #333333;
+            --medium-gray: #666666;
+            --light-gray: #999999;
+            --pale-gray: #cccccc;
+            --silver: #e5e5e5;
+            --off-white: #f5f5f5;
+            --white: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Crimson Text', 'Georgia', serif;
+            background: var(--white);
+            color: var(--charcoal);
+            line-height: 1.7;
+            padding: 40px 32px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 1px solid var(--charcoal);
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 400;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--charcoal);
+            margin-bottom: 8px;
+            font-family: 'Playfair Display', 'Georgia', serif;
+        }
+
+        .header .subtitle {
+            font-size: 0.95rem;
+            color: var(--medium-gray);
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            font-style: italic;
+        }
+
+        .nav {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .nav a {
+            color: var(--charcoal);
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid var(--charcoal);
+            margin: 0 8px;
+            display: inline-block;
+            transition: background 0.2s;
+        }
+
+        .nav a:hover {
+            background: var(--off-white);
+        }
+
+        .nav a.active {
+            background: var(--charcoal);
+            color: var(--white);
+        }
+
+        .placeholder {
+            text-align: center;
+            padding: 64px 32px;
+            background: var(--off-white);
+            border: 1px solid var(--charcoal);
+        }
+
+        .placeholder h2 {
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            font-family: 'Playfair Display', 'Georgia', serif;
+        }
+
+        .placeholder p {
+            color: var(--medium-gray);
+            font-style: italic;
+        }
+
+        @media (min-width: 1024px) {
+            body {
+                padding: 64px 48px;
+                max-width: 900px;
+            }
+
+            .header h1 {
+                font-size: 3.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Dinner Planner</div>
+    </header>
+
+    <nav class="nav">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todo">Todos</a>
+        <a href="/dinner-planner" class="active">Dinner Planner</a>
+    </nav>
+
+    <div class="placeholder">
+        <h2>Coming Soon</h2>
+        <p>Dinner planning interface is under construction.</p>
+    </div>
+</body>
+</html>

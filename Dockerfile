@@ -1,0 +1,32 @@
+FROM python:3.14-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev --frozen --no-install-project
+
+COPY src/ src/
+
+RUN uv sync --no-dev --frozen
+
+FROM python:3.14-slim
+
+WORKDIR /app
+COPY --from=builder /app/.venv .venv
+COPY src/ src/
+COPY templates/ templates/
+COPY entrypoint.sh entrypoint.sh
+
+RUN chmod +x entrypoint.sh
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    RALLY_ENV=production \
+    RALLY_DB_PATH="/data/rally.db"
+
+EXPOSE 8000
+
+VOLUME /data
+VOLUME /output
+
+CMD ["./entrypoint.sh"]
