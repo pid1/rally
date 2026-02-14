@@ -58,5 +58,4 @@ envrc
 
 # uv
 .uv/
-uv.lock
 .db
