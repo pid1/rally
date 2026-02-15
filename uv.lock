@@ -612,7 +612,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=0.39.0" },
+    { name = "anthropic", specifier = ">=0.40.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.0" },
     { name = "icalendar", specifier = ">=6.0.0" },
     { name = "jinja2", specifier = ">=3.1.3" },
