@@ -280,17 +280,18 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (Todo, DashboardSnapshot)
+│   ├── models.py         # Database models (Todo, DashboardSnapshot, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── generator/
 │   │   ├── __init__.py
-│   │   ├── generate.py   # Summary generation logic
+│   │   ├── generate.py   # Summary generation logic with calendar, todos, and dinner plans
 │   │   └── __main__.py   # CLI entry point
 │   └── routers/
 │       ├── __init__.py
-│       ├── dashboard.py  # Dashboard routes
-│       └── todos.py      # Todo API (placeholder)
+│       ├── dashboard.py     # Dashboard routes
+│       ├── todos.py         # Todo CRUD API
+│       └── dinner_planner.py # Dinner plan CRUD API
 ├── templates/
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── todo.html            # Todo management page
@@ -319,12 +320,20 @@ rally/
 - ✅ Calendar integration (Google Calendar, iCloud) - filters to today's events only
 - ✅ Weather integration (OpenWeather API)
 - ✅ Claude AI-powered daily summaries
-- ✅ SQLite database with DashboardSnapshot and Todo models
+- ✅ SQLite database with DashboardSnapshot, Todo, and DinnerPlan models
 - ✅ Dashboard caching via DashboardSnapshot table (no auto-generation on page load)
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
 - ✅ Navigation between Dashboard, Todos, and Dinner Planner
-- ✅ Todo management page placeholder (`/todo`)
-- ✅ Dinner planner page placeholder (`/dinner-planner`)
+- ✅ Todo management - Full CRUD API and UI
+  - Create, read, update, delete todos
+  - Completion tracking with 24-hour visibility window
+  - Integrated into LLM generator for schedule optimization
+  - Luxury UI with inline editing
+- ✅ Dinner planner - Full CRUD API and UI
+  - Date picker with upsert logic (one plan per date)
+  - Next 7 days display with smart date formatting
+  - Integrated into LLM generator for prep reminders
+  - Luxury UI matching Rally aesthetic
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
 - ✅ Scheduled generation at 4:00 AM Central (in Docker)
@@ -332,19 +341,29 @@ rally/
 - ✅ Elegant grayscale design with serif typography
 - ✅ uv-based dependency management
 
-**Ready but not implemented:**
-- ⚠️ Todo API endpoints (wired up, returning 501)
-- ⚠️ Interactive todo management UI
-- ⚠️ Dinner planner functionality
-
 ## Application Routes
 
+### Page Routes
 - `/` - Redirects to `/dashboard`
 - `/dashboard` - Serves the generated daily summary from cached snapshot (shows error if missing)
-- `/todo` - Todo management page (placeholder)
-- `/dinner-planner` - Dinner planning page (placeholder)
+- `/todo` - Todo management page with full CRUD interface
+- `/dinner-planner` - Dinner planning page with date picker and plan management
+
+### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot
-- `/api/todos/*` - Todo API endpoints (501 Not Implemented)
+- `/api/todos` - Todo CRUD endpoints
+  - `GET /api/todos` - List todos (24-hour visibility filter for completed)
+  - `POST /api/todos` - Create new todo
+  - `GET /api/todos/{id}` - Get specific todo
+  - `PUT /api/todos/{id}` - Update todo
+  - `DELETE /api/todos/{id}` - Delete todo
+- `/api/dinner-plans` - Dinner plan CRUD endpoints
+  - `GET /api/dinner-plans` - List all dinner plans
+  - `POST /api/dinner-plans` - Create/update dinner plan (upsert by date)
+  - `GET /api/dinner-plans/{id}` - Get specific plan
+  - `GET /api/dinner-plans/date/{date}` - Get plan by date (YYYY-MM-DD)
+  - `PUT /api/dinner-plans/{id}` - Update plan
+  - `DELETE /api/dinner-plans/{id}` - Delete plan
 
 ### Navigation
 All pages include a navigation bar allowing users to switch between Dashboard, Todos, and Dinner Planner.
@@ -393,7 +412,10 @@ db-init                # Reinitialize
 seed                   # Add sample data for development
 ```
 
-The database is automatically created when the app starts. Models include `DashboardSnapshot` (stores generated dashboard data) and `Todo` (CRUD operations are placeholders).
+The database is automatically created when the app starts. Models include:
+- `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
+- `Todo` - Task management with title, description, completion status, and timestamps
+- `DinnerPlan` - Meal planning with date (unique), plan text, and timestamps
 
 ### Dependency Issues
 

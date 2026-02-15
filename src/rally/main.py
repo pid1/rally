@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from rally.database import init_db
-from rally.routers import dashboard, todos
+from rally.routers import dashboard, dinner_planner, todos
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -30,6 +30,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 # Include routers
 app.include_router(dashboard.router)
 app.include_router(todos.router)
+app.include_router(dinner_planner.router)
 
 
 @app.get("/", response_class=RedirectResponse)

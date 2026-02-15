@@ -21,14 +21,14 @@ class SummaryGenerator:
         # Detect environment: production uses /data, development uses PWD
         env = os.getenv("RALLY_ENV", "development")
         self.is_production = env == "production"
-        
+
         if self.is_production:
             self.data_dir = Path("/data")
             self.output_dir = Path("/output")
         else:
             self.data_dir = Path.cwd()
             self.output_dir = Path.cwd()
-        
+
         config_path = self.data_dir / "config.toml"
         with open(config_path, "rb") as f:
             self.config = tomllib.load(f)
@@ -37,53 +37,52 @@ class SummaryGenerator:
     def fetch_calendars(self) -> list[dict[str, list[dict]]]:
         """Download and parse ICS feeds, filtering for today's events."""
         today = datetime.now().date()
-        tomorrow = today + timedelta(days=1)
-        
+
         calendars = []
         for key, url in self.config["calendars"].items():
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
-                
+
                 # Parse ICS data
                 cal = Calendar.from_ical(response.text)
                 events = []
-                
+
                 for component in cal.walk():
                     if component.name == "VEVENT":
                         dtstart = component.get("dtstart")
                         if not dtstart:
                             continue
-                            
+
                         # Get event date (handle both date and datetime objects)
                         event_date = dtstart.dt
                         if hasattr(event_date, "date"):
                             event_date = event_date.date()
-                        
+
                         # Only include today's events
                         if event_date == today:
                             summary = str(component.get("summary", "Untitled Event"))
                             description = str(component.get("description", ""))
                             location = str(component.get("location", ""))
-                            
+
                             # Format time if datetime available
                             time_str = ""
                             if hasattr(dtstart.dt, "strftime"):
                                 time_str = dtstart.dt.strftime("%I:%M %p").lstrip("0")
-                            
+
                             events.append({
                                 "summary": summary,
                                 "time": time_str,
                                 "description": description,
                                 "location": location,
                             })
-                
+
                 if events:
                     calendars.append({"name": key, "events": events})
-                    
+
             except Exception as e:
                 print(f"Error fetching/parsing {key}: {e}")
-        
+
         return calendars
 
     def fetch_weather(self) -> dict | None:
@@ -110,9 +109,69 @@ class SummaryGenerator:
             return None
 
     def load_todos(self) -> str:
-        """Load todos - placeholder until database is implemented."""
-        # TODO: Implement database integration
-        return "No todos configured yet"
+        """Load todos from database for LLM context.
+
+        Includes all incomplete todos and completed todos from last 24 hours.
+        """
+
+        db = SessionLocal()
+        try:
+            from rally.models import Todo
+
+            # Get todos visible within 24-hour window
+            cutoff = datetime.now() - timedelta(hours=24)
+            todos = (
+                db.query(Todo)
+                .filter((Todo.completed == False) | (Todo.updated_at > cutoff))  # noqa: E712
+                .order_by(Todo.created_at.desc())
+                .all()
+            )
+
+            if not todos:
+                return "No todos currently active."
+
+            # Format todos for LLM
+            lines = []
+            for todo in todos:
+                status = " (completed)" if todo.completed else ""
+                line = f"{todo.title}{status}"
+                if todo.description:
+                    line += f" - {todo.description}"
+                lines.append(line)
+
+            return "\n".join(lines)
+        finally:
+            db.close()
+
+    def load_dinner_plans(self) -> str:
+        """Load dinner plans for today and tomorrow from database for LLM context."""
+        db = SessionLocal()
+        try:
+            from rally.models import DinnerPlan
+
+            today = datetime.now().date()
+            tomorrow = today + timedelta(days=1)
+
+            # Get plans for today and tomorrow
+            plans = (
+                db.query(DinnerPlan)
+                .filter(DinnerPlan.date.in_([today.strftime("%Y-%m-%d"), tomorrow.strftime("%Y-%m-%d")]))
+                .order_by(DinnerPlan.date.asc())
+                .all()
+            )
+
+            if not plans:
+                return "No dinner plans for today or tomorrow."
+
+            # Format plans for LLM
+            lines = []
+            for plan in plans:
+                day_label = "Tonight" if plan.date == today.strftime("%Y-%m-%d") else "Tomorrow night"
+                lines.append(f"{day_label}: {plan.plan}")
+
+            return "\n".join(lines)
+        finally:
+            db.close()
 
     def load_context(self) -> str:
         """Load family context."""
@@ -134,6 +193,7 @@ class SummaryGenerator:
         calendars = self.fetch_calendars()
         weather = self.fetch_weather()
         todos = self.load_todos()
+        dinner_plans = self.load_dinner_plans()
         context = self.load_context()
         voice = self.load_voice()
 
@@ -167,8 +227,11 @@ TODAY'S CALENDAR EVENTS (already filtered to today only, may have duplicates - d
 WEATHER FORECAST:
 {weather}
 
-TODOS (sorted by priority, higher number = more important):
+TODOS:
 {todos}
+
+DINNER PLANS:
+{dinner_plans}
 
 Create content for a daily summary. Respond with ONLY a JSON object (no markdown fences) using this exact schema:
 {{
@@ -187,10 +250,11 @@ Create content for a daily summary. Respond with ONLY a JSON object (no markdown
 Guidelines:
 1. Deduplicate calendar events (same event in multiple calendars)
 2. Schedule should be in chronological order
-3. Identify time gaps as opportunities to tackle todos based on priority
+3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on weather and activities
-5. Warn in heads_up if weather affects plans(outdoor events, school pickup, etc.)
+5. Warn in heads_up if weather affects plans (outdoor events, school pickup, etc.)
 6. Consider family routines and how everyone can support each other
+7. If tonight's dinner requires advance prep (marinating, defrosting, etc.), mention it in heads_up
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
@@ -217,12 +281,12 @@ Do NOT include any HTML in your response. Plain text only for all values."""
         db = SessionLocal()
         try:
             today = datetime.now().strftime("%Y-%m-%d")
-            
+
             # Deactivate previous snapshots for today
             db.query(DashboardSnapshot).filter(
                 DashboardSnapshot.date == today
             ).update({"is_active": False})
-            
+
             # Create new snapshot
             snapshot = DashboardSnapshot(
                 date=today,
@@ -240,7 +304,7 @@ def main():
     """Main entry point for scheduled generation."""
     # Ensure database is initialized
     init_db()
-    
+
     generator = SummaryGenerator()
     data = generator.generate_summary()
     generator.save_snapshot(data)

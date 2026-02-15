@@ -28,7 +28,7 @@ def get_db():
 
 def init_db():
     """Initialize database schema (creates tables only if they don't exist).
-    
+
     This is safe to call on every startup - it won't overwrite or delete existing data.
     SQLAlchemy's create_all() is idempotent and only creates missing tables.
     """

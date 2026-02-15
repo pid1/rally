@@ -1,43 +1,62 @@
 """Todos router for Rally."""
 
-from pathlib import Path
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
+from rally.models import Todo
 from rally.schemas import TodoCreate, TodoResponse, TodoUpdate
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-
 
 @router.get("", response_model=list[TodoResponse])
 def list_todos(
-    completed: bool | None = None,
+    include_hidden: bool = Query(False, description="Include completed todos older than 24 hours"),
     db: Session = Depends(get_db),
 ):
-    """List all todos, optionally filtered by completion status."""
-    # TODO: Implement when crud.py is ready
-    return []
+    """List all todos with 24-hour visibility for completed items.
+
+    By default, completed todos older than 24 hours are hidden.
+    Use include_hidden=true to show all todos.
+    """
+    query = db.query(Todo)
+
+    if not include_hidden:
+        # Show incomplete todos OR completed within last 24 hours
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        query = query.filter(
+            (Todo.completed == False) | (Todo.updated_at > cutoff)  # noqa: E712
+        )
+
+    # Sort by created_at DESC (newest first)
+    todos = query.order_by(Todo.created_at.desc()).all()
+    return todos
 
 
 @router.post("", response_model=TodoResponse, status_code=201)
 def create_todo(todo: TodoCreate, db: Session = Depends(get_db)):
     """Create a new todo."""
-    # TODO: Implement when crud.py is ready
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    db_todo = Todo(
+        title=todo.title,
+        description=todo.description,
+        completed=False,
+    )
+    db.add(db_todo)
+    db.commit()
+    db.refresh(db_todo)
+    return db_todo
 
 
 @router.get("/{todo_id}", response_model=TodoResponse)
 def get_todo(todo_id: int, db: Session = Depends(get_db)):
     """Get a specific todo by ID."""
-    # TODO: Implement when crud.py is ready
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+    if not todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return todo
 
 
 @router.put("/{todo_id}", response_model=TodoResponse)
@@ -47,12 +66,31 @@ def update_todo(
     db: Session = Depends(get_db),
 ):
     """Update a todo."""
-    # TODO: Implement when crud.py is ready
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    db_todo = db.query(Todo).filter(Todo.id == todo_id).first()
+    if not db_todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
+    # Update only provided fields
+    if todo.title is not None:
+        db_todo.title = todo.title
+    if todo.description is not None:
+        db_todo.description = todo.description
+    if todo.completed is not None:
+        db_todo.completed = todo.completed
+
+    # updated_at is automatically set by SQLAlchemy via onupdate
+    db.commit()
+    db.refresh(db_todo)
+    return db_todo
 
 
 @router.delete("/{todo_id}", status_code=204)
 def delete_todo(todo_id: int, db: Session = Depends(get_db)):
     """Delete a todo."""
-    # TODO: Implement when crud.py is ready
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    db_todo = db.query(Todo).filter(Todo.id == todo_id).first()
+    if not db_todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+
+    db.delete(db_todo)
+    db.commit()
+    return None

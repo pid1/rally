@@ -23,11 +23,11 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     base_dir = Path(__file__).resolve().parent.parent.parent.parent
     template_path = base_dir / "templates" / "dashboard.html"
     template = template_path.read_text()
-    
+
     # Format as both human-readable (fallback) and ISO UTC (for JS parsing)
     timestamp_str = timestamp.strftime("%Y-%m-%d %I:%M %p")
     timestamp_utc = timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")  # ISO 8601 UTC
-    
+
     # Build schedule HTML
     schedule_html = ""
     for item in data.get("schedule", []):
@@ -43,10 +43,10 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
             f"{notes}"
             f"</div>"
         )
-    
+
     if not schedule_html:
         schedule_html = "<p>No events scheduled today.</p>"
-    
+
     # Build optional heads-up section
     heads_up = data.get("heads_up", "")
     if heads_up:
@@ -58,7 +58,7 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
         )
     else:
         heads_up_section = ""
-    
+
     html = template.replace("{{date}}", date_str)
     html = html.replace("{{greeting}}", data.get("greeting", ""))
     html = html.replace("{{weather_summary}}", data.get("weather_summary", ""))
@@ -73,15 +73,15 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
 async def get_dashboard(request: Request, db: Session = Depends(get_db)):
     """Serve the generated daily dashboard from cached snapshot."""
     today = datetime.now().strftime("%Y-%m-%d")
-    
+
     # Fetch today's active snapshot
     snapshot = (
         db.query(DashboardSnapshot)
-        .filter(DashboardSnapshot.date == today, DashboardSnapshot.is_active == True)
+        .filter(DashboardSnapshot.date == today, DashboardSnapshot.is_active == True)  # noqa: E712
         .order_by(DashboardSnapshot.timestamp.desc())
         .first()
     )
-    
+
     if not snapshot:
         # No snapshot exists - show error message
         error_data = {
@@ -96,7 +96,7 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
         # Render from cached data
         date_str = datetime.now().strftime("%A, %B %d, %Y")
         html_content = _render_html(snapshot.data, date_str, snapshot.timestamp)
-    
+
     return HTMLResponse(content=html_content)
 
 

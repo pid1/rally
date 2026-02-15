@@ -86,22 +86,141 @@
             color: var(--white);
         }
 
-        .placeholder {
+        /* Plan Form */
+        .plan-form {
+            margin-bottom: 48px;
+            padding: 32px;
+            border: 1px solid var(--charcoal);
+            background: var(--white);
+        }
+
+        .plan-form h2 {
+            font-size: 1.5rem;
+            font-family: 'Playfair Display', 'Georgia', serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+        }
+
+        .form-group input[type="date"],
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--charcoal);
+            background: var(--white);
+            font-family: 'Crimson Text', 'Georgia', serif;
+            font-size: 1rem;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn-save {
+            padding: 10px 24px;
+            border: 1px solid var(--charcoal);
+            background: var(--white);
+            color: var(--charcoal);
+            font-family: 'Crimson Text', 'Georgia', serif;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            letter-spacing: 0.02em;
+        }
+
+        .btn-save:hover {
+            background: var(--charcoal);
+            color: var(--white);
+        }
+
+        /* Plans List */
+        .plans-section h2 {
+            font-size: 1.5rem;
+            font-family: 'Playfair Display', 'Georgia', serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--charcoal);
+        }
+
+        .plans-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .empty-state {
             text-align: center;
             padding: 64px 32px;
-            background: var(--off-white);
-            border: 1px solid var(--charcoal);
-        }
-
-        .placeholder h2 {
-            font-size: 1.5rem;
-            margin-bottom: 16px;
-            font-family: 'Playfair Display', 'Georgia', serif;
-        }
-
-        .placeholder p {
             color: var(--medium-gray);
             font-style: italic;
+            border: 1px solid var(--pale-gray);
+        }
+
+        .plan-card {
+            padding: 20px;
+            border: 1px solid var(--pale-gray);
+            background: var(--white);
+            transition: background 0.2s;
+        }
+
+        .plan-card:hover {
+            background: var(--off-white);
+        }
+
+        .plan-date {
+            font-size: 0.85rem;
+            color: var(--medium-gray);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .plan-content {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .plan-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-edit, .btn-delete {
+            padding: 6px 12px;
+            border: 1px solid var(--charcoal);
+            background: var(--white);
+            color: var(--charcoal);
+            font-family: 'Crimson Text', 'Georgia', serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .btn-edit:hover {
+            background: var(--charcoal);
+            color: var(--white);
+        }
+
+        .btn-delete:hover {
+            background: var(--off-white);
         }
 
         @media (min-width: 1024px) {
@@ -128,9 +247,157 @@
         <a href="/dinner-planner" class="active">Dinner Planner</a>
     </nav>
 
-    <div class="placeholder">
-        <h2>Coming Soon</h2>
-        <p>Dinner planning interface is under construction.</p>
+    <!-- Plan Form -->
+    <div class="plan-form">
+        <h2>Add Dinner Plan</h2>
+        <form id="plan-form">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="plan-date" required>
+            </div>
+            <div class="form-group">
+                <label>Meal Plan</label>
+                <textarea id="plan-text" placeholder="What's for dinner?" required></textarea>
+            </div>
+            <button type="submit" class="btn-save">Save Plan</button>
+        </form>
     </div>
+
+    <!-- Plans List -->
+    <div class="plans-section">
+        <h2>Upcoming Dinners</h2>
+        <div class="plans-list" id="plans-list">
+            <!-- Plans will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        // State
+        let plans = [];
+        let editingId = null;
+
+        // Get date 7 days from now for filtering
+        function getDateInDays(days) {
+            const date = new Date();
+            date.setDate(date.getDate() + days);
+            return date.toISOString().split('T')[0];
+        }
+
+        // Format date for display
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const planDate = new Date(date);
+            planDate.setHours(0, 0, 0, 0);
+            
+            if (planDate.getTime() === today.getTime()) return 'Tonight';
+            if (planDate.getTime() === tomorrow.getTime()) return 'Tomorrow';
+            
+            return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        }
+
+        // API calls
+        async function fetchPlans() {
+            const response = await fetch('/api/dinner-plans');
+            const allPlans = await response.json();
+            
+            // Filter to next 7 days
+            const today = new Date().toISOString().split('T')[0];
+            const weekFromNow = getDateInDays(7);
+            plans = allPlans.filter(p => p.date >= today && p.date <= weekFromNow);
+            
+            renderPlans();
+        }
+
+        async function savePlan(date, plan) {
+            const response = await fetch('/api/dinner-plans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, plan })
+            });
+            if (!response.ok) throw new Error('Failed to save plan');
+            return response.json();
+        }
+
+        async function deletePlan(id) {
+            const response = await fetch(`/api/dinner-plans/${id}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) throw new Error('Failed to delete plan');
+        }
+
+        // Render
+        function renderPlans() {
+            const container = document.getElementById('plans-list');
+            
+            if (plans.length === 0) {
+                container.innerHTML = '<div class="empty-state">No dinner plans for the next 7 days.</div>';
+                return;
+            }
+
+            container.innerHTML = plans.map(plan => `
+                <div class="plan-card" data-id="${plan.id}">
+                    <div class="plan-date">${escapeHtml(formatDate(plan.date))}</div>
+                    <div class="plan-content">${escapeHtml(plan.plan)}</div>
+                    <div class="plan-actions">
+                        <button class="btn-edit" onclick="editPlan('${plan.date}', '${escapeHtml(plan.plan).replace(/'/g, "\\'")}')">Edit</button>
+                        <button class="btn-delete" onclick="confirmDelete(${plan.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Actions
+        function editPlan(date, plan) {
+            document.getElementById('plan-date').value = date;
+            document.getElementById('plan-text').value = plan;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        async function confirmDelete(id) {
+            if (!confirm('Are you sure you want to delete this dinner plan?')) return;
+            
+            try {
+                await deletePlan(id);
+                await fetchPlans();
+            } catch (error) {
+                console.error('Error deleting plan:', error);
+                alert('Failed to delete dinner plan');
+            }
+        }
+
+        // Event handlers
+        document.getElementById('plan-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const date = document.getElementById('plan-date').value;
+            const plan = document.getElementById('plan-text').value;
+
+            try {
+                await savePlan(date, plan);
+                document.getElementById('plan-form').reset();
+                await fetchPlans();
+            } catch (error) {
+                console.error('Error saving plan:', error);
+                alert('Failed to save dinner plan');
+            }
+        });
+
+        // Set default date to today
+        document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
+
+        // Initialize
+        fetchPlans();
+    </script>
 </body>
 </html>

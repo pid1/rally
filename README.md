@@ -8,7 +8,14 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 
 - 📅 **Unified Calendar** - Pulls from Google Calendar and iCloud, filters to today's events, deduplicates automatically
 - 🌤️ **Smart Weather Guidance** - Clothing recommendations and activity adjustments
-- ✅ **Todo Management** - Track family tasks with priority system (API ready)
+- ✅ **Todo Management** - Full CRUD interface for family tasks
+  - Create, edit, complete, and delete todos
+  - 24-hour visibility window for completed tasks
+  - Integrated into AI summaries for schedule optimization
+- 🍕 **Dinner Planner** - Plan meals ahead with prep reminders
+  - Date-based meal planning with simple text field
+  - View next 7 days of planned dinners
+  - AI checks tonight's dinner and suggests prep in "heads up" section
 - 🤖 **AI-Powered Summaries** - Claude generates encouraging, action-oriented daily plans
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display
@@ -31,12 +38,27 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 
 ## Routes
 
+### Page Routes
 - `/` - Redirects to dashboard
 - `/dashboard` - Daily summary with weather, schedule, and suggestions (from cache)
-- `/todo` - Todo management interface (placeholder)
-- `/dinner-planner` - Dinner planning interface (placeholder)
+- `/todo` - Todo management interface with full CRUD
+- `/dinner-planner` - Dinner planning interface with date picker
+
+### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration
-- `/api/todos/*` - RESTful todo API (wired up, ready for implementation)
+- `/api/todos` - RESTful todo API
+  - `GET /api/todos` - List todos (hides completed after 24 hours)
+  - `POST /api/todos` - Create todo
+  - `GET /api/todos/{id}` - Get specific todo
+  - `PUT /api/todos/{id}` - Update todo
+  - `DELETE /api/todos/{id}` - Delete todo
+- `/api/dinner-plans` - RESTful dinner plan API
+  - `GET /api/dinner-plans` - List all plans
+  - `POST /api/dinner-plans` - Create/update plan (upsert by date)
+  - `GET /api/dinner-plans/{id}` - Get specific plan
+  - `GET /api/dinner-plans/date/{date}` - Get plan by date
+  - `PUT /api/dinner-plans/{id}` - Update plan
+  - `DELETE /api/dinner-plans/{id}` - Delete plan
 
 All pages include navigation bar for easy switching between sections.
 
@@ -244,15 +266,16 @@ rally/
 ├── src/rally/              # Application source code
 │   ├── main.py             # FastAPI application entry point
 │   ├── database.py         # SQLAlchemy database configuration
-│   ├── models.py           # Database models (DashboardSnapshot, Todo)
+│   ├── models.py           # Database models (DashboardSnapshot, Todo, DinnerPlan)
 │   ├── schemas.py          # Pydantic request/response schemas
 │   ├── cli.py              # CLI commands (seed, etc.)
 │   ├── generator/          # Summary generation
-│   │   ├── generate.py     # Core generation logic with ICS parsing
+│   │   ├── generate.py     # Core generation logic with calendar, todos, dinner plans
 │   │   └── __main__.py     # CLI entry point
 │   └── routers/            # API route handlers
 │       ├── dashboard.py    # Dashboard routes
-│       └── todos.py        # Todo API endpoints
+│       ├── todos.py        # Todo CRUD API
+│       └── dinner_planner.py # Dinner plan CRUD API
 ├── templates/              # HTML templates
 │   ├── dashboard.html      # Daily dashboard template
 │   ├── todo.html           # Todo management page
