@@ -6,6 +6,7 @@ from sqlalchemy import JSON, Boolean, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rally.database import Base
+from rally.utils.timezone import now_utc
 
 
 class DashboardSnapshot(Base):
@@ -15,10 +16,10 @@ class DashboardSnapshot(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD
-    timestamp: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    timestamp: Mapped[datetime] = mapped_column(default=now_utc)
     data: Mapped[dict] = mapped_column(JSON)  # Stores the JSON response from Claude
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
 
 
 class Todo(Base):
@@ -30,9 +31,9 @@ class Todo(Base):
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     completed: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        default=now_utc, onupdate=now_utc
     )
 
 
@@ -44,7 +45,7 @@ class DinnerPlan(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[str] = mapped_column(String(10), unique=True)  # YYYY-MM-DD
     plan: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, onupdate=datetime.utcnow
+        default=now_utc, onupdate=now_utc
     )

@@ -1,6 +1,11 @@
 # Rally Configuration File
 # Copy this to config.toml and fill in your values
 
+# Local timezone for displaying calendar events
+# Use IANA timezone database names (e.g., "America/Chicago", "America/New_York", "America/Los_Angeles")
+# Find your timezone: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+local_timezone = "America/Chicago"
+
 [calendars]
 # Get these from Google Calendar: Settings > Integrate Calendar > Secret address in iCal format
 google_family = "https://calendar.google.com/calendar/ical/YOUR_CALENDAR_ID/private-SECRET/basic.ics"
@@ -21,6 +26,11 @@ api_key = "your_openweather_api_key_here"
 # Example coordinates below are for Dallas, TX - replace with your location
 lat = 32.7767
 lon = -96.7970
+
+# Local timezone for displaying calendar events
+# Use IANA timezone database names (e.g., "America/Chicago", "America/New_York", "America/Los_Angeles")
+# Find your timezone: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+local_timezone = "America/Chicago"
 
 [anthropic]
 # Get your API key from https://console.anthropic.com/

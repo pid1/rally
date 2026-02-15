@@ -1,9 +1,8 @@
 """Rally CLI commands."""
 
-from datetime import datetime
-
 from rally.database import SessionLocal, init_db
 from rally.models import DashboardSnapshot, Todo
+from rally.utils.timezone import today_utc
 
 
 def seed():
@@ -18,7 +17,7 @@ def seed():
         db.commit()
 
         # Create sample dashboard snapshot
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = today_utc().strftime("%Y-%m-%d")
         sample_data = {
             "greeting": "Good morning, family! It's a beautiful day to get things done.",
             "weather_summary": "Partly cloudy with highs around 68°F. Light jacket recommended for morning activities, but you can shed it by afternoon. No rain expected today.",
@@ -64,7 +63,7 @@ def seed():
                     "notes": "Kids have a math worksheet and reading assignment",
                 },
             ],
-            "heads_up": "Don't forget: early release today at 2:00 PM. Also, soccer practice equipment needs to be packed before lunch.",
+            "briefing": "Don't forget: early release today at 2:00 PM. Also, soccer practice equipment needs to be packed before lunch.",
         }
 
         snapshot = DashboardSnapshot(date=today, data=sample_data, is_active=True)
@@ -75,37 +74,31 @@ def seed():
             Todo(
                 title="Schedule dentist appointments",
                 description="Need to book checkups for the whole family",
-                priority=8,
                 completed=False,
             ),
             Todo(
                 title="Plan weekend hike",
                 description="Research trails and check weather forecast",
-                priority=5,
                 completed=False,
             ),
             Todo(
                 title="Return library books",
                 description="Due this Friday - in the bag by the door",
-                priority=7,
                 completed=False,
             ),
             Todo(
                 title="Review budget spreadsheet",
                 description="Monthly review of spending and savings goals",
-                priority=6,
                 completed=False,
             ),
             Todo(
                 title="Call mom",
                 description="Haven't talked in a while - give her a call this week",
-                priority=4,
                 completed=False,
             ),
             Todo(
                 title="Finish reading chapter 3",
                 description="Book club meets next week",
-                priority=3,
                 completed=False,
             ),
         ]

@@ -15,7 +15,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - 🍕 **Dinner Planner** - Plan meals ahead with prep reminders
   - Date-based meal planning with simple text field
   - View next 7 days of planned dinners
-  - AI checks tonight's dinner and suggests prep in "heads up" section
+  - AI checks tonight's dinner and suggests prep in "The Briefing" section
 - 🤖 **AI-Powered Summaries** - Claude generates encouraging, action-oriented daily plans
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display

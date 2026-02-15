@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.generator.generate import SummaryGenerator
 from rally.models import DashboardSnapshot
+from rally.utils.timezone import ensure_utc, now_utc, today_utc
 
 router = APIRouter(tags=["dashboard"])
 
@@ -24,9 +25,12 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     template_path = base_dir / "templates" / "dashboard.html"
     template = template_path.read_text()
 
+    # Ensure timestamp is timezone-aware and in UTC
+    timestamp_utc_dt = ensure_utc(timestamp)
+
     # Format as both human-readable (fallback) and ISO UTC (for JS parsing)
-    timestamp_str = timestamp.strftime("%Y-%m-%d %I:%M %p")
-    timestamp_utc = timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")  # ISO 8601 UTC
+    timestamp_str = timestamp_utc_dt.strftime("%Y-%m-%d %I:%M %p")
+    timestamp_utc = timestamp_utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")  # ISO 8601 UTC
 
     # Build schedule HTML
     schedule_html = ""
@@ -47,23 +51,23 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     if not schedule_html:
         schedule_html = "<p>No events scheduled today.</p>"
 
-    # Build optional heads-up section
-    heads_up = data.get("heads_up", "")
-    if heads_up:
-        heads_up_section = (
-            '<div class="heads-up">'
-            '<div class="heads-up-title">Heads Up</div>'
-            f'{heads_up}'
+    # Build optional briefing section
+    briefing = data.get("briefing", "")
+    if briefing:
+        briefing_section = (
+            '<div class="briefing">'
+            '<div class="briefing-title">The Briefing</div>'
+            f'{briefing}'
             "</div>"
         )
     else:
-        heads_up_section = ""
+        briefing_section = ""
 
     html = template.replace("{{date}}", date_str)
     html = html.replace("{{greeting}}", data.get("greeting", ""))
     html = html.replace("{{weather_summary}}", data.get("weather_summary", ""))
     html = html.replace("{{schedule}}", schedule_html)
-    html = html.replace("{{heads_up_section}}", heads_up_section)
+    html = html.replace("{{briefing_section}}", briefing_section)
     html = html.replace("{{timestamp}}", timestamp_str)  # Fallback for non-JS browsers
     html = html.replace("{{timestamp_utc}}", timestamp_utc)  # For JS timezone conversion
     return html
@@ -72,7 +76,7 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
 @router.get("/dashboard", response_class=HTMLResponse)
 async def get_dashboard(request: Request, db: Session = Depends(get_db)):
     """Serve the generated daily dashboard from cached snapshot."""
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = today_utc().strftime("%Y-%m-%d")
 
     # Fetch today's active snapshot
     snapshot = (
@@ -88,13 +92,13 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
             "greeting": "No dashboard data available for today.",
             "weather_summary": "Run the 'generate' command to create today's dashboard, or wait for the scheduled generation at 4:00 AM Central.",
             "schedule": [],
-            "heads_up": "",
+            "briefing": "",
         }
-        date_str = datetime.now().strftime("%A, %B %d, %Y")
-        html_content = _render_html(error_data, date_str, datetime.now())
+        date_str = now_utc().strftime("%A, %B %d, %Y")
+        html_content = _render_html(error_data, date_str, now_utc())
     else:
         # Render from cached data
-        date_str = datetime.now().strftime("%A, %B %d, %Y")
+        date_str = now_utc().strftime("%A, %B %d, %Y")
         html_content = _render_html(snapshot.data, date_str, snapshot.timestamp)
 
     return HTMLResponse(content=html_content)

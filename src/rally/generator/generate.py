@@ -3,8 +3,9 @@
 import json
 import os
 import tomllib
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import anthropic
 import requests
@@ -12,6 +13,7 @@ from icalendar import Calendar
 
 from rally.database import SessionLocal, init_db
 from rally.models import DashboardSnapshot
+from rally.utils.timezone import ensure_utc, now_utc, today_utc
 
 
 class SummaryGenerator:
@@ -34,9 +36,13 @@ class SummaryGenerator:
             self.config = tomllib.load(f)
         self.client = anthropic.Anthropic(api_key=self.config["anthropic"]["api_key"])
 
+        # Get local timezone from config (default to UTC)
+        self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
+
     def fetch_calendars(self) -> list[dict[str, list[dict]]]:
-        """Download and parse ICS feeds, filtering for today's events."""
-        today = datetime.now().date()
+        """Download and parse ICS feeds, filtering for next 7 days of events."""
+        today = today_utc()
+        end_date = today + timedelta(days=7)
 
         calendars = []
         for key, url in self.config["calendars"].items():
@@ -59,8 +65,8 @@ class SummaryGenerator:
                         if hasattr(event_date, "date"):
                             event_date = event_date.date()
 
-                        # Only include today's events
-                        if event_date == today:
+                        # Only include events in the next 7 days
+                        if today <= event_date < end_date:
                             summary = str(component.get("summary", "Untitled Event"))
                             description = str(component.get("description", ""))
                             location = str(component.get("location", ""))
@@ -68,14 +74,23 @@ class SummaryGenerator:
                             # Format time if datetime available
                             time_str = ""
                             if hasattr(dtstart.dt, "strftime"):
-                                time_str = dtstart.dt.strftime("%I:%M %p").lstrip("0")
+                                # Convert to local timezone for display
+                                dt = dtstart.dt
+                                if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+                                    # Ensure it's timezone-aware in UTC first, then convert to local
+                                    dt = ensure_utc(dt).astimezone(self.local_tz)
+                                time_str = dt.strftime("%I:%M %p").lstrip("0")
 
                             events.append({
                                 "summary": summary,
                                 "time": time_str,
+                                "date": event_date.strftime("%Y-%m-%d"),
                                 "description": description,
                                 "location": location,
                             })
+
+                # Sort events by date and time
+                events.sort(key=lambda e: (e["date"], e["time"]))
 
                 if events:
                     calendars.append({"name": key, "events": events})
@@ -119,7 +134,7 @@ class SummaryGenerator:
             from rally.models import Todo
 
             # Get todos visible within 24-hour window
-            cutoff = datetime.now() - timedelta(hours=24)
+            cutoff = now_utc() - timedelta(hours=24)
             todos = (
                 db.query(Todo)
                 .filter((Todo.completed == False) | (Todo.updated_at > cutoff))  # noqa: E712
@@ -144,29 +159,42 @@ class SummaryGenerator:
             db.close()
 
     def load_dinner_plans(self) -> str:
-        """Load dinner plans for today and tomorrow from database for LLM context."""
+        """Load dinner plans for next 7 days from database for LLM context."""
         db = SessionLocal()
         try:
+            from datetime import datetime
+
             from rally.models import DinnerPlan
 
-            today = datetime.now().date()
-            tomorrow = today + timedelta(days=1)
+            today = today_utc()
 
-            # Get plans for today and tomorrow
+            # Get all dates in the range
+            date_range = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+
+            # Get plans for next 7 days
             plans = (
                 db.query(DinnerPlan)
-                .filter(DinnerPlan.date.in_([today.strftime("%Y-%m-%d"), tomorrow.strftime("%Y-%m-%d")]))
+                .filter(DinnerPlan.date.in_(date_range))
                 .order_by(DinnerPlan.date.asc())
                 .all()
             )
 
             if not plans:
-                return "No dinner plans for today or tomorrow."
+                return "No dinner plans for the next 7 days."
 
             # Format plans for LLM
             lines = []
             for plan in plans:
-                day_label = "Tonight" if plan.date == today.strftime("%Y-%m-%d") else "Tomorrow night"
+                plan_date = datetime.strptime(plan.date, "%Y-%m-%d").date()
+                days_away = (plan_date - today).days
+
+                if days_away == 0:
+                    day_label = "Tonight"
+                elif days_away == 1:
+                    day_label = "Tomorrow night"
+                else:
+                    day_label = f"{plan_date.strftime('%A')} ({plan_date.strftime('%b %d')})"
+
                 lines.append(f"{day_label}: {plan.plan}")
 
             return "\n".join(lines)
@@ -200,19 +228,26 @@ class SummaryGenerator:
         # Format calendars for prompt
         cal_text = ""
         if calendars:
+            from datetime import datetime
             for cal in calendars:
                 cal_text += f"\nCALENDAR: {cal['name']}\n"
+                current_date = None
                 for event in cal['events']:
-                    cal_text += f"  - {event['time']} {event['summary']}"
+                    # Group events by date for readability
+                    if event['date'] != current_date:
+                        current_date = event['date']
+                        cal_text += f"\n  {datetime.strptime(event['date'], '%Y-%m-%d').strftime('%A, %B %d')}:\n"
+
+                    cal_text += f"    - {event['time']} {event['summary']}"
                     if event['location']:
                         cal_text += f" at {event['location']}"
                     if event['description']:
                         cal_text += f" ({event['description']})"
                     cal_text += "\n"
         else:
-            cal_text = "No calendar events for today."
+            cal_text = "No calendar events for the next 7 days."
 
-        today = datetime.now().strftime("%A, %B %d, %Y")
+        today = now_utc().strftime("%A, %B %d, %Y")
         prompt = f"""You're creating content for a daily family summary for {today}.
 
 AGENT VOICE:
@@ -221,16 +256,16 @@ AGENT VOICE:
 FAMILY CONTEXT:
 {context}
 
-TODAY'S CALENDAR EVENTS (already filtered to today only, may have duplicates - dedupe them):
+CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
 {cal_text}
 
-WEATHER FORECAST:
+WEATHER FORECAST (next 7 days from OpenWeather):
 {weather}
 
 TODOS:
 {todos}
 
-DINNER PLANS:
+DINNER PLANS (next 7 days):
 {dinner_plans}
 
 Create content for a daily summary. Respond with ONLY a JSON object (no markdown fences) using this exact schema:
@@ -244,17 +279,19 @@ Create content for a daily summary. Respond with ONLY a JSON object (no markdown
       "notes": "Optional context or suggestion (or empty string)"
     }}
   ],
-  "heads_up": "Optional warnings or coordination notes. Empty string if nothing notable."
+  "briefing": "Optional warnings or coordination notes. Empty string if nothing notable."
 }}
 
 Guidelines:
 1. Deduplicate calendar events (same event in multiple calendars)
-2. Schedule should be in chronological order
+2. Schedule should show TODAY'S events in chronological order
 3. Identify time gaps as opportunities to tackle todos
-4. Recommend clothing based on weather and activities
-5. Warn in heads_up if weather affects plans (outdoor events, school pickup, etc.)
-6. Consider family routines and how everyone can support each other
-7. If tonight's dinner requires advance prep (marinating, defrosting, etc.), mention it in heads_up
+4. Recommend clothing based on TODAY'S weather and activities
+5. Look at the FULL 7-DAY weather forecast. If upcoming weather might affect plans (rain for outdoor events, extreme temps, etc.), mention it in the briefing
+6. Check upcoming calendar events against weather. Suggest prep work if needed (umbrellas, warmer clothes, rescheduling outdoor activities)
+7. Consider family routines and how everyone can support each other
+8. If any upcoming dinners require advance prep (marinating, defrosting, grocery shopping), mention it in briefing with the specific day
+9. The briefing should surface important things about the NEXT 7 DAYS that need attention today or soon
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
@@ -273,14 +310,14 @@ Do NOT include any HTML in your response. Plain text only for all values."""
                 "greeting": "⚠️ Unable to generate today's summary.",
                 "weather_summary": f"Error: {e}",
                 "schedule": [],
-                "heads_up": "The system will retry at the next scheduled interval.",
+                "briefing": "The system will retry at the next scheduled interval.",
             }
 
     def save_snapshot(self, data: dict) -> None:
         """Save generated summary data to database."""
         db = SessionLocal()
         try:
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = today_utc().strftime("%Y-%m-%d")
 
             # Deactivate previous snapshots for today
             db.query(DashboardSnapshot).filter(
@@ -295,7 +332,7 @@ Do NOT include any HTML in your response. Plain text only for all values."""
             )
             db.add(snapshot)
             db.commit()
-            print(f"Snapshot saved at {datetime.now()}")
+            print(f"Snapshot saved at {now_utc()}")
         finally:
             db.close()
 

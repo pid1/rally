@@ -1,6 +1,6 @@
 """Todos router for Rally."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.models import Todo
 from rally.schemas import TodoCreate, TodoResponse, TodoUpdate
+from rally.utils.timezone import now_utc
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
 
@@ -26,7 +27,7 @@ def list_todos(
 
     if not include_hidden:
         # Show incomplete todos OR completed within last 24 hours
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = now_utc() - timedelta(hours=24)
         query = query.filter(
             (Todo.completed == False) | (Todo.updated_at > cutoff)  # noqa: E712
         )
