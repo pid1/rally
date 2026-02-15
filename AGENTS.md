@@ -336,7 +336,10 @@ rally/
   - Luxury UI matching Rally aesthetic
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
-- ✅ Scheduled generation at 4:00 AM Central (in Docker)
+- ✅ Scheduled generation at 4:00 AM in configured timezone (in Docker)
+  - Reads timezone from config.toml (default: America/Chicago)
+  - Uses date-based tracking to prevent duplicate runs
+  - Robust against server timezone settings
 - ✅ Environment mode detection (dev/production)
 - ✅ Elegant grayscale design with serif typography
 - ✅ uv-based dependency management

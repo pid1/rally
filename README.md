@@ -20,7 +20,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display
 - 🎨 **Beautiful Design** - Serif typography, clean layout, professional aesthetic
-- ⏰ **Scheduled Updates** - Automatically regenerates dashboard at 4:00 AM Central daily
+- ⏰ **Scheduled Updates** - Automatically regenerates dashboard at 4:00 AM in your configured timezone
 - 💾 **Smart Caching** - Dashboard loads instantly from database, no unnecessary API calls
 
 ## Architecture
@@ -76,6 +76,7 @@ All pages include navigation bar for easy switching between sections.
 - OpenWeather API key (free tier)
 - Anthropic API key
 - Calendar ICS URLs from Google Calendar and/or iCloud
+- Your local timezone (IANA format, e.g. "America/Chicago")
 
 ## Development Setup
 
@@ -192,6 +193,10 @@ mkdir -p data output
 cp config.toml.example data/config.toml
 nano data/config.toml
 
+# IMPORTANT: Set your local_timezone in config.toml
+# This determines when the 4:00 AM generation runs
+# Example: local_timezone = "America/Chicago"
+
 # Copy and edit family context
 cp context.txt.example data/context.txt
 nano data/context.txt
@@ -228,7 +233,7 @@ docker run -d \
 Configure your tablet or smart display browser to:
 - Open: `http://your-nas-ip:8000/dashboard`
 - Auto-refresh: The page auto-refreshes every 30 minutes via JavaScript
-- Dashboard updates: Automatically regenerated at 4:00 AM Central daily
+- Dashboard updates: Automatically regenerated at 4:00 AM in your configured timezone (set in config.toml)
 
 ## Configuration Guide
 
