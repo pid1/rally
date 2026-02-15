@@ -206,6 +206,19 @@
             letter-spacing: 0.05em;
         }
 
+        .todo-due-date {
+            font-size: 0.85rem;
+            color: var(--medium-gray);
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            margin-top: 4px;
+        }
+
+        .todo-due-date.overdue {
+            color: var(--charcoal);
+            font-weight: 600;
+        }
+
         .todo-actions {
             display: flex;
             gap: 8px;
@@ -261,6 +274,7 @@
 
         .form-group input[type="text"],
         .form-group input[type="number"],
+        .form-group input[type="date"],
         .form-group textarea {
             width: 100%;
             padding: 10px;
@@ -363,6 +377,11 @@
                     <label>Notes (optional)</label>
                     <textarea id="todo-description" placeholder="Additional details" rows="3"></textarea>
                 </div>
+                <div class="form-group">
+                    <label>Due Date (optional)</label>
+                    <input type="date" id="todo-due-date">
+                    <small>Leave blank if no specific deadline</small>
+                </div>
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
@@ -419,22 +438,46 @@
                 return;
             }
 
-            container.innerHTML = todos.map(todo => `
-                <div class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
-                    <div class="todo-checkbox">
-                        <input type="checkbox" ${todo.completed ? 'checked' : ''} 
-                               onchange="toggleComplete(${todo.id}, this.checked)">
+            container.innerHTML = todos.map(todo => {
+                const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
+                return `
+                    <div class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+                        <div class="todo-checkbox">
+                            <input type="checkbox" ${todo.completed ? 'checked' : ''} 
+                                   onchange="toggleComplete(${todo.id}, this.checked)">
+                        </div>
+                        <div class="todo-content">
+                            <div class="todo-title">${escapeHtml(todo.title)}</div>
+                            ${todo.description ? `<div class="todo-description">${escapeHtml(todo.description)}</div>` : ''}
+                            ${dueDateHtml}
+                        </div>
+                        <div class="todo-actions">
+                            <button class="btn-edit" onclick="openEditModal(${todo.id})">Edit</button>
+                            <button class="btn-delete" onclick="confirmDelete(${todo.id})">Delete</button>
+                        </div>
                     </div>
-                    <div class="todo-content">
-                        <div class="todo-title">${escapeHtml(todo.title)}</div>
-                        ${todo.description ? `<div class="todo-description">${escapeHtml(todo.description)}</div>` : ''}
-                    </div>
-                    <div class="todo-actions">
-                        <button class="btn-edit" onclick="openEditModal(${todo.id})">Edit</button>
-                        <button class="btn-delete" onclick="confirmDelete(${todo.id})">Delete</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
+        }
+
+        function formatDueDate(dateStr) {
+            if (!dateStr) return '';
+            
+            const date = new Date(dateStr + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            const dayName = dayNames[date.getDay()];
+            const month = monthNames[date.getMonth()];
+            const day = date.getDate();
+            
+            const isOverdue = date < today;
+            const overdueClass = isOverdue ? ' overdue' : '';
+            
+            return `<div class="todo-due-date${overdueClass}">Due ${dayName}, ${month} ${day}</div>`;
         }
 
         function escapeHtml(text) {
@@ -461,6 +504,7 @@
             document.getElementById('todo-id').value = id;
             document.getElementById('todo-title').value = todo.title;
             document.getElementById('todo-description').value = todo.description || '';
+            document.getElementById('todo-due-date').value = todo.due_date || '';
             document.getElementById('modal-overlay').style.display = 'flex';
         }
 
@@ -506,7 +550,8 @@
             
             const data = {
                 title: document.getElementById('todo-title').value,
-                description: document.getElementById('todo-description').value || null
+                description: document.getElementById('todo-description').value || null,
+                due_date: document.getElementById('todo-due-date').value || null
             };
 
             try {

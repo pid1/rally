@@ -272,6 +272,43 @@ logs-tail
 down
 ```
 
+## Database Migrations
+
+Rally uses a file-based migration system for database schema changes. All migrations are **idempotent** and run automatically on container startup.
+
+### Migration Files
+
+- `migrate_XXX_description.py` - Individual migration scripts
+- `run_migrations.py` - Migration runner (executes all migrations in order)
+- `MIGRATIONS.md` - Full migration documentation and patterns
+
+### Running Migrations
+
+**Automatic (Docker):**
+Migrations run automatically when the container starts via `entrypoint.sh`
+
+**Manual (Development):**
+```bash
+# Run all migrations
+python3 run_migrations.py
+
+# Run specific migration
+python3 migrate_001_add_due_date.py
+
+# Test idempotency (should succeed twice)
+python3 run_migrations.py && python3 run_migrations.py
+```
+
+### Creating New Migrations
+
+1. Create `migrate_XXX_description.py` (see `MIGRATIONS.md` for template)
+2. Add to `run_migrations.py` migrations list
+3. Add to `Dockerfile` COPY commands
+4. Test locally with `python3 migrate_XXX_description.py`
+5. Deploy (runs automatically on container startup)
+
+**Key principle:** Every migration must be idempotent - safe to run multiple times.
+
 ## Project Structure
 
 ```
@@ -317,15 +354,19 @@ rally/
 - ✅ FastAPI web application with routes
 - ✅ Summary generation (`rally.generator`) with ICS parsing
 - ✅ Configuration via TOML files (`config.toml`, `context.txt`, `agent_voice.txt`)
-- ✅ Calendar integration (Google Calendar, iCloud) - filters to today's events only
+- ✅ Calendar integration (Google Calendar, iCloud) - filters to next 7 days, deduplicates
 - ✅ Weather integration (OpenWeather API)
-- ✅ Claude AI-powered daily summaries
+- ✅ Claude AI-powered daily summaries (Claude Opus 4.6)
+- ✅ Idempotent database migrations - Run automatically on container startup
 - ✅ SQLite database with DashboardSnapshot, Todo, and DinnerPlan models
 - ✅ Dashboard caching via DashboardSnapshot table (no auto-generation on page load)
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
 - ✅ Navigation between Dashboard, Todos, and Dinner Planner
 - ✅ Todo management - Full CRUD API and UI
   - Create, read, update, delete todos
+  - Optional due dates with native HTML5 date picker
+  - AI formats due dates with day-of-week (e.g., "[Due Friday, Feb 20]")
+  - Overdue styling for past-due items
   - Completion tracking with 24-hour visibility window
   - Integrated into LLM generator for schedule optimization
   - Luxury UI with inline editing
@@ -415,9 +456,9 @@ db-init                # Reinitialize
 seed                   # Add sample data for development
 ```
 
-The database is automatically created when the app starts. Models include:
+The database is automatically created when the app starts. Migrations run automatically before initialization. Models include:
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
-- `Todo` - Task management with title, description, completion status, and timestamps
+- `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), completion status, and timestamps
 - `DinnerPlan` - Meal planning with date (unique), plan text, and timestamps
 
 ### Dependency Issues

@@ -1,9 +1,17 @@
 #!/bin/bash
 set -e
 
-# Initialize database
-echo "Initializing database..."
+# Run all migrations (idempotent)
+python run_migrations.py || {
+    echo "✗ Migrations failed - exiting"
+    exit 1
+}
+
+# Initialize database schema (idempotent - creates missing tables)
+echo ""
+echo "Initializing database schema..."
 python -c 'from rally.database import init_db; init_db()'
+echo "✓ Database ready"
 
 # Start the scheduled generator in the background
 (

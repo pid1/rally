@@ -43,6 +43,7 @@ def create_todo(todo: TodoCreate, db: Session = Depends(get_db)):
     db_todo = Todo(
         title=todo.title,
         description=todo.description,
+        due_date=todo.due_date,
         completed=False,
     )
     db.add(db_todo)
@@ -76,6 +77,8 @@ def update_todo(
         db_todo.title = todo.title
     if todo.description is not None:
         db_todo.description = todo.description
+    if todo.due_date is not None:
+        db_todo.due_date = todo.due_date
     if todo.completed is not None:
         db_todo.completed = todo.completed
 

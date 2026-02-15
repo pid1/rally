@@ -131,6 +131,9 @@ class SummaryGenerator:
 
         db = SessionLocal()
         try:
+            import re
+            from datetime import datetime
+
             from rally.models import Todo
 
             # Get todos visible within 24-hour window
@@ -150,8 +153,32 @@ class SummaryGenerator:
             for todo in todos:
                 status = " (completed)" if todo.completed else ""
                 line = f"{todo.title}{status}"
+
+                # Add due date if present
+                if todo.due_date:
+                    try:
+                        date_obj = datetime.strptime(todo.due_date, '%Y-%m-%d')
+                        day_name = date_obj.strftime('%A')
+                        date_formatted = date_obj.strftime('%b %d')
+                        line += f" [Due {day_name}, {date_formatted}]"
+                    except ValueError:
+                        line += f" [Due {todo.due_date}]"  # Fallback
+
                 if todo.description:
-                    line += f" - {todo.description}"
+                    # Look for dates in format YYYY-MM-DD in the description and add day of week
+                    desc = todo.description
+                    date_pattern = r'(\d{4}-\d{2}-\d{2})'
+                    matches = re.finditer(date_pattern, desc)
+                    for match in matches:
+                        date_str = match.group(1)
+                        try:
+                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                            day_name = date_obj.strftime('%A')
+                            # Replace date with "date (DayName)"
+                            desc = desc.replace(date_str, f"{date_str} ({day_name})")
+                        except ValueError:
+                            pass  # Skip invalid dates
+                    line += f" - {desc}"
                 lines.append(line)
 
             return "\n".join(lines)
@@ -290,14 +317,14 @@ Guidelines:
 5. Look at the FULL 7-DAY weather forecast. If upcoming weather might affect plans (rain for outdoor events, extreme temps, etc.), mention it in the briefing
 6. Check upcoming calendar events against weather. Suggest prep work if needed (umbrellas, warmer clothes, rescheduling outdoor activities)
 7. Consider family routines and how everyone can support each other
-8. If any upcoming dinners require advance prep (marinating, defrosting, grocery shopping), mention it in briefing with the specific day
-9. The briefing should surface important things about the NEXT 7 DAYS that need attention today or soon
+8. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
+9. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
         try:
             response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-opus-4-6",
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )

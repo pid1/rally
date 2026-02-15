@@ -10,6 +10,8 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - 🌤️ **Smart Weather Guidance** - Clothing recommendations and activity adjustments
 - ✅ **Todo Management** - Full CRUD interface for family tasks
   - Create, edit, complete, and delete todos
+  - Optional due dates with elegant date picker
+  - AI displays due dates with day-of-week (e.g., "Due Friday, Feb 20")
   - 24-hour visibility window for completed tasks
   - Integrated into AI summaries for schedule optimization
 - 🍕 **Dinner Planner** - Plan meals ahead with prep reminders
@@ -28,13 +30,14 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - **FastAPI** - Modern Python web framework with automatic API docs
 - **SQLite** - Zero-config database for todos and dashboard snapshots
 - **SQLAlchemy** - Modern ORM with type hints
+- **Idempotent Migrations** - File-based migration system that runs automatically on startup
 - **Uvicorn** - High-performance ASGI server
-- **Claude AI** - Natural language generation for summaries (Sonnet 4)
+- **Claude AI** - Natural language generation for summaries (Claude Opus 4.6)
 - **icalendar** - ICS calendar parsing and filtering
 - **Python 3.14** - Latest Python with modern syntax
 - **uv** - Fast Python dependency management
 - **Nix + devenv** - Reproducible development environment
-- **Docker** - Containerized with scheduled generation (4 AM Central)
+- **Docker** - Containerized with scheduled generation (4 AM in configured timezone)
 
 ## Routes
 
@@ -264,6 +267,48 @@ Configure your tablet or smart display browser to:
 3. Create an API key
 4. Cost: ~$0.02-0.03 per summary generation with Claude Sonnet 4
 
+## Database Migrations
+
+Rally uses a **file-based migration system** that runs automatically on container startup. All migrations are **idempotent** (safe to run multiple times).
+
+### How It Works
+
+1. **On Startup**: `entrypoint.sh` runs `run_migrations.py` before starting the web server
+2. **Idempotent**: Each migration checks if changes already exist before executing
+3. **Ordered**: Migrations run in sequence as defined in `run_migrations.py`
+4. **Fail-Safe**: Container won't start if migrations fail
+
+### Existing Migrations
+
+| Migration | Description | Date |
+|-----------|-------------|------|
+| `001_add_due_date` | Add optional `due_date` field to todos table | 2026-02-15 |
+
+### Running Migrations Manually
+
+```bash
+# Development
+python3 run_migrations.py
+
+# Docker
+docker exec rally python run_migrations.py
+
+# Test idempotency (should succeed twice)
+python3 run_migrations.py && python3 run_migrations.py
+```
+
+### Creating New Migrations
+
+See `MIGRATIONS.md` for complete documentation. Quick overview:
+
+1. **Create** `migrate_XXX_description.py` using the template in `MIGRATIONS.md`
+2. **Test** locally: `python3 migrate_XXX_description.py`
+3. **Register** in `run_migrations.py` migrations list
+4. **Update** `Dockerfile` to include the new file
+5. **Deploy** - runs automatically on container startup
+
+**Key Principle**: Every migration must be **idempotent** - it checks if changes exist before applying them.
+
 ## Directory Structure
 
 ```
@@ -290,14 +335,17 @@ rally/
 │   ├── context.txt         # Family context for AI
 │   ├── agent_voice.txt     # AI agent voice/tone profile
 │   └── rally.db            # SQLite database
+├── migrate_*.py            # Database migration scripts
+├── run_migrations.py       # Migration runner (executes all migrations)
 ├── config.toml.example     # Example configuration file
 ├── context.txt.example     # Example family context
 ├── devenv.nix              # Development environment scripts
 ├── devenv.yaml             # devenv configuration
 ├── pyproject.toml          # Python dependencies (Python 3.14, includes icalendar)
 ├── Dockerfile              # Production container
-├── entrypoint.sh           # Docker entrypoint (scheduled generation + web server)
+├── entrypoint.sh           # Docker entrypoint (migrations + scheduled generation + web server)
 ├── AGENTS.md               # AI agent instructions
+├── MIGRATIONS.md           # Database migration documentation
 └── README.md               # This file
 ```
 

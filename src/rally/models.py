@@ -30,6 +30,7 @@ class Todo(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    due_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
     completed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(

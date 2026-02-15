@@ -14,6 +14,8 @@ WORKDIR /app
 COPY --from=builder /app/.venv .venv
 COPY --from=builder /app/src src/
 COPY templates/ templates/
+COPY migrate_add_due_date.py migrate_add_due_date.py
+COPY run_migrations.py run_migrations.py
 COPY entrypoint.sh entrypoint.sh
 
 RUN chmod +x entrypoint.sh

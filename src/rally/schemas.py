@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 class TodoBase(BaseModel):
     title: str
     description: str | None = None
+    due_date: str | None = None  # YYYY-MM-DD format
 
 
 class TodoCreate(TodoBase):
@@ -17,6 +18,7 @@ class TodoCreate(TodoBase):
 class TodoUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
+    due_date: str | None = None  # YYYY-MM-DD format
     completed: bool | None = None
 
 
