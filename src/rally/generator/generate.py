@@ -36,7 +36,7 @@ class SummaryGenerator:
             self.config = tomllib.load(f)
         self.client = anthropic.Anthropic(api_key=self.config["anthropic"]["api_key"])
         # Allow overriding model in config; fall back to a stable default
-        self.model = self.config.get("anthropic", {}).get("model", "claude-3-sonnet-20240229")
+        self.model = self.config.get("anthropic", {}).get("model", "claude-sonnet-4-5-20250929")
 
         # Get local timezone from config (default to UTC)
         self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
