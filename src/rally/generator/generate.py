@@ -35,6 +35,8 @@ class SummaryGenerator:
         with open(config_path, "rb") as f:
             self.config = tomllib.load(f)
         self.client = anthropic.Anthropic(api_key=self.config["anthropic"]["api_key"])
+        # Allow overriding model in config; fall back to a stable default
+        self.model = self.config.get("anthropic", {}).get("model", "claude-3-sonnet-20240229")
 
         # Get local timezone from config (default to UTC)
         self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
@@ -243,6 +245,63 @@ class SummaryGenerator:
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         return (base_dir / "templates" / "dashboard.html").read_text()
 
+    def _extract_json_object(self, text: str) -> dict | None:
+        """Try to extract the first top-level JSON object from arbitrary text.
+
+        Handles code fences and leading/trailing noise, and balances braces while
+        being aware of strings and escapes.
+        """
+        import re
+
+        if not text:
+            return None
+
+        # Strip common markdown fences if present
+        text = text.strip()
+        if text.startswith("```"):
+            # Remove first fence line and possible language tag
+            text = re.sub(r"^```[a-zA-Z0-9_-]*\n", "", text)
+            # Remove closing fence if present
+            text = re.sub(r"\n```\s*$", "", text)
+            text = text.strip()
+
+        # Find first '{'
+        start = text.find("{")
+        if start == -1:
+            return None
+
+        stack = 0
+        in_str = False
+        esc = False
+        end = None
+        for i in range(start, len(text)):
+            ch = text[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+            else:
+                if ch == '"':
+                    in_str = True
+                elif ch == '{':
+                    stack += 1
+                elif ch == '}':
+                    stack -= 1
+                    if stack == 0:
+                        end = i + 1
+                        break
+        if end is None:
+            return None
+
+        candidate = text[start:end]
+        try:
+            return json.loads(candidate)
+        except Exception:
+            return None
+
     def generate_summary(self) -> dict:
         """Generate the daily summary JSON data using Claude."""
         calendars = self.fetch_calendars()
@@ -324,14 +383,41 @@ Do NOT include any HTML in your response. Plain text only for all values."""
 
         try:
             response = self.client.messages.create(
-                model="claude-opus-4-6",
+                model=self.model,
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            data = json.loads(response.content[0].text)
-            return data
+            # Get the response text
+            response_text = response.content[0].text if getattr(response, "content", None) else ""
+            print(f"Claude response (first 500 chars): {response_text[:500]}")
+
+            # Try strict JSON first
+            try:
+                data = json.loads(response_text)
+                return data
+            except Exception:
+                pass
+
+            # Fallback: attempt to extract a JSON object from the text
+            extracted = self._extract_json_object(response_text)
+            if extracted is not None:
+                return extracted
+
+            # If all parsing fails, raise to outer handler
+            raise json.JSONDecodeError("Unable to parse JSON from Claude response", response_text or "", 0)
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            print(f"Response text: {response_text if 'response_text' in locals() else 'No response'}")
+            # Return error structure matching expected schema
+            return {
+                "greeting": "⚠️ Unable to generate today's summary.",
+                "weather_summary": f"JSON Error: {e}",
+                "schedule": [],
+                "briefing": "The system will retry at the next scheduled interval.",
+            }
         except Exception as e:
+            print(f"General error: {e}")
             # Return error structure matching expected schema
             return {
                 "greeting": "⚠️ Unable to generate today's summary.",
