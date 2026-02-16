@@ -78,18 +78,20 @@ class SummaryGenerator:
                             if hasattr(dtstart.dt, "strftime"):
                                 # Convert to local timezone for display
                                 dt = dtstart.dt
-                                if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+                                if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
                                     # Ensure it's timezone-aware in UTC first, then convert to local
                                     dt = ensure_utc(dt).astimezone(self.local_tz)
                                 time_str = dt.strftime("%I:%M %p").lstrip("0")
 
-                            events.append({
-                                "summary": summary,
-                                "time": time_str,
-                                "date": event_date.strftime("%Y-%m-%d"),
-                                "description": description,
-                                "location": location,
-                            })
+                            events.append(
+                                {
+                                    "summary": summary,
+                                    "time": time_str,
+                                    "date": event_date.strftime("%Y-%m-%d"),
+                                    "description": description,
+                                    "location": location,
+                                }
+                            )
 
                 # Sort events by date and time
                 events.sort(key=lambda e: (e["date"], e["time"]))
@@ -159,9 +161,9 @@ class SummaryGenerator:
                 # Add due date if present
                 if todo.due_date:
                     try:
-                        date_obj = datetime.strptime(todo.due_date, '%Y-%m-%d')
-                        day_name = date_obj.strftime('%A')
-                        date_formatted = date_obj.strftime('%b %d')
+                        date_obj = datetime.strptime(todo.due_date, "%Y-%m-%d")
+                        day_name = date_obj.strftime("%A")
+                        date_formatted = date_obj.strftime("%b %d")
                         line += f" [Due {day_name}, {date_formatted}]"
                     except ValueError:
                         line += f" [Due {todo.due_date}]"  # Fallback
@@ -169,13 +171,13 @@ class SummaryGenerator:
                 if todo.description:
                     # Look for dates in format YYYY-MM-DD in the description and add day of week
                     desc = todo.description
-                    date_pattern = r'(\d{4}-\d{2}-\d{2})'
+                    date_pattern = r"(\d{4}-\d{2}-\d{2})"
                     matches = re.finditer(date_pattern, desc)
                     for match in matches:
                         date_str = match.group(1)
                         try:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                            day_name = date_obj.strftime('%A')
+                            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                            day_name = date_obj.strftime("%A")
                             # Replace date with "date (DayName)"
                             desc = desc.replace(date_str, f"{date_str} ({day_name})")
                         except ValueError:
@@ -286,9 +288,9 @@ class SummaryGenerator:
             else:
                 if ch == '"':
                     in_str = True
-                elif ch == '{':
+                elif ch == "{":
                     stack += 1
-                elif ch == '}':
+                elif ch == "}":
                     stack -= 1
                     if stack == 0:
                         end = i + 1
@@ -315,19 +317,20 @@ class SummaryGenerator:
         cal_text = ""
         if calendars:
             from datetime import datetime
+
             for cal in calendars:
                 cal_text += f"\nCALENDAR: {cal['name']}\n"
                 current_date = None
-                for event in cal['events']:
+                for event in cal["events"]:
                     # Group events by date for readability
-                    if event['date'] != current_date:
-                        current_date = event['date']
+                    if event["date"] != current_date:
+                        current_date = event["date"]
                         cal_text += f"\n  {datetime.strptime(event['date'], '%Y-%m-%d').strftime('%A, %B %d')}:\n"
 
                     cal_text += f"    - {event['time']} {event['summary']}"
-                    if event['location']:
+                    if event["location"]:
                         cal_text += f" at {event['location']}"
-                    if event['description']:
+                    if event["description"]:
                         cal_text += f" ({event['description']})"
                     cal_text += "\n"
         else:
@@ -405,10 +408,14 @@ Do NOT include any HTML in your response. Plain text only for all values."""
                 return extracted
 
             # If all parsing fails, raise to outer handler
-            raise json.JSONDecodeError("Unable to parse JSON from Claude response", response_text or "", 0)
+            raise json.JSONDecodeError(
+                "Unable to parse JSON from Claude response", response_text or "", 0
+            )
         except json.JSONDecodeError as e:
             print(f"JSON decode error: {e}")
-            print(f"Response text: {response_text if 'response_text' in locals() else 'No response'}")
+            print(
+                f"Response text: {response_text if 'response_text' in locals() else 'No response'}"
+            )
             # Return error structure matching expected schema
             return {
                 "greeting": "⚠️ Unable to generate today's summary.",
@@ -433,9 +440,9 @@ Do NOT include any HTML in your response. Plain text only for all values."""
             today = today_utc().strftime("%Y-%m-%d")
 
             # Deactivate previous snapshots for today
-            db.query(DashboardSnapshot).filter(
-                DashboardSnapshot.date == today
-            ).update({"is_active": False})
+            db.query(DashboardSnapshot).filter(DashboardSnapshot.date == today).update(
+                {"is_active": False}
+            )
 
             # Create new snapshot
             snapshot = DashboardSnapshot(

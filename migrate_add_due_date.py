@@ -3,6 +3,7 @@
 
 Run this once to upgrade existing databases. Safe to run multiple times (idempotent).
 """
+
 import os
 import sqlite3
 import sys
@@ -36,7 +37,7 @@ def migrate():
         cursor.execute("PRAGMA table_info(todos)")
         columns = [col[1] for col in cursor.fetchall()]
 
-        if 'due_date' in columns:
+        if "due_date" in columns:
             print("✓ Migration: todos.due_date column already exists (idempotent check)")
             return True
 
@@ -52,6 +53,7 @@ def migrate():
         return False
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     success = migrate()

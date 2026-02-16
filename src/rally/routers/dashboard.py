@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.generator.generate import SummaryGenerator
 from rally.models import DashboardSnapshot
-from rally.utils.timezone import ensure_utc, now_utc, today_utc
+from rally.utils.timezone import ensure_utc, now_utc
 
 router = APIRouter(tags=["dashboard"])
 
@@ -35,11 +35,7 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     # Build schedule HTML
     schedule_html = ""
     for item in data.get("schedule", []):
-        notes = (
-            f'<div class="schedule-notes">{item["notes"]}</div>'
-            if item.get("notes")
-            else ""
-        )
+        notes = f'<div class="schedule-notes">{item["notes"]}</div>' if item.get("notes") else ""
         schedule_html += (
             f'<div class="schedule-item">'
             f'<div class="schedule-time">{item["time"]}</div>'
@@ -55,10 +51,7 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     briefing = data.get("briefing", "")
     if briefing:
         briefing_section = (
-            '<div class="briefing">'
-            '<div class="briefing-title">The Briefing</div>'
-            f'{briefing}'
-            "</div>"
+            f'<div class="briefing"><div class="briefing-title">The Briefing</div>{briefing}</div>'
         )
     else:
         briefing_section = ""
@@ -76,12 +69,12 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
 @router.get("/dashboard", response_class=HTMLResponse)
 async def get_dashboard(request: Request, db: Session = Depends(get_db)):
     """Serve the generated daily dashboard from cached snapshot."""
-    today = today_utc().strftime("%Y-%m-%d")
-
-    # Fetch today's active snapshot
+    # Fetch the most recent active snapshot (regardless of date)
+    # This handles timezone differences between when snapshots are generated
+    # (in local timezone, e.g., 4 AM Central) vs when they're viewed (UTC-based)
     snapshot = (
         db.query(DashboardSnapshot)
-        .filter(DashboardSnapshot.date == today, DashboardSnapshot.is_active == True)  # noqa: E712
+        .filter(DashboardSnapshot.is_active == True)  # noqa: E712
         .order_by(DashboardSnapshot.timestamp.desc())
         .first()
     )

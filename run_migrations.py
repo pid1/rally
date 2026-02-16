@@ -4,6 +4,7 @@
 This script runs all migration files in sequence. Each migration should be idempotent.
 Add new migrations by importing them here and adding to the MIGRATIONS list.
 """
+
 import sys
 
 

@@ -33,9 +33,7 @@ class Todo(Base):
     due_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
     completed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
-    updated_at: Mapped[datetime] = mapped_column(
-        default=now_utc, onupdate=now_utc
-    )
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
 
 class DinnerPlan(Base):
@@ -47,6 +45,4 @@ class DinnerPlan(Base):
     date: Mapped[str] = mapped_column(String(10), unique=True)  # YYYY-MM-DD
     plan: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
-    updated_at: Mapped[datetime] = mapped_column(
-        default=now_utc, onupdate=now_utc
-    )
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
