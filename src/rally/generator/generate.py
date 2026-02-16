@@ -62,6 +62,26 @@ class SummaryGenerator:
                         if not dtstart:
                             continue
 
+                        # Skip declined events
+                        status = component.get("status")
+                        if status and str(status).upper() == "DECLINED":
+                            continue
+
+                        # Check attendee participation status
+                        attendees = component.get("attendee")
+                        if attendees:
+                            # Handle both single attendee and list of attendees
+                            if not isinstance(attendees, list):
+                                attendees = [attendees]
+                            # Skip if any attendee has PARTSTAT=DECLINED
+                            is_declined = any(
+                                hasattr(att, "params")
+                                and att.params.get("PARTSTAT", "").upper() == "DECLINED"
+                                for att in attendees
+                            )
+                            if is_declined:
+                                continue
+
                         # Get event date (handle both date and datetime objects)
                         event_date = dtstart.dt
                         if hasattr(event_date, "date"):
