@@ -7,9 +7,9 @@ from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-import anthropic
 import requests
 from icalendar import Calendar
+from openai import OpenAI
 
 from rally.database import SessionLocal, init_db
 from rally.models import DashboardSnapshot
@@ -34,9 +34,12 @@ class SummaryGenerator:
         config_path = self.data_dir / "config.toml"
         with open(config_path, "rb") as f:
             self.config = tomllib.load(f)
-        self.client = anthropic.Anthropic(api_key=self.config["anthropic"]["api_key"])
-        # Allow overriding model in config; fall back to a stable default
-        self.model = self.config.get("anthropic", {}).get("model", "claude-sonnet-4-5-20250929")
+        llm_config = self.config["llm"]
+        self.client = OpenAI(
+            base_url=llm_config["base_url"],
+            api_key=llm_config.get("api_key", "no-key-needed"),
+        )
+        self.model = llm_config["model"]
 
         # Get local timezone from config (default to UTC)
         self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
@@ -405,15 +408,15 @@ Guidelines:
 Do NOT include any HTML in your response. Plain text only for all values."""
 
         try:
-            response = self.client.messages.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )
 
             # Get the response text
-            response_text = response.content[0].text if getattr(response, "content", None) else ""
-            print(f"Claude response (first 500 chars): {response_text[:500]}")
+            response_text = response.choices[0].message.content if response.choices else ""
+            print(f"LLM response (first 500 chars): {response_text[:500]}")
 
             # Try strict JSON first
             try:

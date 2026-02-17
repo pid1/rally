@@ -30,7 +30,20 @@ api_key = "your_openweather_api_key_here"
 lat = 32.7767
 lon = -96.7970
 
-[anthropic]
-# Get your API key from https://console.anthropic.com/
-# Cost: ~$0.02 per summary generation
-api_key = "your_anthropic_api_key_here"
+[llm]
+# OpenAI-compatible API endpoint
+# Works with LM Studio, Ollama, vLLM, OpenAI, or any OpenAI-compatible server
+#
+# LM Studio:  http://YOUR_IP:1234/v1
+# Ollama:     http://YOUR_IP:11434/v1
+# OpenAI:     https://api.openai.com/v1
+base_url = "http://localhost:1234/v1"
+
+# API key (use "lm-studio" for LM Studio, "ollama" for Ollama, or your real key for OpenAI)
+api_key = "lm-studio"
+
+# Model name (must match what's loaded in your server)
+# LM Studio: check the model name in the Developer tab
+# Ollama: e.g. "llama3", "mistral"
+# OpenAI: e.g. "gpt-4o"
+model = "your-model-name"
