@@ -214,10 +214,7 @@ class SummaryGenerator:
             return None
 
     def load_todos(self) -> str:
-        """Load todos from database for LLM context.
-
-        Includes all incomplete todos and completed todos from last 24 hours.
-        """
+        """Load outstanding todos from database for LLM context."""
 
         db = SessionLocal()
         try:
@@ -226,11 +223,10 @@ class SummaryGenerator:
 
             from rally.models import Todo
 
-            # Get todos visible within 24-hour window
-            cutoff = now_utc() - timedelta(hours=24)
+            # Only send incomplete todos to the LLM
             todos = (
                 db.query(Todo)
-                .filter((Todo.completed == False) | (Todo.updated_at > cutoff))  # noqa: E712
+                .filter(Todo.completed == False)  # noqa: E712
                 .order_by(Todo.created_at.desc())
                 .all()
             )
@@ -241,8 +237,7 @@ class SummaryGenerator:
             # Format todos for LLM
             lines = []
             for todo in todos:
-                status = " (completed)" if todo.completed else ""
-                line = f"{todo.title}{status}"
+                line = f"{todo.title}"
 
                 # Add due date if present
                 if todo.due_date:
