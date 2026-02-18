@@ -31,6 +31,11 @@ lat = 32.7767
 lon = -96.7970
 
 [llm]
+# Which provider to use: "local" or "anthropic"
+# Switch this value to change which LLM backend Rally uses.
+provider = "local"
+
+[llm.local]
 # OpenAI-compatible API endpoint
 # Works with LM Studio, Ollama, vLLM, OpenAI, or any OpenAI-compatible server
 #
@@ -47,3 +52,9 @@ api_key = "lm-studio"
 # Ollama: e.g. "llama3", "mistral"
 # OpenAI: e.g. "gpt-4o"
 model = "your-model-name"
+
+[llm.anthropic]
+# Anthropic API (uses native anthropic library)
+# Get your key at https://console.anthropic.com/
+api_key = "your-anthropic-api-key"
+model = "claude-sonnet-4-20250514"

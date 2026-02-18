@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 import recurring_ical_events
 import requests
 from icalendar import Calendar
-from openai import OpenAI
 
 from rally.database import SessionLocal, init_db
 from rally.models import DashboardSnapshot
@@ -35,12 +34,24 @@ class SummaryGenerator:
         config_path = self.data_dir / "config.toml"
         with open(config_path, "rb") as f:
             self.config = tomllib.load(f)
+
+        # LLM provider setup
         llm_config = self.config["llm"]
-        self.client = OpenAI(
-            base_url=llm_config["base_url"],
-            api_key=llm_config.get("api_key", "no-key-needed"),
-        )
-        self.model = llm_config["model"]
+        self.provider = llm_config.get("provider", "local")
+        provider_config = llm_config.get(self.provider, {})
+        self.model = provider_config["model"]
+
+        if self.provider == "anthropic":
+            import anthropic
+
+            self.client = anthropic.Anthropic(api_key=provider_config["api_key"])
+        else:
+            from openai import OpenAI
+
+            self.client = OpenAI(
+                base_url=provider_config["base_url"],
+                api_key=provider_config.get("api_key", "no-key-needed"),
+            )
 
         # Get local timezone from config (default to UTC)
         self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
@@ -272,6 +283,23 @@ class SummaryGenerator:
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         return (base_dir / "templates" / "dashboard.html").read_text()
 
+    def _call_llm(self, prompt: str) -> str:
+        """Call the configured LLM provider and return the response text."""
+        if self.provider == "anthropic":
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=4000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.content[0].text if response.content else ""
+        else:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                max_tokens=4000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content if response.choices else ""
+
     def _extract_json_object(self, text: str) -> dict | None:
         """Try to extract the first top-level JSON object from arbitrary text.
 
@@ -410,14 +438,7 @@ Guidelines:
 Do NOT include any HTML in your response. Plain text only for all values."""
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            # Get the response text
-            response_text = response.choices[0].message.content if response.choices else ""
+            response_text = self._call_llm(prompt)
             print(f"LLM response:\n{response_text}")
 
             # Try strict JSON first
