@@ -26,7 +26,9 @@ app = FastAPI(
 )
 
 # Static files
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+static_dir = BASE_DIR / "static"
+if static_dir.is_dir():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Templates
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))

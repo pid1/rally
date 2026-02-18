@@ -13,6 +13,7 @@ FROM python:3.14-slim
 WORKDIR /app
 COPY --from=builder /app/.venv .venv
 COPY --from=builder /app/src src/
+COPY static/ static/
 COPY templates/ templates/
 COPY migrate_add_due_date.py migrate_add_due_date.py
 COPY run_migrations.py run_migrations.py
