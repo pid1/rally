@@ -56,16 +56,82 @@ class SummaryGenerator:
         # Get local timezone from config (default to UTC)
         self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
 
+        # Optional: owner emails for accurate declined-event detection
+        self.calendar_owners = self.config.get("calendar_owners", {})
+
+    def _is_event_declined(self, component, owner_email: str | None = None) -> bool:
+        """Check if a calendar event has been declined.
+
+        Uses multiple signals to detect declined events across providers:
+        - Google Calendar: PARTSTAT on attendees
+        - Apple iCloud: PARTSTAT on attendees
+        - Outlook/Exchange: X-MICROSOFT-CDO-BUSYSTATUS property
+
+        When owner_email is provided (via [calendar_owners] in config.toml),
+        only that attendee's PARTSTAT is checked—this is the most accurate
+        approach. Without it, the method falls back to conservative heuristics.
+        """
+        # STATUS=CANCELLED means the organizer cancelled the event
+        status = component.get("status")
+        if status and str(status).upper() == "CANCELLED":
+            return True
+
+        attendees = component.get("attendee")
+        if not attendees:
+            return False
+
+        if not isinstance(attendees, list):
+            attendees = [attendees]
+
+        if owner_email:
+            # Best path: check the specific calendar owner's PARTSTAT
+            owner_email_lower = owner_email.strip().lower()
+            for att in attendees:
+                att_email = str(att).replace("mailto:", "").strip().lower()
+                if att_email == owner_email_lower:
+                    partstat = ""
+                    if hasattr(att, "params"):
+                        partstat = str(att.params.get("PARTSTAT", ""))
+                    return partstat.upper() == "DECLINED"
+            # Owner not found in attendees — they may be the organizer; not declined
+            return False
+
+        # --- No owner email: use conservative heuristics ---
+
+        # Microsoft Outlook: X-MICROSOFT-CDO-BUSYSTATUS=FREE with declined attendees
+        busystatus = component.get("X-MICROSOFT-CDO-BUSYSTATUS")
+        if busystatus and str(busystatus).upper() == "FREE":
+            has_declined = any(
+                hasattr(att, "params")
+                and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
+                for att in attendees
+            )
+            if has_declined:
+                return True
+
+        # If ALL attendees have declined, the event is effectively dead
+        all_declined = all(
+            hasattr(att, "params")
+            and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
+            for att in attendees
+        )
+        if all_declined:
+            return True
+
+        return False
+
     def fetch_calendars(self) -> list[dict[str, list[dict]]]:
         """Download and parse ICS feeds, filtering for next 7 days of events.
 
-        Uses recurring_ical_events to properly expand recurring events (RRULE).
+        Uses recurring_ical_events to properly expand recurring events (RRULE),
+        including modified/cancelled occurrences via RECURRENCE-ID and EXDATE.
         """
         today = today_utc()
         end_date = today + timedelta(days=7)
 
         calendars = []
         for key, url in self.config["calendars"].items():
+            owner_email = self.calendar_owners.get(key)
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
@@ -80,25 +146,9 @@ class SummaryGenerator:
                     if not dtstart:
                         continue
 
-                    # Skip declined events
-                    status = component.get("status")
-                    if status and str(status).upper() == "DECLINED":
+                    # Skip declined / cancelled events
+                    if self._is_event_declined(component, owner_email):
                         continue
-
-                    # Check attendee participation status
-                    attendees = component.get("attendee")
-                    if attendees:
-                        # Handle both single attendee and list of attendees
-                        if not isinstance(attendees, list):
-                            attendees = [attendees]
-                        # Skip if any attendee has PARTSTAT=DECLINED
-                        is_declined = any(
-                            hasattr(att, "params")
-                            and att.params.get("PARTSTAT", "").upper() == "DECLINED"
-                            for att in attendees
-                        )
-                        if is_declined:
-                            continue
 
                     # Get event date (handle both date and datetime objects)
                     event_date = dtstart.dt

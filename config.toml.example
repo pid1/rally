@@ -21,6 +21,15 @@ icloud_parent1 = "https://p01-caldav.icloud.com/published/2/YOUR_ICAL_URL"
 # icloud_parent2 = "https://..."
 # google_kids_activities = "https://..."
 
+# Optional: map calendar keys to the owner's email address.
+# This lets Rally accurately detect which events YOU declined vs. events
+# where a different attendee declined. Without this, Rally uses conservative
+# heuristics (only hides events where ALL attendees declined or the event
+# is cancelled).
+[calendar_owners]
+# google_family = "you@gmail.com"
+# icloud_parent1 = "you@icloud.com"
+
 [weather]
 # Sign up at https://openweathermap.org/api (free tier: 1000 calls/day)
 api_key = "your_openweather_api_key_here"
