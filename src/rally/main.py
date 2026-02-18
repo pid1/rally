@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from rally.database import init_db
@@ -23,6 +24,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Static files
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 # Templates
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
