@@ -477,6 +477,7 @@ Guidelines:
 6. Consider family routines and how everyone can support each other
 7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
+9. If the weather is actively dangerous (snow, thunderstorms, or tornado risk) within the next 7 days, mention it.
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
