@@ -561,6 +561,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pytz"
+version = "2025.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/bf/abbd3cdfb8fbc7fb3d4d38d320f2441b1e7cbe29be4f23797b4a2b5d8aac/pytz-2025.2.tar.gz", hash = "sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3", size = 320884, upload-time = "2025-03-25T02:25:00.538Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/c4/34e93fe5f5429d7570ec1fa436f1986fb1f00c3e0f43a589fe2bbcd22c3f/pytz-2025.2-py2.py3-none-any.whl", hash = "sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00", size = 509225, upload-time = "2025-03-25T02:24:58.468Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -596,6 +605,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "openai" },
     { name = "pydantic" },
+    { name = "recurring-ical-events" },
     { name = "requests" },
     { name = "ruff" },
     { name = "sqlalchemy" },
@@ -608,9 +618,25 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "openai", specifier = ">=2.21.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "recurring-ical-events", specifier = ">=2.0.2" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "ruff", specifier = ">=0.15.1" },
     { name = "sqlalchemy", specifier = ">=2.0.46" },
+]
+
+[[package]]
+name = "recurring-ical-events"
+version = "2.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "icalendar" },
+    { name = "python-dateutil" },
+    { name = "pytz" },
+    { name = "x-wr-timezone" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ec/97/7a54ae3154fb40ef8d7fae9e2e7c7c562e391b7e65574c73940c7c17a4f4/recurring_ical_events-2.0.2.tar.gz", hash = "sha256:c4bc7d0d26fcda0ac3b773c9706fd1e271b7b0e0230ad0ee02ccab55e274ea11", size = 34267, upload-time = "2023-02-18T20:32:25.199Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4c/1f/91cdd4184f6c1ef23d2608b4af0eb2b495a20e8d49e58a00558817a2312b/recurring_ical_events-2.0.2-py3-none-any.whl", hash = "sha256:a618140129e2ff00afa6b7afc1a154c2cb2177166621a519941b7058d6f6c339", size = 17367, upload-time = "2023-02-18T20:32:23.758Z" },
 ]
 
 [[package]]
@@ -963,4 +989,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/b6/b9afed2afadddaf5ebb2afa801abf4b0868f42f8539bfe4b071b5266c9fe/websockets-16.0-cp314-cp314t-win32.whl", hash = "sha256:5a4b4cc550cb665dd8a47f868c8d04c8230f857363ad3c9caf7a0c3bf8c61ca6", size = 178085, upload-time = "2026-01-10T09:23:33.816Z" },
     { url = "https://files.pythonhosted.org/packages/9f/3e/28135a24e384493fa804216b79a6a6759a38cc4ff59118787b9fb693df93/websockets-16.0-cp314-cp314t-win_amd64.whl", hash = "sha256:b14dc141ed6d2dde437cddb216004bcac6a1df0935d79656387bd41632ba0bbd", size = 178531, upload-time = "2026-01-10T09:23:35.016Z" },
     { url = "https://files.pythonhosted.org/packages/6f/28/258ebab549c2bf3e64d2b0217b973467394a9cea8c42f70418ca2c5d0d2e/websockets-16.0-py3-none-any.whl", hash = "sha256:1637db62fad1dc833276dded54215f2c7fa46912301a24bd94d45d46a011ceec", size = 171598, upload-time = "2026-01-10T09:23:45.395Z" },
+]
+
+[[package]]
+name = "x-wr-timezone"
+version = "0.0.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "icalendar" },
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5b/13/39d08b2f410884d167ccf123139e92b516a9292403ffb5170c48c2942179/x_wr_timezone-0.0.7.tar.gz", hash = "sha256:ccbaae164a52086535fd2eb1dced164a5250acc83a672fbb044d11e81a268965", size = 16271, upload-time = "2024-03-17T05:16:39.06Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/c6/53227e391c641b891e173b0454f137a21cb969dd58b5171e487e4da7e87e/x_wr_timezone-0.0.7-py3-none-any.whl", hash = "sha256:0b5e16f677c8f51ce41087a0b3d4f786c5fdcf78af4f8a75d4d960107dcb6d3a", size = 10275, upload-time = "2024-03-17T05:16:36.419Z" },
 ]

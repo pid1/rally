@@ -7,6 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import recurring_ical_events
 import requests
 from icalendar import Calendar
 from openai import OpenAI
@@ -45,7 +46,10 @@ class SummaryGenerator:
         self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
 
     def fetch_calendars(self) -> list[dict[str, list[dict]]]:
-        """Download and parse ICS feeds, filtering for next 7 days of events."""
+        """Download and parse ICS feeds, filtering for next 7 days of events.
+
+        Uses recurring_ical_events to properly expand recurring events (RRULE).
+        """
         today = today_utc()
         end_date = today + timedelta(days=7)
 
@@ -55,66 +59,64 @@ class SummaryGenerator:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
 
-                # Parse ICS data
+                # Parse ICS data and expand recurring events
                 cal = Calendar.from_ical(response.text)
+                recurring_events = recurring_ical_events.of(cal).between(today, end_date)
+
                 events = []
+                for component in recurring_events:
+                    dtstart = component.get("dtstart")
+                    if not dtstart:
+                        continue
 
-                for component in cal.walk():
-                    if component.name == "VEVENT":
-                        dtstart = component.get("dtstart")
-                        if not dtstart:
+                    # Skip declined events
+                    status = component.get("status")
+                    if status and str(status).upper() == "DECLINED":
+                        continue
+
+                    # Check attendee participation status
+                    attendees = component.get("attendee")
+                    if attendees:
+                        # Handle both single attendee and list of attendees
+                        if not isinstance(attendees, list):
+                            attendees = [attendees]
+                        # Skip if any attendee has PARTSTAT=DECLINED
+                        is_declined = any(
+                            hasattr(att, "params")
+                            and att.params.get("PARTSTAT", "").upper() == "DECLINED"
+                            for att in attendees
+                        )
+                        if is_declined:
                             continue
 
-                        # Skip declined events
-                        status = component.get("status")
-                        if status and str(status).upper() == "DECLINED":
-                            continue
+                    # Get event date (handle both date and datetime objects)
+                    event_date = dtstart.dt
+                    if hasattr(event_date, "date"):
+                        event_date = event_date.date()
 
-                        # Check attendee participation status
-                        attendees = component.get("attendee")
-                        if attendees:
-                            # Handle both single attendee and list of attendees
-                            if not isinstance(attendees, list):
-                                attendees = [attendees]
-                            # Skip if any attendee has PARTSTAT=DECLINED
-                            is_declined = any(
-                                hasattr(att, "params")
-                                and att.params.get("PARTSTAT", "").upper() == "DECLINED"
-                                for att in attendees
-                            )
-                            if is_declined:
-                                continue
+                    summary = str(component.get("summary", "Untitled Event"))
+                    description = str(component.get("description", ""))
+                    location = str(component.get("location", ""))
 
-                        # Get event date (handle both date and datetime objects)
-                        event_date = dtstart.dt
-                        if hasattr(event_date, "date"):
-                            event_date = event_date.date()
+                    # Format time if datetime available
+                    time_str = ""
+                    if hasattr(dtstart.dt, "strftime"):
+                        # Convert to local timezone for display
+                        dt = dtstart.dt
+                        if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
+                            # Ensure it's timezone-aware in UTC first, then convert to local
+                            dt = ensure_utc(dt).astimezone(self.local_tz)
+                        time_str = dt.strftime("%I:%M %p").lstrip("0")
 
-                        # Only include events in the next 7 days
-                        if today <= event_date < end_date:
-                            summary = str(component.get("summary", "Untitled Event"))
-                            description = str(component.get("description", ""))
-                            location = str(component.get("location", ""))
-
-                            # Format time if datetime available
-                            time_str = ""
-                            if hasattr(dtstart.dt, "strftime"):
-                                # Convert to local timezone for display
-                                dt = dtstart.dt
-                                if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
-                                    # Ensure it's timezone-aware in UTC first, then convert to local
-                                    dt = ensure_utc(dt).astimezone(self.local_tz)
-                                time_str = dt.strftime("%I:%M %p").lstrip("0")
-
-                            events.append(
-                                {
-                                    "summary": summary,
-                                    "time": time_str,
-                                    "date": event_date.strftime("%Y-%m-%d"),
-                                    "description": description,
-                                    "location": location,
-                                }
-                            )
+                    events.append(
+                        {
+                            "summary": summary,
+                            "time": time_str,
+                            "date": event_date.strftime("%Y-%m-%d"),
+                            "description": description,
+                            "location": location,
+                        }
+                    )
 
                 # Sort events by date and time
                 events.sort(key=lambda e: (e["date"], e["time"]))
@@ -416,7 +418,7 @@ Do NOT include any HTML in your response. Plain text only for all values."""
 
             # Get the response text
             response_text = response.choices[0].message.content if response.choices else ""
-            print(f"LLM response (first 500 chars): {response_text[:500]}")
+            print(f"LLM response:\n{response_text}")
 
             # Try strict JSON first
             try:
