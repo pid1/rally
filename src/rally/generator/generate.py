@@ -462,8 +462,8 @@ DINNER PLANS (next 7 days):
 
 Create content for a daily summary. Respond with ONLY a JSON object (no markdown fences) using this exact schema:
 {{
-  "greeting": "A short, friendly greeting or note about the day (1-2 sentences)",
-  "weather_summary": "Weather overview with clothing recommendation (plain text, 2-3 sentences)",
+  "greeting": "A short, friendly greeting or note about the day (1 sentence)",
+  "weather_summary": "Weather overview with clothing recommendation (plain text, 1 sentence)",
   "schedule": [
     {{
       "time": "8:00 AM",
@@ -479,11 +479,9 @@ Guidelines:
 2. Schedule should show TODAY'S events in chronological order
 3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on TODAY'S weather and activities
-5. Look at the FULL 7-DAY weather forecast. If upcoming weather might affect plans (rain for outdoor events, extreme temps, etc.), mention it in the briefing
-6. Check upcoming calendar events against weather. Suggest prep work if needed (umbrellas, warmer clothes, rescheduling outdoor activities)
-7. Consider family routines and how everyone can support each other
-8. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
-9. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
+6. Consider family routines and how everyone can support each other
+7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
+8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
