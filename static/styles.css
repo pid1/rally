@@ -291,7 +291,7 @@ h2 {
 .todo-list, .plans-list {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 12px;
 }
 
 .empty-state {
@@ -313,7 +313,7 @@ h2 {
 .todo-item {
     display: flex;
     gap: 16px;
-    padding: 20px;
+    padding: 16px;
     border: 1px solid var(--pale-gray);
     background: var(--white);
     align-items: flex-start;
@@ -389,6 +389,81 @@ h2 {
     flex-shrink: 0;
 }
 
+/* Assignee Badge */
+.assignee-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--white);
+    padding: 2px 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+
+.assignee-label {
+    font-family: var(--body-font);
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+    margin-left: 6px;
+    vertical-align: baseline;
+}
+
+/* Family Member Badge */
+.member-badge {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/* Color Picker */
+.color-picker {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.color-picker input[type="color"] {
+    width: 48px;
+    height: 36px;
+    border: 1px solid var(--charcoal);
+    padding: 2px;
+    cursor: pointer;
+    background: var(--white);
+}
+
+.color-preview {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--white);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* Select styling */
+.form-group select {
+    appearance: none;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    color: var(--charcoal);
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+    font-family: var(--body-font);
+    font-size: 1rem;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
 /* Modal */
 .modal-overlay {
     display: none;
@@ -431,7 +506,7 @@ h2 {
     letter-spacing: 0.02em;
 }
 
-.form-group input[type="text"], .form-group input[type="date"], .form-group textarea {
+.form-group input[type="text"], .form-group input[type="password"], .form-group input[type="date"], .form-group textarea {
     appearance: none;
     box-sizing: border-box;
     min-height: 2.75rem;
@@ -509,6 +584,48 @@ h2 {
 .plan-actions {
     display: flex;
     gap: 12px;
+}
+
+/* Settings Page */
+.settings-section {
+    margin-bottom: 48px;
+    padding: 32px;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+}
+
+.settings-section h2 {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--charcoal);
+}
+
+.settings-actions {
+    margin-top: 24px;
+}
+
+.settings-status {
+    display: inline-block;
+    margin-left: 12px;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--medium-gray);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.settings-status.visible {
+    opacity: 1;
+}
+
+.llm-fields-local,
+.llm-fields-anthropic {
+    display: none;
+}
+
+.llm-fields-local.active,
+.llm-fields-anthropic.active {
+    display: block;
 }
 
 /* Desktop */

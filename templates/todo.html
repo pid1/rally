@@ -20,6 +20,7 @@
         <a href="/dashboard">Dashboard</a>
         <a href="/todo" class="active">Todos</a>
         <a href="/dinner-planner">Dinner Planner</a>
+        <a href="/settings">Settings</a>
     </nav>
 
     <div class="todo-container">
@@ -48,6 +49,12 @@
                     <textarea id="todo-description" placeholder="Additional details" rows="3"></textarea>
                 </div>
                 <div class="form-group">
+                    <label>Assigned To (optional)</label>
+                    <select id="todo-assigned-to">
+                        <option value="">Everyone (family-wide)</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Due Date (optional)</label>
                     <input type="date" id="todo-due-date">
                     <small>Leave blank if no specific deadline</small>
@@ -63,7 +70,27 @@
     <script>
         // State
         let todos = [];
+        let familyMembers = [];
         let editingId = null;
+
+        // Load family members for assignee dropdown
+        async function fetchFamilyMembers() {
+            const response = await fetch('/api/family');
+            familyMembers = await response.json();
+            populateAssigneeDropdown();
+        }
+
+        function populateAssigneeDropdown() {
+            const select = document.getElementById('todo-assigned-to');
+            select.innerHTML = '<option value="">Everyone (family-wide)</option>';
+            familyMembers.forEach(m => {
+                select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+            });
+        }
+
+        function getMemberById(id) {
+            return familyMembers.find(m => m.id === id);
+        }
 
         // API calls
         async function fetchTodos() {
@@ -110,6 +137,10 @@
 
             container.innerHTML = todos.map(todo => {
                 const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
+                const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
+                const assigneeHtml = member
+                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                    : '';
                 return `
                     <div class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
                         <div class="todo-checkbox">
@@ -117,7 +148,7 @@
                                    onchange="toggleComplete(${todo.id}, this.checked)">
                         </div>
                         <div class="todo-content">
-                            <div class="todo-title">${escapeHtml(todo.title)}</div>
+                            <div class="todo-title">${escapeHtml(todo.title)} ${assigneeHtml}</div>
                             ${todo.description ? `<div class="todo-description">${escapeHtml(todo.description)}</div>` : ''}
                             ${dueDateHtml}
                         </div>
@@ -162,6 +193,7 @@
             document.getElementById('modal-title').textContent = 'Add Task';
             document.getElementById('todo-form').reset();
             document.getElementById('todo-id').value = '';
+            document.getElementById('todo-assigned-to').value = '';
             document.getElementById('modal-overlay').style.display = 'flex';
         }
 
@@ -174,6 +206,7 @@
             document.getElementById('todo-id').value = id;
             document.getElementById('todo-title').value = todo.title;
             document.getElementById('todo-description').value = todo.description || '';
+            document.getElementById('todo-assigned-to').value = todo.assigned_to || '';
             document.getElementById('todo-due-date').value = todo.due_date || '';
             document.getElementById('modal-overlay').style.display = 'flex';
         }
@@ -218,9 +251,11 @@
         document.getElementById('todo-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            const assignedTo = document.getElementById('todo-assigned-to').value;
             const data = {
                 title: document.getElementById('todo-title').value,
                 description: document.getElementById('todo-description').value || null,
+                assigned_to: assignedTo ? parseInt(assignedTo) : null,
                 due_date: document.getElementById('todo-due-date').value || null
             };
 
@@ -239,7 +274,7 @@
         });
 
         // Initialize
-        fetchTodos();
+        fetchFamilyMembers().then(() => fetchTodos());
     </script>
 </body>
 </html>

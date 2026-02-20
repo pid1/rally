@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally — Settings</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Settings</div>
+    </header>
+
+    <nav class="nav">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todo">Todos</a>
+        <a href="/dinner-planner">Dinner Planner</a>
+        <a href="/settings" class="active">Settings</a>
+    </nav>
+
+    <!-- Family Members Section -->
+    <div class="todo-container">
+        <div class="todo-header">
+            <h2>Family Members</h2>
+            <button class="btn-add" id="btn-add-member">Add Member</button>
+        </div>
+
+        <div class="todo-list" id="family-list">
+            <div class="loading-state">Loading family members...</div>
+        </div>
+    </div>
+
+    <!-- Calendars Section -->
+    <div class="todo-container" style="margin-top: 48px;">
+        <div class="todo-header">
+            <h2>Calendars</h2>
+            <button class="btn-add" id="btn-add-calendar">Add Calendar</button>
+        </div>
+
+        <div class="todo-list" id="calendar-list">
+            <div class="loading-state">Loading calendars...</div>
+        </div>
+    </div>
+
+    <!-- Weather Section -->
+    <div class="settings-section" style="margin-top: 48px;">
+        <h2>Weather</h2>
+        <form id="weather-form">
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" id="weather-api-key" placeholder="OpenWeather API key" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Latitude</label>
+                <input type="text" id="weather-lat" placeholder="e.g. 30.2672">
+            </div>
+            <div class="form-group">
+                <label>Longitude</label>
+                <input type="text" id="weather-lon" placeholder="e.g. -97.7431">
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
+    <!-- LLM Section -->
+    <div class="settings-section">
+        <h2>LLM</h2>
+        <form id="llm-form">
+            <div class="form-group">
+                <label>Provider</label>
+                <select id="llm-provider">
+                    <option value="local">Local</option>
+                    <option value="anthropic">Anthropic</option>
+                </select>
+            </div>
+            <div class="llm-fields-local">
+                <div class="form-group">
+                    <label>Base URL</label>
+                    <input type="text" id="llm-local-base-url" placeholder="e.g. http://localhost:11434/v1">
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="llm-local-api-key" placeholder="API key" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" id="llm-local-model" placeholder="e.g. llama3">
+                </div>
+            </div>
+            <div class="llm-fields-anthropic">
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="llm-anthropic-api-key" placeholder="Anthropic API key" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" id="llm-anthropic-model" placeholder="e.g. claude-sonnet-4-20250514">
+                </div>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
+    <!-- AI Section -->
+    <div class="settings-section">
+        <h2>AI</h2>
+        <form id="ai-form">
+            <div class="form-group">
+                <label>Family Context</label>
+                <textarea id="ai-family-context" rows="12" placeholder="Describe your family, routines, values, and scheduling preferences..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Agent Voice</label>
+                <textarea id="ai-agent-voice" rows="8" placeholder="Describe the tone and personality for Rally's summaries..."></textarea>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
+    <!-- General Section -->
+    <div class="settings-section">
+        <h2>General</h2>
+        <form id="general-form">
+            <div class="form-group">
+                <label>Timezone</label>
+                <select id="general-timezone">
+                    <option value="">Select a timezone</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
+    <!-- Family Member Modal -->
+    <div class="modal-overlay" id="member-modal-overlay">
+        <div class="modal-content">
+            <h3 id="member-modal-title">Add Family Member</h3>
+            <form id="member-form">
+                <input type="hidden" id="member-id">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="member-name" placeholder="Name" required>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel-member">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Calendar Modal -->
+    <div class="modal-overlay" id="calendar-modal-overlay">
+        <div class="modal-content">
+            <h3 id="calendar-modal-title">Add Calendar</h3>
+            <form id="calendar-form">
+                <input type="hidden" id="calendar-id">
+                <div class="form-group">
+                    <label>Label</label>
+                    <input type="text" id="calendar-label" placeholder="e.g. Work Calendar" required>
+                </div>
+                <div class="form-group">
+                    <label>URL (ICS feed)</label>
+                    <input type="text" id="calendar-url" placeholder="https://calendar.google.com/..." required>
+                </div>
+                <div class="form-group">
+                    <label>Family Member</label>
+                    <select id="calendar-member" required>
+                        <option value="">Select a family member</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Owner Email (optional)</label>
+                    <input type="text" id="calendar-owner-email" placeholder="e.g. user@gmail.com">
+                    <small>Used for declined event detection</small>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel-calendar">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let familyMembers = [];
+        let calendars = [];
+        let editingMemberId = null;
+        let editingCalendarId = null;
+
+        // Populate timezone dropdown
+        (function() {
+            const select = document.getElementById('general-timezone');
+            const timezones = Intl.supportedValuesOf('timeZone');
+            timezones.forEach(tz => {
+                const opt = document.createElement('option');
+                opt.value = tz;
+                opt.textContent = tz.replace(/_/g, ' ');
+                select.appendChild(opt);
+            });
+        })();
+
+        // Helpers
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function truncateUrl(url, maxLen) {
+            if (!url || url.length <= maxLen) return url || '';
+            return url.substring(0, maxLen) + '…';
+        }
+
+        function getMemberById(id) {
+            return familyMembers.find(m => m.id === id);
+        }
+
+        // ── Family Members ──
+
+        async function fetchMembers() {
+            const response = await fetch('/api/family');
+            familyMembers = await response.json();
+            renderMembers();
+            populateCalendarMemberDropdown();
+        }
+
+        async function createMember(data) {
+            const response = await fetch('/api/family', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Failed to create member');
+            return response.json();
+        }
+
+        async function updateMember(id, data) {
+            const response = await fetch(`/api/family/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Failed to update member');
+            return response.json();
+        }
+
+        async function deleteMember(id) {
+            const response = await fetch(`/api/family/${id}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) throw new Error('Failed to delete member');
+        }
+
+        function renderMembers() {
+            const container = document.getElementById('family-list');
+
+            if (familyMembers.length === 0) {
+                container.innerHTML = '<div class="empty-state">No family members yet. Click "Add Member" to get started.</div>';
+                return;
+            }
+
+            container.innerHTML = familyMembers.map(member => `
+                <div class="todo-item" data-id="${member.id}">
+                    <div class="todo-content">
+                        <div class="todo-title">${escapeHtml(member.name)}</div>
+                    </div>
+                    <div class="todo-actions">
+                        <button class="btn-edit" onclick="openEditMemberModal(${member.id})">Edit</button>
+                        <button class="btn-delete" onclick="confirmDeleteMember(${member.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openAddMemberModal() {
+            editingMemberId = null;
+            document.getElementById('member-modal-title').textContent = 'Add Family Member';
+            document.getElementById('member-form').reset();
+            document.getElementById('member-id').value = '';
+            document.getElementById('member-modal-overlay').style.display = 'flex';
+        }
+
+        function openEditMemberModal(id) {
+            const member = familyMembers.find(m => m.id === id);
+            if (!member) return;
+
+            editingMemberId = id;
+            document.getElementById('member-modal-title').textContent = 'Edit Family Member';
+            document.getElementById('member-id').value = id;
+            document.getElementById('member-name').value = member.name;
+            document.getElementById('member-modal-overlay').style.display = 'flex';
+        }
+
+        function closeMemberModal() {
+            document.getElementById('member-modal-overlay').style.display = 'none';
+            editingMemberId = null;
+        }
+
+
+        async function confirmDeleteMember(id) {
+            if (!confirm('Are you sure you want to remove this family member?')) return;
+
+            try {
+                await deleteMember(id);
+                await fetchMembers();
+                await fetchCalendars();
+            } catch (error) {
+                console.error('Error deleting member:', error);
+                alert('Failed to remove family member');
+            }
+        }
+
+        // ── Calendars ──
+
+        async function fetchCalendars() {
+            const response = await fetch('/api/calendars');
+            calendars = await response.json();
+            renderCalendars();
+        }
+
+        async function createCalendar(data) {
+            const response = await fetch('/api/calendars', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Failed to create calendar');
+            return response.json();
+        }
+
+        async function updateCalendar(id, data) {
+            const response = await fetch(`/api/calendars/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Failed to update calendar');
+            return response.json();
+        }
+
+        async function deleteCalendar(id) {
+            const response = await fetch(`/api/calendars/${id}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) throw new Error('Failed to delete calendar');
+        }
+
+        function populateCalendarMemberDropdown() {
+            const select = document.getElementById('calendar-member');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">Select a family member</option>';
+            familyMembers.forEach(m => {
+                select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+            });
+            if (currentValue) select.value = currentValue;
+        }
+
+        function renderCalendars() {
+            const container = document.getElementById('calendar-list');
+
+            if (calendars.length === 0) {
+                container.innerHTML = '<div class="empty-state">No calendars yet. Click "Add Calendar" to get started.</div>';
+                return;
+            }
+
+            container.innerHTML = calendars.map(cal => {
+                const member = getMemberById(cal.family_member_id);
+                const memberHtml = member
+                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                    : '';
+                return `
+                    <div class="todo-item" data-id="${cal.id}">
+                        <div class="todo-content">
+                            <div class="todo-title">${escapeHtml(cal.label)} ${memberHtml}</div>
+                            <div class="todo-description">${escapeHtml(truncateUrl(cal.url, 60))}</div>
+                        </div>
+                        <div class="todo-actions">
+                            <button class="btn-edit" onclick="openEditCalendarModal(${cal.id})">Edit</button>
+                            <button class="btn-delete" onclick="confirmDeleteCalendar(${cal.id})">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openAddCalendarModal() {
+            editingCalendarId = null;
+            document.getElementById('calendar-modal-title').textContent = 'Add Calendar';
+            document.getElementById('calendar-form').reset();
+            document.getElementById('calendar-id').value = '';
+            populateCalendarMemberDropdown();
+            document.getElementById('calendar-modal-overlay').style.display = 'flex';
+        }
+
+        function openEditCalendarModal(id) {
+            const cal = calendars.find(c => c.id === id);
+            if (!cal) return;
+
+            editingCalendarId = id;
+            document.getElementById('calendar-modal-title').textContent = 'Edit Calendar';
+            document.getElementById('calendar-id').value = id;
+            document.getElementById('calendar-label').value = cal.label;
+            document.getElementById('calendar-url').value = cal.url;
+            populateCalendarMemberDropdown();
+            document.getElementById('calendar-member').value = cal.family_member_id || '';
+            document.getElementById('calendar-owner-email').value = cal.owner_email || '';
+            document.getElementById('calendar-modal-overlay').style.display = 'flex';
+        }
+
+        function closeCalendarModal() {
+            document.getElementById('calendar-modal-overlay').style.display = 'none';
+            editingCalendarId = null;
+        }
+
+        async function confirmDeleteCalendar(id) {
+            if (!confirm('Are you sure you want to delete this calendar?')) return;
+
+            try {
+                await deleteCalendar(id);
+                await fetchCalendars();
+            } catch (error) {
+                console.error('Error deleting calendar:', error);
+                alert('Failed to delete calendar');
+            }
+        }
+
+        // ── Settings (Weather, LLM, General) ──
+
+        async function fetchSettings() {
+            const response = await fetch('/api/settings');
+            const data = await response.json();
+            const s = data.settings || {};
+
+            // Weather
+            document.getElementById('weather-api-key').value = s.weather_api_key || '';
+            document.getElementById('weather-lat').value = s.weather_lat || '';
+            document.getElementById('weather-lon').value = s.weather_lon || '';
+
+            // LLM
+            const provider = s.llm_provider || 'local';
+            document.getElementById('llm-provider').value = provider;
+            document.getElementById('llm-local-base-url').value = s.llm_local_base_url || '';
+            document.getElementById('llm-local-api-key').value = s.llm_local_api_key || '';
+            document.getElementById('llm-local-model').value = s.llm_local_model || '';
+            document.getElementById('llm-anthropic-api-key').value = s.llm_anthropic_api_key || '';
+            document.getElementById('llm-anthropic-model').value = s.llm_anthropic_model || '';
+            toggleLlmFields(provider);
+
+            // AI
+            document.getElementById('ai-family-context').value = s.family_context || '';
+            document.getElementById('ai-agent-voice').value = s.agent_voice || '';
+
+            // General
+            document.getElementById('general-timezone').value = s.local_timezone || '';
+        }
+
+        async function saveSettings(settingsObj) {
+            const response = await fetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ settings: settingsObj })
+            });
+            if (!response.ok) throw new Error('Failed to save settings');
+            return response.json();
+        }
+
+        function toggleLlmFields(provider) {
+            document.querySelector('.llm-fields-local').classList.toggle('active', provider === 'local');
+            document.querySelector('.llm-fields-anthropic').classList.toggle('active', provider === 'anthropic');
+        }
+
+        // ── Event Handlers ──
+
+        // Family member modal
+        document.getElementById('btn-add-member').addEventListener('click', openAddMemberModal);
+        document.getElementById('btn-cancel-member').addEventListener('click', closeMemberModal);
+
+        document.getElementById('member-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'member-modal-overlay') closeMemberModal();
+        });
+
+        document.getElementById('member-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const data = {
+                name: document.getElementById('member-name').value
+            };
+
+            try {
+                if (editingMemberId) {
+                    await updateMember(editingMemberId, data);
+                } else {
+                    await createMember(data);
+                }
+                closeMemberModal();
+                await fetchMembers();
+            } catch (error) {
+                console.error('Error saving member:', error);
+                alert('Failed to save family member');
+            }
+        });
+
+        // Calendar modal
+        document.getElementById('btn-add-calendar').addEventListener('click', openAddCalendarModal);
+        document.getElementById('btn-cancel-calendar').addEventListener('click', closeCalendarModal);
+
+        document.getElementById('calendar-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'calendar-modal-overlay') closeCalendarModal();
+        });
+
+        document.getElementById('calendar-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const data = {
+                label: document.getElementById('calendar-label').value,
+                url: document.getElementById('calendar-url').value,
+                family_member_id: parseInt(document.getElementById('calendar-member').value),
+                owner_email: document.getElementById('calendar-owner-email').value || null
+            };
+
+            try {
+                if (editingCalendarId) {
+                    await updateCalendar(editingCalendarId, data);
+                } else {
+                    await createCalendar(data);
+                }
+                closeCalendarModal();
+                await fetchCalendars();
+            } catch (error) {
+                console.error('Error saving calendar:', error);
+                alert('Failed to save calendar');
+            }
+        });
+
+        // LLM provider toggle
+        document.getElementById('llm-provider').addEventListener('change', (e) => {
+            toggleLlmFields(e.target.value);
+        });
+
+        // Weather form
+        document.getElementById('weather-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    weather_api_key: document.getElementById('weather-api-key').value,
+                    weather_lat: document.getElementById('weather-lat').value,
+                    weather_lon: document.getElementById('weather-lon').value
+                });
+                alert('Weather settings saved.');
+            } catch (error) {
+                console.error('Error saving weather settings:', error);
+                alert('Failed to save weather settings');
+            }
+        });
+
+        // LLM form
+        document.getElementById('llm-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    llm_provider: document.getElementById('llm-provider').value,
+                    llm_local_base_url: document.getElementById('llm-local-base-url').value,
+                    llm_local_api_key: document.getElementById('llm-local-api-key').value,
+                    llm_local_model: document.getElementById('llm-local-model').value,
+                    llm_anthropic_api_key: document.getElementById('llm-anthropic-api-key').value,
+                    llm_anthropic_model: document.getElementById('llm-anthropic-model').value
+                });
+                alert('LLM settings saved.');
+            } catch (error) {
+                console.error('Error saving LLM settings:', error);
+                alert('Failed to save LLM settings');
+            }
+        });
+
+        // AI form
+        document.getElementById('ai-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    family_context: document.getElementById('ai-family-context').value,
+                    agent_voice: document.getElementById('ai-agent-voice').value
+                });
+                alert('AI settings saved.');
+            } catch (error) {
+                console.error('Error saving AI settings:', error);
+                alert('Failed to save AI settings');
+            }
+        });
+
+        // General form
+        document.getElementById('general-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    local_timezone: document.getElementById('general-timezone').value
+                });
+                alert('General settings saved.');
+            } catch (error) {
+                console.error('Error saving general settings:', error);
+                alert('Failed to save general settings');
+            }
+        });
+
+        // ── Initialize ──
+        Promise.all([fetchMembers(), fetchCalendars(), fetchSettings()]);
+    </script>
+</body>
+</html>
