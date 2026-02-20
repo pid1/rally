@@ -432,6 +432,10 @@ h2 {
 }
 
 .form-group input[type="text"], .form-group input[type="date"], .form-group textarea {
+    appearance: none;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    color: var(--charcoal);
     width: 100%;
     padding: 10px;
     border: 1px solid var(--charcoal);
