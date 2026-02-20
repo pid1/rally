@@ -17,8 +17,32 @@ class FamilyMember(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
     color: Mapped[str] = mapped_column(String(7), default="#333333")  # Hex color for UI
-    calendar_key: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Maps to config.toml [calendars] key
+    calendar_key: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Deprecated, kept for migration compat
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class Calendar(Base):
+    """Calendar feed model — each calendar is linked to a family member."""
+
+    __tablename__ = "calendars"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str] = mapped_column(String(100))  # Display name, e.g. "Google Family"
+    url: Mapped[str] = mapped_column(Text)  # ICS feed URL
+    family_member_id: Mapped[int] = mapped_column(Integer)  # FK to family_members.id
+    owner_email: Mapped[str | None] = mapped_column(String(200), nullable=True)  # For declined-event detection
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class Setting(Base):
+    """Key-value settings store."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
 

@@ -22,7 +22,6 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
     db_member = FamilyMember(
         name=member.name,
         color=member.color,
-        calendar_key=member.calendar_key,
     )
     db.add(db_member)
     db.commit()
@@ -54,8 +53,6 @@ def update_family_member(
         db_member.name = member.name
     if member.color is not None:
         db_member.color = member.color
-    if member.calendar_key is not None:
-        db_member.calendar_key = member.calendar_key
 
     db.commit()
     db.refresh(db_member)

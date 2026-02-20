@@ -12,7 +12,8 @@ import requests
 from icalendar import Calendar
 
 from rally.database import SessionLocal, init_db
-from rally.models import DashboardSnapshot
+from rally.models import Calendar as CalendarModel
+from rally.models import DashboardSnapshot, FamilyMember, Setting
 from rally.utils.timezone import ensure_utc, now_utc, today_utc
 
 
@@ -31,32 +32,72 @@ class SummaryGenerator:
             self.data_dir = Path.cwd()
             self.output_dir = Path.cwd()
 
+        # Load config.toml as fallback (may not exist if using DB-only config)
         config_path = self.data_dir / "config.toml"
-        with open(config_path, "rb") as f:
-            self.config = tomllib.load(f)
+        try:
+            with open(config_path, "rb") as f:
+                self.config = tomllib.load(f)
+        except FileNotFoundError:
+            self.config = {}
 
-        # LLM provider setup
-        llm_config = self.config["llm"]
-        self.provider = llm_config.get("provider", "local")
-        provider_config = llm_config.get(self.provider, {})
-        self.model = provider_config["model"]
+        # Try loading settings from DB
+        db_settings = {}
+        try:
+            db = SessionLocal()
+            try:
+                for s in db.query(Setting).all():
+                    db_settings[s.key] = s.value
+            finally:
+                db.close()
+        except Exception:
+            pass
 
-        if self.provider == "anthropic":
-            import anthropic
+        # LLM provider setup — prefer DB settings, fall back to config.toml
+        if "llm_provider" in db_settings:
+            self.provider = db_settings["llm_provider"]
+            if self.provider == "anthropic":
+                import anthropic
 
-            self.client = anthropic.Anthropic(api_key=provider_config["api_key"])
+                self.model = db_settings.get("llm_anthropic_model", "")
+                self.client = anthropic.Anthropic(
+                    api_key=db_settings.get("llm_anthropic_api_key", "")
+                )
+            else:
+                from openai import OpenAI
+
+                self.model = db_settings.get("llm_local_model", "")
+                self.client = OpenAI(
+                    base_url=db_settings.get("llm_local_base_url", ""),
+                    api_key=db_settings.get("llm_local_api_key", "no-key-needed"),
+                )
         else:
-            from openai import OpenAI
+            llm_config = self.config["llm"]
+            self.provider = llm_config.get("provider", "local")
+            provider_config = llm_config.get(self.provider, {})
+            self.model = provider_config["model"]
 
-            self.client = OpenAI(
-                base_url=provider_config["base_url"],
-                api_key=provider_config.get("api_key", "no-key-needed"),
-            )
+            if self.provider == "anthropic":
+                import anthropic
 
-        # Get local timezone from config (default to UTC)
-        self.local_tz = ZoneInfo(self.config.get("local_timezone", "UTC"))
+                self.client = anthropic.Anthropic(api_key=provider_config["api_key"])
+            else:
+                from openai import OpenAI
 
-        # Optional: owner emails for accurate declined-event detection
+                self.client = OpenAI(
+                    base_url=provider_config["base_url"],
+                    api_key=provider_config.get("api_key", "no-key-needed"),
+                )
+
+        # Get local timezone: DB setting > config.toml > UTC
+        tz_name = db_settings.get(
+            "local_timezone", self.config.get("local_timezone", "UTC")
+        )
+        self.local_tz = ZoneInfo(tz_name)
+
+        # Store DB settings for use by other methods
+        self._db_settings = db_settings
+
+        # Optional: owner emails for accurate declined-event detection (config.toml fallback only)
         self.calendar_owners = self.config.get("calendar_owners", {})
 
     def _is_event_declined(self, component, owner_email: str | None = None) -> bool:
@@ -129,9 +170,39 @@ class SummaryGenerator:
         today = today_utc()
         end_date = today + timedelta(days=7)
 
+        # Try loading calendars from DB first
+        db_calendars = []
+        try:
+            db = SessionLocal()
+            try:
+                db_calendars = (
+                    db.query(CalendarModel, FamilyMember.name)
+                    .join(FamilyMember, CalendarModel.family_member_id == FamilyMember.id)
+                    .all()
+                )
+            finally:
+                db.close()
+        except Exception:
+            pass
+
         calendars = []
-        for key, url in self.config["calendars"].items():
-            owner_email = self.calendar_owners.get(key)
+
+        if db_calendars:
+            # Use DB calendars
+            cal_sources = [
+                (f"{cal.label} ({member_name})", cal.url, cal.owner_email)
+                for cal, member_name in db_calendars
+            ]
+        elif "calendars" in self.config:
+            # Fall back to config.toml
+            cal_sources = [
+                (key, url, self.calendar_owners.get(key))
+                for key, url in self.config["calendars"].items()
+            ]
+        else:
+            cal_sources = []
+
+        for name, url, owner_email in cal_sources:
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
@@ -183,18 +254,24 @@ class SummaryGenerator:
                 events.sort(key=lambda e: (e["date"], e["time"]))
 
                 if events:
-                    calendars.append({"name": key, "events": events})
+                    calendars.append({"name": name, "events": events})
 
             except Exception as e:
-                print(f"Error fetching/parsing {key}: {e}")
+                print(f"Error fetching/parsing {name}: {e}")
 
         return calendars
 
     def fetch_weather(self) -> dict | None:
         """Get weather from OpenWeather."""
-        api_key = self.config["weather"]["api_key"]
-        lat = self.config["weather"]["lat"]
-        lon = self.config["weather"]["lon"]
+        # Try DB settings first, fall back to config.toml
+        if all(k in self._db_settings for k in ("weather_api_key", "weather_lat", "weather_lon")):
+            api_key = self._db_settings["weather_api_key"]
+            lat = float(self._db_settings["weather_lat"])
+            lon = float(self._db_settings["weather_lon"])
+        else:
+            api_key = self.config["weather"]["api_key"]
+            lat = self.config["weather"]["lat"]
+            lon = self.config["weather"]["lon"]
 
         url = "https://api.openweathermap.org/data/3.0/onecall"
         params = {

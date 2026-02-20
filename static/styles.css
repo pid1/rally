@@ -497,7 +497,7 @@ h2 {
     letter-spacing: 0.02em;
 }
 
-.form-group input[type="text"], .form-group input[type="date"], .form-group textarea {
+.form-group input[type="text"], .form-group input[type="password"], .form-group input[type="date"], .form-group textarea {
     appearance: none;
     box-sizing: border-box;
     min-height: 2.75rem;
@@ -575,6 +575,48 @@ h2 {
 .plan-actions {
     display: flex;
     gap: 12px;
+}
+
+/* Settings Page */
+.settings-section {
+    margin-bottom: 48px;
+    padding: 32px;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+}
+
+.settings-section h2 {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--charcoal);
+}
+
+.settings-actions {
+    margin-top: 24px;
+}
+
+.settings-status {
+    display: inline-block;
+    margin-left: 12px;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--medium-gray);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.settings-status.visible {
+    opacity: 1;
+}
+
+.llm-fields-local,
+.llm-fields-anthropic {
+    display: none;
+}
+
+.llm-fields-local.active,
+.llm-fields-anthropic.active {
+    display: block;
 }
 
 /* Desktop */

@@ -11,7 +11,6 @@ from pydantic import BaseModel, ConfigDict
 class FamilyMemberBase(BaseModel):
     name: str
     color: str = "#333333"
-    calendar_key: str | None = None
 
 
 class FamilyMemberCreate(FamilyMemberBase):
@@ -21,7 +20,6 @@ class FamilyMemberCreate(FamilyMemberBase):
 class FamilyMemberUpdate(BaseModel):
     name: str | None = None
     color: str | None = None
-    calendar_key: str | None = None
 
 
 class FamilyMemberResponse(FamilyMemberBase):
@@ -30,6 +28,50 @@ class FamilyMemberResponse(FamilyMemberBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Calendars
+
+
+class CalendarBase(BaseModel):
+    label: str
+    url: str
+    family_member_id: int
+    owner_email: str | None = None
+
+
+class CalendarCreate(CalendarBase):
+    pass
+
+
+class CalendarUpdate(BaseModel):
+    label: str | None = None
+    url: str | None = None
+    family_member_id: int | None = None
+    owner_email: str | None = None
+
+
+class CalendarResponse(CalendarBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Settings
+
+
+class SettingsUpdate(BaseModel):
+    """Bulk settings update — key/value pairs."""
+
+    settings: dict[str, str]
+
+
+class SettingsResponse(BaseModel):
+    """All settings as a flat dict."""
+
+    settings: dict[str, str]
 
 
 # Todos

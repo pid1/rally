@@ -14,6 +14,7 @@ def run_migrations():
     try:
         from migrate_add_due_date import migrate as migrate_001_add_due_date
         from migrate_add_family_members import migrate as migrate_002_add_family_members
+        from migrate_add_settings import migrate as migrate_003_add_settings
     except ImportError as e:
         print(f"✗ Failed to import migrations: {e}")
         return False
@@ -22,6 +23,7 @@ def run_migrations():
     migrations = [
         ("001_add_due_date", migrate_001_add_due_date),
         ("002_add_family_members", migrate_002_add_family_members),
+        ("003_add_settings", migrate_003_add_settings),
     ]
 
     print("=" * 60)

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from rally.database import init_db
-from rally.routers import dashboard, dinner_planner, family, todos
+from rally.routers import dashboard, dinner_planner, family, settings, todos
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -38,6 +38,7 @@ app.include_router(dashboard.router)
 app.include_router(todos.router)
 app.include_router(dinner_planner.router)
 app.include_router(family.router)
+app.include_router(settings.router)
 
 
 @app.get("/", response_class=RedirectResponse)
@@ -58,7 +59,7 @@ def dinner_planner_page(request: Request):
     return templates.TemplateResponse("dinner_planner.html", {"request": request})
 
 
-@app.get("/family", response_class=HTMLResponse)
-def family_page(request: Request):
-    """Serve the family management page."""
-    return templates.TemplateResponse("family.html", {"request": request})
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request):
+    """Serve the settings page."""
+    return templates.TemplateResponse("settings.html", {"request": request})
