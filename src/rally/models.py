@@ -2,11 +2,24 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, String, Text
+from sqlalchemy import JSON, Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rally.database import Base
 from rally.utils.timezone import now_utc
+
+
+class FamilyMember(Base):
+    """Family member model."""
+
+    __tablename__ = "family_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    color: Mapped[str] = mapped_column(String(7), default="#333333")  # Hex color for UI
+    calendar_key: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Maps to config.toml [calendars] key
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
 
 class DashboardSnapshot(Base):
@@ -31,6 +44,7 @@ class Todo(Base):
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
+    assigned_to: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to family_members.id
     completed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)

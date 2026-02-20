@@ -1,7 +1,7 @@
 """Rally CLI commands."""
 
 from rally.database import SessionLocal, init_db
-from rally.models import DashboardSnapshot, Todo
+from rally.models import DashboardSnapshot, FamilyMember, Todo
 from rally.utils.timezone import today_utc
 
 
@@ -14,6 +14,7 @@ def seed():
         # Clear existing data
         db.query(DashboardSnapshot).delete()
         db.query(Todo).delete()
+        db.query(FamilyMember).delete()
         db.commit()
 
         # Create sample dashboard snapshot
@@ -69,7 +70,16 @@ def seed():
         snapshot = DashboardSnapshot(date=today, data=sample_data, is_active=True)
         db.add(snapshot)
 
-        # Create sample todos
+        # Create sample family members
+        mom = FamilyMember(name="Mom", color="#4a6741")
+        dad = FamilyMember(name="Dad", color="#5b4a8a")
+        emma = FamilyMember(name="Emma", color="#8a4a5b")
+        jake = FamilyMember(name="Jake", color="#4a708a")
+        for member in [mom, dad, emma, jake]:
+            db.add(member)
+        db.flush()  # Get IDs assigned
+
+        # Create sample todos (some assigned, some family-wide)
         todos = [
             Todo(
                 title="Schedule dentist appointments",
@@ -79,26 +89,31 @@ def seed():
             Todo(
                 title="Plan weekend hike",
                 description="Research trails and check weather forecast",
+                assigned_to=dad.id,
                 completed=False,
             ),
             Todo(
                 title="Return library books",
                 description="Due this Friday - in the bag by the door",
+                assigned_to=emma.id,
                 completed=False,
             ),
             Todo(
                 title="Review budget spreadsheet",
                 description="Monthly review of spending and savings goals",
+                assigned_to=mom.id,
                 completed=False,
             ),
             Todo(
                 title="Call mom",
                 description="Haven't talked in a while - give her a call this week",
+                assigned_to=dad.id,
                 completed=False,
             ),
             Todo(
                 title="Finish reading chapter 3",
                 description="Book club meets next week",
+                assigned_to=jake.id,
                 completed=False,
             ),
         ]
@@ -109,6 +124,7 @@ def seed():
         db.commit()
         print("✅ Database seeded with sample data")
         print(f"   - 1 dashboard snapshot for {today}")
+        print(f"   - 4 family members")
         print(f"   - {len(todos)} sample todos")
 
     except Exception as e:

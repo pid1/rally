@@ -5,10 +5,41 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+# Family Members
+
+
+class FamilyMemberBase(BaseModel):
+    name: str
+    color: str = "#333333"
+    calendar_key: str | None = None
+
+
+class FamilyMemberCreate(FamilyMemberBase):
+    pass
+
+
+class FamilyMemberUpdate(BaseModel):
+    name: str | None = None
+    color: str | None = None
+    calendar_key: str | None = None
+
+
+class FamilyMemberResponse(FamilyMemberBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Todos
+
+
 class TodoBase(BaseModel):
     title: str
     description: str | None = None
     due_date: str | None = None  # YYYY-MM-DD format
+    assigned_to: int | None = None  # family_members.id
 
 
 class TodoCreate(TodoBase):
@@ -19,6 +50,7 @@ class TodoUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     due_date: str | None = None  # YYYY-MM-DD format
+    assigned_to: int | None = None  # family_members.id
     completed: bool | None = None
 
 
@@ -29,6 +61,9 @@ class TodoResponse(TodoBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Dinner Plans
 
 
 class DinnerPlanBase(BaseModel):

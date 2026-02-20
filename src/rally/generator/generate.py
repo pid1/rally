@@ -213,6 +213,17 @@ class SummaryGenerator:
             print(f"Error fetching weather: {e}")
             return None
 
+    def load_family_members(self) -> dict[int, str]:
+        """Load family members from database, returning id -> name mapping."""
+        db = SessionLocal()
+        try:
+            from rally.models import FamilyMember
+
+            members = db.query(FamilyMember).all()
+            return {m.id: m.name for m in members}
+        finally:
+            db.close()
+
     def load_todos(self) -> str:
         """Load outstanding todos from database for LLM context."""
 
@@ -234,10 +245,17 @@ class SummaryGenerator:
             if not todos:
                 return "No todos currently active."
 
+            # Load family members for assignee names
+            members = self.load_family_members()
+
             # Format todos for LLM
             lines = []
             for todo in todos:
                 line = f"{todo.title}"
+
+                # Add assignee if present
+                if todo.assigned_to and todo.assigned_to in members:
+                    line += f" [Assigned to {members[todo.assigned_to]}]"
 
                 # Add due date if present
                 if todo.due_date:
@@ -406,6 +424,7 @@ class SummaryGenerator:
         """Generate the daily summary JSON data using Claude."""
         calendars = self.fetch_calendars()
         weather = self.fetch_weather()
+        family_members = self.load_family_members()
         todos = self.load_todos()
         dinner_plans = self.load_dinner_plans()
         context = self.load_context()
@@ -443,6 +462,9 @@ AGENT VOICE:
 FAMILY CONTEXT:
 {context}
 
+FAMILY MEMBERS:
+{', '.join(family_members.values()) if family_members else 'No family members configured.'}
+
 CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
 {cal_text}
 
@@ -474,7 +496,7 @@ Guidelines:
 2. Schedule should show TODAY'S events in chronological order
 3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on TODAY'S weather and activities
-6. Consider family routines and how everyone can support each other
+6. Consider family routines and how everyone can support each other. When todos are assigned to specific people, mention them by name.
 7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 9. If the weather is actively dangerous (snow, thunderstorms, or tornado risk) within the next 7 days, mention it.
