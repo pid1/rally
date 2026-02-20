@@ -231,8 +231,9 @@ class SummaryGenerator:
                     if hasattr(dtstart.dt, "strftime"):
                         # Convert to local timezone for display
                         dt = dtstart.dt
-                        if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
+                        if hasattr(dt, "tzinfo"):
                             # Ensure it's timezone-aware in UTC first, then convert to local
+                            # (ensure_utc treats naive datetimes as UTC)
                             dt = ensure_utc(dt).astimezone(self.local_tz)
                         time_str = dt.strftime("%I:%M %p").lstrip("0")
 
