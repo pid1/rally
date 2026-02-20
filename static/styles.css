@@ -291,7 +291,7 @@ h2 {
 .todo-list, .plans-list {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 12px;
 }
 
 .empty-state {
@@ -313,7 +313,7 @@ h2 {
 .todo-item {
     display: flex;
     gap: 16px;
-    padding: 20px;
+    padding: 16px;
     border: 1px solid var(--pale-gray);
     background: var(--white);
     align-items: flex-start;
@@ -400,6 +400,15 @@ h2 {
     text-transform: uppercase;
     vertical-align: middle;
     margin-left: 8px;
+}
+
+.assignee-label {
+    font-family: 'Crimson Text', serif;
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+    margin-left: 6px;
+    vertical-align: baseline;
 }
 
 /* Family Member Badge */

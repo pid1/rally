@@ -139,7 +139,7 @@
                 const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
                 const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
                 const assigneeHtml = member
-                    ? `<span class="assignee-badge" style="background: ${escapeHtml(member.color)}">${escapeHtml(member.name)}</span>`
+                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
                     : '';
                 return `
                     <div class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">

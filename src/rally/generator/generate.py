@@ -405,11 +405,15 @@ class SummaryGenerator:
             db.close()
 
     def load_context(self) -> str:
-        """Load family context."""
+        """Load family context from DB settings, falling back to file."""
+        if self._db_settings.get("family_context"):
+            return self._db_settings["family_context"]
         return (self.data_dir / "context.txt").read_text()
 
     def load_voice(self) -> str:
-        """Load agent voice profile."""
+        """Load agent voice profile from DB settings, falling back to file."""
+        if self._db_settings.get("agent_voice"):
+            return self._db_settings["agent_voice"]
         return (self.data_dir / "agent_voice.txt").read_text()
 
     def load_template(self) -> str:

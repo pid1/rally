@@ -92,7 +92,7 @@
                     <input type="text" id="llm-local-model" placeholder="e.g. llama3">
                 </div>
             </div>
-            <div class="llm-fields-anthropic" style="display: none;">
+            <div class="llm-fields-anthropic">
                 <div class="form-group">
                     <label>API Key</label>
                     <input type="password" id="llm-anthropic-api-key" placeholder="Anthropic API key" autocomplete="off">
@@ -106,13 +106,31 @@
         </form>
     </div>
 
+    <!-- AI Section -->
+    <div class="settings-section">
+        <h2>AI</h2>
+        <form id="ai-form">
+            <div class="form-group">
+                <label>Family Context</label>
+                <textarea id="ai-family-context" rows="12" placeholder="Describe your family, routines, values, and scheduling preferences..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Agent Voice</label>
+                <textarea id="ai-agent-voice" rows="8" placeholder="Describe the tone and personality for Rally's summaries..."></textarea>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
     <!-- General Section -->
     <div class="settings-section">
         <h2>General</h2>
         <form id="general-form">
             <div class="form-group">
                 <label>Timezone</label>
-                <input type="text" id="general-timezone" placeholder="e.g. America/Chicago">
+                <select id="general-timezone">
+                    <option value="">Select a timezone</option>
+                </select>
             </div>
             <button type="submit" class="btn-save">Save</button>
         </form>
@@ -128,13 +146,7 @@
                     <label>Name</label>
                     <input type="text" id="member-name" placeholder="Name" required>
                 </div>
-                <div class="form-group">
-                    <label>Color</label>
-                    <div class="color-picker">
-                        <input type="color" id="member-color" value="#333333">
-                        <span class="color-preview" id="color-preview">Preview</span>
-                    </div>
-                </div>
+
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel-member">Cancel</button>
@@ -182,6 +194,18 @@
         let calendars = [];
         let editingMemberId = null;
         let editingCalendarId = null;
+
+        // Populate timezone dropdown
+        (function() {
+            const select = document.getElementById('general-timezone');
+            const timezones = Intl.supportedValuesOf('timeZone');
+            timezones.forEach(tz => {
+                const opt = document.createElement('option');
+                opt.value = tz;
+                opt.textContent = tz.replace(/_/g, ' ');
+                select.appendChild(opt);
+            });
+        })();
 
         // Helpers
         function escapeHtml(text) {
@@ -245,7 +269,6 @@
 
             container.innerHTML = familyMembers.map(member => `
                 <div class="todo-item" data-id="${member.id}">
-                    <div class="member-badge" style="background: ${escapeHtml(member.color)}"></div>
                     <div class="todo-content">
                         <div class="todo-title">${escapeHtml(member.name)}</div>
                     </div>
@@ -262,8 +285,6 @@
             document.getElementById('member-modal-title').textContent = 'Add Family Member';
             document.getElementById('member-form').reset();
             document.getElementById('member-id').value = '';
-            document.getElementById('member-color').value = '#333333';
-            updateColorPreview();
             document.getElementById('member-modal-overlay').style.display = 'flex';
         }
 
@@ -275,8 +296,6 @@
             document.getElementById('member-modal-title').textContent = 'Edit Family Member';
             document.getElementById('member-id').value = id;
             document.getElementById('member-name').value = member.name;
-            document.getElementById('member-color').value = member.color;
-            updateColorPreview();
             document.getElementById('member-modal-overlay').style.display = 'flex';
         }
 
@@ -285,12 +304,6 @@
             editingMemberId = null;
         }
 
-        function updateColorPreview() {
-            const color = document.getElementById('member-color').value;
-            const preview = document.getElementById('color-preview');
-            preview.style.background = color;
-            preview.style.color = '#fff';
-        }
 
         async function confirmDeleteMember(id) {
             if (!confirm('Are you sure you want to remove this family member?')) return;
@@ -361,7 +374,7 @@
             container.innerHTML = calendars.map(cal => {
                 const member = getMemberById(cal.family_member_id);
                 const memberHtml = member
-                    ? `<span class="assignee-badge" style="background: ${escapeHtml(member.color)}">${escapeHtml(member.name)}</span>`
+                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
                     : '';
                 return `
                     <div class="todo-item" data-id="${cal.id}">
@@ -441,6 +454,10 @@
             document.getElementById('llm-anthropic-model').value = s.llm_anthropic_model || '';
             toggleLlmFields(provider);
 
+            // AI
+            document.getElementById('ai-family-context').value = s.family_context || '';
+            document.getElementById('ai-agent-voice').value = s.agent_voice || '';
+
             // General
             document.getElementById('general-timezone').value = s.local_timezone || '';
         }
@@ -456,8 +473,8 @@
         }
 
         function toggleLlmFields(provider) {
-            document.querySelector('.llm-fields-local').style.display = provider === 'local' ? '' : 'none';
-            document.querySelector('.llm-fields-anthropic').style.display = provider === 'anthropic' ? '' : 'none';
+            document.querySelector('.llm-fields-local').classList.toggle('active', provider === 'local');
+            document.querySelector('.llm-fields-anthropic').classList.toggle('active', provider === 'anthropic');
         }
 
         // ── Event Handlers ──
@@ -465,7 +482,6 @@
         // Family member modal
         document.getElementById('btn-add-member').addEventListener('click', openAddMemberModal);
         document.getElementById('btn-cancel-member').addEventListener('click', closeMemberModal);
-        document.getElementById('member-color').addEventListener('input', updateColorPreview);
 
         document.getElementById('member-modal-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'member-modal-overlay') closeMemberModal();
@@ -475,8 +491,7 @@
             e.preventDefault();
 
             const data = {
-                name: document.getElementById('member-name').value,
-                color: document.getElementById('member-color').value
+                name: document.getElementById('member-name').value
             };
 
             try {
@@ -562,6 +577,21 @@
             } catch (error) {
                 console.error('Error saving LLM settings:', error);
                 alert('Failed to save LLM settings');
+            }
+        });
+
+        // AI form
+        document.getElementById('ai-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    family_context: document.getElementById('ai-family-context').value,
+                    agent_voice: document.getElementById('ai-agent-voice').value
+                });
+                alert('AI settings saved.');
+            } catch (error) {
+                console.error('Error saving AI settings:', error);
+                alert('Failed to save AI settings');
             }
         });
 
