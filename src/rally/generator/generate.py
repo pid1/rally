@@ -231,9 +231,8 @@ class SummaryGenerator:
                     if hasattr(dtstart.dt, "strftime"):
                         # Convert to local timezone for display
                         dt = dtstart.dt
-                        if hasattr(dt, "tzinfo"):
+                        if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
                             # Ensure it's timezone-aware in UTC first, then convert to local
-                            # (ensure_utc treats naive datetimes as UTC)
                             dt = ensure_utc(dt).astimezone(self.local_tz)
                         time_str = dt.strftime("%I:%M %p").lstrip("0")
 
@@ -585,6 +584,7 @@ Guidelines:
 2. Schedule should show TODAY'S events in chronological order
 3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on TODAY'S weather and activities
+5. When referencing event times in the briefing, use the EXACT time from the calendar data — never approximate or confuse times between events
 6. Consider family routines and how everyone can support each other. When todos are assigned to specific people, mention them by name.
 7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
