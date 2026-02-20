@@ -403,7 +403,7 @@ h2 {
 }
 
 .assignee-label {
-    font-family: 'Crimson Text', serif;
+    font-family: var(--body-font);
     font-style: italic;
     font-size: 0.9rem;
     color: var(--medium-gray);
