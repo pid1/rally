@@ -89,9 +89,7 @@ class SummaryGenerator:
                 )
 
         # Get local timezone: DB setting > config.toml > UTC
-        tz_name = db_settings.get(
-            "local_timezone", self.config.get("local_timezone", "UTC")
-        )
+        tz_name = db_settings.get("local_timezone", self.config.get("local_timezone", "UTC"))
         self.local_tz = ZoneInfo(tz_name)
 
         # Store DB settings for use by other methods
@@ -143,8 +141,7 @@ class SummaryGenerator:
         busystatus = component.get("X-MICROSOFT-CDO-BUSYSTATUS")
         if busystatus and str(busystatus).upper() == "FREE":
             has_declined = any(
-                hasattr(att, "params")
-                and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
+                hasattr(att, "params") and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
                 for att in attendees
             )
             if has_declined:
@@ -152,8 +149,7 @@ class SummaryGenerator:
 
         # If ALL attendees have declined, the event is effectively dead
         all_declined = all(
-            hasattr(att, "params")
-            and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
+            hasattr(att, "params") and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
             for att in attendees
         )
         if all_declined:
@@ -530,6 +526,17 @@ class SummaryGenerator:
         else:
             cal_text = "No calendar events for the next 7 days."
 
+        # Store raw inputs for eval ground truth
+        self._generation_context = {
+            "cal_text": cal_text,
+            "weather": str(weather),
+            "todos": todos,
+            "dinner_plans": dinner_plans,
+            "family_members": ", ".join(family_members.values())
+            if family_members
+            else "No family members configured.",
+        }
+
         today = now_utc().strftime("%A, %B %d, %Y")
         prompt = f"""You're creating content for a daily family summary for {today}.
 
@@ -540,7 +547,7 @@ FAMILY CONTEXT:
 {context}
 
 FAMILY MEMBERS:
-{', '.join(family_members.values()) if family_members else 'No family members configured.'}
+{", ".join(family_members.values()) if family_members else "No family members configured."}
 
 CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
 {cal_text}
@@ -622,6 +629,131 @@ Do NOT include any HTML in your response. Plain text only for all values."""
                 "briefing": "The system will retry at the next scheduled interval.",
             }
 
+    def evaluate_summary(self, summary_data: dict) -> dict:
+        """Evaluate generated summary quality using LLM-as-judge.
+
+        Applies the four-part eval formula:
+          1. Role — quality evaluator for a family command center
+          2. Context — the generated summary + raw input data (ground truth)
+          3. Goal — grade on groundedness, tone, actionability, completeness,
+             and guideline adherence
+          4. Terminology — specific definitions and few-shot examples for each
+             dimension
+
+        Returns dict with dimension scores (1-5), explanations, and overall
+        pass/fail.
+        """
+        if not getattr(self, "_generation_context", None):
+            return {"error": "No generation context available. Run generate_summary() first."}
+
+        ctx = self._generation_context
+        summary_json = json.dumps(summary_data, indent=2)
+
+        eval_prompt = f"""You are a quality evaluator for Rally, a family command center.
+Your job is to judge the quality of an AI-generated daily family summary by
+comparing it against the raw input data that was available to the generator.
+
+== GENERATED SUMMARY (to evaluate) ==
+{summary_json}
+
+== RAW INPUT DATA (ground truth) ==
+CALENDAR EVENTS:
+{ctx["cal_text"]}
+
+WEATHER DATA:
+{ctx["weather"]}
+
+TODOS:
+{ctx["todos"]}
+
+DINNER PLANS:
+{ctx["dinner_plans"]}
+
+FAMILY MEMBERS:
+{ctx["family_members"]}
+
+== EVALUATION CRITERIA ==
+Score each dimension from 1 (worst) to 5 (best).
+
+1. GROUNDEDNESS (no hallucination)
+Every claim in the summary — events, times, weather details, todos, dinner
+plans — must be traceable to the raw input data above. The summary must not
+invent events, fabricate weather conditions, or reference todos/plans that
+don't exist in the input.
+- Score 5: Every fact traces directly to input data. No invented details.
+- Score 3: Minor embellishments or imprecise times, but no outright fabrications.
+- Score 1: Contains fabricated events, wrong weather, or invented todos.
+
+2. TONE
+Rally's voice is encouraging, empowering, and action-oriented. It frames
+challenges as opportunities, celebrates hard work, and helps the family feel
+prepared — never overwhelmed, stressed, or burdened.
+- Score 5: Consistently empowering. Challenges framed as opportunities.
+- Score 3: Mostly positive but with flat or neutral phrasing.
+- Score 1: Defeatist, stressful, or makes the day sound burdensome.
+
+Few-shot examples for tone:
+  GOOD (5): "You've got a full day ahead — let's make it count!"
+  BAD  (1): "You have a lot of obligations today that will be difficult to manage."
+
+3. ACTIONABILITY
+The briefing and schedule should help the family take action. The briefing
+surfaces only items needing attention today or very soon (1-2 days). Schedule
+entries identify time gaps as opportunities for todos. Advice is specific.
+- Score 5: Briefing highlights timely, actionable items. Specific advice.
+- Score 3: Some actionable content but also vague or untimely items.
+- Score 1: No actionable guidance. Generic filler.
+
+Few-shot examples for actionability:
+  GOOD (5): "The plumber is confirmed for 2-4 PM — great window to knock out the grocery run beforehand."
+  BAD  (1): "You have some things to do."
+
+4. COMPLETENESS
+The summary covers all key events for today from the input calendars,
+references todos (mentioning assignees by name when assigned), and integrates
+weather and dinner plans where relevant.
+- Score 5: All today's events present. Todos with assignees mentioned by name.
+- Score 3: Most events covered but some missing. Partial todo/dinner integration.
+- Score 1: Major events missing. Todos or dinner plans ignored entirely.
+
+5. GUIDELINE ADHERENCE
+The summary follows Rally's specific content rules:
+- Schedule shows TODAY's events only, in chronological order
+- Weather recommendation mentions clothing appropriate for today
+- Dinner prep mentioned only if needed within 48 hours (not 3+ days away)
+- No HTML in any values — plain text only
+- JSON schema is correct (greeting, weather_summary, schedule array, briefing)
+- Score 5: All rules followed perfectly.
+- Score 3: Minor violations (e.g. slightly out of order, distant dinner prep mentioned).
+- Score 1: Major violations (future events in today's schedule, HTML, wrong schema).
+
+== RESPONSE FORMAT ==
+Respond with ONLY a JSON object (no markdown fences):
+{{{{
+  "groundedness": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
+  "tone": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
+  "actionability": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
+  "completeness": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
+  "guideline_adherence": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
+  "overall_score": <average of all scores rounded to 1 decimal>,
+  "pass": <true if all scores >= 3 AND overall >= 3.5 else false>,
+  "summary": "<1 sentence overall assessment>"
+}}}}"""
+
+        try:
+            response_text = self._call_llm(eval_prompt)
+            print(f"Eval response:\n{response_text}")
+
+            try:
+                return json.loads(response_text)
+            except Exception:
+                extracted = self._extract_json_object(response_text)
+                if extracted is not None:
+                    return extracted
+                return {"error": "Failed to parse eval response", "raw": response_text}
+        except Exception as e:
+            return {"error": f"Eval failed: {e}"}
+
     def save_snapshot(self, data: dict) -> None:
         """Save generated summary data to database."""
         db = SessionLocal()
@@ -646,6 +778,15 @@ Do NOT include any HTML in your response. Plain text only for all values."""
             db.close()
 
 
+EVAL_DIMENSIONS = [
+    "groundedness",
+    "tone",
+    "actionability",
+    "completeness",
+    "guideline_adherence",
+]
+
+
 def main():
     """Main entry point for scheduled generation."""
     # Ensure database is initialized
@@ -653,6 +794,37 @@ def main():
 
     generator = SummaryGenerator()
     data = generator.generate_summary()
+
+    # Run LLM-as-judge eval (skip with RALLY_SKIP_EVAL=1)
+    eval_result = None
+    if not os.getenv("RALLY_SKIP_EVAL"):
+        eval_result = generator.evaluate_summary(data)
+
+        print(f"\n{'=' * 60}")
+        print("EVAL RESULTS")
+        print(f"{'=' * 60}")
+
+        if "error" in eval_result:
+            print(f"  Eval error: {eval_result['error']}")
+        else:
+            for dim in EVAL_DIMENSIONS:
+                if dim in eval_result:
+                    score = eval_result[dim]["score"]
+                    expl = eval_result[dim]["explanation"]
+                    label = dim.replace("_", " ").title()
+                    print(f"  {label:25s} {score}/5  {expl}")
+            overall = eval_result.get("overall_score", "N/A")
+            passed = eval_result.get("pass", False)
+            print(f"  {'Overall':25s} {overall}/5  {'PASS' if passed else 'FAIL'}")
+            if eval_result.get("summary"):
+                print(f"  {eval_result['summary']}")
+
+        print(f"{'=' * 60}\n")
+
+    # Attach eval results to snapshot data for persistence
+    if eval_result:
+        data["_eval"] = eval_result
+
     generator.save_snapshot(data)
 
 
