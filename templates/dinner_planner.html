@@ -16,7 +16,7 @@
         <div class="subtitle">Dinner Planner</div>
     </header>
 
-    <nav class="nav">
+    <nav>
         <a href="/dashboard">Dashboard</a>
         <a href="/todo">Todos</a>
         <a href="/dinner-planner" class="active">Dinner Planner</a>
@@ -46,7 +46,7 @@
         <div class="header-container">
             <h2>Upcoming Dinners</h2>
         </div>
-        <div class="list-container" id="list-container">
+        <div class="list-container" id="plans-list">
             <!-- Plans will be loaded here -->
         </div>
     </div>
@@ -112,7 +112,7 @@
 
         // Render
         function renderPlans() {
-            const container = document.getElementById('list-container');
+            const container = document.getElementById('plans-list');
             
             if (plans.length === 0) {
                 container.innerHTML = '<div class="empty-state">No dinner plans for the next 7 days.</div>';
@@ -157,7 +157,7 @@
         }
 
         // Event handlers
-        document.getElementById('border-container').addEventListener('submit', async (e) => {
+        document.getElementById('plan-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const date = document.getElementById('plan-date').value;
@@ -165,7 +165,7 @@
 
             try {
                 await savePlan(date, plan);
-                document.getElementById('border-container').reset();
+                document.getElementById('plan-form').reset();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error saving plan:', error);

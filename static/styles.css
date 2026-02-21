@@ -29,6 +29,17 @@ body {
     overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
 }
 
+footer {
+    text-align: center;
+    color: var(--medium-gray);
+    font-size: 0.75rem;
+    padding: 24px 0 0 0;
+    border-top: 1px solid var(--pale-gray);
+    margin-top: 32px;
+    letter-spacing: 0.05em;
+    font-style: italic;
+}
+
 /** Header Styles**/
 h2 {
     font-size: 1.5rem;
@@ -74,14 +85,14 @@ h2 {
 /** End Header Styles**/
 
 /** Navigation **/
-.nav {
+nav {
     text-align: center;
     margin-bottom: 32px;
     padding-bottom: 24px;
     border-bottom: 1px solid var(--pale-gray);
 }
 
-.nav a {
+nav a {
     color: var(--charcoal);
     text-decoration: none;
     padding: 8px 16px;
@@ -93,18 +104,17 @@ h2 {
     letter-spacing: 0.05em;
 }
 
-.nav a:hover {
+nav a:hover {
     background: var(--off-white);
 }
 
-.nav a.active {
+nav a.active {
     background: var(--charcoal);
     color: var(--white);
 }
 /** End Navigation **/
 
 /** Lists **/
-
 .list-container {
     display: flex;
     flex-direction: column;
@@ -157,6 +167,7 @@ h2 {
 }
 /** End Container Styling **/
 
+/** Dashboard Styles **/
 /* Greeting */
 .greeting {
     font-size: 1.05rem;
@@ -187,14 +198,13 @@ h2 {
     font-size: 0.9rem;
 }
 
-/* Content container */
-.content-grid {
+/* Content Container and Cards */
+.dashboard-grid {
     display: flex;
     flex-direction: column;
     gap: 24px;
 }
 
-/* Section Cards */
 .card {
     background: var(--white);
     border: 1px solid var(--charcoal);
@@ -228,14 +238,12 @@ h2 {
     margin-bottom: 0;
 }
 
-.card-content ul,
-.card-content ol {
+.card-content ul, .card-content ol {
     padding-left: 24px;
     margin-bottom: 12px;
 }
 
-.card-content ul:last-child,
-.card-content ol:last-child {
+.card-content ul:last-child, .card-content ol:last-child {
     margin-bottom: 0;
 }
 
@@ -290,18 +298,7 @@ h2 {
 .card--featured {
     border: 1px solid var(--charcoal);
 }
-
-/* Footer */
-.footer {
-    text-align: center;
-    color: var(--medium-gray);
-    font-size: 0.75rem;
-    padding: 24px 0 0 0;
-    border-top: 1px solid var(--pale-gray);
-    margin-top: 32px;
-    letter-spacing: 0.05em;
-    font-style: italic;
-}
+/** End Dashboard Styles **/
 
 /**Todo Page**/
 .todo-container {
@@ -593,8 +590,9 @@ h2 {
 
 /** End Settings Page **/
 
+/** Responsive Design **/
 /* Desktop */
-@media (min-width: 1024px) {
+@media screen and (min-width: 1024px) {
     body {
         padding: 64px 48px;
         max-width: 900px;
@@ -606,7 +604,7 @@ h2 {
 }
 
 /* Tablet */
-@media (min-width: 768px) and (max-width: 1023px) {
+@media screen and (min-width: 768px) and (max-width: 1023px) {
     body {
         padding: 48px 40px;
         max-width: 750px;
@@ -618,9 +616,15 @@ h2 {
 }
 
 /* Mobile */
-@media (max-width: 767px) {
+@media screen and (max-width: 767px) {
     body {
         padding: 24px 16px;
+    }
+
+    nav {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
 
     .header h1 {
@@ -665,3 +669,4 @@ h2 {
         page-break-inside: avoid;
     }
 }
+/** End Responsive Design **/
