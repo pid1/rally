@@ -24,12 +24,12 @@
     </nav>
 
     <div class="todo-container">
-        <div class="todo-header">
+        <div class="header-container">
             <h2>Tasks</h2>
             <button class="btn-add" id="btn-add-task">Add Task</button>
         </div>
         
-        <div class="todo-list" id="todo-list">
+        <div class="list-container" id="list-container">
             <div class="loading-state">Loading tasks...</div>
         </div>
     </div>
@@ -128,7 +128,7 @@
 
         // Render
         function renderTodos() {
-            const container = document.getElementById('todo-list');
+            const container = document.getElementById('list-container');
             
             if (todos.length === 0) {
                 container.innerHTML = '<div class="empty-state">No tasks yet. Click "Add Task" to get started.</div>';

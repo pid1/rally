@@ -28,6 +28,8 @@ body {
     margin: 0 auto;
     overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
 }
+
+/** Header Styles**/
 h2 {
     font-size: 1.5rem;
     font-family: var(--header-font);
@@ -36,7 +38,6 @@ h2 {
     letter-spacing: 0.1em;
 }
 
-/* Header */
 .header {
     text-align: center;
     border-bottom: 1px solid var(--charcoal);
@@ -62,7 +63,17 @@ h2 {
     font-style: italic;
 }
 
-/* Navigation */
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--charcoal);
+}
+/** End Header Styles**/
+
+/** Navigation **/
 .nav {
     text-align: center;
     margin-bottom: 32px;
@@ -90,8 +101,18 @@ h2 {
     background: var(--charcoal);
     color: var(--white);
 }
+/** End Navigation **/
 
-/* Buttons */
+/** Lists **/
+
+.list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+/** End Lists **/
+
+/** All Buttons **/
 .btn-add, .btn-primary, .btn-cancel, .btn-edit, .btn-delete, .btn-save {
     border: 1px solid var(--charcoal);
     background: var(--white);
@@ -125,6 +146,16 @@ h2 {
 .btn-cancel:hover, .btn-delete:hover {
     background: var(--off-white);
 }
+/** End All Buttons **/
+
+/** Container Styling **/
+.border-container {
+    margin-bottom: 48px;
+    padding: 32px;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+}
+/** End Container Styling **/
 
 /* Greeting */
 .greeting {
@@ -272,26 +303,10 @@ h2 {
     font-style: italic;
 }
 
-/* Todo Container */
+/**Todo Page**/
 .todo-container {
     max-width: 800px;
     margin: 0 auto;
-}
-
-.todo-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 32px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--charcoal);
-}
-
-/* Todo List */
-.todo-list, .plans-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
 }
 
 .empty-state {
@@ -388,62 +403,7 @@ h2 {
     gap: 8px;
     flex-shrink: 0;
 }
-
-/* Assignee Badge */
-.assignee-badge {
-    display: inline-block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--white);
-    padding: 2px 8px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    vertical-align: middle;
-    margin-left: 8px;
-}
-
-.assignee-label {
-    font-family: var(--body-font);
-    font-style: italic;
-    font-size: 0.9rem;
-    color: var(--medium-gray);
-    margin-left: 6px;
-    vertical-align: baseline;
-}
-
-/* Family Member Badge */
-.member-badge {
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-
-/* Color Picker */
-.color-picker {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.color-picker input[type="color"] {
-    width: 48px;
-    height: 36px;
-    border: 1px solid var(--charcoal);
-    padding: 2px;
-    cursor: pointer;
-    background: var(--white);
-}
-
-.color-preview {
-    display: inline-block;
-    padding: 4px 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--white);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
+/**End Todo Page**/
 
 /* Select styling */
 .form-group select {
@@ -464,7 +424,7 @@ h2 {
     padding-right: 32px;
 }
 
-/* Modal */
+/** Modals **/
 .modal-overlay {
     display: none;
     position: fixed;
@@ -494,6 +454,14 @@ h2 {
     letter-spacing: 0.1em;
 }
 
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+/** End Modals **/
+
+/** Forms **/
 .form-group {
     margin-bottom: 20px;
 }
@@ -531,31 +499,9 @@ h2 {
     resize: vertical;
     min-height: 100px;
 }
-
-.modal-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
-}
-/* Plan Form */
-.plan-form {
-    margin-bottom: 48px;
-    padding: 32px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-}
-
-.plan-form h2 {
-    margin-bottom: 24px;
-}
+/** End Forms **/
 
 /* Plans List */
-.plans-section h2 {
-    margin-bottom: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--charcoal);
-}
-
 .plan-card {
     padding: 20px;
     border: 1px solid var(--pale-gray);
@@ -586,19 +532,7 @@ h2 {
     gap: 12px;
 }
 
-/* Settings Page */
-.settings-section {
-    margin-bottom: 48px;
-    padding: 32px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-}
-
-.settings-section h2 {
-    margin-bottom: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--charcoal);
-}
+/** Settings Page **/
 
 .settings-actions {
     margin-top: 24px;
@@ -627,6 +561,37 @@ h2 {
 .llm-fields-anthropic.active {
     display: block;
 }
+/* Assignee Badge */
+.assignee-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--white);
+    padding: 2px 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+
+.assignee-label {
+    font-family: var(--body-font);
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+    margin-left: 6px;
+    vertical-align: baseline;
+}
+
+/* Family Member Badge */
+.member-badge {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/** End Settings Page **/
 
 /* Desktop */
 @media (min-width: 1024px) {
