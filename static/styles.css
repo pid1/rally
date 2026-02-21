@@ -740,19 +740,6 @@ nav a.active {
         text-align: left;
     }
 
-    .todo-toolbar {
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .toolbar-group {
-        width: 100%;
-    }
-
-    .toolbar-group select {
-        flex: 1;
-    }
-
     .header-actions {
         gap: 8px;
     }
