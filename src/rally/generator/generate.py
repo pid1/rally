@@ -286,6 +286,53 @@ class SummaryGenerator:
             print(f"Error fetching weather: {e}")
             return None
 
+    def format_weather(self, weather: dict | None) -> str:
+        """Format raw OpenWeather API response into human-readable local-time text.
+
+        Converts UTC timestamps to local time and strips raw JSON so the LLM
+        sees only clean, unambiguous weather data.
+        """
+        if not weather:
+            return "No weather data available."
+
+        from datetime import datetime
+
+        def fmt_time(ts: int) -> str:
+            return datetime.fromtimestamp(ts, tz=self.local_tz).strftime("%I:%M %p").lstrip("0")
+
+        def fmt_day(ts: int) -> str:
+            return datetime.fromtimestamp(ts, tz=self.local_tz).strftime("%A, %b %d")
+
+        lines = []
+
+        # Current conditions
+        cur = weather.get("current", {})
+        if cur:
+            desc = cur["weather"][0]["description"] if cur.get("weather") else "unknown"
+            lines.append(f"Current: {cur.get('temp', '?')}°F (feels like {cur.get('feels_like', '?')}°F), {desc}")
+            lines.append(f"  Wind: {cur.get('wind_speed', '?')} mph, Humidity: {cur.get('humidity', '?')}%")
+            if "sunrise" in cur and "sunset" in cur:
+                lines.append(f"  Sunrise: {fmt_time(cur['sunrise'])}, Sunset: {fmt_time(cur['sunset'])}")
+
+        # Daily forecast
+        daily = weather.get("daily", [])
+        if daily:
+            lines.append("\nDaily forecast:")
+            for day in daily:
+                day_label = fmt_day(day["dt"])
+                temp = day.get("temp", {})
+                desc = day["weather"][0]["description"] if day.get("weather") else "unknown"
+                wind = f", wind {day.get('wind_speed', '?')} mph"
+                if day.get("wind_gust"):
+                    wind += f" (gusts {day['wind_gust']} mph)"
+                pop = day.get("pop", 0)
+                rain = f", {int(pop * 100)}% chance of rain" if pop > 0.1 else ""
+                lines.append(
+                    f"  {day_label}: High {temp.get('max', '?')}°F / Low {temp.get('min', '?')}°F, {desc}{wind}{rain}"
+                )
+
+        return "\n".join(lines)
+
     def load_family_members(self) -> dict[int, str]:
         """Load family members from database, returning id -> name mapping."""
         db = SessionLocal()
@@ -530,10 +577,13 @@ class SummaryGenerator:
         else:
             cal_text = "No calendar events for the next 7 days."
 
+        # Format weather into clean local-time text
+        weather_text = self.format_weather(weather)
+
         # Store raw inputs for eval ground truth
         self._generation_context = {
             "cal_text": cal_text,
-            "weather": str(weather),
+            "weather": weather_text,
             "todos": todos,
             "dinner_plans": dinner_plans,
             "family_members": ", ".join(family_members.values())
@@ -541,7 +591,7 @@ class SummaryGenerator:
             else "No family members configured.",
         }
 
-        today = now_utc().strftime("%A, %B %d, %Y")
+        today = now_utc().astimezone(self.local_tz).strftime("%A, %B %d, %Y")
         prompt = f"""You're creating content for a daily family summary for {today}.
 
 AGENT VOICE:
@@ -556,8 +606,8 @@ FAMILY MEMBERS:
 CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
 {cal_text}
 
-WEATHER FORECAST (next 7 days from OpenWeather):
-{weather}
+WEATHER FORECAST:
+{weather_text}
 
 TODOS:
 {todos}
