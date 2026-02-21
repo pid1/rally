@@ -31,7 +31,7 @@
         </div>
 
         <div class="list-container" id="family-list">
-            <div class="loading-state">Loading family members...</div>
+            <div class="container-loading-state">Loading family members...</div>
         </div>
     </div>
 
@@ -43,7 +43,7 @@
         </div>
 
         <div class="list-container" id="calendar-list">
-            <div class="loading-state">Loading calendars...</div>
+            <div class="container-loading-state">Loading calendars...</div>
         </div>
     </div>
 
@@ -271,16 +271,16 @@
             const container = document.getElementById('family-list');
 
             if (familyMembers.length === 0) {
-                container.innerHTML = '<div class="empty-state">No family members yet. Click "Add Member" to get started.</div>';
+                container.innerHTML = '<div class="container-empty-state">No family members yet. Click "Add Member" to get started.</div>';
                 return;
             }
 
             container.innerHTML = familyMembers.map(member => `
-                <div class="todo-item" data-id="${member.id}">
-                    <div class="todo-content">
-                        <div class="todo-title">${escapeHtml(member.name)}</div>
+                <div class="editable-item" data-id="${member.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(member.name)}</div>
                     </div>
-                    <div class="todo-actions">
+                    <div class="editable-item-actions">
                         <button class="btn-edit" onclick="openEditMemberModal(${member.id})">Edit</button>
                         <button class="btn-delete" onclick="confirmDeleteMember(${member.id})">Delete</button>
                     </div>
@@ -375,7 +375,7 @@
             const container = document.getElementById('calendar-list');
 
             if (calendars.length === 0) {
-                container.innerHTML = '<div class="empty-state">No calendars yet. Click "Add Calendar" to get started.</div>';
+                container.innerHTML = '<div class="container-empty-state">No calendars yet. Click "Add Calendar" to get started.</div>';
                 return;
             }
 
@@ -385,12 +385,12 @@
                     ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
                     : '';
                 return `
-                    <div class="todo-item" data-id="${cal.id}">
-                        <div class="todo-content">
-                            <div class="todo-title">${escapeHtml(cal.label)} ${memberHtml}</div>
-                            <div class="todo-description">${escapeHtml(truncateUrl(cal.url, 60))}</div>
+                    <div class="editable-item" data-id="${cal.id}">
+                        <div class="editable-item-content">
+                            <div class="editable-item-title">${escapeHtml(cal.label)} ${memberHtml}</div>
+                            <div class="editable-item-description">${escapeHtml(truncateUrl(cal.url, 60))}</div>
                         </div>
-                        <div class="todo-actions">
+                        <div class="editable-item-actions">
                             <button class="btn-edit" onclick="openEditCalendarModal(${cal.id})">Edit</button>
                             <button class="btn-delete" onclick="confirmDeleteCalendar(${cal.id})">Delete</button>
                         </div>

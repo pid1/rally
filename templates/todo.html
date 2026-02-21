@@ -51,7 +51,7 @@
         </div>
 
         <div class="list-container" id="list-container">
-            <div class="loading-state">Loading tasks...</div>
+            <div class="container-loading-state">Loading tasks...</div>
         </div>
     </div>
 
@@ -250,7 +250,7 @@
             const visible = getFilteredSortedTodos();
 
             if (todos.length === 0 && recurringTodos.length === 0) {
-                container.innerHTML = '<div class="empty-state">No tasks yet. Click "Add Task" to get started.</div>';
+                container.innerHTML = '<div class="container-empty-state">No tasks yet. Click "Add Task" to get started.</div>';
                 return;
             }
 
@@ -266,13 +266,13 @@
                     const pausedHtml = !rt.active ? '<span class="recurring-paused">Paused</span>' : '';
                     const dueBadge = rt.has_due_date ? '<span class="recurring-meta">with due date</span>' : '';
                     return `
-                        <div class="todo-item recurring-template ${!rt.active ? 'completed' : ''}" data-id="${rt.id}">
+                        <div class="editable-item recurring-template ${!rt.active ? 'completed' : ''}" data-id="${rt.id}">
                             <div class="todo-recurring-icon">↻</div>
-                            <div class="todo-content">
-                                <div class="todo-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
+                            <div class="editable-item-content">
+                                <div class="editable-item-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
                                 <div class="recurring-schedule">${describeRecurrence(rt)} ${dueBadge}</div>
                             </div>
-                            <div class="todo-actions">
+                            <div class="editable-item-actions">
                                 <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
                                 <button class="btn-edit" onclick="openEditRecurringModal(${rt.id})">Edit</button>
                                 <button class="btn-delete" onclick="confirmDeleteRecurring(${rt.id})">Delete</button>
@@ -284,7 +284,7 @@
 
             // Render todo instances
             if (visible.length === 0 && recurringTodos.length === 0) {
-                html += '<div class="empty-state">No tasks match the current filter.</div>';
+                html += '<div class="container-empty-state">No tasks match the current filter.</div>';
             } else {
                 html += visible.map(todo => {
                     const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
@@ -294,17 +294,17 @@
                         : '';
                     const recurringIcon = todo.recurring_todo_id ? '<span class="recurring-indicator">↻</span>' : '';
                     return `
-                        <div class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+                        <div class="editable-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
                             <div class="todo-checkbox">
                                 <input type="checkbox" ${todo.completed ? 'checked' : ''} 
                                        onchange="toggleComplete(${todo.id}, this.checked)">
                             </div>
-                            <div class="todo-content">
-                                <div class="todo-title">${escapeHtml(todo.title)} ${recurringIcon} ${assigneeHtml}</div>
-                                ${todo.description ? `<div class="todo-description">${escapeHtml(todo.description)}</div>` : ''}
+                            <div class="editable-item-content">
+                                <div class="editable-item-title">${escapeHtml(todo.title)} ${recurringIcon} ${assigneeHtml}</div>
+                                ${todo.description ? `<div class="editable-item-description">${escapeHtml(todo.description)}</div>` : ''}
                                 ${dueDateHtml}
                             </div>
-                            <div class="todo-actions">
+                            <div class="editable-item-actions">
                                 <button class="btn-edit" onclick="openEditModal(${todo.id})">Edit</button>
                                 <button class="btn-delete" onclick="confirmDelete(${todo.id})">Delete</button>
                             </div>
