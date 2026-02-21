@@ -529,6 +529,7 @@ nav a.active {
 
 .todo-toolbar {
     display: flex;
+    flex-wrap: wrap;
     gap: 24px;
     margin-bottom: 24px;
     padding-bottom: 20px;
@@ -537,8 +538,9 @@ nav a.active {
 
 .toolbar-group {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 .toolbar-group label {
@@ -566,6 +568,52 @@ nav a.active {
     background-repeat: no-repeat;
     background-position: right 8px center;
 }
+.filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.filter-chip {
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    padding: 4px 14px;
+    border: 1px solid var(--pale-gray);
+    border-radius: 20px;
+    background: var(--white);
+    color: var(--charcoal);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.filter-chip:hover {
+    border-color: var(--medium-gray);
+}
+
+.filter-chip.active {
+    background: var(--charcoal);
+    color: var(--white);
+    border-color: var(--charcoal);
+}
+
+.filter-clear {
+    font-family: var(--body-font);
+    font-size: 0.85rem;
+    padding: 4px 10px;
+    border: none;
+    background: none;
+    color: var(--medium-gray);
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.filter-clear:hover {
+    color: var(--charcoal);
+}
+
 .header-actions {
     display: flex;
     gap: 12px;

@@ -34,17 +34,19 @@
         
         <div class="todo-toolbar">
             <div class="toolbar-group">
-                <label for="filter-assignee">Assignee</label>
-                <select id="filter-assignee">
-                    <option value="all">All</option>
-                    <option value="unassigned">Unassigned</option>
-                </select>
+                <label>Assignee</label>
+                <div class="filter-chips" id="filter-assignee-chips">
+                    <button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>
+                </div>
+                <button type="button" class="filter-clear" id="filter-clear" style="display:none;">Clear Filters</button>
             </div>
             <div class="toolbar-group">
                 <label for="sort-by">Sort</label>
                 <select id="sort-by">
-                    <option value="due-date">Due Date</option>
+                    <option value="due-soonest">Due Date (Soonest)</option>
                     <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="due-furthest">Due Date (Furthest Out)</option>
                     <option value="assignee">Assignee</option>
                 </select>
             </div>
@@ -119,7 +121,7 @@
                 <div class="form-group">
                     <label>Assigned To (optional)</label>
                     <select id="todo-assigned-to">
-                        <option value="">Everyone (family-wide)</option>
+                        <option value="">Unassigned</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -148,26 +150,48 @@
             populateAssigneeDropdown();
         }
 
+        // Track selected assignee filter values
+        let selectedFilters = new Set();
+
         function populateAssigneeDropdown() {
             const select = document.getElementById('todo-assigned-to');
-            select.innerHTML = '<option value="">Everyone (family-wide)</option>';
+            select.innerHTML = '<option value="">Unassigned</option>';
             familyMembers.forEach(m => {
                 select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
             });
 
-            const filter = document.getElementById('filter-assignee');
-            const currentValue = filter.value;
-            filter.innerHTML = '<option value="all">All</option><option value="unassigned">Unassigned</option>';
+            // Build filter chips
+            const chips = document.getElementById('filter-assignee-chips');
+            chips.innerHTML = '<button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>';
             familyMembers.forEach(m => {
-                filter.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+                chips.innerHTML += `<button type="button" class="filter-chip" data-value="${m.id}">${escapeHtml(m.name)}</button>`;
             });
-            filter.value = currentValue;
+            // Re-apply active state from selectedFilters
+            chips.querySelectorAll('.filter-chip').forEach(chip => {
+                if (selectedFilters.has(chip.dataset.value)) {
+                    chip.classList.add('active');
+                }
+            });
+            updateClearButton();
 
             const rSelect = document.getElementById('recurring-assigned-to');
             rSelect.innerHTML = '<option value="">Everyone (family-wide)</option>';
             familyMembers.forEach(m => {
                 rSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
             });
+        }
+
+        function updateClearButton() {
+            document.getElementById('filter-clear').style.display = selectedFilters.size > 0 ? '' : 'none';
+        }
+
+        function clearFilters() {
+            selectedFilters.clear();
+            document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+            });
+            updateClearButton();
+            renderTodos();
         }
 
         function getMemberById(id) {
@@ -210,36 +234,59 @@
 
         // Filter & sort
         function getFilteredSortedTodos() {
-            const filterValue = document.getElementById('filter-assignee').value;
             const sortValue = document.getElementById('sort-by').value;
 
             let filtered = todos;
-            if (filterValue === 'unassigned') {
-                filtered = todos.filter(t => !t.assigned_to);
-            } else if (filterValue !== 'all') {
-                const memberId = parseInt(filterValue);
-                filtered = todos.filter(t => t.assigned_to === memberId);
+            if (selectedFilters.size > 0) {
+                filtered = todos.filter(t => {
+                    if (!t.assigned_to) return selectedFilters.has('unassigned');
+                    return selectedFilters.has(String(t.assigned_to));
+                });
+            }
+
+            // Sub-sort helpers
+            function cmpNewest(a, b) {
+                return new Date(b.created_at) - new Date(a.created_at);
+            }
+            function cmpOldest(a, b) {
+                return new Date(a.created_at) - new Date(b.created_at);
+            }
+            function cmpDueSoonest(a, b) {
+                if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+                if (!a.due_date && !b.due_date) return cmpNewest(a, b);
+                return a.due_date ? -1 : 1;
+            }
+            function cmpDueFurthest(a, b) {
+                if (a.due_date && b.due_date) return b.due_date.localeCompare(a.due_date);
+                if (!a.due_date && !b.due_date) return cmpNewest(a, b);
+                return a.due_date ? -1 : 1;
             }
 
             const sorted = [...filtered];
-            if (sortValue === 'due-date') {
-                sorted.sort((a, b) => {
-                    if (!a.due_date && !b.due_date) return 0;
-                    if (!a.due_date) return 1;
-                    if (!b.due_date) return -1;
-                    return a.due_date.localeCompare(b.due_date);
-                });
+            if (sortValue === 'oldest') {
+                sorted.sort(cmpOldest);
+            } else if (sortValue === 'due-soonest') {
+                sorted.sort(cmpDueSoonest);
+            } else if (sortValue === 'due-furthest') {
+                sorted.sort(cmpDueFurthest);
             } else if (sortValue === 'assignee') {
                 sorted.sort((a, b) => {
                     const nameA = a.assigned_to ? (getMemberById(a.assigned_to)?.name || '') : '';
                     const nameB = b.assigned_to ? (getMemberById(b.assigned_to)?.name || '') : '';
-                    if (!nameA && !nameB) return 0;
-                    if (!nameA) return 1;
-                    if (!nameB) return -1;
-                    return nameA.localeCompare(nameB);
+                    if (nameA && nameB) {
+                        const nameCmp = nameA.localeCompare(nameB);
+                        if (nameCmp !== 0) return nameCmp;
+                    } else if (!nameA && !nameB) {
+                        return cmpDueSoonest(a, b);
+                    } else {
+                        return nameA ? -1 : 1;
+                    }
+                    return cmpDueSoonest(a, b);
                 });
+            } else {
+                // 'newest' (default)
+                sorted.sort(cmpNewest);
             }
-            // 'newest' is the default order from the API (created_at DESC)
 
             return sorted;
         }
@@ -398,7 +445,21 @@
         // Event handlers
         document.getElementById('btn-add-task').addEventListener('click', openAddModal);
         document.getElementById('btn-cancel').addEventListener('click', closeModal);
-        document.getElementById('filter-assignee').addEventListener('change', renderTodos);
+        document.getElementById('filter-assignee-chips').addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+            const value = chip.dataset.value;
+            if (selectedFilters.has(value)) {
+                selectedFilters.delete(value);
+                chip.classList.remove('active');
+            } else {
+                selectedFilters.add(value);
+                chip.classList.add('active');
+            }
+            updateClearButton();
+            renderTodos();
+        });
+        document.getElementById('filter-clear').addEventListener('click', clearFilters);
         document.getElementById('sort-by').addEventListener('change', renderTodos);
         
         document.getElementById('modal-overlay').addEventListener('click', (e) => {
