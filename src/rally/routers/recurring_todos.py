@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from rally.database import get_db
 from rally.models import RecurringTodo
-from rally.schemas import RecurringTodoCreate, RecurringTodoResponse, RecurringTodoUpdate
+from rally.schemas import UNSET, RecurringTodoCreate, RecurringTodoResponse, RecurringTodoUpdate
 
 router = APIRouter(prefix="/api/recurring-todos", tags=["recurring-todos"])
 
@@ -57,7 +57,7 @@ def update_recurring_todo(rt_id: int, rt: RecurringTodoUpdate, db: Session = Dep
         db_rt.recurrence_type = rt.recurrence_type
     if rt.recurrence_day is not None:
         db_rt.recurrence_day = rt.recurrence_day
-    if rt.assigned_to is not None:
+    if rt.assigned_to is not UNSET:
         db_rt.assigned_to = rt.assigned_to
     if rt.has_due_date is not None:
         db_rt.has_due_date = rt.has_due_date

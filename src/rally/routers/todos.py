@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.models import Todo
 from rally.recurrence import process_recurring_todos
-from rally.schemas import TodoCreate, TodoResponse, TodoUpdate
+from rally.schemas import UNSET, TodoCreate, TodoResponse, TodoUpdate
 from rally.utils.timezone import now_utc
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
@@ -84,7 +84,7 @@ def update_todo(
         db_todo.description = todo.description
     if todo.due_date is not None:
         db_todo.due_date = todo.due_date
-    if todo.assigned_to is not None:
+    if todo.assigned_to is not UNSET:
         db_todo.assigned_to = todo.assigned_to
     if todo.completed is not None:
         db_todo.completed = todo.completed

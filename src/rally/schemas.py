@@ -4,6 +4,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+# Sentinel value to distinguish "field not provided" from "field set to None"
+UNSET = object()
+
 # Family Members
 
 
@@ -91,7 +94,7 @@ class TodoUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     due_date: str | None = None  # YYYY-MM-DD format
-    assigned_to: int | None = None  # family_members.id
+    assigned_to: int | None = UNSET  # family_members.id; None means "Everyone"
     completed: bool | None = None
 
 
@@ -126,7 +129,7 @@ class RecurringTodoUpdate(BaseModel):
     description: str | None = None
     recurrence_type: str | None = None
     recurrence_day: int | None = None
-    assigned_to: int | None = None
+    assigned_to: int | None = UNSET
     has_due_date: bool | None = None
     active: bool | None = None
 
