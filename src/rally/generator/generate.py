@@ -470,20 +470,38 @@ class SummaryGenerator:
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         return (base_dir / "templates" / "dashboard.html").read_text()
 
-    def _call_llm(self, prompt: str) -> str:
-        """Call the configured LLM provider and return the response text."""
+    def _call_llm(self, user_prompt: str, system_prompt: str | None = None) -> str:
+        """Call the configured LLM provider and return the response text.
+
+        When a system_prompt is provided it is sent as a separate system message.
+        For Anthropic, prompt caching is enabled on the system block so that
+        static content (voice, context, guidelines) is cached across calls.
+        """
         if self.provider == "anthropic":
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            kwargs: dict = {
+                "model": self.model,
+                "max_tokens": 4000,
+                "messages": [{"role": "user", "content": user_prompt}],
+            }
+            if system_prompt:
+                kwargs["system"] = [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+            response = self.client.messages.create(**kwargs)
             return response.content[0].text if response.content else ""
         else:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": user_prompt})
             response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
             )
             return response.choices[0].message.content if response.choices else ""
 
@@ -592,7 +610,9 @@ class SummaryGenerator:
         }
 
         today = now_utc().astimezone(self.local_tz).strftime("%A, %B %d, %Y")
-        prompt = f"""You're creating content for a daily family summary for {today}.
+
+        # Static content → system prompt (cached by Anthropic, system role for local models)
+        system_prompt = f"""You are creating content for a daily family summary.
 
 AGENT VOICE:
 {voice}
@@ -600,22 +620,7 @@ AGENT VOICE:
 FAMILY CONTEXT:
 {context}
 
-FAMILY MEMBERS:
-{", ".join(family_members.values()) if family_members else "No family members configured."}
-
-CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
-{cal_text}
-
-WEATHER FORECAST:
-{weather_text}
-
-TODOS:
-{todos}
-
-DINNER PLANS (next 7 days):
-{dinner_plans}
-
-Create content for a daily summary. Respond with ONLY a JSON object (no markdown fences) using this exact schema:
+Respond with ONLY a JSON object (no markdown fences) using this exact schema:
 {{
   "greeting": "A short, friendly greeting or note about the day (1 sentence)",
   "weather_summary": "Weather overview with clothing recommendation (plain text, 1 sentence)",
@@ -641,8 +646,26 @@ Guidelines:
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
+        # Dynamic content → user prompt (changes every generation)
+        user_prompt = f"""Create a daily family summary for {today}.
+
+FAMILY MEMBERS:
+{", ".join(family_members.values()) if family_members else "No family members configured."}
+
+CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
+{cal_text}
+
+WEATHER FORECAST:
+{weather_text}
+
+TODOS:
+{todos}
+
+DINNER PLANS (next 7 days):
+{dinner_plans}"""
+
         try:
-            response_text = self._call_llm(prompt)
+            response_text = self._call_llm(user_prompt, system_prompt=system_prompt)
             print(f"LLM response:\n{response_text}")
 
             # Try strict JSON first
@@ -703,28 +726,10 @@ Do NOT include any HTML in your response. Plain text only for all values."""
         ctx = self._generation_context
         summary_json = json.dumps(summary_data, indent=2)
 
-        eval_prompt = f"""You are a quality evaluator for Rally, a family command center.
+        # Static evaluation criteria → system prompt (cached / system role)
+        eval_system = """You are a quality evaluator for Rally, a family command center.
 Your job is to judge the quality of an AI-generated daily family summary by
 comparing it against the raw input data that was available to the generator.
-
-== GENERATED SUMMARY (to evaluate) ==
-{summary_json}
-
-== RAW INPUT DATA (ground truth) ==
-CALENDAR EVENTS:
-{ctx["cal_text"]}
-
-WEATHER DATA:
-{ctx["weather"]}
-
-TODOS:
-{ctx["todos"]}
-
-DINNER PLANS:
-{ctx["dinner_plans"]}
-
-FAMILY MEMBERS:
-{ctx["family_members"]}
 
 == EVALUATION CRITERIA ==
 Score each dimension from 1 (worst) to 5 (best).
@@ -783,19 +788,39 @@ The summary follows Rally's specific content rules:
 
 == RESPONSE FORMAT ==
 Respond with ONLY a JSON object (no markdown fences):
-{{{{
-  "groundedness": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
-  "tone": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
-  "actionability": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
-  "completeness": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
-  "guideline_adherence": {{{{"score": <1-5>, "explanation": "<1 sentence>"}}}},
+{
+  "groundedness": {"score": <1-5>, "explanation": "<1 sentence>"},
+  "tone": {"score": <1-5>, "explanation": "<1 sentence>"},
+  "actionability": {"score": <1-5>, "explanation": "<1 sentence>"},
+  "completeness": {"score": <1-5>, "explanation": "<1 sentence>"},
+  "guideline_adherence": {"score": <1-5>, "explanation": "<1 sentence>"},
   "overall_score": <average of all scores rounded to 1 decimal>,
   "pass": <true if all scores >= 3 AND overall >= 3.5 else false>,
   "summary": "<1 sentence overall assessment>"
-}}}}"""
+}"""
+
+        # Dynamic data → user prompt
+        eval_user = f"""== GENERATED SUMMARY (to evaluate) ==
+{summary_json}
+
+== RAW INPUT DATA (ground truth) ==
+CALENDAR EVENTS:
+{ctx["cal_text"]}
+
+WEATHER DATA:
+{ctx["weather"]}
+
+TODOS:
+{ctx["todos"]}
+
+DINNER PLANS:
+{ctx["dinner_plans"]}
+
+FAMILY MEMBERS:
+{ctx["family_members"]}"""
 
         try:
-            response_text = self._call_llm(eval_prompt)
+            response_text = self._call_llm(eval_user, system_prompt=eval_system)
             print(f"Eval response:\n{response_text}")
 
             try:
