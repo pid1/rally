@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from rally.database import init_db
-from rally.routers import dashboard, dinner_planner, family, settings, todos
+from rally.routers import dashboard, dinner_planner, family, recurring_todos, settings, todos
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -38,6 +38,7 @@ app.include_router(dashboard.router)
 app.include_router(todos.router)
 app.include_router(dinner_planner.router)
 app.include_router(family.router)
+app.include_router(recurring_todos.router)
 app.include_router(settings.router)
 
 

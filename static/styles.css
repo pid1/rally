@@ -437,6 +437,54 @@ nav a.active {
     background-repeat: no-repeat;
     background-position: right 8px center;
 }
+.header-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.todo-recurring-icon {
+    flex-shrink: 0;
+    font-size: 1.1rem;
+    color: var(--medium-gray);
+    padding-top: 2px;
+}
+
+.recurring-indicator {
+    font-size: 0.85rem;
+    color: var(--light-gray);
+    margin-left: 4px;
+}
+
+.recurring-template {
+    border-style: dashed;
+}
+
+.recurring-schedule {
+    font-size: 0.85rem;
+    color: var(--medium-gray);
+    font-style: italic;
+    margin-top: 2px;
+}
+
+.recurring-meta {
+    font-size: 0.8rem;
+    color: var(--light-gray);
+    margin-left: 6px;
+}
+
+.recurring-paused {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--light-gray);
+    margin-left: 8px;
+}
+
+.form-group label input[type="checkbox"] {
+    margin-right: 6px;
+    vertical-align: middle;
+}
 /**End Todo Page**/
 
 /* Select styling */

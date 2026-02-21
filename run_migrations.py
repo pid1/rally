@@ -15,6 +15,7 @@ def run_migrations():
         from migrate_add_due_date import migrate as migrate_001_add_due_date
         from migrate_add_family_members import migrate as migrate_002_add_family_members
         from migrate_add_settings import migrate as migrate_003_add_settings
+        from migrate_add_recurring_todos import migrate as migrate_004_add_recurring_todos
     except ImportError as e:
         print(f"✗ Failed to import migrations: {e}")
         return False
@@ -24,6 +25,7 @@ def run_migrations():
         ("001_add_due_date", migrate_001_add_due_date),
         ("002_add_family_members", migrate_002_add_family_members),
         ("003_add_settings", migrate_003_add_settings),
+        ("004_add_recurring_todos", migrate_004_add_recurring_todos),
     ]
 
     print("=" * 60)

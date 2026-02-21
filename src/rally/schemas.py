@@ -4,7 +4,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-
 # Family Members
 
 
@@ -98,7 +97,43 @@ class TodoUpdate(BaseModel):
 
 class TodoResponse(TodoBase):
     id: int
+    recurring_todo_id: int | None = None
     completed: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Recurring Todos
+
+
+class RecurringTodoBase(BaseModel):
+    title: str
+    description: str | None = None
+    recurrence_type: str  # daily, weekly, monthly
+    recurrence_day: int | None = None  # 0-6 for weekly, 1-31 for monthly
+    assigned_to: int | None = None
+    has_due_date: bool = False
+
+
+class RecurringTodoCreate(RecurringTodoBase):
+    pass
+
+
+class RecurringTodoUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    recurrence_type: str | None = None
+    recurrence_day: int | None = None
+    assigned_to: int | None = None
+    has_due_date: bool | None = None
+    active: bool | None = None
+
+
+class RecurringTodoResponse(RecurringTodoBase):
+    id: int
+    active: bool
     created_at: datetime
     updated_at: datetime
 

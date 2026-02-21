@@ -69,7 +69,25 @@ class Todo(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
     assigned_to: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to family_members.id
+    recurring_todo_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to recurring_todos.id
     completed: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class RecurringTodo(Base):
+    """Recurring todo template model."""
+
+    __tablename__ = "recurring_todos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recurrence_type: Mapped[str] = mapped_column(String(20))  # daily, weekly, monthly
+    recurrence_day: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-6 for weekly, 1-31 for monthly
+    assigned_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    has_due_date: Mapped[bool] = mapped_column(default=False)
+    active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
