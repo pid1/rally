@@ -507,26 +507,37 @@ class SummaryGenerator:
         context = self.load_context()
         voice = self.load_voice()
 
-        # Format calendars for prompt
-        cal_text = ""
+        # Merge and deduplicate events across all calendars
+        all_events: list[dict] = []
+        seen: set[tuple] = set()
         if calendars:
+            for cal in calendars:
+                for event in cal["events"]:
+                    # Dedupe key: same summary, date, and time
+                    key = (event["summary"].strip().lower(), event["date"], event["time"])
+                    if key not in seen:
+                        seen.add(key)
+                        all_events.append(event)
+
+            all_events.sort(key=lambda e: (e["date"], e["time"]))
+
+        # Format deduplicated events for prompt
+        cal_text = ""
+        if all_events:
             from datetime import datetime
 
-            for cal in calendars:
-                cal_text += f"\nCALENDAR: {cal['name']}\n"
-                current_date = None
-                for event in cal["events"]:
-                    # Group events by date for readability
-                    if event["date"] != current_date:
-                        current_date = event["date"]
-                        cal_text += f"\n  {datetime.strptime(event['date'], '%Y-%m-%d').strftime('%A, %B %d')}:\n"
+            current_date = None
+            for event in all_events:
+                if event["date"] != current_date:
+                    current_date = event["date"]
+                    cal_text += f"\n  {datetime.strptime(event['date'], '%Y-%m-%d').strftime('%A, %B %d')}:\n"
 
-                    cal_text += f"    - {event['time']} {event['summary']}"
-                    if event["location"]:
-                        cal_text += f" at {event['location']}"
-                    if event["description"]:
-                        cal_text += f" ({event['description']})"
-                    cal_text += "\n"
+                cal_text += f"    - {event['time']} {event['summary']}"
+                if event["location"]:
+                    cal_text += f" at {event['location']}"
+                if event["description"]:
+                    cal_text += f" ({event['description']})"
+                cal_text += "\n"
         else:
             cal_text = "No calendar events for the next 7 days."
 
@@ -541,8 +552,11 @@ class SummaryGenerator:
             else "No family members configured.",
         }
 
-        today = now_utc().strftime("%A, %B %d, %Y")
+        local_now = now_utc().astimezone(self.local_tz)
+        today = local_now.strftime("%A, %B %d, %Y")
+        tz_label = local_now.strftime("%Z")  # e.g. "CST" or "CDT"
         prompt = f"""You're creating content for a daily family summary for {today}.
+All times below are in {tz_label} ({self.local_tz}). Use these times exactly as shown — do NOT convert timezones.
 
 AGENT VOICE:
 {voice}
@@ -553,7 +567,7 @@ FAMILY CONTEXT:
 FAMILY MEMBERS:
 {", ".join(family_members.values()) if family_members else "No family members configured."}
 
-CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
+CALENDAR EVENTS (next 7 days, deduplicated):
 {cal_text}
 
 WEATHER FORECAST (next 7 days from OpenWeather):
@@ -580,7 +594,7 @@ Create content for a daily summary. Respond with ONLY a JSON object (no markdown
 }}
 
 Guidelines:
-1. Deduplicate calendar events (same event in multiple calendars)
+1. Calendar events are already deduplicated — use them as-is
 2. Schedule should show TODAY'S events in chronological order
 3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on TODAY'S weather and activities
