@@ -400,6 +400,43 @@ nav a.active {
     gap: 8px;
     flex-shrink: 0;
 }
+.todo-toolbar {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--pale-gray);
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.toolbar-group label {
+    font-family: var(--header-font);
+    font-size: 1.05rem;
+    font-weight: 400;
+    color: var(--charcoal);
+    white-space: nowrap;
+}
+
+.toolbar-group select {
+    appearance: none;
+    box-sizing: border-box;
+    min-height: 2.25rem;
+    color: var(--charcoal);
+    padding: 4px 28px 4px 10px;
+    border: 1px solid var(--pale-gray);
+    background: var(--white);
+    font-family: var(--body-font);
+    font-size: 0.95rem;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
 /**End Todo Page**/
 
 /* Select styling */
