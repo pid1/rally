@@ -6,19 +6,22 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 
 ## Features
 
-- 📅 **Unified Calendar** - Pulls from Google Calendar and iCloud, filters to today's events, deduplicates automatically
+- 📅 **Unified Calendar** - Pulls from Google Calendar and iCloud, filters to the next 7 days, deduplicates automatically
 - 🌤️ **Smart Weather Guidance** - Clothing recommendations and activity adjustments
 - ✅ **Todo Management** - Full CRUD interface for family tasks
   - Create, edit, complete, and delete todos
   - Optional due dates with elegant date picker
-  - AI displays due dates with day-of-week (e.g., "Due Friday, Feb 20")
   - 24-hour visibility window for completed tasks
   - Integrated into AI summaries for schedule optimization
+  - Assign todos to family members
 - 🍕 **Dinner Planner** - Plan meals ahead with prep reminders
   - Date-based meal planning with simple text field
   - View next 7 days of planned dinners
   - AI checks tonight's dinner and suggests prep in "The Briefing" section
-- 🤖 **AI-Powered Summaries** - Claude generates encouraging, action-oriented daily plans
+- 👨‍👩‍👧‍👦 **Family Members** - Manage family members with color-coded identities
+- 📆 **Calendar Management** - Add and manage ICS calendar feeds per family member via the Settings UI
+- ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI
+- 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider)
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display
 - 🎨 **Beautiful Design** - Serif typography, clean layout, professional aesthetic
@@ -28,42 +31,16 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 ## Architecture
 
 - **FastAPI** - Modern Python web framework with automatic API docs
-- **SQLite** - Zero-config database for todos and dashboard snapshots
+- **SQLite** - Zero-config database for todos, dashboard snapshots, family members, calendars, and settings
 - **SQLAlchemy** - Modern ORM with type hints
 - **Idempotent Migrations** - File-based migration system that runs automatically on startup
 - **Uvicorn** - High-performance ASGI server
-- **Claude AI** - Natural language generation for summaries (Claude Opus 4.6)
-- **icalendar** - ICS calendar parsing and filtering
+- **Anthropic / OpenAI** - Configurable LLM provider for summary generation (Anthropic Claude or any OpenAI-compatible API)
+- **icalendar + recurring-ical-events** - ICS calendar parsing with full recurring event support
 - **Python 3.14** - Latest Python with modern syntax
 - **uv** - Fast Python dependency management
 - **Nix + devenv** - Reproducible development environment
 - **Docker** - Containerized with scheduled generation (4 AM in configured timezone)
-
-## Routes
-
-### Page Routes
-- `/` - Redirects to dashboard
-- `/dashboard` - Daily summary with weather, schedule, and suggestions (from cache)
-- `/todo` - Todo management interface with full CRUD
-- `/dinner-planner` - Dinner planning interface with date picker
-
-### API Routes
-- `/api/dashboard/regenerate` - Force dashboard regeneration
-- `/api/todos` - RESTful todo API
-  - `GET /api/todos` - List todos (hides completed after 24 hours)
-  - `POST /api/todos` - Create todo
-  - `GET /api/todos/{id}` - Get specific todo
-  - `PUT /api/todos/{id}` - Update todo
-  - `DELETE /api/todos/{id}` - Delete todo
-- `/api/dinner-plans` - RESTful dinner plan API
-  - `GET /api/dinner-plans` - List all plans
-  - `POST /api/dinner-plans` - Create/update plan (upsert by date)
-  - `GET /api/dinner-plans/{id}` - Get specific plan
-  - `GET /api/dinner-plans/date/{date}` - Get plan by date
-  - `PUT /api/dinner-plans/{id}` - Update plan
-  - `DELETE /api/dinner-plans/{id}` - Delete plan
-
-All pages include navigation bar for easy switching between sections.
 
 ## Prerequisites
 
@@ -73,12 +50,12 @@ All pages include navigation bar for easy switching between sections.
 - [devenv](https://devenv.sh/getting-started/)
 - [direnv](https://direnv.net/) (recommended for automatic environment activation)
 
-### For Production (NAS Deployment)
+### For Production
 
 - Docker
 - OpenWeather API key (free tier)
-- Anthropic API key
-- Calendar ICS URLs from Google Calendar and/or iCloud
+- LLM API key (Anthropic or an OpenAI-compatible provider)
+- Calendar ICS URLs from Google Calendar and/or iCloud (can be configured via the Settings UI)
 - Your local timezone (IANA format, e.g. "America/Chicago")
 
 ## Development Setup
@@ -117,16 +94,6 @@ eval "$(direnv hook bash)"  # or zsh, fish, etc.
 ```bash
 git clone <your-repo>
 cd rally
-
-# Copy example config files
-cp config.toml.example config.toml
-cp context.txt.example context.txt
-
-# Edit with your API keys and calendar URLs
-vim config.toml
-
-# Edit with your family information
-vim context.txt
 
 # Allow direnv (if using)
 direnv allow
@@ -175,41 +142,6 @@ down            # Stop Docker container
 
 ## Production Deployment
 
-### 1. On Your NAS
-
-```bash
-# SSH into your NAS
-ssh user@nas-ip
-
-# Clone repository
-git clone <your-repo>
-cd rally
-```
-
-### 2. Prepare Configuration
-
-```bash
-# Create data directory
-mkdir -p data output
-
-# Copy and edit config
-cp config.toml.example data/config.toml
-nano data/config.toml
-
-# IMPORTANT: Set your local_timezone in config.toml
-# This determines when the 4:00 AM generation runs
-# Example: local_timezone = "America/Chicago"
-
-# Copy and edit family context
-cp context.txt.example data/context.txt
-nano data/context.txt
-
-# Copy agent voice profile (or create your own)
-cp agent_voice.txt data/agent_voice.txt
-```
-
-### 3. Deploy with Docker
-
 ```bash
 # Build the Docker image
 docker build -t rally .
@@ -224,49 +156,6 @@ docker run -d \
   rally
 ```
 
-### 5. Access
-
-- Dashboard: `http://your-nas-ip:8000/dashboard`
-- Todo page: `http://your-nas-ip:8000/todo`
-- Dinner Planner: `http://your-nas-ip:8000/dinner-planner`
-- Root: `http://your-nas-ip:8000/` (redirects to dashboard)
-
-### 6. Point Smart Display
-
-Configure your tablet or smart display browser to:
-- Open: `http://your-nas-ip:8000/dashboard`
-- Auto-refresh: The page auto-refreshes every 30 minutes via JavaScript
-- Dashboard updates: Automatically regenerated at 4:00 AM in your configured timezone (set in config.toml)
-
-## Configuration Guide
-
-### Getting Calendar ICS URLs
-
-**Google Calendar:**
-1. Open Google Calendar
-2. Click ⋮ next to your calendar → Settings and sharing
-3. Scroll to "Integrate calendar"
-4. Copy "Secret address in iCal format"
-
-**iCloud Calendar:**
-1. Open Calendar.app (or iCloud.com)
-2. Right-click calendar → Share Calendar
-3. Enable "Public Calendar"
-4. Copy the webcal:// URL and change to https://
-
-### OpenWeather API
-
-1. Sign up at https://openweathermap.org/api
-2. Free tier includes 1000 calls/day
-3. Copy your API key
-
-### Anthropic API
-
-1. Sign up at https://console.anthropic.com/
-2. Add credits to your account
-3. Create an API key
-4. Cost: ~$0.02-0.03 per summary generation with Claude Sonnet 4
-
 ## Database Migrations
 
 Rally uses a **file-based migration system** that runs automatically on container startup. All migrations are **idempotent** (safe to run multiple times).
@@ -280,9 +169,11 @@ Rally uses a **file-based migration system** that runs automatically on containe
 
 ### Existing Migrations
 
-| Migration | Description | Date |
-|-----------|-------------|------|
-| `001_add_due_date` | Add optional `due_date` field to todos table | 2026-02-15 |
+| Migration | Description |
+|-----------|-------------|
+| `001_add_due_date` | Add optional `due_date` field to todos table |
+| `002_add_family_members` | Add `family_members` and `calendars` tables, `assigned_to` on todos |
+| `003_add_settings` | Add key-value `settings` table |
 
 ### Running Migrations Manually
 
@@ -316,36 +207,48 @@ rally/
 ├── src/rally/              # Application source code
 │   ├── main.py             # FastAPI application entry point
 │   ├── database.py         # SQLAlchemy database configuration
-│   ├── models.py           # Database models (DashboardSnapshot, Todo, DinnerPlan)
+│   ├── models.py           # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, DinnerPlan)
 │   ├── schemas.py          # Pydantic request/response schemas
 │   ├── cli.py              # CLI commands (seed, etc.)
 │   ├── generator/          # Summary generation
 │   │   ├── generate.py     # Core generation logic with calendar, todos, dinner plans
 │   │   └── __main__.py     # CLI entry point
+│   ├── utils/              # Shared utilities
+│   │   └── timezone.py     # Timezone helpers (now_utc, today_utc, ensure_utc)
 │   └── routers/            # API route handlers
 │       ├── dashboard.py    # Dashboard routes
 │       ├── todos.py        # Todo CRUD API
-│       └── dinner_planner.py # Dinner plan CRUD API
+│       ├── dinner_planner.py # Dinner plan CRUD API
+│       ├── family.py       # Family member CRUD API
+│       └── settings.py     # Settings and calendar management API
+├── static/                 # Static assets
+│   └── styles.css          # Application stylesheet
 ├── templates/              # HTML templates
 │   ├── dashboard.html      # Daily dashboard template
 │   ├── todo.html           # Todo management page
-│   └── dinner_planner.html # Dinner planner page
+│   ├── dinner_planner.html # Dinner planner page
+│   └── settings.html       # Settings and family/calendar management page
 ├── data/                   # Configuration and data (not in git)
-│   ├── config.toml         # API keys, calendar URLs, coordinates
+│   ├── config.toml         # API keys, calendar URLs, coordinates (optional if using Settings UI)
 │   ├── context.txt         # Family context for AI
 │   ├── agent_voice.txt     # AI agent voice/tone profile
 │   └── rally.db            # SQLite database
-├── migrate_*.py            # Database migration scripts
+├── migrate_add_due_date.py        # Migration: add due_date to todos
+├── migrate_add_family_members.py  # Migration: add family_members, calendars, assigned_to
+├── migrate_add_settings.py        # Migration: add settings table
 ├── run_migrations.py       # Migration runner (executes all migrations)
 ├── config.toml.example     # Example configuration file
 ├── context.txt.example     # Example family context
+├── agent_voice.txt.example # Example AI agent voice profile
 ├── devenv.nix              # Development environment scripts
 ├── devenv.yaml             # devenv configuration
-├── pyproject.toml          # Python dependencies (Python 3.14, includes icalendar)
+├── pyproject.toml          # Python dependencies (Python 3.14)
+├── uv.lock                 # Locked dependency versions
 ├── Dockerfile              # Production container
 ├── entrypoint.sh           # Docker entrypoint (migrations + scheduled generation + web server)
 ├── AGENTS.md               # AI agent instructions
 ├── MIGRATIONS.md           # Database migration documentation
+├── LICENSE
 └── README.md               # This file
 ```
 
@@ -375,122 +278,20 @@ setTimeout(function() { location.reload(); }, 30 * 60 * 1000);
 setTimeout(function() { location.reload(); }, 15 * 60 * 1000);
 ```
 
-### Adding More Calendars
-
-Edit `data/config.toml`:
-
-```toml
-[calendars]
-google_family = "https://..."
-icloud_sarah = "https://..."
-icloud_work = "https://..."
-google_kids_activities = "https://..."
-```
-
-### Modifying Family Context
-
-Edit `data/context.txt` with plain English descriptions of:
-- Family members and roles
-- Daily routines and schedules
-- Preferences and constraints
-- Weather considerations
-
-This context is fed to Claude to personalize the daily summary.
-
-### Customizing AI Voice
-
-Edit `data/agent_voice.txt` to adjust the tone and style of generated summaries. The file provides guidance to Claude on how to communicate with your family.
-
-## Troubleshooting
-
-### devenv Issues
-
-```bash
-# Update devenv inputs
-devenv update
-
-# Clean and rebuild
-rm -rf .devenv
-devenv shell
-```
-
-### Python Version Not Available
-
-If Python 3.14 isn't available yet in nixpkgs, edit `devenv.nix`:
-
-```nix
-languages.python = {
-  enable = true;
-  version = "3.13";  # or "3.12"
-};
-```
-
-### Docker Issues
-
-```bash
-# View logs
-docker logs rally
-
-# Restart
-docker restart rally
-
-# Rebuild from scratch
-docker stop rally
-docker rm rally
-docker build --no-cache -t rally .
-docker run -d -p 8000:8000 -v $(pwd)/data:/data --name rally rally
-```
-
-### Database Issues
-
-```bash
-# The database is auto-created when the app starts
-# To reset it:
-rm data/rally.db
-docker restart rally
-```
-
-### Port Already in Use
-
-```bash
-# Find and kill process on port 8000
-lsof -ti:8000 | xargs kill
-
-# Or use devenv commands
-dev-stop
-```
-
-## Development Workflow
-
-```bash
-# Enter development environment (if not using direnv)
-devenv shell
-
-# Make code changes
-vim src/rally/main.py
-
-# Check formatting
-check
-
-# Auto-fix issues
-lint-fix
-format
-
-# Test locally
-dev
-
-# Build and test with Docker
-build
-up
-```
-
-## Security Notes
-
-- Keep `config.toml` private (contains API keys)
-- ICS URLs contain secrets - don't commit them to git
 - Consider running behind reverse proxy with HTTPS for remote access
-- Database and config files are in `data/` which is .gitignored
-- In production, mount `/data` and `/output` as volumes
+
+## Configuration
+
+Rally supports two configuration approaches:
+
+1. **Settings UI** (recommended) - Configure LLM provider, API keys, timezone, family members, and calendars through the `/settings` page. Settings are stored in the database.
+2. **config.toml** (fallback) - File-based configuration for API keys, calendar URLs, and coordinates. DB settings take precedence when both exist.
+
+Additional context files:
+- `context.txt` - Family scheduling context for AI generation
+- `agent_voice.txt` - AI agent tone/voice profile
+
+Copy example files to get started: `config.toml.example`, `context.txt.example`, `agent_voice.txt.example`
 
 ## Environment Variables
 

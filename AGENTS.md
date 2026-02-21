@@ -293,7 +293,7 @@ Migrations run automatically when the container starts via `entrypoint.sh`
 python3 run_migrations.py
 
 # Run specific migration
-python3 migrate_001_add_due_date.py
+python3 migrate_add_due_date.py
 
 # Test idempotency (should succeed twice)
 python3 run_migrations.py && python3 run_migrations.py
@@ -317,54 +317,80 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (Todo, DashboardSnapshot, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── generator/
 │   │   ├── __init__.py
 │   │   ├── generate.py   # Summary generation logic with calendar, todos, and dinner plans
 │   │   └── __main__.py   # CLI entry point
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── timezone.py   # Timezone helpers (now_utc, today_utc, ensure_utc)
 │   └── routers/
 │       ├── __init__.py
 │       ├── dashboard.py     # Dashboard routes
 │       ├── todos.py         # Todo CRUD API
-│       └── dinner_planner.py # Dinner plan CRUD API
+│       ├── dinner_planner.py # Dinner plan CRUD API
+│       ├── family.py        # Family member CRUD API
+│       └── settings.py      # Settings and calendar management API
+├── static/
+│   └── styles.css           # Application stylesheet
 ├── templates/
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── todo.html            # Todo management page
-│   └── dinner_planner.html  # Dinner planner page
+│   ├── dinner_planner.html  # Dinner planner page
+│   └── settings.html        # Settings, family member, and calendar management page
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
-├── agent_voice.txt       # AI agent voice/tone profile
+├── agent_voice.txt.example # Example AI agent voice/tone profile
+├── migrate_add_due_date.py        # Migration: add due_date to todos
+├── migrate_add_family_members.py  # Migration: add family_members, calendars, assigned_to
+├── migrate_add_settings.py        # Migration: add settings table
+├── run_migrations.py     # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
-│   ├── config.toml       # API keys, URLs, coordinates
+│   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
 │   ├── context.txt       # Family context for LLM
 │   ├── agent_voice.txt   # Agent voice profile
 │   └── rally.db          # SQLite database
 ├── devenv.yaml           # devenv configuration
 ├── devenv.nix            # Development scripts
 ├── pyproject.toml        # Python dependencies (Python 3.14)
+├── uv.lock               # Locked dependency versions
 ├── Dockerfile            # Production container
-└── entrypoint.sh         # Docker entrypoint (scheduled generation + web server)
+├── entrypoint.sh         # Docker entrypoint (migrations + scheduled generation + web server)
+├── MIGRATIONS.md         # Database migration documentation
+├── LICENSE
+└── README.md
 ```
 
 ## Current Implementation Status
 
 **Implemented:**
 - ✅ FastAPI web application with routes
-- ✅ Summary generation (`rally.generator`) with ICS parsing
-- ✅ Configuration via TOML files (`config.toml`, `context.txt`, `agent_voice.txt`)
-- ✅ Calendar integration (Google Calendar, iCloud) - filters to next 7 days, deduplicates
+- ✅ Summary generation (`rally.generator`) with ICS parsing and recurring event support
+- ✅ Configuration via Settings UI (stored in DB) with config.toml fallback
+- ✅ Calendar integration (Google Calendar, iCloud) - filters to next 7 days, deduplicates, handles declined events
 - ✅ Weather integration (OpenWeather API)
-- ✅ Claude AI-powered daily summaries (Claude Opus 4.6)
+- ✅ Configurable LLM provider - Anthropic Claude or any OpenAI-compatible API
 - ✅ Idempotent database migrations - Run automatically on container startup
-- ✅ SQLite database with DashboardSnapshot, Todo, and DinnerPlan models
+- ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, and DinnerPlan models
 - ✅ Dashboard caching via DashboardSnapshot table (no auto-generation on page load)
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
-- ✅ Navigation between Dashboard, Todos, and Dinner Planner
+- ✅ Navigation between Dashboard, Todos, Dinner Planner, and Settings
+- ✅ Family members - Full CRUD API and UI
+  - Color-coded identities for each family member
+  - Used for calendar ownership and todo assignment
+- ✅ Calendar management - Full CRUD API and UI
+  - Add ICS calendar feeds linked to family members
+  - Optional owner email for accurate declined-event detection
+- ✅ Settings management - Key-value store with web UI
+  - Configure LLM provider, API keys, timezone
+  - DB settings take precedence over config.toml
 - ✅ Todo management - Full CRUD API and UI
   - Create, read, update, delete todos
   - Optional due dates with native HTML5 date picker
+  - Assign todos to family members
   - AI formats due dates with day-of-week (e.g., "[Due Friday, Feb 20]")
   - Overdue styling for past-due items
   - Completion tracking with 24-hour visibility window
@@ -378,11 +404,12 @@ rally/
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
 - ✅ Scheduled generation at 4:00 AM in configured timezone (in Docker)
-  - Reads timezone from config.toml (default: America/Chicago)
+  - Reads timezone from DB settings or config.toml (default: UTC)
   - Uses date-based tracking to prevent duplicate runs
   - Robust against server timezone settings
 - ✅ Environment mode detection (dev/production)
 - ✅ Elegant grayscale design with serif typography
+- ✅ Static CSS stylesheet (`static/styles.css`)
 - ✅ uv-based dependency management
 
 ## Application Routes
@@ -392,6 +419,7 @@ rally/
 - `/dashboard` - Serves the generated daily summary from cached snapshot (shows error if missing)
 - `/todo` - Todo management page with full CRUD interface
 - `/dinner-planner` - Dinner planning page with date picker and plan management
+- `/settings` - Settings, family member, and calendar management page
 
 ### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot
@@ -408,16 +436,35 @@ rally/
   - `GET /api/dinner-plans/date/{date}` - Get plan by date (YYYY-MM-DD)
   - `PUT /api/dinner-plans/{id}` - Update plan
   - `DELETE /api/dinner-plans/{id}` - Delete plan
+- `/api/family` - Family member CRUD endpoints
+  - `GET /api/family` - List all family members
+  - `POST /api/family` - Create new family member
+  - `GET /api/family/{id}` - Get specific family member
+  - `PUT /api/family/{id}` - Update family member
+  - `DELETE /api/family/{id}` - Delete family member
+- `/api/settings` - Key-value settings endpoints
+  - `GET /api/settings` - Get all settings
+  - `PUT /api/settings` - Bulk upsert settings
+- `/api/calendars` - Calendar feed CRUD endpoints
+  - `GET /api/calendars` - List all calendar feeds
+  - `POST /api/calendars` - Create new calendar feed
+  - `GET /api/calendars/{id}` - Get specific calendar
+  - `PUT /api/calendars/{id}` - Update calendar feed
+  - `DELETE /api/calendars/{id}` - Delete calendar feed
 
 ### Navigation
-All pages include a navigation bar allowing users to switch between Dashboard, Todos, and Dinner Planner.
+All pages include a navigation bar allowing users to switch between Dashboard, Todos, Dinner Planner, and Settings.
 
 ## Configuration
 
-Configuration files:
-- `config.toml` - API keys, calendar URLs, coordinates (copy from `config.toml.example`)
+Rally supports two configuration approaches:
+
+1. **Settings UI** (recommended) - Configure LLM provider, API keys, timezone, family members, and calendars through the `/settings` page. Settings are stored in the database.
+2. **config.toml** (fallback) - File-based configuration for API keys, calendar URLs, and coordinates. DB settings take precedence when both exist.
+
+Additional context files:
 - `context.txt` - Family scheduling context (copy from `context.txt.example`)
-- `agent_voice.txt` - AI agent tone/voice profile
+- `agent_voice.txt` - AI agent tone/voice profile (copy from `agent_voice.txt.example`)
 
 ### Environment Modes
 
@@ -433,7 +480,7 @@ Rally detects environment via `RALLY_ENV` environment variable:
 - Database at `/data/rally.db`
 
 In Docker container, these should be mounted at `/data/`:
-- `/data/config.toml`
+- `/data/config.toml` (optional if using Settings UI)
 - `/data/context.txt`
 - `/data/agent_voice.txt`
 
@@ -457,8 +504,11 @@ seed                   # Add sample data for development
 ```
 
 The database is automatically created when the app starts. Migrations run automatically before initialization. Models include:
+- `FamilyMember` - Family members with name, color, and timestamps
+- `Calendar` - ICS calendar feeds linked to family members, with optional owner email
+- `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
-- `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), completion status, and timestamps
+- `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), completion status, and timestamps
 - `DinnerPlan` - Meal planning with date (unique), plan text, and timestamps
 
 ### Dependency Issues
