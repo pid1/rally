@@ -24,8 +24,10 @@
     </nav>
 
     <!-- Plan Form -->
-    <div class="plan-form">
-        <h2>Add Dinner Plan</h2>
+    <div class="border-container">
+        <div class="header-container">
+            <h2>Add Dinner Plan</h2>
+        </div>
         <form id="plan-form">
             <div class="form-group">
                 <label>Date</label>
@@ -41,8 +43,10 @@
 
     <!-- Plans List -->
     <div class="plans-section">
-        <h2>Upcoming Dinners</h2>
-        <div class="plans-list" id="plans-list">
+        <div class="header-container">
+            <h2>Upcoming Dinners</h2>
+        </div>
+        <div class="list-container" id="list-container">
             <!-- Plans will be loaded here -->
         </div>
     </div>
@@ -108,7 +112,7 @@
 
         // Render
         function renderPlans() {
-            const container = document.getElementById('plans-list');
+            const container = document.getElementById('list-container');
             
             if (plans.length === 0) {
                 container.innerHTML = '<div class="empty-state">No dinner plans for the next 7 days.</div>';
@@ -153,7 +157,7 @@
         }
 
         // Event handlers
-        document.getElementById('plan-form').addEventListener('submit', async (e) => {
+        document.getElementById('border-container').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const date = document.getElementById('plan-date').value;
@@ -161,7 +165,7 @@
 
             try {
                 await savePlan(date, plan);
-                document.getElementById('plan-form').reset();
+                document.getElementById('border-container').reset();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error saving plan:', error);
