@@ -234,7 +234,7 @@ class SummaryGenerator:
                         if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
                             # Ensure it's timezone-aware in UTC first, then convert to local
                             dt = ensure_utc(dt).astimezone(self.local_tz)
-                        time_str = dt.strftime("%I:%M %p").lstrip("0")
+                        time_str = dt.strftime("%I:%M %p %Z").lstrip("0")
 
                     events.append(
                         {
@@ -507,37 +507,26 @@ class SummaryGenerator:
         context = self.load_context()
         voice = self.load_voice()
 
-        # Merge and deduplicate events across all calendars
-        all_events: list[dict] = []
-        seen: set[tuple] = set()
-        if calendars:
-            for cal in calendars:
-                for event in cal["events"]:
-                    # Dedupe key: same summary, date, and time
-                    key = (event["summary"].strip().lower(), event["date"], event["time"])
-                    if key not in seen:
-                        seen.add(key)
-                        all_events.append(event)
-
-            all_events.sort(key=lambda e: (e["date"], e["time"]))
-
-        # Format deduplicated events for prompt
+        # Format calendars for prompt
         cal_text = ""
-        if all_events:
+        if calendars:
             from datetime import datetime
 
-            current_date = None
-            for event in all_events:
-                if event["date"] != current_date:
-                    current_date = event["date"]
-                    cal_text += f"\n  {datetime.strptime(event['date'], '%Y-%m-%d').strftime('%A, %B %d')}:\n"
+            for cal in calendars:
+                cal_text += f"\nCALENDAR: {cal['name']}\n"
+                current_date = None
+                for event in cal["events"]:
+                    # Group events by date for readability
+                    if event["date"] != current_date:
+                        current_date = event["date"]
+                        cal_text += f"\n  {datetime.strptime(event['date'], '%Y-%m-%d').strftime('%A, %B %d')}:\n"
 
-                cal_text += f"    - {event['time']} {event['summary']}"
-                if event["location"]:
-                    cal_text += f" at {event['location']}"
-                if event["description"]:
-                    cal_text += f" ({event['description']})"
-                cal_text += "\n"
+                    cal_text += f"    - {event['time']} {event['summary']}"
+                    if event["location"]:
+                        cal_text += f" at {event['location']}"
+                    if event["description"]:
+                        cal_text += f" ({event['description']})"
+                    cal_text += "\n"
         else:
             cal_text = "No calendar events for the next 7 days."
 
@@ -552,11 +541,8 @@ class SummaryGenerator:
             else "No family members configured.",
         }
 
-        local_now = now_utc().astimezone(self.local_tz)
-        today = local_now.strftime("%A, %B %d, %Y")
-        tz_label = local_now.strftime("%Z")  # e.g. "CST" or "CDT"
+        today = now_utc().strftime("%A, %B %d, %Y")
         prompt = f"""You're creating content for a daily family summary for {today}.
-All times below are in {tz_label} ({self.local_tz}). Use these times exactly as shown — do NOT convert timezones.
 
 AGENT VOICE:
 {voice}
@@ -567,7 +553,7 @@ FAMILY CONTEXT:
 FAMILY MEMBERS:
 {", ".join(family_members.values()) if family_members else "No family members configured."}
 
-CALENDAR EVENTS (next 7 days, deduplicated):
+CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
 {cal_text}
 
 WEATHER FORECAST (next 7 days from OpenWeather):
@@ -594,11 +580,10 @@ Create content for a daily summary. Respond with ONLY a JSON object (no markdown
 }}
 
 Guidelines:
-1. Calendar events are already deduplicated — use them as-is
+1. Deduplicate calendar events (same event in multiple calendars)
 2. Schedule should show TODAY'S events in chronological order
 3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on TODAY'S weather and activities
-5. When referencing event times in the briefing, use the EXACT time from the calendar data — never approximate or confuse times between events
 6. Consider family routines and how everyone can support each other. When todos are assigned to specific people, mention them by name.
 7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
