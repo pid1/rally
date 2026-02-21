@@ -16,18 +16,21 @@
         <div class="subtitle" id="current-date">{{date}}</div>
     </header>
 
-    <nav class="nav">
+    <nav>
         <a href="/dashboard" class="active">Dashboard</a>
         <a href="/todo">Todos</a>
         <a href="/dinner-planner">Dinner Planner</a>
         <a href="/settings">Settings</a>
     </nav>
 
+    <!-- Greeting -->
     <div class="greeting">{{greeting}}</div>
 
+    <!-- Briefing Section -->
     {{briefing_section}}
 
-    <div class="content-grid">
+    <!-- Content Container and Cards -->
+    <div class="dashboard-grid">
         <section class="card">
             <div class="card-header">Weather &amp; Preparedness</div>
             <div class="card-content">{{weather_summary}}</div>
@@ -39,7 +42,7 @@
         </section>
     </div>
 
-    <footer class="footer">
+    <footer>
         Last updated <span id="timestamp">{{timestamp}}</span>
     </footer>
 
