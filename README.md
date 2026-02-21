@@ -18,7 +18,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - Date-based meal planning with simple text field
   - View next 7 days of planned dinners
   - AI checks tonight's dinner and suggests prep in "The Briefing" section
-- 👨‍👩‍👧‍👦 **Family Members** - Manage family members with color-coded identities
+- 👨‍👩‍👧‍👦 **Family Members** - Manage family members
 - 📆 **Calendar Management** - Add and manage ICS calendar feeds per family member via the Settings UI
 - ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI
 - 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider)
