@@ -29,6 +29,24 @@
             <button class="btn-add" id="btn-add-task">Add Task</button>
         </div>
         
+        <div class="todo-toolbar">
+            <div class="toolbar-group">
+                <label for="filter-assignee">Assignee</label>
+                <select id="filter-assignee">
+                    <option value="all">All</option>
+                    <option value="unassigned">Unassigned</option>
+                </select>
+            </div>
+            <div class="toolbar-group">
+                <label for="sort-by">Sort</label>
+                <select id="sort-by">
+                    <option value="due-date">Due Date</option>
+                    <option value="newest">Newest First</option>
+                    <option value="assignee">Assignee</option>
+                </select>
+            </div>
+        </div>
+
         <div class="list-container" id="list-container">
             <div class="loading-state">Loading tasks...</div>
         </div>
@@ -86,6 +104,14 @@
             familyMembers.forEach(m => {
                 select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
             });
+
+            const filter = document.getElementById('filter-assignee');
+            const currentValue = filter.value;
+            filter.innerHTML = '<option value="all">All</option><option value="unassigned">Unassigned</option>';
+            familyMembers.forEach(m => {
+                filter.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+            });
+            filter.value = currentValue;
         }
 
         function getMemberById(id) {
@@ -126,16 +152,58 @@
             if (!response.ok) throw new Error('Failed to delete todo');
         }
 
+        // Filter & sort
+        function getFilteredSortedTodos() {
+            const filterValue = document.getElementById('filter-assignee').value;
+            const sortValue = document.getElementById('sort-by').value;
+
+            let filtered = todos;
+            if (filterValue === 'unassigned') {
+                filtered = todos.filter(t => !t.assigned_to);
+            } else if (filterValue !== 'all') {
+                const memberId = parseInt(filterValue);
+                filtered = todos.filter(t => t.assigned_to === memberId);
+            }
+
+            const sorted = [...filtered];
+            if (sortValue === 'due-date') {
+                sorted.sort((a, b) => {
+                    if (!a.due_date && !b.due_date) return 0;
+                    if (!a.due_date) return 1;
+                    if (!b.due_date) return -1;
+                    return a.due_date.localeCompare(b.due_date);
+                });
+            } else if (sortValue === 'assignee') {
+                sorted.sort((a, b) => {
+                    const nameA = a.assigned_to ? (getMemberById(a.assigned_to)?.name || '') : '';
+                    const nameB = b.assigned_to ? (getMemberById(b.assigned_to)?.name || '') : '';
+                    if (!nameA && !nameB) return 0;
+                    if (!nameA) return 1;
+                    if (!nameB) return -1;
+                    return nameA.localeCompare(nameB);
+                });
+            }
+            // 'newest' is the default order from the API (created_at DESC)
+
+            return sorted;
+        }
+
         // Render
         function renderTodos() {
             const container = document.getElementById('list-container');
-            
+            const visible = getFilteredSortedTodos();
+
             if (todos.length === 0) {
                 container.innerHTML = '<div class="empty-state">No tasks yet. Click "Add Task" to get started.</div>';
                 return;
             }
 
-            container.innerHTML = todos.map(todo => {
+            if (visible.length === 0) {
+                container.innerHTML = '<div class="empty-state">No tasks match the current filter.</div>';
+                return;
+            }
+
+            container.innerHTML = visible.map(todo => {
                 const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
                 const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
                 const assigneeHtml = member
@@ -243,6 +311,8 @@
         // Event handlers
         document.getElementById('btn-add-task').addEventListener('click', openAddModal);
         document.getElementById('btn-cancel').addEventListener('click', closeModal);
+        document.getElementById('filter-assignee').addEventListener('change', renderTodos);
+        document.getElementById('sort-by').addEventListener('change', renderTodos);
         
         document.getElementById('modal-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'modal-overlay') closeModal();
