@@ -26,7 +26,10 @@
     <div class="todo-container">
         <div class="header-container">
             <h2>Tasks</h2>
-            <button class="btn-add" id="btn-add-task">Add Task</button>
+            <div class="header-actions">
+                <button class="btn-add" id="btn-add-recurring">Add Recurring</button>
+                <button class="btn-add" id="btn-add-task">Add Task</button>
+            </div>
         </div>
         
         <div class="todo-toolbar">
@@ -49,6 +52,53 @@
 
         <div class="list-container" id="list-container">
             <div class="loading-state">Loading tasks...</div>
+        </div>
+    </div>
+
+    <!-- Modal for add/edit recurring -->
+    <div class="modal-overlay" id="recurring-modal-overlay">
+        <div class="modal-content">
+            <h3 id="recurring-modal-title">Add Recurring Task</h3>
+            <form id="recurring-form">
+                <input type="hidden" id="recurring-id">
+                <div class="form-group">
+                    <label>Task</label>
+                    <input type="text" id="recurring-title" placeholder="Task title" required>
+                </div>
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <textarea id="recurring-description" placeholder="Additional details" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Recurrence</label>
+                    <select id="recurring-type" required>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+                <div class="form-group" id="recurring-day-group" style="display:none;">
+                    <label id="recurring-day-label">Day</label>
+                    <select id="recurring-day"></select>
+                </div>
+                <div class="form-group">
+                    <label>Assigned To (optional)</label>
+                    <select id="recurring-assigned-to">
+                        <option value="">Everyone (family-wide)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="recurring-has-due-date">
+                        Set due date on generated tasks
+                    </label>
+                    <small>Due date will match the recurrence day</small>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel-recurring">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -112,6 +162,12 @@
                 filter.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
             });
             filter.value = currentValue;
+
+            const rSelect = document.getElementById('recurring-assigned-to');
+            rSelect.innerHTML = '<option value="">Everyone (family-wide)</option>';
+            familyMembers.forEach(m => {
+                rSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+            });
         }
 
         function getMemberById(id) {
@@ -193,40 +249,71 @@
             const container = document.getElementById('list-container');
             const visible = getFilteredSortedTodos();
 
-            if (todos.length === 0) {
+            if (todos.length === 0 && recurringTodos.length === 0) {
                 container.innerHTML = '<div class="empty-state">No tasks yet. Click "Add Task" to get started.</div>';
                 return;
             }
 
-            if (visible.length === 0) {
-                container.innerHTML = '<div class="empty-state">No tasks match the current filter.</div>';
-                return;
+            let html = '';
+
+            // Render recurring templates first
+            if (recurringTodos.length > 0) {
+                html += recurringTodos.map(rt => {
+                    const member = rt.assigned_to ? getMemberById(rt.assigned_to) : null;
+                    const assigneeHtml = member
+                        ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                        : '';
+                    const pausedHtml = !rt.active ? '<span class="recurring-paused">Paused</span>' : '';
+                    const dueBadge = rt.has_due_date ? '<span class="recurring-meta">with due date</span>' : '';
+                    return `
+                        <div class="todo-item recurring-template ${!rt.active ? 'completed' : ''}" data-id="${rt.id}">
+                            <div class="todo-recurring-icon">↻</div>
+                            <div class="todo-content">
+                                <div class="todo-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
+                                <div class="recurring-schedule">${describeRecurrence(rt)} ${dueBadge}</div>
+                            </div>
+                            <div class="todo-actions">
+                                <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
+                                <button class="btn-edit" onclick="openEditRecurringModal(${rt.id})">Edit</button>
+                                <button class="btn-delete" onclick="confirmDeleteRecurring(${rt.id})">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
             }
 
-            container.innerHTML = visible.map(todo => {
-                const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
-                const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
-                const assigneeHtml = member
-                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
-                    : '';
-                return `
-                    <div class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
-                        <div class="todo-checkbox">
-                            <input type="checkbox" ${todo.completed ? 'checked' : ''} 
-                                   onchange="toggleComplete(${todo.id}, this.checked)">
+            // Render todo instances
+            if (visible.length === 0 && recurringTodos.length === 0) {
+                html += '<div class="empty-state">No tasks match the current filter.</div>';
+            } else {
+                html += visible.map(todo => {
+                    const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
+                    const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
+                    const assigneeHtml = member
+                        ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                        : '';
+                    const recurringIcon = todo.recurring_todo_id ? '<span class="recurring-indicator">↻</span>' : '';
+                    return `
+                        <div class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+                            <div class="todo-checkbox">
+                                <input type="checkbox" ${todo.completed ? 'checked' : ''} 
+                                       onchange="toggleComplete(${todo.id}, this.checked)">
+                            </div>
+                            <div class="todo-content">
+                                <div class="todo-title">${escapeHtml(todo.title)} ${recurringIcon} ${assigneeHtml}</div>
+                                ${todo.description ? `<div class="todo-description">${escapeHtml(todo.description)}</div>` : ''}
+                                ${dueDateHtml}
+                            </div>
+                            <div class="todo-actions">
+                                <button class="btn-edit" onclick="openEditModal(${todo.id})">Edit</button>
+                                <button class="btn-delete" onclick="confirmDelete(${todo.id})">Delete</button>
+                            </div>
                         </div>
-                        <div class="todo-content">
-                            <div class="todo-title">${escapeHtml(todo.title)} ${assigneeHtml}</div>
-                            ${todo.description ? `<div class="todo-description">${escapeHtml(todo.description)}</div>` : ''}
-                            ${dueDateHtml}
-                        </div>
-                        <div class="todo-actions">
-                            <button class="btn-edit" onclick="openEditModal(${todo.id})">Edit</button>
-                            <button class="btn-delete" onclick="confirmDelete(${todo.id})">Delete</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }).join('');
+            }
+
+            container.innerHTML = html;
         }
 
         function formatDueDate(dateStr) {
@@ -343,8 +430,164 @@
             }
         });
 
+        // ── Recurring Todos ──
+
+        let recurringTodos = [];
+        let editingRecurringId = null;
+        const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        async function fetchRecurringTodos() {
+            const response = await fetch('/api/recurring-todos');
+            recurringTodos = await response.json();
+            renderTodos();
+        }
+
+        function describeRecurrence(rt) {
+            if (rt.recurrence_type === 'daily') return 'Daily';
+            if (rt.recurrence_type === 'weekly') return `Weekly on ${DAY_NAMES[rt.recurrence_day] || 'Monday'}`;
+            if (rt.recurrence_type === 'monthly') return `Monthly on the ${ordinal(rt.recurrence_day || 1)}`;
+            return rt.recurrence_type;
+        }
+
+        function ordinal(n) {
+            const s = ['th','st','nd','rd'];
+            const v = n % 100;
+            return n + (s[(v-20)%10] || s[v] || s[0]);
+        }
+
+        // Recurring type / day selector logic
+        function updateDaySelector() {
+            const type = document.getElementById('recurring-type').value;
+            const dayGroup = document.getElementById('recurring-day-group');
+            const daySelect = document.getElementById('recurring-day');
+            const dayLabel = document.getElementById('recurring-day-label');
+
+            if (type === 'daily') {
+                dayGroup.style.display = 'none';
+                return;
+            }
+
+            dayGroup.style.display = '';
+            if (type === 'weekly') {
+                dayLabel.textContent = 'Day of Week';
+                daySelect.innerHTML = DAY_NAMES.map((d, i) =>
+                    `<option value="${i}">${d}</option>`
+                ).join('');
+            } else if (type === 'monthly') {
+                dayLabel.textContent = 'Day of Month';
+                daySelect.innerHTML = Array.from({length: 31}, (_, i) =>
+                    `<option value="${i + 1}">${ordinal(i + 1)}</option>`
+                ).join('');
+            }
+        }
+
+        document.getElementById('recurring-type').addEventListener('change', updateDaySelector);
+
+        function openAddRecurringModal() {
+            editingRecurringId = null;
+            document.getElementById('recurring-modal-title').textContent = 'Add Recurring Task';
+            document.getElementById('recurring-form').reset();
+            document.getElementById('recurring-id').value = '';
+            document.getElementById('recurring-assigned-to').value = '';
+            document.getElementById('recurring-type').value = 'daily';
+            updateDaySelector();
+            document.getElementById('recurring-modal-overlay').style.display = 'flex';
+        }
+
+        function openEditRecurringModal(id) {
+            const rt = recurringTodos.find(r => r.id === id);
+            if (!rt) return;
+
+            editingRecurringId = id;
+            document.getElementById('recurring-modal-title').textContent = 'Edit Recurring Task';
+            document.getElementById('recurring-id').value = id;
+            document.getElementById('recurring-title').value = rt.title;
+            document.getElementById('recurring-description').value = rt.description || '';
+            document.getElementById('recurring-type').value = rt.recurrence_type;
+            updateDaySelector();
+            if (rt.recurrence_day !== null) {
+                document.getElementById('recurring-day').value = rt.recurrence_day;
+            }
+            document.getElementById('recurring-assigned-to').value = rt.assigned_to || '';
+            document.getElementById('recurring-has-due-date').checked = rt.has_due_date;
+            document.getElementById('recurring-modal-overlay').style.display = 'flex';
+        }
+
+        function closeRecurringModal() {
+            document.getElementById('recurring-modal-overlay').style.display = 'none';
+            editingRecurringId = null;
+        }
+
+        async function toggleRecurringActive(id, currentlyActive) {
+            try {
+                await fetch(`/api/recurring-todos/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active: !currentlyActive })
+                });
+                await fetchRecurringTodos();
+            } catch (error) {
+                alert('Failed to update recurring task');
+            }
+        }
+
+        async function confirmDeleteRecurring(id) {
+            if (!confirm('Delete this recurring task? Existing generated todos will remain.')) return;
+            try {
+                await fetch(`/api/recurring-todos/${id}`, { method: 'DELETE' });
+                await fetchRecurringTodos();
+            } catch (error) {
+                alert('Failed to delete recurring task');
+            }
+        }
+
+        document.getElementById('btn-add-recurring').addEventListener('click', openAddRecurringModal);
+        document.getElementById('btn-cancel-recurring').addEventListener('click', closeRecurringModal);
+        document.getElementById('recurring-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'recurring-modal-overlay') closeRecurringModal();
+        });
+
+        document.getElementById('recurring-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const type = document.getElementById('recurring-type').value;
+            const assignedTo = document.getElementById('recurring-assigned-to').value;
+            const data = {
+                title: document.getElementById('recurring-title').value,
+                description: document.getElementById('recurring-description').value || null,
+                recurrence_type: type,
+                recurrence_day: type !== 'daily' ? parseInt(document.getElementById('recurring-day').value) : null,
+                assigned_to: assignedTo ? parseInt(assignedTo) : null,
+                has_due_date: document.getElementById('recurring-has-due-date').checked,
+            };
+
+            try {
+                if (editingRecurringId) {
+                    await fetch(`/api/recurring-todos/${editingRecurringId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    await fetch('/api/recurring-todos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+                closeRecurringModal();
+                await fetchRecurringTodos();
+                await fetchTodos(); // Refresh in case a new instance was generated
+            } catch (error) {
+                alert('Failed to save recurring task');
+            }
+        });
+
         // Initialize
-        fetchFamilyMembers().then(() => fetchTodos());
+        fetchFamilyMembers().then(() => {
+            fetchTodos();
+            fetchRecurringTodos();
+        });
     </script>
 </body>
 </html>

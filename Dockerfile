@@ -18,6 +18,7 @@ COPY templates/ templates/
 COPY migrate_add_due_date.py migrate_add_due_date.py
 COPY migrate_add_family_members.py migrate_add_family_members.py
 COPY migrate_add_settings.py migrate_add_settings.py
+COPY migrate_add_recurring_todos.py migrate_add_recurring_todos.py
 COPY run_migrations.py run_migrations.py
 COPY entrypoint.sh entrypoint.sh
 

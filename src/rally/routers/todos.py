@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from rally.database import get_db
 from rally.models import Todo
+from rally.recurrence import process_recurring_todos
 from rally.schemas import TodoCreate, TodoResponse, TodoUpdate
 from rally.utils.timezone import now_utc
 
@@ -23,6 +24,9 @@ def list_todos(
     By default, completed todos older than 24 hours are hidden.
     Use include_hidden=true to show all todos.
     """
+    # Process any due recurring todos before listing
+    process_recurring_todos(db)
+
     query = db.query(Todo)
 
     if not include_hidden:
