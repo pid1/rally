@@ -495,6 +495,10 @@ nav a.active {
     margin: 0 auto;
 }
 
+.todo-container + .todo-container {
+    margin-top: 64px;
+}
+
 .todo-checkbox {
     flex-shrink: 0;
     padding-top: 2px;
@@ -531,16 +535,16 @@ nav a.active {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 24px;
-    margin-bottom: 24px;
-    padding-bottom: 20px;
+    gap: 32px;
+    margin-bottom: 32px;
+    padding: 20px 0;
     border-bottom: 1px solid var(--pale-gray);
 }
 
 .toolbar-group {
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
 }
 
@@ -593,9 +597,19 @@ nav a.active {
     border-color: var(--medium-gray);
 }
 
+.filter-chip:focus {
+    outline: none;
+    border-color: var(--pale-gray);
+}
+
 .filter-chip.active {
     background: var(--charcoal);
     color: var(--white);
+    border-color: var(--charcoal);
+}
+
+.filter-chip.active:focus {
+    outline: none;
     border-color: var(--charcoal);
 }
 
@@ -614,6 +628,11 @@ nav a.active {
 
 .filter-clear:hover {
     color: var(--charcoal);
+}
+
+.filter-clear:focus {
+    outline: none;
+    color: var(--medium-gray);
 }
 
 .header-actions {
