@@ -530,6 +530,7 @@ nav a.active {
 .todo-toolbar {
     display: flex;
     flex-wrap: wrap;
+    align-items: baseline;
     gap: 24px;
     margin-bottom: 24px;
     padding-bottom: 20px;
@@ -538,7 +539,7 @@ nav a.active {
 
 .toolbar-group {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 10px;
     flex-wrap: wrap;
 }
@@ -571,6 +572,7 @@ nav a.active {
 .filter-chips {
     display: flex;
     flex-wrap: wrap;
+    align-items: baseline;
     gap: 8px;
 }
 
