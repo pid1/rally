@@ -186,19 +186,19 @@ class SummaryGenerator:
         if db_calendars:
             # Use DB calendars
             cal_sources = [
-                (f"{cal.label} ({member_name})", cal.url, cal.owner_email)
+                (f"{cal.label} ({member_name})", cal.url, cal.owner_email, member_name)
                 for cal, member_name in db_calendars
             ]
         elif "calendars" in self.config:
             # Fall back to config.toml
             cal_sources = [
-                (key, url, self.calendar_owners.get(key))
+                (key, url, self.calendar_owners.get(key), None)
                 for key, url in self.config["calendars"].items()
             ]
         else:
             cal_sources = []
 
-        for name, url, owner_email in cal_sources:
+        for name, url, owner_email, member_name in cal_sources:
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
@@ -250,7 +250,7 @@ class SummaryGenerator:
                 events.sort(key=lambda e: (e["date"], e["time"]))
 
                 if events:
-                    calendars.append({"name": name, "events": events})
+                    calendars.append({"name": name, "events": events, "member": member_name})
 
             except Exception as e:
                 print(f"Error fetching/parsing {name}: {e}")
@@ -577,10 +577,34 @@ class SummaryGenerator:
         if calendars:
             from datetime import datetime
 
+            # Build attendance map: (date, summary_normalized) -> list of member names
+            # This detects shared events (same event on multiple family members' calendars)
+            attendance: dict[tuple[str, str], list[str]] = {}
+            for cal in calendars:
+                member = cal.get("member")
+                if not member:
+                    continue
+                for event in cal["events"]:
+                    key = (event["date"], event["summary"].strip().lower())
+                    if key not in attendance:
+                        attendance[key] = []
+                    if member not in attendance[key]:
+                        attendance[key].append(member)
+
+            # Track events already output to avoid cross-calendar duplicates
+            seen_events: set[tuple[str, str]] = set()
+
             for cal in calendars:
                 cal_text += f"\nCALENDAR: {cal['name']}\n"
                 current_date = None
                 for event in cal["events"]:
+                    event_key = (event["date"], event["summary"].strip().lower())
+
+                    # Skip if already output from another family member's calendar
+                    if event_key in seen_events:
+                        continue
+                    seen_events.add(event_key)
+
                     # Group events by date for readability
                     if event["date"] != current_date:
                         current_date = event["date"]
@@ -591,6 +615,12 @@ class SummaryGenerator:
                         cal_text += f" at {event['location']}"
                     if event["description"]:
                         cal_text += f" ({event['description']})"
+
+                    # Annotate shared events with all attendees
+                    members = attendance.get(event_key, [])
+                    if len(members) > 1:
+                        cal_text += f" [Attending: {', '.join(members)}]"
+
                     cal_text += "\n"
         else:
             cal_text = "No calendar events for the next 7 days."
@@ -635,7 +665,7 @@ Respond with ONLY a JSON object (no markdown fences) using this exact schema:
 }}
 
 Guidelines:
-1. Deduplicate calendar events (same event in multiple calendars)
+1. EVENT ATTRIBUTION: Each calendar is labeled with its owner's name. Attribute events to the calendar owner. If an event is tagged [Attending: X, Y], it means multiple family members are attending — mention all of them, not just the calendar owner.
 2. Schedule should show TODAY'S events in chronological order
 3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on TODAY'S weather and activities
@@ -652,7 +682,7 @@ Do NOT include any HTML in your response. Plain text only for all values."""
 FAMILY MEMBERS:
 {", ".join(family_members.values()) if family_members else "No family members configured."}
 
-CALENDAR EVENTS (next 7 days, may have duplicates - dedupe them):
+CALENDAR EVENTS (next 7 days, deduplicated — attribute events to the calendar owner):
 {cal_text}
 
 WEATHER FORECAST:
