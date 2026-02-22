@@ -40,6 +40,16 @@ footer {
     font-style: italic;
 }
 
+footer a {
+    color: var(--medium-gray);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+footer a:hover {
+    color: var(--charcoal);
+}
+
 /** Header Styles**/
 h2 {
     font-size: 1.5rem;
