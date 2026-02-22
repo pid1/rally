@@ -27,7 +27,6 @@
         <div class="header-container">
             <h2>Tasks</h2>
             <div class="header-actions">
-                <button class="btn-add" id="btn-add-recurring">Add Recurring</button>
                 <button class="btn-add" id="btn-add-task">Add Task</button>
             </div>
         </div>
@@ -38,7 +37,7 @@
                 <div class="filter-chips" id="filter-assignee-chips">
                     <button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>
                 </div>
-                <button type="button" class="filter-clear" id="filter-clear" style="display:none;">Clear Filters</button>
+                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
             </div>
             <div class="toolbar-group">
                 <label for="sort-by">Sort</label>
@@ -54,6 +53,19 @@
 
         <div class="list-container" id="list-container">
             <div class="container-loading-state">Loading tasks...</div>
+        </div>
+    </div>
+
+    <div class="todo-container">
+        <div class="header-container">
+            <h2>Recurring Tasks</h2>
+            <div class="header-actions">
+                <button class="btn-add" id="btn-add-recurring">Add Recurring</button>
+            </div>
+        </div>
+
+        <div class="list-container" id="recurring-list-container">
+            <div class="container-loading-state">Loading recurring tasks...</div>
         </div>
     </div>
 
@@ -86,7 +98,7 @@
                 <div class="form-group">
                     <label>Assigned To (optional)</label>
                     <select id="recurring-assigned-to">
-                        <option value="">Everyone (family-wide)</option>
+                        <option value="">Unassigned</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -175,14 +187,14 @@
             updateClearButton();
 
             const rSelect = document.getElementById('recurring-assigned-to');
-            rSelect.innerHTML = '<option value="">Everyone (family-wide)</option>';
+            rSelect.innerHTML = '<option value="">Unassigned</option>';
             familyMembers.forEach(m => {
                 rSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
             });
         }
 
         function updateClearButton() {
-            document.getElementById('filter-clear').style.display = selectedFilters.size > 0 ? '' : 'none';
+            // Clear Filters button is always visible per design
         }
 
         function clearFilters() {
@@ -294,46 +306,16 @@
         // Render
         function renderTodos() {
             const container = document.getElementById('list-container');
+            const recurringContainer = document.getElementById('recurring-list-container');
             const visible = getFilteredSortedTodos();
 
-            if (todos.length === 0 && recurringTodos.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No tasks yet. Click "Add Task" to get started.</div>';
-                return;
-            }
-
-            let html = '';
-
-            // Render recurring templates first
-            if (recurringTodos.length > 0) {
-                html += recurringTodos.map(rt => {
-                    const member = rt.assigned_to ? getMemberById(rt.assigned_to) : null;
-                    const assigneeHtml = member
-                        ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
-                        : '';
-                    const pausedHtml = !rt.active ? '<span class="recurring-paused">Paused</span>' : '';
-                    const dueBadge = rt.has_due_date ? '<span class="recurring-meta">with due date</span>' : '';
-                    return `
-                        <div class="editable-item recurring-template ${!rt.active ? 'completed' : ''}" data-id="${rt.id}">
-                            <div class="todo-recurring-icon">↻</div>
-                            <div class="editable-item-content">
-                                <div class="editable-item-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
-                                <div class="recurring-schedule">${describeRecurrence(rt)} ${dueBadge}</div>
-                            </div>
-                            <div class="editable-item-actions">
-                                <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
-                                <button class="btn-edit" onclick="openEditRecurringModal(${rt.id})">Edit</button>
-                                <button class="btn-delete" onclick="confirmDeleteRecurring(${rt.id})">Delete</button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            // Render todo instances
-            if (visible.length === 0 && recurringTodos.length === 0) {
-                html += '<div class="container-empty-state">No tasks match the current filter.</div>';
+            // Render tasks
+            if (visible.length === 0) {
+                container.innerHTML = todos.length === 0
+                    ? '<div class="container-empty-state">No tasks yet. Click "Add Task" to get started.</div>'
+                    : '<div class="container-empty-state">No tasks match the current filter.</div>';
             } else {
-                html += visible.map(todo => {
+                container.innerHTML = visible.map(todo => {
                     const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
                     const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
                     const assigneeHtml = member
@@ -360,7 +342,33 @@
                 }).join('');
             }
 
-            container.innerHTML = html;
+            // Render recurring templates
+            if (recurringTodos.length === 0) {
+                recurringContainer.innerHTML = '<div class="container-empty-state">No recurring tasks yet. Click "Add Recurring" to get started.</div>';
+            } else {
+                recurringContainer.innerHTML = recurringTodos.map(rt => {
+                    const member = rt.assigned_to ? getMemberById(rt.assigned_to) : null;
+                    const assigneeHtml = member
+                        ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                        : '';
+                    const pausedHtml = !rt.active ? '<span class="recurring-paused">Paused</span>' : '';
+                    const dueBadge = rt.has_due_date ? '<span class="recurring-meta">with due date</span>' : '';
+                    return `
+                        <div class="editable-item recurring-template ${!rt.active ? 'completed' : ''}" data-id="${rt.id}">
+                            <div class="todo-recurring-icon">↻</div>
+                            <div class="editable-item-content">
+                                <div class="editable-item-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
+                                <div class="recurring-schedule">${describeRecurrence(rt)} ${dueBadge}</div>
+                            </div>
+                            <div class="editable-item-actions">
+                                <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
+                                <button class="btn-edit" onclick="openEditRecurringModal(${rt.id})">Edit</button>
+                                <button class="btn-delete" onclick="confirmDeleteRecurring(${rt.id})">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
         }
 
         function formatDueDate(dateStr) {
