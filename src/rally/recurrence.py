@@ -107,6 +107,7 @@ def process_recurring_todos(db: Session) -> int:
             description=rt.description,
             assigned_to=rt.assigned_to,
             due_date=due_date,
+            remind_days_before=rt.remind_days_before if rt.has_due_date else None,
             recurring_todo_id=rt.id,
             completed=False,
         )

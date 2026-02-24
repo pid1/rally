@@ -84,6 +84,7 @@ class TodoBase(BaseModel):
     description: str | None = None
     due_date: str | None = None  # YYYY-MM-DD format
     assigned_to: int | None = None  # family_members.id
+    remind_days_before: int | None = None  # Days before due_date to start LLM reminders
 
 
 class TodoCreate(TodoBase):
@@ -95,12 +96,14 @@ class TodoUpdate(BaseModel):
     description: str | None = None
     due_date: str | None = None  # YYYY-MM-DD format
     assigned_to: int | None = UNSET  # family_members.id; None means "Everyone"
+    remind_days_before: int | None = UNSET  # Days before due_date; None means "always"
     completed: bool | None = None
 
 
 class TodoResponse(TodoBase):
     id: int
     recurring_todo_id: int | None = None
+    remind_days_before: int | None = None
     completed: bool
     created_at: datetime
     updated_at: datetime
@@ -118,6 +121,7 @@ class RecurringTodoBase(BaseModel):
     recurrence_day: int | None = None  # 0-6 for weekly, 1-31 for monthly
     assigned_to: int | None = None
     has_due_date: bool = False
+    remind_days_before: int | None = None  # Days before due_date to start LLM reminders
 
 
 class RecurringTodoCreate(RecurringTodoBase):
@@ -131,6 +135,7 @@ class RecurringTodoUpdate(BaseModel):
     recurrence_day: int | None = None
     assigned_to: int | None = UNSET
     has_due_date: bool | None = None
+    remind_days_before: int | None = UNSET  # Days before due_date; None means "always"
     active: bool | None = None
 
 

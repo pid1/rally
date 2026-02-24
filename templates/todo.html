@@ -107,6 +107,10 @@
                     </label>
                     <small>Due date will match the recurrence day</small>
                 </div>
+                <div class="form-group" id="recurring-remind-group" style="display:none;">
+                    <label>Include in The Briefing starting <input type="number" id="recurring-remind-days" min="0" step="1" placeholder="e.g. 3" class="remind-days-input"> days before the due date</label>
+                    <small>Leave blank to always include in briefings</small>
+                </div>
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel-recurring">Cancel</button>
@@ -139,6 +143,10 @@
                     <label>Due Date (optional)</label>
                     <input type="date" id="todo-due-date">
                     <small>Leave blank if no specific deadline</small>
+                </div>
+                <div class="form-group" id="todo-remind-group" style="display:none;">
+                    <label>Include in The Briefing starting <input type="number" id="todo-remind-days" min="0" step="1" placeholder="e.g. 3" class="remind-days-input"> days before the due date</label>
+                    <small>Leave blank to always include in briefings</small>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
@@ -397,12 +405,26 @@
         }
 
         // Modal
+        function toggleRemindGroup() {
+            const hasDue = !!document.getElementById('todo-due-date').value;
+            document.getElementById('todo-remind-group').style.display = hasDue ? '' : 'none';
+            if (!hasDue) document.getElementById('todo-remind-days').value = '';
+        }
+
+        function toggleRecurringRemindGroup() {
+            const hasDue = document.getElementById('recurring-has-due-date').checked;
+            document.getElementById('recurring-remind-group').style.display = hasDue ? '' : 'none';
+            if (!hasDue) document.getElementById('recurring-remind-days').value = '';
+        }
+
         function openAddModal() {
             editingId = null;
             document.getElementById('modal-title').textContent = 'Add Task';
             document.getElementById('todo-form').reset();
             document.getElementById('todo-id').value = '';
             document.getElementById('todo-assigned-to').value = '';
+            document.getElementById('todo-remind-days').value = '';
+            toggleRemindGroup();
             document.getElementById('modal-overlay').style.display = 'flex';
         }
 
@@ -417,6 +439,8 @@
             document.getElementById('todo-description').value = todo.description || '';
             document.getElementById('todo-assigned-to').value = todo.assigned_to || '';
             document.getElementById('todo-due-date').value = todo.due_date || '';
+            document.getElementById('todo-remind-days').value = todo.remind_days_before != null ? todo.remind_days_before : '';
+            toggleRemindGroup();
             document.getElementById('modal-overlay').style.display = 'flex';
         }
 
@@ -452,6 +476,7 @@
         // Event handlers
         document.getElementById('btn-add-task').addEventListener('click', openAddModal);
         document.getElementById('btn-cancel').addEventListener('click', closeModal);
+        document.getElementById('todo-due-date').addEventListener('change', toggleRemindGroup);
         document.getElementById('filter-assignee-chips').addEventListener('click', (e) => {
             const chip = e.target.closest('.filter-chip');
             if (!chip) return;
@@ -477,11 +502,13 @@
             e.preventDefault();
             
             const assignedTo = document.getElementById('todo-assigned-to').value;
+            const remindDays = document.getElementById('todo-remind-days').value;
             const data = {
                 title: document.getElementById('todo-title').value,
                 description: document.getElementById('todo-description').value || null,
                 assigned_to: assignedTo ? parseInt(assignedTo) : null,
-                due_date: document.getElementById('todo-due-date').value || null
+                due_date: document.getElementById('todo-due-date').value || null,
+                remind_days_before: remindDays !== '' ? parseInt(remindDays) : null
             };
 
             try {
@@ -550,6 +577,7 @@
         }
 
         document.getElementById('recurring-type').addEventListener('change', updateDaySelector);
+        document.getElementById('recurring-has-due-date').addEventListener('change', toggleRecurringRemindGroup);
 
         function openAddRecurringModal() {
             editingRecurringId = null;
@@ -558,7 +586,9 @@
             document.getElementById('recurring-id').value = '';
             document.getElementById('recurring-assigned-to').value = '';
             document.getElementById('recurring-type').value = 'daily';
+            document.getElementById('recurring-remind-days').value = '';
             updateDaySelector();
+            toggleRecurringRemindGroup();
             document.getElementById('recurring-modal-overlay').style.display = 'flex';
         }
 
@@ -578,6 +608,8 @@
             }
             document.getElementById('recurring-assigned-to').value = rt.assigned_to || '';
             document.getElementById('recurring-has-due-date').checked = rt.has_due_date;
+            document.getElementById('recurring-remind-days').value = rt.remind_days_before != null ? rt.remind_days_before : '';
+            toggleRecurringRemindGroup();
             document.getElementById('recurring-modal-overlay').style.display = 'flex';
         }
 
@@ -620,6 +652,7 @@
 
             const type = document.getElementById('recurring-type').value;
             const assignedTo = document.getElementById('recurring-assigned-to').value;
+            const recurringRemindDays = document.getElementById('recurring-remind-days').value;
             const data = {
                 title: document.getElementById('recurring-title').value,
                 description: document.getElementById('recurring-description').value || null,
@@ -627,6 +660,7 @@
                 recurrence_day: type !== 'daily' ? parseInt(document.getElementById('recurring-day').value) : null,
                 assigned_to: assignedTo ? parseInt(assignedTo) : null,
                 has_due_date: document.getElementById('recurring-has-due-date').checked,
+                remind_days_before: recurringRemindDays !== '' ? parseInt(recurringRemindDays) : null,
             };
 
             try {

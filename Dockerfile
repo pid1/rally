@@ -20,6 +20,7 @@ COPY migrate_add_family_members.py migrate_add_family_members.py
 COPY migrate_add_settings.py migrate_add_settings.py
 COPY migrate_add_recurring_todos.py migrate_add_recurring_todos.py
 COPY migrate_add_dinner_plan_assignees.py migrate_add_dinner_plan_assignees.py
+COPY migrate_add_reminder_window.py migrate_add_reminder_window.py
 COPY run_migrations.py run_migrations.py
 COPY entrypoint.sh entrypoint.sh
 

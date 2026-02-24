@@ -274,6 +274,21 @@ nav a.active {
     vertical-align: middle;
 }
 
+.remind-days-input {
+    appearance: none;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    color: var(--charcoal);
+    width: 5em;
+    padding: 10px;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+    font-family: var(--body-font);
+    font-size: 1rem;
+    display: inline-block;
+    vertical-align: middle;
+}
+
 .form-group select {
     appearance: none;
     box-sizing: border-box;

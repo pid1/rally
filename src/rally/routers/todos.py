@@ -49,6 +49,7 @@ def create_todo(todo: TodoCreate, db: Session = Depends(get_db)):
         description=todo.description,
         due_date=todo.due_date,
         assigned_to=todo.assigned_to,
+        remind_days_before=todo.remind_days_before,
         completed=False,
     )
     db.add(db_todo)
@@ -86,6 +87,8 @@ def update_todo(
         db_todo.due_date = todo.due_date
     if todo.assigned_to is not UNSET:
         db_todo.assigned_to = todo.assigned_to
+    if todo.remind_days_before is not UNSET:
+        db_todo.remind_days_before = todo.remind_days_before
     if todo.completed is not None:
         db_todo.completed = todo.completed
 

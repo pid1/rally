@@ -26,6 +26,7 @@ def create_recurring_todo(rt: RecurringTodoCreate, db: Session = Depends(get_db)
         recurrence_day=rt.recurrence_day,
         assigned_to=rt.assigned_to,
         has_due_date=rt.has_due_date,
+        remind_days_before=rt.remind_days_before,
     )
     db.add(db_rt)
     db.commit()
@@ -61,6 +62,8 @@ def update_recurring_todo(rt_id: int, rt: RecurringTodoUpdate, db: Session = Dep
         db_rt.assigned_to = rt.assigned_to
     if rt.has_due_date is not None:
         db_rt.has_due_date = rt.has_due_date
+    if rt.remind_days_before is not UNSET:
+        db_rt.remind_days_before = rt.remind_days_before
     if rt.active is not None:
         db_rt.active = rt.active
 

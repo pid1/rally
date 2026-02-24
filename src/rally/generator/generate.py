@@ -351,7 +351,11 @@ class SummaryGenerator:
             db.close()
 
     def load_todos(self) -> str:
-        """Load outstanding todos from database for LLM context."""
+        """Load outstanding todos from database for LLM context.
+
+        Respects the remind_days_before window: if a todo has a due_date and
+        remind_days_before set, it is excluded until today >= due_date - remind_days_before.
+        """
 
         db = SessionLocal()
         try:
@@ -359,6 +363,8 @@ class SummaryGenerator:
             from datetime import datetime
 
             from rally.models import Todo
+
+            today = today_utc()
 
             # Only send incomplete todos to the LLM
             todos = (
@@ -377,6 +383,16 @@ class SummaryGenerator:
             # Format todos for LLM
             lines = []
             for todo in todos:
+                # Apply reminder window filter: skip tasks outside their window
+                if todo.due_date and todo.remind_days_before is not None:
+                    try:
+                        due = datetime.strptime(todo.due_date, "%Y-%m-%d").date()
+                        window_start = due - timedelta(days=todo.remind_days_before)
+                        if today < window_start:
+                            continue
+                    except ValueError:
+                        pass  # If date is unparseable, include the todo
+
                 line = f"{todo.title}"
 
                 # Add assignee if present
@@ -409,6 +425,9 @@ class SummaryGenerator:
                             pass  # Skip invalid dates
                     line += f" - {desc}"
                 lines.append(line)
+
+            if not lines:
+                return "No todos currently active."
 
             return "\n".join(lines)
         finally:

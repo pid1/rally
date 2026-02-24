@@ -78,6 +78,9 @@ class Todo(Base):
     recurring_todo_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # FK to recurring_todos.id
+    remind_days_before: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Days before due_date to start showing in LLM briefings
     completed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
@@ -97,6 +100,9 @@ class RecurringTodo(Base):
     )  # 0-6 for weekly, 1-31 for monthly
     assigned_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_due_date: Mapped[bool] = mapped_column(default=False)
+    remind_days_before: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Days before due_date to start showing in LLM briefings
     active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
