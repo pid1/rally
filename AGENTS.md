@@ -274,13 +274,28 @@ down
 
 ## Database Migrations
 
-Rally uses a file-based migration system for database schema changes. All migrations are **idempotent** and run automatically on container startup.
+Rally uses a simple, file-based migration system. All migrations live in the `migrations/` directory and are **idempotent** (safe to run multiple times).
+
+### How Migrations Work
+
+1. **On Container Startup**: `entrypoint.sh` runs `migrations/run_migrations.py` automatically
+2. **Idempotent**: Each migration checks if changes are already applied before executing
+3. **Ordered**: Migrations run in the order they're listed in `run_migrations.py`
+4. **Fail-Safe**: If any migration fails, the container won't start
 
 ### Migration Files
 
-- `migrate_XXX_description.py` - Individual migration scripts
-- `run_migrations.py` - Migration runner (executes all migrations in order)
-- `MIGRATIONS.md` - Full migration documentation and patterns
+- `migrations/migrate_XXX_description.py` - Individual migration scripts
+- `migrations/run_migrations.py` - Migration runner (executes all migrations in order)
+
+### Existing Migrations
+
+- `001_add_due_date` - Add `due_date` column to `todos` table
+- `002_add_family_members` - Add `family_members` and `calendars` tables, `assigned_to` on `todos`
+- `003_add_settings` - Add key-value `settings` table
+- `004_add_recurring_todos` - Add `recurring_todos` table and `recurring_todo_id` on `todos`
+- `005_add_dinner_plan_assignees` - Add `attendee_ids` and `cook_id` to `dinner_plans`
+- `006_add_reminder_window` - Add `remind_days_before` to `todos` and `recurring_todos`
 
 ### Running Migrations
 
@@ -290,24 +305,127 @@ Migrations run automatically when the container starts via `entrypoint.sh`
 **Manual (Development):**
 ```bash
 # Run all migrations
-python3 run_migrations.py
+python3 migrations/run_migrations.py
 
 # Run specific migration
-python3 migrate_add_due_date.py
+python3 migrations/migrate_add_due_date.py
 
 # Test idempotency (should succeed twice)
-python3 run_migrations.py && python3 run_migrations.py
+python3 migrations/run_migrations.py && python3 migrations/run_migrations.py
 ```
 
 ### Creating New Migrations
 
-1. Create `migrate_XXX_description.py` (see `MIGRATIONS.md` for template)
-2. Add to `run_migrations.py` migrations list
-3. Add to `Dockerfile` COPY commands
-4. Test locally with `python3 migrate_XXX_description.py`
-5. Deploy (runs automatically on container startup)
+1. Create `migrations/migrate_XXX_description.py` using the template below
+2. Add to `migrations/run_migrations.py` migrations list
+3. Test locally with `python3 migrations/migrate_XXX_description.py`
+4. Deploy (runs automatically on container startup — `migrations/` is copied into the Docker image)
 
 **Key principle:** Every migration must be idempotent - safe to run multiple times.
+
+### Migration Template
+
+```python
+#!/usr/bin/env python3
+"""Migration: Brief description of what this does.
+
+Safe to run multiple times (idempotent).
+"""
+import os
+import sqlite3
+from pathlib import Path
+
+def migrate():
+    """Run the migration. Return True on success, False on failure."""
+    db_path = os.environ.get("RALLY_DB_PATH")
+
+    if not db_path:
+        prod_path = Path("/data/rally.db")
+        dev_path = Path(__file__).parent.parent / "rally.db"
+        db_path = str(prod_path) if prod_path.exists() else str(dev_path)
+
+    db_path = Path(db_path)
+
+    if not db_path.exists():
+        print(f"✓ Database not found at {db_path}")
+        print("  No migration needed - database will be created with correct schema.")
+        return True
+
+    print(f"Checking database at {db_path}...")
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    try:
+        # CHECK: Is this migration already applied?
+        cursor.execute("PRAGMA table_info(your_table)")
+        columns = [col[1] for col in cursor.fetchall()]
+
+        if 'your_new_column' in columns:
+            print("✓ Migration: your_table.your_new_column already exists (idempotent)")
+            return True
+
+        # EXECUTE: Apply the migration
+        print("  Applying migration...")
+        cursor.execute("ALTER TABLE your_table ADD COLUMN your_new_column VARCHAR(10)")
+        conn.commit()
+        print("✓ Migration complete: your_table.your_new_column added")
+        return True
+
+    except sqlite3.Error as e:
+        print(f"✗ Migration failed: {e}")
+        return False
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    import sys
+    success = migrate()
+    sys.exit(0 if success else 1)
+```
+
+### Migration Best Practices
+
+**Do:**
+- Make migrations idempotent — check before changing
+- Return `True`/`False` to indicate success or failure
+- Use `PRAGMA table_info` to check if columns exist
+- Handle missing database — it's fine if DB doesn't exist yet
+- Print clear messages — use ✓ for success, ✗ for errors
+- Test locally first — run multiple times to verify idempotency
+
+**Don't:**
+- Drop data — migrations should be additive
+- Use external files — keep migration logic self-contained
+- Skip idempotency checks — always check before executing
+
+### SQLite Migration Patterns
+
+**Add Column:**
+```python
+cursor.execute("PRAGMA table_info(table_name)")
+columns = [col[1] for col in cursor.fetchall()]
+if 'new_column' not in columns:
+    cursor.execute("ALTER TABLE table_name ADD COLUMN new_column TYPE")
+```
+
+**Create Table:**
+```python
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS table_name (
+        id INTEGER PRIMARY KEY,
+        field VARCHAR(100)
+    )
+""")
+```
+
+**Add Index:**
+```python
+cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_name
+    ON table_name(column)
+""")
+```
 
 ## Project Structure
 
@@ -317,9 +435,10 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
+│   ├── recurrence.py     # Recurring todo processing (template → instance generation)
 │   ├── generator/
 │   │   ├── __init__.py
 │   │   ├── generate.py   # Summary generation logic with calendar, todos, and dinner plans
@@ -331,6 +450,7 @@ rally/
 │       ├── __init__.py
 │       ├── dashboard.py     # Dashboard routes
 │       ├── todos.py         # Todo CRUD API
+│       ├── recurring_todos.py # Recurring todo template CRUD API
 │       ├── dinner_planner.py # Dinner plan CRUD API
 │       ├── family.py        # Family member CRUD API
 │       └── settings.py      # Settings and calendar management API
@@ -344,10 +464,14 @@ rally/
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
 ├── agent_voice.txt.example # Example AI agent voice/tone profile
-├── migrate_add_due_date.py        # Migration: add due_date to todos
-├── migrate_add_family_members.py  # Migration: add family_members, calendars, assigned_to
-├── migrate_add_settings.py        # Migration: add settings table
-├── run_migrations.py     # Migration runner (executes all migrations in order)
+├── migrations/            # Database migration scripts
+│   ├── migrate_add_due_date.py        # Migration 001: add due_date to todos
+│   ├── migrate_add_family_members.py  # Migration 002: add family_members, calendars, assigned_to
+│   ├── migrate_add_settings.py        # Migration 003: add settings table
+│   ├── migrate_add_recurring_todos.py # Migration 004: add recurring_todos table, recurring_todo_id on todos
+│   ├── migrate_add_dinner_plan_assignees.py # Migration 005: add attendee_ids, cook_id to dinner_plans
+│   ├── migrate_add_reminder_window.py # Migration 006: add remind_days_before to todos and recurring_todos
+│   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
 │   ├── context.txt       # Family context for LLM
@@ -359,7 +483,6 @@ rally/
 ├── uv.lock               # Locked dependency versions
 ├── Dockerfile            # Production container
 ├── entrypoint.sh         # Docker entrypoint (migrations + scheduled generation + web server)
-├── MIGRATIONS.md         # Database migration documentation
 ├── LICENSE
 └── README.md
 ```
@@ -374,7 +497,7 @@ rally/
 - ✅ Weather integration (OpenWeather API)
 - ✅ Configurable LLM provider - Anthropic Claude or any OpenAI-compatible API
 - ✅ Idempotent database migrations - Run automatically on container startup
-- ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, and DinnerPlan models
+- ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, and DinnerPlan models
 - ✅ Dashboard caching via DashboardSnapshot table (no auto-generation on page load)
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
 - ✅ Navigation between Dashboard, Todos, Dinner Planner, and Settings
@@ -391,11 +514,20 @@ rally/
   - Create, read, update, delete todos
   - Optional due dates with native HTML5 date picker
   - Assign todos to family members
+  - Configurable reminder window (`remind_days_before`) — controls when a todo appears in LLM briefings relative to its due date
   - AI formats due dates with day-of-week (e.g., "[Due Friday, Feb 20]")
   - Overdue styling for past-due items
   - Completion tracking with 24-hour visibility window
   - Integrated into LLM generator for schedule optimization
   - Luxury UI with inline editing
+- ✅ Recurring todos - Full CRUD API and UI
+  - Define recurring templates (daily, weekly, monthly)
+  - Configurable recurrence day (day-of-week for weekly, day-of-month for monthly)
+  - Optional due date and reminder window per template
+  - Assign to family members
+  - Auto-generates concrete todo instances when due and no open instance exists
+  - Recurrence processing runs during dashboard generation
+  - Activate/deactivate templates without deleting
 - ✅ Dinner planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
   - Optional attendees: select which family members are eating (defaults to everyone)
@@ -431,6 +563,12 @@ rally/
   - `GET /api/todos/{id}` - Get specific todo
   - `PUT /api/todos/{id}` - Update todo
   - `DELETE /api/todos/{id}` - Delete todo
+- `/api/recurring-todos` - Recurring todo template CRUD endpoints
+  - `GET /api/recurring-todos` - List all recurring todo templates
+  - `POST /api/recurring-todos` - Create new recurring todo template
+  - `GET /api/recurring-todos/{id}` - Get specific template
+  - `PUT /api/recurring-todos/{id}` - Update template
+  - `DELETE /api/recurring-todos/{id}` - Delete template
 - `/api/dinner-plans` - Dinner plan CRUD endpoints
   - `GET /api/dinner-plans` - List all dinner plans
   - `POST /api/dinner-plans` - Create new dinner plan (multiple per date allowed)
@@ -510,7 +648,8 @@ The database is automatically created when the app starts. Migrations run automa
 - `Calendar` - ICS calendar feeds linked to family members, with optional owner email
 - `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
-- `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), completion status, and timestamps
+- `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), optional recurring_todo_id (link to recurring template), optional remind_days_before (reminder window), completion status, and timestamps
+- `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, active flag, and timestamps
 - `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues

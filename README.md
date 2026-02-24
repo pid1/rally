@@ -11,9 +11,16 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - ✅ **Todo Management** - Full CRUD interface for family tasks
   - Create, edit, complete, and delete todos
   - Optional due dates with elegant date picker
+  - Configurable reminder window — set how many days before a due date a todo appears in AI briefings
   - 24-hour visibility window for completed tasks
   - Integrated into AI summaries for schedule optimization
   - Assign todos to family members
+- 🔁 **Recurring Todos** - Automate repeating tasks
+  - Define daily, weekly, or monthly recurring templates
+  - Auto-generates todo instances when due (no open duplicates)
+  - Optional due dates and reminder windows per template
+  - Assign to family members
+  - Activate/deactivate templates without deleting
 - 🍕 **Dinner Planner** - Plan meals ahead with prep reminders
   - Date-based meal planning with simple text field
   - View next 7 days of planned dinners
@@ -31,7 +38,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 ## Architecture
 
 - **FastAPI** - Modern Python web framework with automatic API docs
-- **SQLite** - Zero-config database for todos, dashboard snapshots, family members, calendars, and settings
+- **SQLite** - Zero-config database for todos, recurring todos, dashboard snapshots, family members, calendars, and settings
 - **SQLAlchemy** - Modern ORM with type hints
 - **Idempotent Migrations** - File-based migration system that runs automatically on startup
 - **Uvicorn** - High-performance ASGI server
@@ -162,7 +169,7 @@ Rally uses a **file-based migration system** that runs automatically on containe
 
 ### How It Works
 
-1. **On Startup**: `entrypoint.sh` runs `run_migrations.py` before starting the web server
+1. **On Startup**: `entrypoint.sh` runs `migrations/run_migrations.py` before starting the web server
 2. **Idempotent**: Each migration checks if changes already exist before executing
 3. **Ordered**: Migrations run in sequence as defined in `run_migrations.py`
 4. **Fail-Safe**: Container won't start if migrations fail
@@ -174,29 +181,31 @@ Rally uses a **file-based migration system** that runs automatically on containe
 | `001_add_due_date` | Add optional `due_date` field to todos table |
 | `002_add_family_members` | Add `family_members` and `calendars` tables, `assigned_to` on todos |
 | `003_add_settings` | Add key-value `settings` table |
+| `004_add_recurring_todos` | Add `recurring_todos` table and `recurring_todo_id` on todos |
+| `005_add_dinner_plan_assignees` | Add `attendee_ids` and `cook_id` to dinner plans |
+| `006_add_reminder_window` | Add `remind_days_before` to todos and recurring_todos |
 
 ### Running Migrations Manually
 
 ```bash
 # Development
-python3 run_migrations.py
+python3 migrations/run_migrations.py
 
 # Docker
-docker exec rally python run_migrations.py
+docker exec rally python migrations/run_migrations.py
 
 # Test idempotency (should succeed twice)
-python3 run_migrations.py && python3 run_migrations.py
+python3 migrations/run_migrations.py && python3 migrations/run_migrations.py
 ```
 
 ### Creating New Migrations
 
-See `MIGRATIONS.md` for complete documentation. Quick overview:
+See the Database Migrations section in `AGENTS.md` for complete documentation including template and patterns. Quick overview:
 
-1. **Create** `migrate_XXX_description.py` using the template in `MIGRATIONS.md`
-2. **Test** locally: `python3 migrate_XXX_description.py`
-3. **Register** in `run_migrations.py` migrations list
-4. **Update** `Dockerfile` to include the new file
-5. **Deploy** - runs automatically on container startup
+1. **Create** `migrations/migrate_XXX_description.py` using the template in `AGENTS.md`
+2. **Test** locally: `python3 migrations/migrate_XXX_description.py`
+3. **Register** in `migrations/run_migrations.py` migrations list
+4. **Deploy** - runs automatically on container startup
 
 **Key Principle**: Every migration must be **idempotent** - it checks if changes exist before applying them.
 
@@ -207,9 +216,10 @@ rally/
 ├── src/rally/              # Application source code
 │   ├── main.py             # FastAPI application entry point
 │   ├── database.py         # SQLAlchemy database configuration
-│   ├── models.py           # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, DinnerPlan)
+│   ├── models.py           # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
 │   ├── schemas.py          # Pydantic request/response schemas
 │   ├── cli.py              # CLI commands (seed, etc.)
+│   ├── recurrence.py       # Recurring todo processing (template → instance generation)
 │   ├── generator/          # Summary generation
 │   │   ├── generate.py     # Core generation logic with calendar, todos, dinner plans
 │   │   └── __main__.py     # CLI entry point
@@ -218,6 +228,7 @@ rally/
 │   └── routers/            # API route handlers
 │       ├── dashboard.py    # Dashboard routes
 │       ├── todos.py        # Todo CRUD API
+│       ├── recurring_todos.py # Recurring todo template CRUD API
 │       ├── dinner_planner.py # Dinner plan CRUD API
 │       ├── family.py       # Family member CRUD API
 │       └── settings.py     # Settings and calendar management API
@@ -233,10 +244,14 @@ rally/
 │   ├── context.txt         # Family context for AI
 │   ├── agent_voice.txt     # AI agent voice/tone profile
 │   └── rally.db            # SQLite database
-├── migrate_add_due_date.py        # Migration: add due_date to todos
-├── migrate_add_family_members.py  # Migration: add family_members, calendars, assigned_to
-├── migrate_add_settings.py        # Migration: add settings table
-├── run_migrations.py       # Migration runner (executes all migrations)
+├── migrations/             # Database migration scripts
+│   ├── migrate_add_due_date.py        # Migration 001: add due_date to todos
+│   ├── migrate_add_family_members.py  # Migration 002: add family_members, calendars, assigned_to
+│   ├── migrate_add_settings.py        # Migration 003: add settings table
+│   ├── migrate_add_recurring_todos.py # Migration 004: add recurring_todos table, recurring_todo_id on todos
+│   ├── migrate_add_dinner_plan_assignees.py # Migration 005: add attendee_ids, cook_id to dinner_plans
+│   ├── migrate_add_reminder_window.py # Migration 006: add remind_days_before to todos and recurring_todos
+│   └── run_migrations.py              # Migration runner (executes all migrations)
 ├── config.toml.example     # Example configuration file
 ├── context.txt.example     # Example family context
 ├── agent_voice.txt.example # Example AI agent voice profile
@@ -247,7 +262,6 @@ rally/
 ├── Dockerfile              # Production container
 ├── entrypoint.sh           # Docker entrypoint (migrations + scheduled generation + web server)
 ├── AGENTS.md               # AI agent instructions
-├── MIGRATIONS.md           # Database migration documentation
 ├── LICENSE
 └── README.md               # This file
 ```

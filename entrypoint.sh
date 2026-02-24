@@ -2,7 +2,7 @@
 set -e
 
 # Run all migrations (idempotent)
-python run_migrations.py || {
+python migrations/run_migrations.py
     echo "✗ Migrations failed - exiting"
     exit 1
 }

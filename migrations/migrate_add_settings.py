@@ -16,7 +16,7 @@ def migrate():
 
     if not db_path:
         prod_path = Path("/data/rally.db")
-        dev_path = Path(__file__).parent / "rally.db"
+        dev_path = Path(__file__).parent.parent / "rally.db"
         db_path = str(prod_path) if prod_path.exists() else str(dev_path)
 
     db_path = Path(db_path)
