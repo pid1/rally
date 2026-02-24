@@ -2,10 +2,10 @@
 set -e
 
 # Run all migrations (idempotent)
-python migrations/run_migrations.py
+if ! python migrations/run_migrations.py; then
     echo "✗ Migrations failed - exiting"
     exit 1
-}
+fi
 
 # Initialize database schema (idempotent - creates missing tables)
 echo ""
