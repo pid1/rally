@@ -34,6 +34,26 @@ def get_last_recurrence_date(rt: RecurringTodo, today: date) -> date:
     return today
 
 
+def get_first_recurrence_date(rt: RecurringTodo, today: date) -> date:
+    """Get the first recurrence date for a newly created template.
+
+    Unlike get_last_recurrence_date, this always uses the current period
+    (current month/week) so the first instance isn't backdated to a
+    previous period.
+    """
+    if rt.recurrence_type == "daily":
+        return today
+    elif rt.recurrence_type == "weekly":
+        day = rt.recurrence_day or 0
+        days_until = (day - today.weekday()) % 7
+        return today + timedelta(days=days_until)
+    elif rt.recurrence_type == "monthly":
+        day = rt.recurrence_day or 1
+        clamped = min(day, cal_module.monthrange(today.year, today.month)[1])
+        return today.replace(day=clamped)
+    return today
+
+
 def process_recurring_todos(db: Session) -> int:
     """Check all active recurring todos and create instances where due.
 
@@ -75,8 +95,13 @@ def process_recurring_todos(db: Session) -> int:
         if existing:
             continue
 
+        # For the very first instance, use the current period (month/week)
+        # so the todo isn't backdated to a previous period.
+        is_first = db.query(Todo).filter(Todo.recurring_todo_id == rt.id).first() is None
+        recurrence_date = get_first_recurrence_date(rt, today) if is_first else last_recurrence
+
         # Create new todo instance
-        due_date = str(last_recurrence) if rt.has_due_date else None
+        due_date = str(recurrence_date) if rt.has_due_date else None
         new_todo = Todo(
             title=rt.title,
             description=rt.description,
