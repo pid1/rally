@@ -22,47 +22,49 @@
         <a href="/dinner-planner" class="active">Dinner Planner</a>
     </nav>
 
-    <!-- Plan Form -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2 id="form-heading">Add Dinner Plan</h2>
-        </div>
-        <form id="plan-form">
-            <input type="hidden" id="plan-edit-id">
-            <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="plan-date" required>
-            </div>
-            <div class="form-group">
-                <label>Meal Plan</label>
-                <textarea id="plan-text" placeholder="What's for dinner?" required></textarea>
-            </div>
-            <div class="form-group">
-                <label>Who's Eating? <small>(leave unchecked for everyone)</small></label>
-                <div class="checkbox-group" id="attendee-checkboxes">
-                    <!-- Populated from /api/family -->
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Who's Cooking? <small>(optional)</small></label>
-                <select id="plan-cook">
-                    <option value="">— nobody assigned —</option>
-                </select>
-            </div>
-            <div class="form-actions">
-                <button type="submit" class="btn-save">Save Plan</button>
-                <button type="button" class="btn-cancel" id="btn-cancel-edit" style="display:none;">Cancel</button>
-            </div>
-        </form>
-    </div>
-
-    <!-- Plans List -->
-    <div class="plans-section">
+    <div class="todo-container">
         <div class="header-container">
             <h2>Upcoming Dinners</h2>
+            <div class="header-actions">
+                <button class="btn-add" id="btn-add-dinner">Add Dinner</button>
+            </div>
         </div>
         <div class="list-container" id="plans-list">
-            <!-- Plans will be loaded here -->
+            <div class="container-loading-state">Loading dinner plans...</div>
+        </div>
+    </div>
+
+    <!-- Modal for add/edit -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title">Add Dinner Plan</h3>
+            <form id="plan-form">
+                <input type="hidden" id="plan-edit-id">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="plan-date" required>
+                </div>
+                <div class="form-group">
+                    <label>Meal Plan</label>
+                    <textarea id="plan-text" placeholder="What's for dinner?" required rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Who's Eating? <small>(leave unchecked for everyone)</small></label>
+                    <div class="checkbox-group" id="attendee-checkboxes">
+                        <!-- Populated from /api/family -->
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Who's Cooking? <small>(optional)</small></label>
+                    <select id="plan-cook">
+                        <option value="">— nobody assigned —</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -178,35 +180,33 @@
             const container = document.getElementById('plans-list');
 
             if (plans.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No dinner plans for the next 7 days.</div>';
+                container.innerHTML = '<div class="container-empty-state">No dinner plans for the next 7 days. Click "Add Dinner" to get started.</div>';
                 return;
             }
 
             container.innerHTML = plans.map(plan => {
-                // Build attendee label
-                let eatingLabel = '';
+                // Build meta parts
+                const parts = [];
                 if (plan.attendee_ids && plan.attendee_ids.length > 0) {
                     const names = plan.attendee_ids.map(id => getMemberById(id)?.name || '?').join(', ');
-                    eatingLabel = `<span class="plan-meta">Eating: ${escapeHtml(names)}</span>`;
+                    parts.push(`Eating: ${escapeHtml(names)}`);
                 }
-
-                // Build cook label
-                let cookLabel = '';
                 if (plan.cook_id) {
                     const cook = getMemberById(plan.cook_id);
-                    if (cook) cookLabel = `<span class="plan-meta">Cook: ${escapeHtml(cook.name)}</span>`;
+                    if (cook) parts.push(`Cook: ${escapeHtml(cook.name)}`);
                 }
-
-                const metaHtml = (eatingLabel || cookLabel)
-                    ? `<div class="plan-meta-row">${eatingLabel}${cookLabel}</div>` : '';
+                const metaHtml = parts.length > 0
+                    ? `<div class="editable-item-description">${parts.join(' · ')}</div>` : '';
 
                 return `
-                    <div class="plan-card" data-id="${plan.id}">
-                        <div class="plan-date">${escapeHtml(formatDate(plan.date))}</div>
-                        <div class="plan-content">${escapeHtml(plan.plan)}</div>
-                        ${metaHtml}
-                        <div class="plan-actions">
-                            <button class="btn-edit" onclick="editPlan(${plan.id})">Edit</button>
+                    <div class="editable-item" data-id="${plan.id}">
+                        <div class="editable-item-content">
+                            <div class="editable-item-title">${escapeHtml(plan.plan)}</div>
+                            ${metaHtml}
+                            <div class="plan-date">${escapeHtml(formatDate(plan.date))}</div>
+                        </div>
+                        <div class="editable-item-actions">
+                            <button class="btn-edit" onclick="openEditModal(${plan.id})">Edit</button>
                             <button class="btn-delete" onclick="confirmDelete(${plan.id})">Delete</button>
                         </div>
                     </div>
@@ -220,13 +220,24 @@
             return div.innerHTML;
         }
 
-        // Actions
-        function editPlan(id) {
+        // Modal
+        function openAddModal() {
+            editingId = null;
+            document.getElementById('modal-title').textContent = 'Add Dinner Plan';
+            document.getElementById('plan-form').reset();
+            document.getElementById('plan-edit-id').value = '';
+            document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
+            document.querySelectorAll('.attendee-cb').forEach(cb => cb.checked = false);
+            document.getElementById('plan-cook').value = '';
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function openEditModal(id) {
             const plan = plans.find(p => p.id === id);
             if (!plan) return;
 
             editingId = id;
-            document.getElementById('form-heading').textContent = 'Edit Dinner Plan';
+            document.getElementById('modal-title').textContent = 'Edit Dinner Plan';
             document.getElementById('plan-edit-id').value = id;
             document.getElementById('plan-date').value = plan.date;
             document.getElementById('plan-text').value = plan.plan;
@@ -239,17 +250,12 @@
             // Set cook dropdown
             document.getElementById('plan-cook').value = plan.cook_id || '';
 
-            document.getElementById('btn-cancel-edit').style.display = 'inline-block';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.getElementById('modal-overlay').style.display = 'flex';
         }
 
-        function resetForm() {
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
             editingId = null;
-            document.getElementById('form-heading').textContent = 'Add Dinner Plan';
-            document.getElementById('plan-form').reset();
-            document.getElementById('plan-edit-id').value = '';
-            document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
-            document.getElementById('btn-cancel-edit').style.display = 'none';
         }
 
         async function confirmDelete(id) {
@@ -257,7 +263,6 @@
 
             try {
                 await deletePlan(id);
-                if (editingId === id) resetForm();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error deleting plan:', error);
@@ -266,6 +271,12 @@
         }
 
         // Event handlers
+        document.getElementById('btn-add-dinner').addEventListener('click', openAddModal);
+        document.getElementById('btn-cancel').addEventListener('click', closeModal);
+        document.getElementById('modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'modal-overlay') closeModal();
+        });
+
         document.getElementById('plan-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -280,18 +291,13 @@
                 } else {
                     await savePlan({ date, plan, attendee_ids, cook_id });
                 }
-                resetForm();
+                closeModal();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error saving plan:', error);
                 alert('Failed to save dinner plan');
             }
         });
-
-        document.getElementById('btn-cancel-edit').addEventListener('click', resetForm);
-
-        // Set default date to today
-        document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
 
         // Initialize
         fetchFamilyMembers();
