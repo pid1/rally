@@ -1,3 +1,4 @@
+/** Global Styles **/
 :root {
     --black: #000000;
     --charcoal: #1a1a1a;
@@ -28,27 +29,7 @@ body {
     margin: 0 auto;
     overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
 }
-
-footer {
-    text-align: center;
-    color: var(--medium-gray);
-    font-size: 0.75rem;
-    padding: 24px 0 0 0;
-    border-top: 1px solid var(--pale-gray);
-    margin-top: 32px;
-    letter-spacing: 0.05em;
-    font-style: italic;
-}
-
-footer a {
-    color: var(--medium-gray);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-footer a:hover {
-    color: var(--charcoal);
-}
+/** End Global Styles **/
 
 /** Header Styles**/
 h2 {
@@ -94,7 +75,30 @@ h2 {
 }
 /** End Header Styles**/
 
-/** Navigation **/
+/** Footer Styles **/
+footer {
+    text-align: center;
+    color: var(--medium-gray);
+    font-size: 0.75rem;
+    padding: 24px 0 0 0;
+    border-top: 1px solid var(--pale-gray);
+    margin-top: 32px;
+    letter-spacing: 0.05em;
+    font-style: italic;
+}
+
+footer a {
+    color: var(--medium-gray);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+footer a:hover {
+    color: var(--charcoal);
+}
+/** End Footer Styles **/
+
+/** Navigation Styles**/
 nav {
     text-align: center;
     margin-bottom: 32px;
@@ -122,17 +126,32 @@ nav a.active {
     background: var(--charcoal);
     color: var(--white);
 }
-/** End Navigation **/
+/** End Navigation Styles**/
 
-/** Lists **/
-.list-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+/** Footer Styles **/
+footer {
+    text-align: center;
+    color: var(--medium-gray);
+    font-size: 0.75rem;
+    padding: 24px 0 0 0;
+    border-top: 1px solid var(--pale-gray);
+    margin-top: 32px;
+    letter-spacing: 0.05em;
+    font-style: italic;
 }
-/** End Lists **/
 
-/** All Buttons **/
+footer a {
+    color: var(--medium-gray);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+footer a:hover {
+    color: var(--charcoal);
+}
+/** End Footer Styles **/
+
+/** All Button Styles **/
 .btn-add, .btn-primary, .btn-cancel, .btn-edit, .btn-delete, .btn-save {
     border: 1px solid var(--charcoal);
     background: var(--white);
@@ -166,14 +185,28 @@ nav a.active {
 .btn-cancel:hover, .btn-delete:hover {
     background: var(--off-white);
 }
-/** End All Buttons **/
+/** End All Button Styles **/
 
 /** Container Styling **/
+.section-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.section-container + .section-container {
+    margin-top: 64px;
+}
 .border-container {
     margin-bottom: 48px;
     padding: 32px;
     border: 1px solid var(--charcoal);
     background: var(--white);
+}
+
+.list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .container-empty-state {
@@ -193,7 +226,7 @@ nav a.active {
 }
 /** End Container Styling **/
 
-/** Modals **/
+/** Modal Styles **/
 .modal-overlay {
     display: none;
     position: fixed;
@@ -228,7 +261,7 @@ nav a.active {
     gap: 12px;
     margin-top: 24px;
 }
-/** End Modals **/
+/** End Modal Styles **/
 
 /** Form Styles **/
 .form-group {
@@ -381,7 +414,7 @@ nav a.active {
 }
 /** End Assignee Badge Styles **/
 
-/** Dashboard Styles **/
+/** Dashboard Page Styles **/
 /* Greeting */
 .greeting {
     font-size: 1.05rem;
@@ -512,18 +545,9 @@ nav a.active {
 .card--featured {
     border: 1px solid var(--charcoal);
 }
-/** End Dashboard Styles **/
+/** End Dashboard Page Styles **/
 
 /**Todo Page Styles**/
-.todo-container {
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-.todo-container + .todo-container {
-    margin-top: 64px;
-}
-
 .todo-checkbox {
     flex-shrink: 0;
     padding-top: 2px;
@@ -775,10 +799,9 @@ nav a.active {
     gap: 12px;
     align-items: center;
 }
+/** End Dinner Planner Styles **/
 
-
-/** Settings Page **/
-
+/** Settings Page Styles **/
 .settings-actions {
     margin-top: 24px;
 }
@@ -813,7 +836,7 @@ nav a.active {
     margin-top: 2px;
 }
 
-/** End Settings Page **/
+/** End Settings Page Styles **/
 
 /** Responsive Design **/
 /* Desktop */
