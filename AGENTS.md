@@ -397,9 +397,11 @@ rally/
   - Integrated into LLM generator for schedule optimization
   - Luxury UI with inline editing
 - ✅ Dinner planner - Full CRUD API and UI
-  - Date picker with upsert logic (one plan per date)
+  - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
+  - Optional attendees: select which family members are eating (defaults to everyone)
+  - Optional cook assignment: who's preparing the meal
   - Next 7 days display with smart date formatting
-  - Integrated into LLM generator for prep reminders
+  - LLM generator annotates plans with attendee/cook names for smarter reminders
   - Luxury UI matching Rally aesthetic
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
@@ -431,9 +433,9 @@ rally/
   - `DELETE /api/todos/{id}` - Delete todo
 - `/api/dinner-plans` - Dinner plan CRUD endpoints
   - `GET /api/dinner-plans` - List all dinner plans
-  - `POST /api/dinner-plans` - Create/update dinner plan (upsert by date)
+  - `POST /api/dinner-plans` - Create new dinner plan (multiple per date allowed)
   - `GET /api/dinner-plans/{id}` - Get specific plan
-  - `GET /api/dinner-plans/date/{date}` - Get plan by date (YYYY-MM-DD)
+  - `GET /api/dinner-plans/date/{date}` - Get all plans for a date (YYYY-MM-DD)
   - `PUT /api/dinner-plans/{id}` - Update plan
   - `DELETE /api/dinner-plans/{id}` - Delete plan
 - `/api/family` - Family member CRUD endpoints
@@ -509,7 +511,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
 - `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), completion status, and timestamps
-- `DinnerPlan` - Meal planning with date (unique), plan text, and timestamps
+- `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues
 

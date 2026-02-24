@@ -149,6 +149,8 @@ class RecurringTodoResponse(RecurringTodoBase):
 class DinnerPlanBase(BaseModel):
     date: str  # YYYY-MM-DD format
     plan: str
+    attendee_ids: list[int] | None = None  # family_member IDs (who's eating); None = everyone
+    cook_id: int | None = None  # family_member ID (who's cooking)
 
 
 class DinnerPlanCreate(DinnerPlanBase):
@@ -158,6 +160,8 @@ class DinnerPlanCreate(DinnerPlanBase):
 class DinnerPlanUpdate(BaseModel):
     date: str | None = None
     plan: str | None = None
+    attendee_ids: list[int] | None = UNSET  # None means "clear"; UNSET means "not provided"
+    cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
 
 
 class DinnerPlanResponse(DinnerPlanBase):

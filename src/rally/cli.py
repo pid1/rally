@@ -1,7 +1,9 @@
 """Rally CLI commands."""
 
+from datetime import timedelta
+
 from rally.database import SessionLocal, init_db
-from rally.models import Calendar, DashboardSnapshot, FamilyMember, Setting, Todo
+from rally.models import Calendar, DashboardSnapshot, DinnerPlan, FamilyMember, Setting, Todo
 from rally.utils.timezone import today_utc
 
 
@@ -12,6 +14,7 @@ def seed():
 
     try:
         # Clear existing data
+        db.query(DinnerPlan).delete()
         db.query(Calendar).delete()
         db.query(Setting).delete()
         db.query(DashboardSnapshot).delete()
@@ -83,9 +86,21 @@ def seed():
 
         # Create sample calendars linked to family members
         calendars = [
-            Calendar(label="Google Family", url="https://calendar.google.com/calendar/ical/example/basic.ics", family_member_id=mom.id),
-            Calendar(label="iCloud Dad", url="https://p01-caldav.icloud.com/published/2/example", family_member_id=dad.id),
-            Calendar(label="School Calendar", url="https://calendar.google.com/calendar/ical/school/basic.ics", family_member_id=emma.id),
+            Calendar(
+                label="Google Family",
+                url="https://calendar.google.com/calendar/ical/example/basic.ics",
+                family_member_id=mom.id,
+            ),
+            Calendar(
+                label="iCloud Dad",
+                url="https://p01-caldav.icloud.com/published/2/example",
+                family_member_id=dad.id,
+            ),
+            Calendar(
+                label="School Calendar",
+                url="https://calendar.google.com/calendar/ical/school/basic.ics",
+                family_member_id=emma.id,
+            ),
         ]
         for cal in calendars:
             db.add(cal)
@@ -145,13 +160,45 @@ def seed():
         for todo in todos:
             db.add(todo)
 
+        # Create sample dinner plans (multiple per date to showcase the feature)
+        today_date = today_utc()
+        dinner_plans = [
+            # Tonight: two separate dinners
+            DinnerPlan(
+                date=today_date.strftime("%Y-%m-%d"),
+                plan="Chicken pot pie",
+                attendee_ids=[dad.id, jake.id],
+                cook_id=dad.id,
+            ),
+            DinnerPlan(
+                date=today_date.strftime("%Y-%m-%d"),
+                plan="Texas Roadhouse",
+                attendee_ids=[mom.id, emma.id],
+            ),
+            # Tomorrow: whole family
+            DinnerPlan(
+                date=(today_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+                plan="Spaghetti and meatballs with garlic bread",
+                cook_id=mom.id,
+            ),
+            # Day after: assigned cook, everyone eating
+            DinnerPlan(
+                date=(today_date + timedelta(days=3)).strftime("%Y-%m-%d"),
+                plan="Grilled burgers and corn on the cob",
+                cook_id=dad.id,
+            ),
+        ]
+        for dp in dinner_plans:
+            db.add(dp)
+
         db.commit()
         print("✅ Database seeded with sample data")
         print(f"   - 1 dashboard snapshot for {today}")
-        print(f"   - 4 family members")
+        print("   - 4 family members")
         print(f"   - {len(calendars)} calendars")
         print(f"   - {len(sample_settings)} settings")
         print(f"   - {len(todos)} sample todos")
+        print(f"   - {len(dinner_plans)} dinner plans")
 
     except Exception as e:
         db.rollback()

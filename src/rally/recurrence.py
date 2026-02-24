@@ -46,10 +46,14 @@ def process_recurring_todos(db: Session) -> int:
 
     for rt in recurring:
         # Skip if there's an open (incomplete) todo for this template
-        open_todo = db.query(Todo).filter(
-            Todo.recurring_todo_id == rt.id,
-            Todo.completed == False,  # noqa: E712
-        ).first()
+        open_todo = (
+            db.query(Todo)
+            .filter(
+                Todo.recurring_todo_id == rt.id,
+                Todo.completed == False,  # noqa: E712
+            )
+            .first()
+        )
         if open_todo:
             continue
 
@@ -57,11 +61,17 @@ def process_recurring_todos(db: Session) -> int:
         last_recurrence = get_last_recurrence_date(rt, today)
 
         # Check if a todo was already created for this recurrence period
-        cutoff = datetime(last_recurrence.year, last_recurrence.month, last_recurrence.day, tzinfo=UTC)
-        existing = db.query(Todo).filter(
-            Todo.recurring_todo_id == rt.id,
-            Todo.created_at >= cutoff,
-        ).first()
+        cutoff = datetime(
+            last_recurrence.year, last_recurrence.month, last_recurrence.day, tzinfo=UTC
+        )
+        existing = (
+            db.query(Todo)
+            .filter(
+                Todo.recurring_todo_id == rt.id,
+                Todo.created_at >= cutoff,
+            )
+            .first()
+        )
         if existing:
             continue
 

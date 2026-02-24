@@ -309,10 +309,16 @@ class SummaryGenerator:
         cur = weather.get("current", {})
         if cur:
             desc = cur["weather"][0]["description"] if cur.get("weather") else "unknown"
-            lines.append(f"Current: {cur.get('temp', '?')}°F (feels like {cur.get('feels_like', '?')}°F), {desc}")
-            lines.append(f"  Wind: {cur.get('wind_speed', '?')} mph, Humidity: {cur.get('humidity', '?')}%")
+            lines.append(
+                f"Current: {cur.get('temp', '?')}°F (feels like {cur.get('feels_like', '?')}°F), {desc}"
+            )
+            lines.append(
+                f"  Wind: {cur.get('wind_speed', '?')} mph, Humidity: {cur.get('humidity', '?')}%"
+            )
             if "sunrise" in cur and "sunset" in cur:
-                lines.append(f"  Sunrise: {fmt_time(cur['sunrise'])}, Sunset: {fmt_time(cur['sunset'])}")
+                lines.append(
+                    f"  Sunrise: {fmt_time(cur['sunrise'])}, Sunset: {fmt_time(cur['sunset'])}"
+                )
 
         # Daily forecast
         daily = weather.get("daily", [])
@@ -421,16 +427,19 @@ class SummaryGenerator:
             # Get all dates in the range
             date_range = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
 
-            # Get plans for next 7 days
+            # Get plans for next 7 days (multiple per date possible)
             plans = (
                 db.query(DinnerPlan)
                 .filter(DinnerPlan.date.in_(date_range))
-                .order_by(DinnerPlan.date.asc())
+                .order_by(DinnerPlan.date.asc(), DinnerPlan.id.asc())
                 .all()
             )
 
             if not plans:
                 return "No dinner plans for the next 7 days."
+
+            # Load family members for attendee/cook names
+            members = self.load_family_members()
 
             # Format plans for LLM
             lines = []
@@ -445,7 +454,18 @@ class SummaryGenerator:
                 else:
                     day_label = f"{plan_date.strftime('%A')} ({plan_date.strftime('%b %d')})"
 
-                lines.append(f"{day_label}: {plan.plan}")
+                line = f"{day_label}: {plan.plan}"
+
+                # Annotate who's eating (omit if everyone / not specified)
+                if plan.attendee_ids:
+                    names = [members.get(mid, f"ID {mid}") for mid in plan.attendee_ids]
+                    line += f" [Eating: {', '.join(names)}]"
+
+                # Annotate who's cooking
+                if plan.cook_id and plan.cook_id in members:
+                    line += f" [Cook: {members[plan.cook_id]}]"
+
+                lines.append(line)
 
             return "\n".join(lines)
         finally:

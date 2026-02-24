@@ -12,10 +12,13 @@ def run_migrations():
     """Run all migrations in order."""
     # Import migrations
     try:
+        from migrate_add_dinner_plan_assignees import (
+            migrate as migrate_005_add_dinner_plan_assignees,
+        )
         from migrate_add_due_date import migrate as migrate_001_add_due_date
         from migrate_add_family_members import migrate as migrate_002_add_family_members
-        from migrate_add_settings import migrate as migrate_003_add_settings
         from migrate_add_recurring_todos import migrate as migrate_004_add_recurring_todos
+        from migrate_add_settings import migrate as migrate_003_add_settings
     except ImportError as e:
         print(f"✗ Failed to import migrations: {e}")
         return False
@@ -26,6 +29,7 @@ def run_migrations():
         ("002_add_family_members", migrate_002_add_family_members),
         ("003_add_settings", migrate_003_add_settings),
         ("004_add_recurring_todos", migrate_004_add_recurring_todos),
+        ("005_add_dinner_plan_assignees", migrate_005_add_dinner_plan_assignees),
     ]
 
     print("=" * 60)

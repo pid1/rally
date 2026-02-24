@@ -25,9 +25,10 @@
     <!-- Plan Form -->
     <div class="border-container">
         <div class="header-container">
-            <h2>Add Dinner Plan</h2>
+            <h2 id="form-heading">Add Dinner Plan</h2>
         </div>
         <form id="plan-form">
+            <input type="hidden" id="plan-edit-id">
             <div class="form-group">
                 <label>Date</label>
                 <input type="date" id="plan-date" required>
@@ -36,7 +37,22 @@
                 <label>Meal Plan</label>
                 <textarea id="plan-text" placeholder="What's for dinner?" required></textarea>
             </div>
-            <button type="submit" class="btn-save">Save Plan</button>
+            <div class="form-group">
+                <label>Who's Eating? <small>(leave unchecked for everyone)</small></label>
+                <div class="checkbox-group" id="attendee-checkboxes">
+                    <!-- Populated from /api/family -->
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Who's Cooking? <small>(optional)</small></label>
+                <select id="plan-cook">
+                    <option value="">— nobody assigned —</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save Plan</button>
+                <button type="button" class="btn-cancel" id="btn-cancel-edit" style="display:none;">Cancel</button>
+            </div>
         </form>
     </div>
 
@@ -53,9 +69,10 @@
     <script>
         // State
         let plans = [];
+        let familyMembers = [];
         let editingId = null;
 
-        // Get date 7 days from now for filtering
+        // Get date N days from now
         function getDateInDays(days) {
             const date = new Date();
             date.setDate(date.getDate() + days);
@@ -69,36 +86,83 @@
             today.setHours(0, 0, 0, 0);
             const tomorrow = new Date(today);
             tomorrow.setDate(tomorrow.getDate() + 1);
-            
+
             const planDate = new Date(date);
             planDate.setHours(0, 0, 0, 0);
-            
+
             if (planDate.getTime() === today.getTime()) return 'Tonight';
             if (planDate.getTime() === tomorrow.getTime()) return 'Tomorrow';
-            
+
             return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        }
+
+        // Family member helpers
+        async function fetchFamilyMembers() {
+            const response = await fetch('/api/family');
+            familyMembers = await response.json();
+            populateFamilyControls();
+        }
+
+        function getMemberById(id) {
+            return familyMembers.find(m => m.id === id);
+        }
+
+        function populateFamilyControls() {
+            // Attendee checkboxes
+            const checkboxGroup = document.getElementById('attendee-checkboxes');
+            checkboxGroup.innerHTML = familyMembers.map(m =>
+                `<label class="checkbox-label"><input type="checkbox" class="attendee-cb" value="${m.id}"> ${escapeHtml(m.name)}</label>`
+            ).join('');
+
+            // Cook dropdown
+            const cookSelect = document.getElementById('plan-cook');
+            cookSelect.innerHTML = '<option value="">— nobody assigned —</option>';
+            familyMembers.forEach(m => {
+                cookSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+            });
+        }
+
+        function getSelectedAttendeeIds() {
+            const checked = document.querySelectorAll('.attendee-cb:checked');
+            const ids = Array.from(checked).map(cb => parseInt(cb.value));
+            return ids.length > 0 ? ids : null;  // null = everyone
+        }
+
+        function getSelectedCookId() {
+            const val = document.getElementById('plan-cook').value;
+            return val ? parseInt(val) : null;
         }
 
         // API calls
         async function fetchPlans() {
             const response = await fetch('/api/dinner-plans');
             const allPlans = await response.json();
-            
+
             // Filter to next 7 days
             const today = new Date().toISOString().split('T')[0];
             const weekFromNow = getDateInDays(7);
             plans = allPlans.filter(p => p.date >= today && p.date <= weekFromNow);
-            
+
             renderPlans();
         }
 
-        async function savePlan(date, plan) {
+        async function savePlan(data) {
             const response = await fetch('/api/dinner-plans', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date, plan })
+                body: JSON.stringify(data)
             });
             if (!response.ok) throw new Error('Failed to save plan');
+            return response.json();
+        }
+
+        async function updatePlan(id, data) {
+            const response = await fetch(`/api/dinner-plans/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Failed to update plan');
             return response.json();
         }
 
@@ -112,22 +176,42 @@
         // Render
         function renderPlans() {
             const container = document.getElementById('plans-list');
-            
+
             if (plans.length === 0) {
                 container.innerHTML = '<div class="container-empty-state">No dinner plans for the next 7 days.</div>';
                 return;
             }
 
-            container.innerHTML = plans.map(plan => `
-                <div class="plan-card" data-id="${plan.id}">
-                    <div class="plan-date">${escapeHtml(formatDate(plan.date))}</div>
-                    <div class="plan-content">${escapeHtml(plan.plan)}</div>
-                    <div class="plan-actions">
-                        <button class="btn-edit" onclick="editPlan('${plan.date}', '${escapeHtml(plan.plan).replace(/'/g, "\\'")}')">Edit</button>
-                        <button class="btn-delete" onclick="confirmDelete(${plan.id})">Delete</button>
+            container.innerHTML = plans.map(plan => {
+                // Build attendee label
+                let eatingLabel = '';
+                if (plan.attendee_ids && plan.attendee_ids.length > 0) {
+                    const names = plan.attendee_ids.map(id => getMemberById(id)?.name || '?').join(', ');
+                    eatingLabel = `<span class="plan-meta">Eating: ${escapeHtml(names)}</span>`;
+                }
+
+                // Build cook label
+                let cookLabel = '';
+                if (plan.cook_id) {
+                    const cook = getMemberById(plan.cook_id);
+                    if (cook) cookLabel = `<span class="plan-meta">Cook: ${escapeHtml(cook.name)}</span>`;
+                }
+
+                const metaHtml = (eatingLabel || cookLabel)
+                    ? `<div class="plan-meta-row">${eatingLabel}${cookLabel}</div>` : '';
+
+                return `
+                    <div class="plan-card" data-id="${plan.id}">
+                        <div class="plan-date">${escapeHtml(formatDate(plan.date))}</div>
+                        <div class="plan-content">${escapeHtml(plan.plan)}</div>
+                        ${metaHtml}
+                        <div class="plan-actions">
+                            <button class="btn-edit" onclick="editPlan(${plan.id})">Edit</button>
+                            <button class="btn-delete" onclick="confirmDelete(${plan.id})">Delete</button>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function escapeHtml(text) {
@@ -137,17 +221,43 @@
         }
 
         // Actions
-        function editPlan(date, plan) {
-            document.getElementById('plan-date').value = date;
-            document.getElementById('plan-text').value = plan;
+        function editPlan(id) {
+            const plan = plans.find(p => p.id === id);
+            if (!plan) return;
+
+            editingId = id;
+            document.getElementById('form-heading').textContent = 'Edit Dinner Plan';
+            document.getElementById('plan-edit-id').value = id;
+            document.getElementById('plan-date').value = plan.date;
+            document.getElementById('plan-text').value = plan.plan;
+
+            // Set attendee checkboxes
+            document.querySelectorAll('.attendee-cb').forEach(cb => {
+                cb.checked = plan.attendee_ids && plan.attendee_ids.includes(parseInt(cb.value));
+            });
+
+            // Set cook dropdown
+            document.getElementById('plan-cook').value = plan.cook_id || '';
+
+            document.getElementById('btn-cancel-edit').style.display = 'inline-block';
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            editingId = null;
+            document.getElementById('form-heading').textContent = 'Add Dinner Plan';
+            document.getElementById('plan-form').reset();
+            document.getElementById('plan-edit-id').value = '';
+            document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('btn-cancel-edit').style.display = 'none';
         }
 
         async function confirmDelete(id) {
             if (!confirm('Are you sure you want to delete this dinner plan?')) return;
-            
+
             try {
                 await deletePlan(id);
+                if (editingId === id) resetForm();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error deleting plan:', error);
@@ -158,13 +268,19 @@
         // Event handlers
         document.getElementById('plan-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const date = document.getElementById('plan-date').value;
             const plan = document.getElementById('plan-text').value;
+            const attendee_ids = getSelectedAttendeeIds();
+            const cook_id = getSelectedCookId();
 
             try {
-                await savePlan(date, plan);
-                document.getElementById('plan-form').reset();
+                if (editingId) {
+                    await updatePlan(editingId, { date, plan, attendee_ids, cook_id });
+                } else {
+                    await savePlan({ date, plan, attendee_ids, cook_id });
+                }
+                resetForm();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error saving plan:', error);
@@ -172,10 +288,13 @@
             }
         });
 
+        document.getElementById('btn-cancel-edit').addEventListener('click', resetForm);
+
         // Set default date to today
         document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
 
         // Initialize
+        fetchFamilyMembers();
         fetchPlans();
     </script>
 

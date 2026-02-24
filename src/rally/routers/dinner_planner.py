@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from rally.database import get_db
 from rally.models import DinnerPlan
-from rally.schemas import DinnerPlanCreate, DinnerPlanResponse, DinnerPlanUpdate
+from rally.schemas import UNSET, DinnerPlanCreate, DinnerPlanResponse, DinnerPlanUpdate
 
 router = APIRouter(prefix="/api/dinner-plans", tags=["dinner-plans"])
 
@@ -13,27 +13,18 @@ router = APIRouter(prefix="/api/dinner-plans", tags=["dinner-plans"])
 @router.get("", response_model=list[DinnerPlanResponse])
 def list_dinner_plans(db: Session = Depends(get_db)):
     """List all dinner plans."""
-    plans = db.query(DinnerPlan).order_by(DinnerPlan.date.asc()).all()
+    plans = db.query(DinnerPlan).order_by(DinnerPlan.date.asc(), DinnerPlan.id.asc()).all()
     return plans
 
 
 @router.post("", response_model=DinnerPlanResponse, status_code=201)
 def create_dinner_plan(plan: DinnerPlanCreate, db: Session = Depends(get_db)):
-    """Create a new dinner plan or update if date already exists."""
-    # Check if plan already exists for this date
-    existing = db.query(DinnerPlan).filter(DinnerPlan.date == plan.date).first()
-
-    if existing:
-        # Update existing plan
-        existing.plan = plan.plan
-        db.commit()
-        db.refresh(existing)
-        return existing
-
-    # Create new plan
+    """Create a new dinner plan. Multiple plans per date are allowed."""
     db_plan = DinnerPlan(
         date=plan.date,
         plan=plan.plan,
+        attendee_ids=plan.attendee_ids,
+        cook_id=plan.cook_id,
     )
     db.add(db_plan)
     db.commit()
@@ -41,13 +32,11 @@ def create_dinner_plan(plan: DinnerPlanCreate, db: Session = Depends(get_db)):
     return db_plan
 
 
-@router.get("/date/{date}", response_model=DinnerPlanResponse)
-def get_dinner_plan_by_date(date: str, db: Session = Depends(get_db)):
-    """Get dinner plan for a specific date (YYYY-MM-DD)."""
-    plan = db.query(DinnerPlan).filter(DinnerPlan.date == date).first()
-    if not plan:
-        raise HTTPException(status_code=404, detail="No dinner plan for this date")
-    return plan
+@router.get("/date/{date}", response_model=list[DinnerPlanResponse])
+def get_dinner_plans_by_date(date: str, db: Session = Depends(get_db)):
+    """Get all dinner plans for a specific date (YYYY-MM-DD)."""
+    plans = db.query(DinnerPlan).filter(DinnerPlan.date == date).order_by(DinnerPlan.id.asc()).all()
+    return plans
 
 
 @router.get("/{plan_id}", response_model=DinnerPlanResponse)
@@ -75,6 +64,10 @@ def update_dinner_plan(
         db_plan.date = plan.date
     if plan.plan is not None:
         db_plan.plan = plan.plan
+    if plan.attendee_ids is not UNSET:
+        db_plan.attendee_ids = plan.attendee_ids
+    if plan.cook_id is not UNSET:
+        db_plan.cook_id = plan.cook_id
 
     db.commit()
     db.refresh(db_plan)

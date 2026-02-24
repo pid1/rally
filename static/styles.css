@@ -721,6 +721,46 @@ nav a.active {
     gap: 12px;
 }
 
+.plan-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.plan-meta {
+    font-size: 0.85rem;
+    color: var(--medium-gray);
+    font-style: italic;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.checkbox-label {
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    color: var(--charcoal);
+}
+
+.checkbox-label input[type="checkbox"] {
+    accent-color: var(--charcoal);
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
 
 /** Settings Page **/
 

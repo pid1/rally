@@ -33,9 +33,7 @@ def migrate():
 
     try:
         # Step 1: Create settings table if it doesn't exist
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
         if cursor.fetchone():
             print("✓ Migration: settings table already exists (idempotent check)")
         else:
@@ -50,9 +48,7 @@ def migrate():
             print("✓ Migration: settings table created")
 
         # Step 2: Create calendars table if it doesn't exist
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='calendars'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='calendars'")
         if cursor.fetchone():
             print("✓ Migration: calendars table already exists (idempotent check)")
         else:
