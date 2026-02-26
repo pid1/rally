@@ -17,6 +17,9 @@ def run_migrations():
         )
         from migrate_add_due_date import migrate as migrate_001_add_due_date
         from migrate_add_family_members import migrate as migrate_002_add_family_members
+        from migrate_add_last_generated_date import (
+            migrate as migrate_007_add_last_generated_date,
+        )
         from migrate_add_recurring_todos import migrate as migrate_004_add_recurring_todos
         from migrate_add_reminder_window import migrate as migrate_006_add_reminder_window
         from migrate_add_settings import migrate as migrate_003_add_settings
@@ -32,6 +35,7 @@ def run_migrations():
         ("004_add_recurring_todos", migrate_004_add_recurring_todos),
         ("005_add_dinner_plan_assignees", migrate_005_add_dinner_plan_assignees),
         ("006_add_reminder_window", migrate_006_add_reminder_window),
+        ("007_add_last_generated_date", migrate_007_add_last_generated_date),
     ]
 
     print("=" * 60)

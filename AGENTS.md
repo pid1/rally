@@ -296,6 +296,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `004_add_recurring_todos` - Add `recurring_todos` table and `recurring_todo_id` on `todos`
 - `005_add_dinner_plan_assignees` - Add `attendee_ids` and `cook_id` to `dinner_plans`
 - `006_add_reminder_window` - Add `remind_days_before` to `todos` and `recurring_todos`
+- `007_add_last_generated_date` - Add `last_generated_date` to `recurring_todos` (tracks most recently generated instance to prevent duplicates)
 
 ### Running Migrations
 
@@ -438,7 +439,7 @@ rally/
 │   ├── models.py         # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
-│   ├── recurrence.py     # Recurring todo processing (template → instance generation)
+│   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
 │   ├── generator/
 │   │   ├── __init__.py
 │   │   ├── generate.py   # Summary generation logic with calendar, todos, and dinner plans
@@ -471,6 +472,7 @@ rally/
 │   ├── migrate_add_recurring_todos.py # Migration 004: add recurring_todos table, recurring_todo_id on todos
 │   ├── migrate_add_dinner_plan_assignees.py # Migration 005: add attendee_ids, cook_id to dinner_plans
 │   ├── migrate_add_reminder_window.py # Migration 006: add remind_days_before to todos and recurring_todos
+│   ├── migrate_add_last_generated_date.py # Migration 007: add last_generated_date to recurring_todos
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
@@ -649,7 +651,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
 - `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), optional recurring_todo_id (link to recurring template), optional remind_days_before (reminder window), completion status, and timestamps
-- `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, active flag, and timestamps
+- `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, last_generated_date (tracks most recently generated instance's recurrence date), active flag, and timestamps
 - `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues

@@ -5,7 +5,7 @@ when the recurrence is due and no open instance exists.
 """
 
 import calendar as cal_module
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,37 @@ def get_last_recurrence_date(rt: RecurringTodo, today: date) -> date:
     return today
 
 
+def get_next_recurrence_date(rt: RecurringTodo, after_date: date) -> date:
+    """Get the next recurrence date strictly after the given date.
+
+    Used to calculate when the next instance should be created after
+    completing or deleting a recurring todo instance.
+    """
+    if rt.recurrence_type == "daily":
+        return after_date + timedelta(days=1)
+    elif rt.recurrence_type == "weekly":
+        day = rt.recurrence_day or 0
+        days_until = (day - after_date.weekday()) % 7
+        if days_until == 0:
+            days_until = 7  # Strictly after: advance to next week
+        return after_date + timedelta(days=days_until)
+    elif rt.recurrence_type == "monthly":
+        day = rt.recurrence_day or 1
+        # Check if this month's recurrence date is still after after_date
+        clamped_this = min(day, cal_module.monthrange(after_date.year, after_date.month)[1])
+        this_month_date = after_date.replace(day=clamped_this)
+        if this_month_date > after_date:
+            return this_month_date
+        # Otherwise, next month
+        if after_date.month == 12:
+            next_year, next_month = after_date.year + 1, 1
+        else:
+            next_year, next_month = after_date.year, after_date.month + 1
+        clamped = min(day, cal_module.monthrange(next_year, next_month)[1])
+        return date(next_year, next_month, clamped)
+    return after_date + timedelta(days=1)
+
+
 def get_first_recurrence_date(rt: RecurringTodo, today: date) -> date:
     """Get the first recurrence date for a newly created template.
 
@@ -54,8 +85,36 @@ def get_first_recurrence_date(rt: RecurringTodo, today: date) -> date:
     return today
 
 
+def _resolve_reference_date(rt: RecurringTodo, db: Session) -> date | None:
+    """Determine the reference date for calculating the next instance.
+
+    Returns the recurrence date of the most recently generated instance,
+    or None if no instances have ever been created.
+    """
+    if rt.last_generated_date:
+        return date.fromisoformat(rt.last_generated_date)
+
+    # Backfill: find the most recent instance by due_date (or created_at)
+    latest = (
+        db.query(Todo)
+        .filter(Todo.recurring_todo_id == rt.id)
+        .order_by(Todo.due_date.desc().nulls_last(), Todo.created_at.desc())
+        .first()
+    )
+    if latest and latest.due_date:
+        return date.fromisoformat(latest.due_date)
+    if latest:
+        return latest.created_at.date()
+    return None
+
+
 def process_recurring_todos(db: Session) -> int:
     """Check all active recurring todos and create instances where due.
+
+    Uses last_generated_date on each template to track what was already
+    generated. This prevents duplicate creation when an instance is
+    completed or deleted, and ensures the next instance advances to the
+    correct recurrence period.
 
     Returns the number of new todos created.
     """
@@ -65,7 +124,7 @@ def process_recurring_todos(db: Session) -> int:
     recurring = db.query(RecurringTodo).filter(RecurringTodo.active == True).all()  # noqa: E712
 
     for rt in recurring:
-        # Skip if there's an open (incomplete) todo for this template
+        # Skip if there's an open (incomplete) instance
         open_todo = (
             db.query(Todo)
             .filter(
@@ -77,28 +136,15 @@ def process_recurring_todos(db: Session) -> int:
         if open_todo:
             continue
 
-        # Get the most recent recurrence date
-        last_recurrence = get_last_recurrence_date(rt, today)
+        # Determine what recurrence date was last generated
+        ref_date = _resolve_reference_date(rt, db)
 
-        # Check if a todo was already created for this recurrence period
-        cutoff = datetime(
-            last_recurrence.year, last_recurrence.month, last_recurrence.day, tzinfo=UTC
-        )
-        existing = (
-            db.query(Todo)
-            .filter(
-                Todo.recurring_todo_id == rt.id,
-                Todo.created_at >= cutoff,
-            )
-            .first()
-        )
-        if existing:
-            continue
-
-        # For the very first instance, use the current period (month/week)
-        # so the todo isn't backdated to a previous period.
-        is_first = db.query(Todo).filter(Todo.recurring_todo_id == rt.id).first() is None
-        recurrence_date = get_first_recurrence_date(rt, today) if is_first else last_recurrence
+        if ref_date:
+            # Calculate the next recurrence date after the last generated one
+            recurrence_date = get_next_recurrence_date(rt, ref_date)
+        else:
+            # First instance: use the current period so it is not backdated
+            recurrence_date = get_first_recurrence_date(rt, today)
 
         # Create new todo instance
         due_date = str(recurrence_date) if rt.has_due_date else None
@@ -112,6 +158,10 @@ def process_recurring_todos(db: Session) -> int:
             completed=False,
         )
         db.add(new_todo)
+
+        # Track the recurrence date so future runs know what was generated
+        rt.last_generated_date = str(recurrence_date)
+
         created_count += 1
 
     if created_count > 0:
