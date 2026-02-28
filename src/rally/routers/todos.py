@@ -1,6 +1,6 @@
 """Todos router for Rally."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -16,12 +16,12 @@ router = APIRouter(prefix="/api/todos", tags=["todos"])
 
 @router.get("", response_model=list[TodoResponse])
 def list_todos(
-    include_hidden: bool = Query(False, description="Include completed todos older than 24 hours"),
+    include_hidden: bool = Query(False, description="Include completed todos older than today (local time)"),
     db: Session = Depends(get_db),
 ):
-    """List all todos with 24-hour visibility for completed items.
+    """List all todos with local time visibility for completed items.
 
-    By default, completed todos older than 24 hours are hidden.
+    By default, completed todos prior to today's local date are hidden.
     Use include_hidden=true to show all todos.
     """
     # Process any due recurring todos before listing
@@ -30,8 +30,8 @@ def list_todos(
     query = db.query(Todo)
 
     if not include_hidden:
-        # Show incomplete todos OR completed within last 24 hours
-        cutoff = now_utc() - timedelta(hours=24)
+        # Show incomplete todos OR completed today (local time)
+        cutoff = now_utc() - timedelta(hours=datetime.now().time().hour, minutes=datetime.now().time().minute, seconds=datetime.now().time().second, microseconds=datetime.now().time().microsecond)
         query = query.filter(
             (Todo.completed == False) | (Todo.updated_at > cutoff)  # noqa: E712
         )
