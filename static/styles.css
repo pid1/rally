@@ -263,6 +263,10 @@ footer a:hover {
     gap: 12px;
     margin-top: 24px;
 }
+
+.modal-delete {
+    margin-left: auto;
+}
 /** End Modal Styles **/
 
 /** Form Styles **/
