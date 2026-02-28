@@ -63,6 +63,7 @@
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
+                    <button type="button" class="btn-delete modal-delete" id="btn-delete-plan" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
                 </div>
             </form>
         </div>
@@ -207,7 +208,6 @@
                         </div>
                         <div class="editable-item-actions">
                             <button class="btn-edit" onclick="openEditModal(${plan.id})">Edit</button>
-                            <button class="btn-delete" onclick="confirmDelete(${plan.id})">Delete</button>
                         </div>
                     </div>
                 `;
@@ -229,6 +229,7 @@
             document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
             document.querySelectorAll('.attendee-cb').forEach(cb => cb.checked = false);
             document.getElementById('plan-cook').value = '';
+            document.getElementById('btn-delete-plan').style.display = 'none';
             document.getElementById('modal-overlay').style.display = 'flex';
         }
 
@@ -250,6 +251,7 @@
             // Set cook dropdown
             document.getElementById('plan-cook').value = plan.cook_id || '';
 
+            document.getElementById('btn-delete-plan').style.display = '';
             document.getElementById('modal-overlay').style.display = 'flex';
         }
 
@@ -263,6 +265,19 @@
 
             try {
                 await deletePlan(id);
+                await fetchPlans();
+            } catch (error) {
+                console.error('Error deleting plan:', error);
+                alert('Failed to delete dinner plan');
+            }
+        }
+
+        async function confirmDeleteFromModal() {
+            if (!editingId) return;
+            if (!confirm('Are you sure you want to delete this dinner plan?')) return;
+            try {
+                await deletePlan(editingId);
+                closeModal();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error deleting plan:', error);

@@ -114,6 +114,7 @@
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel-recurring">Cancel</button>
+                    <button type="button" class="btn-delete modal-delete" id="btn-delete-recurring" style="display:none" onclick="confirmDeleteRecurringFromModal()">Delete</button>
                 </div>
             </form>
         </div>
@@ -151,6 +152,7 @@
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
+                    <button type="button" class="btn-delete modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
                 </div>
             </form>
         </div>
@@ -342,7 +344,6 @@
                             </div>
                             <div class="editable-item-actions">
                                 <button class="btn-edit" onclick="openEditModal(${todo.id})">Edit</button>
-                                <button class="btn-delete" onclick="confirmDelete(${todo.id})">Delete</button>
                             </div>
                         </div>
                     `;
@@ -370,7 +371,6 @@
                             <div class="editable-item-actions">
                                 <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
                                 <button class="btn-edit" onclick="openEditRecurringModal(${rt.id})">Edit</button>
-                                <button class="btn-delete" onclick="confirmDeleteRecurring(${rt.id})">Delete</button>
                             </div>
                         </div>
                     `;
@@ -424,6 +424,7 @@
             document.getElementById('todo-id').value = '';
             document.getElementById('todo-assigned-to').value = '';
             document.getElementById('todo-remind-days').value = '';
+            document.getElementById('btn-delete-todo').style.display = 'none';
             toggleRemindGroup();
             document.getElementById('modal-overlay').style.display = 'flex';
         }
@@ -440,6 +441,7 @@
             document.getElementById('todo-assigned-to').value = todo.assigned_to || '';
             document.getElementById('todo-due-date').value = todo.due_date || '';
             document.getElementById('todo-remind-days').value = todo.remind_days_before != null ? todo.remind_days_before : '';
+            document.getElementById('btn-delete-todo').style.display = '';
             toggleRemindGroup();
             document.getElementById('modal-overlay').style.display = 'flex';
         }
@@ -466,6 +468,19 @@
             
             try {
                 await deleteTodo(id);
+                await fetchTodos();
+            } catch (error) {
+                console.error('Error deleting todo:', error);
+                alert('Failed to delete task');
+            }
+        }
+
+        async function confirmDeleteFromModal() {
+            if (!editingId) return;
+            if (!confirm('Are you sure you want to delete this task?')) return;
+            try {
+                await deleteTodo(editingId);
+                closeModal();
                 await fetchTodos();
             } catch (error) {
                 console.error('Error deleting todo:', error);
@@ -587,6 +602,7 @@
             document.getElementById('recurring-assigned-to').value = '';
             document.getElementById('recurring-type').value = 'daily';
             document.getElementById('recurring-remind-days').value = '';
+            document.getElementById('btn-delete-recurring').style.display = 'none';
             updateDaySelector();
             toggleRecurringRemindGroup();
             document.getElementById('recurring-modal-overlay').style.display = 'flex';
@@ -609,6 +625,7 @@
             document.getElementById('recurring-assigned-to').value = rt.assigned_to || '';
             document.getElementById('recurring-has-due-date').checked = rt.has_due_date;
             document.getElementById('recurring-remind-days').value = rt.remind_days_before != null ? rt.remind_days_before : '';
+            document.getElementById('btn-delete-recurring').style.display = '';
             toggleRecurringRemindGroup();
             document.getElementById('recurring-modal-overlay').style.display = 'flex';
         }
@@ -635,6 +652,18 @@
             if (!confirm('Delete this recurring task? Existing generated todos will remain.')) return;
             try {
                 await fetch(`/api/recurring-todos/${id}`, { method: 'DELETE' });
+                await fetchRecurringTodos();
+            } catch (error) {
+                alert('Failed to delete recurring task');
+            }
+        }
+
+        async function confirmDeleteRecurringFromModal() {
+            if (!editingRecurringId) return;
+            if (!confirm('Delete this recurring task? Existing generated todos will remain.')) return;
+            try {
+                await fetch(`/api/recurring-todos/${editingRecurringId}`, { method: 'DELETE' });
+                closeRecurringModal();
                 await fetchRecurringTodos();
             } catch (error) {
                 alert('Failed to delete recurring task');
