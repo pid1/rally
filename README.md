@@ -28,7 +28,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
 - 📆 **Calendar Management** - Add and manage ICS calendar feeds per family member via the Settings UI
 - ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI
-- 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider)
+- 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider. GLM 4.7 Flash works well for local inference.)
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display
 - 🎨 **Beautiful Design** - Serif typography, clean layout, professional aesthetic
