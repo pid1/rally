@@ -15,6 +15,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "icalendar>=7.0.0",
     "recurring-ical-events>=2.0.2",
+    "caldav>=1.4.0",
 ]
 
 [project.scripts]

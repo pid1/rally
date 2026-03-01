@@ -47,7 +47,8 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
 @router.get("/api/calendars", response_model=list[CalendarResponse])
 def list_calendars(db: Session = Depends(get_db)):
     """List all calendar feeds."""
-    return db.query(Calendar).order_by(Calendar.label.asc()).all()
+    cals = db.query(Calendar).order_by(Calendar.label.asc()).all()
+    return [CalendarResponse.from_calendar(c) for c in cals]
 
 
 @router.post("/api/calendars", response_model=CalendarResponse, status_code=201)
@@ -58,11 +59,14 @@ def create_calendar(cal: CalendarCreate, db: Session = Depends(get_db)):
         url=cal.url,
         family_member_id=cal.family_member_id,
         owner_email=cal.owner_email,
+        cal_type=cal.cal_type,
+        username=cal.username,
+        password=cal.password,
     )
     db.add(db_cal)
     db.commit()
     db.refresh(db_cal)
-    return db_cal
+    return CalendarResponse.from_calendar(db_cal)
 
 
 @router.get("/api/calendars/{cal_id}", response_model=CalendarResponse)
@@ -71,7 +75,7 @@ def get_calendar(cal_id: int, db: Session = Depends(get_db)):
     cal = db.query(Calendar).filter(Calendar.id == cal_id).first()
     if not cal:
         raise HTTPException(status_code=404, detail="Calendar not found")
-    return cal
+    return CalendarResponse.from_calendar(cal)
 
 
 @router.put("/api/calendars/{cal_id}", response_model=CalendarResponse)
@@ -93,10 +97,16 @@ def update_calendar(
         db_cal.family_member_id = cal.family_member_id
     if cal.owner_email is not None:
         db_cal.owner_email = cal.owner_email
+    if cal.cal_type is not None:
+        db_cal.cal_type = cal.cal_type
+    if cal.username is not None:
+        db_cal.username = cal.username
+    if cal.password is not None:
+        db_cal.password = cal.password
 
     db.commit()
     db.refresh(db_cal)
-    return db_cal
+    return CalendarResponse.from_calendar(db_cal)
 
 
 @router.delete("/api/calendars/{cal_id}", status_code=204)
