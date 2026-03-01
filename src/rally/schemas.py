@@ -40,6 +40,9 @@ class CalendarBase(BaseModel):
     url: str
     family_member_id: int
     owner_email: str | None = None
+    cal_type: str = "ics"  # ics, caldav_google, caldav_apple
+    username: str | None = None  # Email for CalDAV auth
+    password: str | None = None  # App-specific password for CalDAV
 
 
 class CalendarCreate(CalendarBase):
@@ -51,6 +54,9 @@ class CalendarUpdate(BaseModel):
     url: str | None = None
     family_member_id: int | None = None
     owner_email: str | None = None
+    cal_type: str | None = None
+    username: str | None = None
+    password: str | None = None
 
 
 class CalendarResponse(CalendarBase):
@@ -59,6 +65,22 @@ class CalendarResponse(CalendarBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_calendar(cls, cal) -> CalendarResponse:
+        """Build response from a Calendar model, never exposing the password."""
+        return cls(
+            id=cal.id,
+            label=cal.label,
+            url=cal.url,
+            family_member_id=cal.family_member_id,
+            owner_email=cal.owner_email,
+            cal_type=cal.cal_type or "ics",
+            username=cal.username,
+            password=None,
+            created_at=cal.created_at,
+            updated_at=cal.updated_at,
+        )
 
 
 # Settings

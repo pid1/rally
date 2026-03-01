@@ -158,10 +158,14 @@ class SummaryGenerator:
         return False
 
     def fetch_calendars(self) -> list[dict[str, list[dict]]]:
-        """Download and parse ICS feeds, filtering for next 7 days of events.
+        """Fetch calendar events from all configured sources.
 
-        Uses recurring_ical_events to properly expand recurring events (RRULE),
-        including modified/cancelled occurrences via RECURRENCE-ID and EXDATE.
+        Supports three calendar types:
+        - ics: Public ICS feed URL (uses recurring_ical_events for RRULE expansion)
+        - caldav_google: Google CalDAV via app-specific password
+        - caldav_apple: Apple iCloud CalDAV via app-specific password
+
+        Falls back to config.toml for legacy ICS-only setups.
         """
         today = today_utc()
         end_date = today + timedelta(days=7)
@@ -184,78 +188,123 @@ class SummaryGenerator:
         calendars = []
 
         if db_calendars:
-            # Use DB calendars
-            cal_sources = [
-                (f"{cal.label} ({member_name})", cal.url, cal.owner_email, member_name)
-                for cal, member_name in db_calendars
-            ]
-        elif "calendars" in self.config:
-            # Fall back to config.toml
-            cal_sources = [
-                (key, url, self.calendar_owners.get(key), None)
-                for key, url in self.config["calendars"].items()
-            ]
-        else:
-            cal_sources = []
+            for cal, member_name in db_calendars:
+                cal_type = cal.cal_type or "ics"
 
-        for name, url, owner_email, member_name in cal_sources:
-            try:
-                response = requests.get(url, timeout=10)
-                response.raise_for_status()
+                if cal_type == "caldav_google":
+                    from rally.caldav_client import fetch_google_caldav
 
-                # Parse ICS data and expand recurring events
-                cal = Calendar.from_ical(response.text)
-                recurring_events = recurring_ical_events.of(cal).between(today, end_date)
+                    events = fetch_google_caldav(cal, self.local_tz)
+                    if events:
+                        calendars.append(
+                            {
+                                "name": f"{cal.label} ({member_name})",
+                                "events": events,
+                                "member": member_name,
+                            }
+                        )
 
-                events = []
-                for component in recurring_events:
-                    dtstart = component.get("dtstart")
-                    if not dtstart:
-                        continue
+                elif cal_type == "caldav_apple":
+                    from rally.caldav_client import fetch_apple_caldav
 
-                    # Skip declined / cancelled events
-                    if self._is_event_declined(component, owner_email):
-                        continue
+                    events = fetch_apple_caldav(cal, self.local_tz)
+                    if events:
+                        calendars.append(
+                            {
+                                "name": f"{cal.label} ({member_name})",
+                                "events": events,
+                                "member": member_name,
+                            }
+                        )
 
-                    # Get event date (handle both date and datetime objects)
-                    event_date = dtstart.dt
-                    if hasattr(event_date, "date"):
-                        event_date = event_date.date()
-
-                    summary = str(component.get("summary", "Untitled Event"))
-                    description = str(component.get("description", ""))
-                    location = str(component.get("location", ""))
-
-                    # Format time if datetime available
-                    time_str = ""
-                    if hasattr(dtstart.dt, "strftime"):
-                        # Convert to local timezone for display
-                        dt = dtstart.dt
-                        if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
-                            # Ensure it's timezone-aware in UTC first, then convert to local
-                            dt = ensure_utc(dt).astimezone(self.local_tz)
-                        time_str = dt.strftime("%I:%M %p %Z").lstrip("0")
-
-                    events.append(
-                        {
-                            "summary": summary,
-                            "time": time_str,
-                            "date": event_date.strftime("%Y-%m-%d"),
-                            "description": description,
-                            "location": location,
-                        }
+                else:
+                    # Legacy ICS feed
+                    fetched = self._fetch_ics_calendar(
+                        name=f"{cal.label} ({member_name})",
+                        url=cal.url,
+                        owner_email=cal.owner_email,
+                        member_name=member_name,
+                        today=today,
+                        end_date=end_date,
                     )
+                    if fetched:
+                        calendars.append(fetched)
 
-                # Sort events by date and time
-                events.sort(key=lambda e: (e["date"], e["time"]))
-
-                if events:
-                    calendars.append({"name": name, "events": events, "member": member_name})
-
-            except Exception as e:
-                print(f"Error fetching/parsing {name}: {e}")
+        elif "calendars" in self.config:
+            # Fall back to config.toml (ICS only)
+            for key, url in self.config["calendars"].items():
+                fetched = self._fetch_ics_calendar(
+                    name=key,
+                    url=url,
+                    owner_email=self.calendar_owners.get(key),
+                    member_name=None,
+                    today=today,
+                    end_date=end_date,
+                )
+                if fetched:
+                    calendars.append(fetched)
 
         return calendars
+
+    def _fetch_ics_calendar(self, name, url, owner_email, member_name, today, end_date):
+        """Fetch and parse a single ICS feed, returning a calendar dict or None."""
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+
+            # Parse ICS data and expand recurring events
+            cal = Calendar.from_ical(response.text)
+            recurring_events = recurring_ical_events.of(cal).between(today, end_date)
+
+            events = []
+            for component in recurring_events:
+                dtstart = component.get("dtstart")
+                if not dtstart:
+                    continue
+
+                # Skip declined / cancelled events
+                if self._is_event_declined(component, owner_email):
+                    continue
+
+                # Get event date (handle both date and datetime objects)
+                event_date = dtstart.dt
+                if hasattr(event_date, "date"):
+                    event_date = event_date.date()
+
+                summary = str(component.get("summary", "Untitled Event"))
+                description = str(component.get("description", ""))
+                location = str(component.get("location", ""))
+
+                # Format time if datetime available
+                time_str = ""
+                if hasattr(dtstart.dt, "strftime"):
+                    # Convert to local timezone for display
+                    dt = dtstart.dt
+                    if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
+                        # Ensure it's timezone-aware in UTC first, then convert to local
+                        dt = ensure_utc(dt).astimezone(self.local_tz)
+                    time_str = dt.strftime("%I:%M %p %Z").lstrip("0")
+
+                events.append(
+                    {
+                        "summary": summary,
+                        "time": time_str,
+                        "date": event_date.strftime("%Y-%m-%d"),
+                        "description": description,
+                        "location": location,
+                    }
+                )
+
+            # Sort events by date and time
+            events.sort(key=lambda e: (e["date"], e["time"]))
+
+            if events:
+                return {"name": name, "events": events, "member": member_name}
+
+        except Exception as e:
+            print(f"Error fetching/parsing {name}: {e}")
+
+        return None
 
     def fetch_weather(self) -> dict | None:
         """Get weather from OpenWeather."""

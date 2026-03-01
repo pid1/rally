@@ -26,7 +26,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - View next 7 days of planned dinners
   - AI checks tonight's dinner and suggests prep in "The Briefing" section
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
-- 📆 **Calendar Management** - Add and manage ICS calendar feeds per family member via the Settings UI
+- 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (ICS feeds, Google CalDAV, Apple iCloud CalDAV)
 - ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI
 - 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider. GLM 4.7 Flash works well for local inference.)
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
@@ -43,6 +43,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - **Idempotent Migrations** - File-based migration system that runs automatically on startup
 - **Uvicorn** - High-performance ASGI server
 - **Anthropic / OpenAI** - Configurable LLM provider for summary generation (Anthropic Claude or any OpenAI-compatible API)
+- **caldav** - CalDAV protocol support for Google and Apple calendar access
 - **icalendar + recurring-ical-events** - ICS calendar parsing with full recurring event support
 - **Python 3.14** - Latest Python with modern syntax
 - **uv** - Fast Python dependency management
@@ -62,7 +63,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - Docker
 - OpenWeather API key (free tier)
 - LLM API key (Anthropic or an OpenAI-compatible provider)
-- Calendar ICS URLs from Google Calendar and/or iCloud (can be configured via the Settings UI)
+- Calendar access — ICS feed URLs, or Google/Apple CalDAV with app-specific passwords (configured via the Settings UI)
 - Your local timezone (IANA format, e.g. "America/Chicago")
 
 ## Development Setup
@@ -183,7 +184,9 @@ Rally uses a **file-based migration system** that runs automatically on containe
 | `003_add_settings` | Add key-value `settings` table |
 | `004_add_recurring_todos` | Add `recurring_todos` table and `recurring_todo_id` on todos |
 | `005_add_dinner_plan_assignees` | Add `attendee_ids` and `cook_id` to dinner plans |
-| `006_add_reminder_window` | Add `remind_days_before` to todos and recurring_todos |
+|| `006_add_reminder_window` | Add `remind_days_before` to todos and recurring_todos |
+|| `007_add_last_generated_date` | Add `last_generated_date` to recurring_todos |
+|| `008_add_caldav_support` | Add `cal_type`, `username`, `password` to calendars for CalDAV |
 
 ### Running Migrations Manually
 
@@ -251,6 +254,8 @@ rally/
 │   ├── migrate_add_recurring_todos.py # Migration 004: add recurring_todos table, recurring_todo_id on todos
 │   ├── migrate_add_dinner_plan_assignees.py # Migration 005: add attendee_ids, cook_id to dinner_plans
 │   ├── migrate_add_reminder_window.py # Migration 006: add remind_days_before to todos and recurring_todos
+│   ├── migrate_add_last_generated_date.py # Migration 007: add last_generated_date to recurring_todos
+│   ├── migrate_add_caldav_support.py  # Migration 008: add CalDAV columns to calendars
 │   └── run_migrations.py              # Migration runner (executes all migrations)
 ├── config.toml.example     # Example configuration file
 ├── context.txt.example     # Example family context
@@ -306,6 +311,29 @@ Additional context files:
 - `agent_voice.txt` - AI agent tone/voice profile
 
 Copy example files to get started: `config.toml.example`, `context.txt.example`, `agent_voice.txt.example`
+
+### Calendar Setup
+
+Rally supports three calendar types, all configured through the Settings UI:
+
+**ICS Feed** — For public calendar URLs that don't require authentication. Paste the ICS URL directly.
+
+**Google CalDAV** — Connects to Google Calendar using an app-specific password. To set up:
+
+1. Enable 2-Step Verification on your Google account at [myaccount.google.com/security](https://myaccount.google.com/security)
+2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+3. Select "Other" and enter a name like "Rally"
+4. Copy the generated 16-character password
+5. In Rally Settings, add a calendar with type "Google CalDAV", enter your Gmail address and the app-specific password
+
+**Apple iCloud CalDAV** — Connects to iCloud Calendar using an app-specific password. To set up:
+
+1. Enable Two-Factor Authentication on your Apple account at [appleid.apple.com](https://appleid.apple.com)
+2. Go to [appleid.apple.com/account/manage](https://appleid.apple.com/account/manage)
+3. Under "Sign-In and Security", select "App-Specific Passwords"
+4. Generate a new password with a label like "Rally"
+5. Copy the generated password
+6. In Rally Settings, add a calendar with type "Apple iCloud CalDAV", enter your Apple ID email and the app-specific password
 
 ## Environment Variables
 

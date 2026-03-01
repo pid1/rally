@@ -169,12 +169,20 @@
             <form id="calendar-form">
                 <input type="hidden" id="calendar-id">
                 <div class="form-group">
+                    <label>Type</label>
+                    <select id="calendar-type">
+                        <option value="ics">ICS Feed (Public URL)</option>
+                        <option value="caldav_google">Google CalDAV</option>
+                        <option value="caldav_apple">Apple iCloud CalDAV</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Label</label>
                     <input type="text" id="calendar-label" placeholder="e.g. Work Calendar" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group cal-field-ics">
                     <label>URL (ICS feed)</label>
-                    <input type="text" id="calendar-url" placeholder="https://calendar.google.com/..." required>
+                    <input type="text" id="calendar-url" placeholder="https://calendar.google.com/...">
                 </div>
                 <div class="form-group">
                     <label>Family Member</label>
@@ -186,6 +194,18 @@
                     <label>Owner Email (optional)</label>
                     <input type="text" id="calendar-owner-email" placeholder="e.g. user@gmail.com">
                     <small>Used for declined event detection</small>
+                </div>
+                <div class="cal-field-caldav">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="text" id="calendar-username" placeholder="user@gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label>App-Specific Password</label>
+                        <input type="password" id="calendar-password" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="off">
+                        <small class="cal-help-google">Requires 2FA. Generate at <a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords</a></small>
+                        <small class="cal-help-apple">Generate at <a href="https://appleid.apple.com/account/manage" target="_blank">appleid.apple.com</a></small>
+                    </div>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
@@ -370,6 +390,12 @@
             if (currentValue) select.value = currentValue;
         }
 
+        function calTypeLabel(type) {
+            if (type === 'caldav_google') return 'Google CalDAV';
+            if (type === 'caldav_apple') return 'Apple CalDAV';
+            return 'ICS';
+        }
+
         function renderCalendars() {
             const container = document.getElementById('calendar-list');
 
@@ -383,11 +409,21 @@
                 const memberHtml = member
                     ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
                     : '';
+                const typeHtml = `<span class="assignee-label">[${calTypeLabel(cal.cal_type)}]</span>`;
+
+                // Description line
+                let descHtml = '';
+                if (cal.cal_type === 'ics') {
+                    descHtml = `<div class="editable-item-description">${escapeHtml(truncateUrl(cal.url, 60))}</div>`;
+                } else if (cal.username) {
+                    descHtml = `<div class="editable-item-description">${escapeHtml(cal.username)}</div>`;
+                }
+
                 return `
                     <div class="editable-item" data-id="${cal.id}">
                         <div class="editable-item-content">
-                            <div class="editable-item-title">${escapeHtml(cal.label)} ${memberHtml}</div>
-                            <div class="editable-item-description">${escapeHtml(truncateUrl(cal.url, 60))}</div>
+                            <div class="editable-item-title">${escapeHtml(cal.label)} ${memberHtml} ${typeHtml}</div>
+                            ${descHtml}
                         </div>
                         <div class="editable-item-actions">
                             <button class="btn-edit" onclick="openEditCalendarModal(${cal.id})">Edit</button>
@@ -398,11 +434,25 @@
             }).join('');
         }
 
+        function toggleCalendarTypeFields(type) {
+            const isCaldav = type === 'caldav_google' || type === 'caldav_apple';
+            document.querySelectorAll('.cal-field-ics').forEach(el => el.style.display = type === 'ics' ? '' : 'none');
+            document.querySelectorAll('.cal-field-caldav').forEach(el => el.style.display = isCaldav ? '' : 'none');
+            document.querySelectorAll('.cal-help-google').forEach(el => el.style.display = type === 'caldav_google' ? '' : 'none');
+            document.querySelectorAll('.cal-help-apple').forEach(el => el.style.display = type === 'caldav_apple' ? '' : 'none');
+            // Update email placeholder based on type
+            const usernameInput = document.getElementById('calendar-username');
+            if (type === 'caldav_google') usernameInput.placeholder = 'user@gmail.com';
+            else if (type === 'caldav_apple') usernameInput.placeholder = 'user@icloud.com';
+        }
+
         function openAddCalendarModal() {
             editingCalendarId = null;
             document.getElementById('calendar-modal-title').textContent = 'Add Calendar';
             document.getElementById('calendar-form').reset();
             document.getElementById('calendar-id').value = '';
+            document.getElementById('calendar-type').value = 'ics';
+            toggleCalendarTypeFields('ics');
             populateCalendarMemberDropdown();
             document.getElementById('calendar-modal-overlay').style.display = 'flex';
         }
@@ -414,8 +464,12 @@
             editingCalendarId = id;
             document.getElementById('calendar-modal-title').textContent = 'Edit Calendar';
             document.getElementById('calendar-id').value = id;
+            document.getElementById('calendar-type').value = cal.cal_type || 'ics';
             document.getElementById('calendar-label').value = cal.label;
-            document.getElementById('calendar-url').value = cal.url;
+            document.getElementById('calendar-url').value = cal.url || '';
+            document.getElementById('calendar-username').value = cal.username || '';
+            document.getElementById('calendar-password').value = '';  // Never pre-fill passwords
+            toggleCalendarTypeFields(cal.cal_type || 'ics');
             populateCalendarMemberDropdown();
             document.getElementById('calendar-member').value = cal.family_member_id || '';
             document.getElementById('calendar-owner-email').value = cal.owner_email || '';
@@ -523,15 +577,36 @@
             if (e.target.id === 'calendar-modal-overlay') closeCalendarModal();
         });
 
+        // Calendar type toggle
+        document.getElementById('calendar-type').addEventListener('change', (e) => {
+            toggleCalendarTypeFields(e.target.value);
+        });
+
         document.getElementById('calendar-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const calType = document.getElementById('calendar-type').value;
             const data = {
                 label: document.getElementById('calendar-label').value,
-                url: document.getElementById('calendar-url').value,
                 family_member_id: parseInt(document.getElementById('calendar-member').value),
-                owner_email: document.getElementById('calendar-owner-email').value || null
+                owner_email: document.getElementById('calendar-owner-email').value || null,
+                cal_type: calType,
             };
+
+            // Set URL based on type
+            if (calType === 'ics') {
+                data.url = document.getElementById('calendar-url').value;
+            } else if (calType === 'caldav_google') {
+                data.url = 'https://apidata.googleusercontent.com/caldav/v2/';
+                data.username = document.getElementById('calendar-username').value || null;
+                const pw = document.getElementById('calendar-password').value;
+                if (pw) data.password = pw;
+            } else if (calType === 'caldav_apple') {
+                data.url = 'https://caldav.icloud.com/';
+                data.username = document.getElementById('calendar-username').value || null;
+                const pw = document.getElementById('calendar-password').value;
+                if (pw) data.password = pw;
+            }
 
             try {
                 if (editingCalendarId) {
