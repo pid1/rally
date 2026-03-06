@@ -512,6 +512,7 @@ rally/
 - ✅ Settings management - Key-value store with web UI
   - Configure LLM provider, API keys, timezone
   - DB settings take precedence over config.toml
+  - Connection verification on save: LLM, Weather, and Calendar settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
 - ✅ Todo management - Full CRUD API and UI
   - Create, read, update, delete todos
   - Optional due dates with native HTML5 date picker
@@ -587,12 +588,17 @@ rally/
 - `/api/settings` - Key-value settings endpoints
   - `GET /api/settings` - Get all settings
   - `PUT /api/settings` - Bulk upsert settings
+- `/api/settings/test-llm` - LLM connectivity test
+  - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`.
+- `/api/settings/test-weather` - Weather connectivity test
+  - `POST /api/settings/test-weather` - Test OpenWeather API connection (10-second timeout). Returns `{success, message}` or `{success, error}`.
 - `/api/calendars` - Calendar feed CRUD endpoints
   - `GET /api/calendars` - List all calendar feeds
   - `POST /api/calendars` - Create new calendar feed
   - `GET /api/calendars/{id}` - Get specific calendar
   - `PUT /api/calendars/{id}` - Update calendar feed
   - `DELETE /api/calendars/{id}` - Delete calendar feed
+  - `POST /api/calendars/{id}/test` - Test calendar feed connectivity. For ICS feeds, fetches the URL and validates calendar data. For CalDAV, connects and counts available calendars. Returns `{success, message}` or `{success, error}`.
 
 ### Navigation
 All pages include a navigation bar allowing users to switch between Dashboard, Todos, Dinner Planner, and Settings.

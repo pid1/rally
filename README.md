@@ -27,7 +27,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - AI checks tonight's dinner and suggests prep in "The Briefing" section
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
 - 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (ICS feeds, Google CalDAV, Apple iCloud CalDAV)
-- ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI
+- ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI, with automatic connection verification on save
 - 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider. GLM 4.7 Flash works well for local inference.)
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display
@@ -303,7 +303,7 @@ setTimeout(function() { location.reload(); }, 15 * 60 * 1000);
 
 Rally supports two configuration approaches:
 
-1. **Settings UI** (recommended) - Configure LLM provider, API keys, timezone, family members, and calendars through the `/settings` page. Settings are stored in the database.
+1. **Settings UI** (recommended) - Configure LLM provider, API keys, timezone, family members, and calendars through the `/settings` page. Settings are stored in the database. When you save LLM, Weather, or Calendar settings, Rally automatically verifies the connection and shows the result in a modal.
 2. **config.toml** (fallback) - File-based configuration for API keys, calendar URLs, and coordinates. DB settings take precedence when both exist.
 
 Additional context files:
