@@ -59,3 +59,6 @@ envrc
 # uv
 .uv/
 .db
+
+# FastForward runtime artifacts
+.fastforward/

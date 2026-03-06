@@ -215,6 +215,13 @@
         </div>
     </div>
 
+    <!-- Verification Modal -->
+    <div class="modal-overlay" id="verify-modal-overlay">
+        <div class="modal-content" style="max-width: 360px;">
+            <div id="verify-modal-body"></div>
+        </div>
+    </div>
+
     <script>
         // State
         let familyMembers = [];
@@ -538,6 +545,63 @@
             document.querySelector('.llm-fields-anthropic').classList.toggle('active', provider === 'anthropic');
         }
 
+        // ── Connection Verification ──
+
+        let verifyAutoCloseTimer = null;
+
+        function openVerifyModal(serviceName) {
+            const body = document.getElementById('verify-modal-body');
+            body.innerHTML = '<div class="verify-status">'
+                + '<div class="verify-spinner"></div>'
+                + '<div class="verify-message">Verifying ' + escapeHtml(serviceName) + ' connection\u2026</div>'
+                + '</div>';
+            document.getElementById('verify-modal-overlay').style.display = 'flex';
+        }
+
+        function showVerifySuccess(message) {
+            const body = document.getElementById('verify-modal-body');
+            body.innerHTML = '<div class="verify-status">'
+                + '<div class="verify-icon">\u2713</div>'
+                + '<div class="verify-message">' + escapeHtml(message) + '</div>'
+                + '</div>';
+            verifyAutoCloseTimer = setTimeout(closeVerifyModal, 1500);
+        }
+
+        function showVerifyError(errorMessage) {
+            const body = document.getElementById('verify-modal-body');
+            body.innerHTML = '<div class="verify-status">'
+                + '<div class="verify-icon">\u2717</div>'
+                + '<div class="verify-message">Connection failed</div>'
+                + '<div class="verify-detail">' + escapeHtml(errorMessage) + '</div>'
+                + '</div>'
+                + '<div class="modal-actions" style="justify-content: center; margin-top: 20px;">'
+                + '<button class="btn-cancel" onclick="closeVerifyModal()">Close</button>'
+                + '</div>';
+        }
+
+        function closeVerifyModal() {
+            if (verifyAutoCloseTimer) {
+                clearTimeout(verifyAutoCloseTimer);
+                verifyAutoCloseTimer = null;
+            }
+            document.getElementById('verify-modal-overlay').style.display = 'none';
+        }
+
+        async function verifyConnection(testUrl, serviceName) {
+            openVerifyModal(serviceName);
+            try {
+                const response = await fetch(testUrl, { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    showVerifySuccess(result.message);
+                } else {
+                    showVerifyError(result.error || 'Unknown error');
+                }
+            } catch (error) {
+                showVerifyError(error.message || 'Network error');
+            }
+        }
+
         // ── Event Handlers ──
 
         // Family member modal
@@ -577,6 +641,10 @@
             if (e.target.id === 'calendar-modal-overlay') closeCalendarModal();
         });
 
+        document.getElementById('verify-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'verify-modal-overlay') closeVerifyModal();
+        });
+
         // Calendar type toggle
         document.getElementById('calendar-type').addEventListener('change', (e) => {
             toggleCalendarTypeFields(e.target.value);
@@ -609,13 +677,17 @@
             }
 
             try {
+                let calId;
                 if (editingCalendarId) {
                     await updateCalendar(editingCalendarId, data);
+                    calId = editingCalendarId;
                 } else {
-                    await createCalendar(data);
+                    const created = await createCalendar(data);
+                    calId = created.id;
                 }
                 closeCalendarModal();
                 await fetchCalendars();
+                await verifyConnection('/api/calendars/' + calId + '/test', 'calendar');
             } catch (error) {
                 console.error('Error saving calendar:', error);
                 alert('Failed to save calendar');
@@ -636,7 +708,7 @@
                     weather_lat: document.getElementById('weather-lat').value,
                     weather_lon: document.getElementById('weather-lon').value
                 });
-                alert('Weather settings saved.');
+                await verifyConnection('/api/settings/test-weather', 'weather');
             } catch (error) {
                 console.error('Error saving weather settings:', error);
                 alert('Failed to save weather settings');
@@ -655,7 +727,7 @@
                     llm_anthropic_api_key: document.getElementById('llm-anthropic-api-key').value,
                     llm_anthropic_model: document.getElementById('llm-anthropic-model').value
                 });
-                alert('LLM settings saved.');
+                await verifyConnection('/api/settings/test-llm', 'LLM');
             } catch (error) {
                 console.error('Error saving LLM settings:', error);
                 alert('Failed to save LLM settings');
