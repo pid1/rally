@@ -314,9 +314,10 @@
             }
         });
 
-        // Initialize
-        fetchFamilyMembers();
-        fetchPlans();
+        // Initialize — family members must load before plans render (plans display member names)
+        fetchFamilyMembers().then(() => {
+            fetchPlans();
+        });
     </script>
 
     <footer>
