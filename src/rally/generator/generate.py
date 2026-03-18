@@ -413,7 +413,7 @@ class SummaryGenerator:
 
             from rally.models import Todo
 
-            today = today_utc()
+            today = now_utc().astimezone(self.local_tz).date()
 
             # Only send incomplete todos to the LLM
             todos = (
@@ -439,8 +439,8 @@ class SummaryGenerator:
                         window_start = due - timedelta(days=todo.remind_days_before)
                         if today < window_start:
                             continue
-                    except ValueError:
-                        pass  # If date is unparseable, include the todo
+                    except ValueError, TypeError, OverflowError:
+                        pass  # If date is unparseable or calculation fails, include the todo
 
                 line = f"{todo.title}"
 
@@ -490,7 +490,7 @@ class SummaryGenerator:
 
             from rally.models import DinnerPlan
 
-            today = today_utc()
+            today = now_utc().astimezone(self.local_tz).date()
 
             # Get all dates in the range
             date_range = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
@@ -761,6 +761,7 @@ Guidelines:
 7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 9. If the weather is actively dangerous (snow, thunderstorms, or tornado risk) within the next 7 days, mention it.
+10. TASK FILTERING: The TODOS section below is pre-filtered. Only mention, reference, or suggest tasks that explicitly appear in the TODOS section. Do not infer, recall, or invent tasks that are not listed. If the TODOS section says "No todos currently active," do not suggest any specific tasks.
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 

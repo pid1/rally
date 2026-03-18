@@ -494,6 +494,8 @@ rally/
 **Implemented:**
 - ✅ FastAPI web application with routes
 - ✅ Summary generation (`rally.generator`) with ICS parsing and recurring event support
+  - LLM system prompt includes task filtering guideline (guideline 10): the LLM only references tasks explicitly listed in the TODOS section of its prompt
+  - Todo and dinner plan date comparisons use the user's configured local timezone
 - ✅ Configuration via Settings UI (stored in DB) with config.toml fallback
 - ✅ Calendar integration (Google Calendar, iCloud) - filters to next 7 days, deduplicates, handles declined events
 - ✅ Weather integration (OpenWeather API)
@@ -517,7 +519,7 @@ rally/
   - Create, read, update, delete todos
   - Optional due dates with native HTML5 date picker
   - Assign todos to family members
-  - Configurable reminder window (`remind_days_before`) — controls when a todo appears in LLM briefings relative to its due date
+  - Configurable reminder window (`remind_days_before`) — controls when a todo appears in LLM briefings relative to its due date. Uses local timezone (not UTC) for date comparisons.
   - AI formats due dates with day-of-week (e.g., "[Due Friday, Feb 20]")
   - Overdue styling for past-due items
   - Completion tracking with 24-hour visibility window
