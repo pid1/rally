@@ -11,7 +11,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - ✅ **Todo Management** - Full CRUD interface for family tasks
   - Create, edit, complete, and delete todos
   - Optional due dates with elegant date picker
-  - Configurable reminder window — set how many days before a due date a todo appears in AI briefings
+  - Configurable reminder window — set how many days before a due date a todo appears in AI briefings (uses your configured local timezone for accurate date comparisons)
   - 24-hour visibility window for completed tasks
   - Integrated into AI summaries for schedule optimization
   - Assign todos to family members
@@ -28,7 +28,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
 - 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (ICS feeds, Google CalDAV, Apple iCloud CalDAV)
 - ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI, with automatic connection verification on save
-- 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider. GLM 4.7 Flash works well for local inference.)
+- 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider. GLM 4.7 Flash works well for local inference.) The LLM is instructed to only reference tasks explicitly present in its prompt, preventing hallucinated or premature task mentions.
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display
 - 🎨 **Beautiful Design** - Serif typography, clean layout, professional aesthetic
