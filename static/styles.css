@@ -807,6 +807,41 @@ footer a:hover {
 }
 /** End Dinner Planner Styles **/
 
+/** Custom Recurrence Styles **/
+.custom-recurrence-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.weekday-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.weekday-label {
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    color: var(--charcoal);
+    padding: 4px 8px;
+    border: 1px solid var(--light-gray);
+    background: var(--white);
+    user-select: none;
+}
+
+.weekday-label input[type="checkbox"],
+.weekday-label input[type="radio"] {
+    accent-color: var(--charcoal);
+    margin: 0;
+}
+/** End Custom Recurrence Styles **/
+
 /** Settings Page Styles **/
 .settings-actions {
     margin-top: 24px;
