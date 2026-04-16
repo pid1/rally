@@ -109,10 +109,11 @@ class RecurringTodo(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    recurrence_type: Mapped[str] = mapped_column(String(20))  # daily, weekly, monthly
+    recurrence_type: Mapped[str] = mapped_column(String(20))  # daily, weekly, monthly, custom
     recurrence_day: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # 0-6 for weekly, 1-31 for monthly
+    custom_rule: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # rule dict for custom recurrence type
     assigned_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_due_date: Mapped[bool] = mapped_column(default=False)
     remind_days_before: Mapped[int | None] = mapped_column(

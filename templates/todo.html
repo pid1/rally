@@ -88,11 +88,67 @@
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
                         <option value="monthly">Monthly</option>
+                        <option value="custom">Custom</option>
                     </select>
                 </div>
                 <div class="form-group" id="recurring-day-group" style="display:none;">
                     <label id="recurring-day-label">Day</label>
                     <select id="recurring-day"></select>
+                </div>
+                <div id="recurring-custom-group" style="display:none;">
+                    <div class="form-group">
+                        <label>Repeat every</label>
+                        <div class="custom-recurrence-row">
+                            <input type="number" id="custom-interval" min="1" value="1" class="remind-days-input">
+                            <select id="custom-freq" style="flex:1;">
+                                <option value="daily">Days</option>
+                                <option value="weekly">Weeks</option>
+                                <option value="monthly">Months</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" id="custom-weekly-group" style="display:none;">
+                        <label>On</label>
+                        <div class="weekday-checkboxes" id="custom-weekdays">
+                            <label class="weekday-label"><input type="checkbox" value="0"> Mon</label>
+                            <label class="weekday-label"><input type="checkbox" value="1"> Tue</label>
+                            <label class="weekday-label"><input type="checkbox" value="2"> Wed</label>
+                            <label class="weekday-label"><input type="checkbox" value="3"> Thu</label>
+                            <label class="weekday-label"><input type="checkbox" value="4"> Fri</label>
+                            <label class="weekday-label"><input type="checkbox" value="5"> Sat</label>
+                            <label class="weekday-label"><input type="checkbox" value="6"> Sun</label>
+                        </div>
+                    </div>
+                    <div class="form-group" id="custom-monthly-group" style="display:none;">
+                        <label>On</label>
+                        <div style="margin-bottom:8px;">
+                            <label class="weekday-label"><input type="radio" name="custom-monthly-mode" value="day" checked> Day of month</label>
+                            <label class="weekday-label"><input type="radio" name="custom-monthly-mode" value="weekday"> Relative weekday</label>
+                        </div>
+                        <div id="custom-monthly-day-group">
+                            <select id="custom-monthly-day"></select>
+                        </div>
+                        <div id="custom-monthly-weekday-group" style="display:none;">
+                            <div class="custom-recurrence-row">
+                                <select id="custom-ordinal" style="flex:1;">
+                                    <option value="first">First</option>
+                                    <option value="second">Second</option>
+                                    <option value="third">Third</option>
+                                    <option value="fourth">Fourth</option>
+                                    <option value="last">Last</option>
+                                </select>
+                                <select id="custom-weekday" style="flex:1;">
+                                    <option value="0">Monday</option>
+                                    <option value="1">Tuesday</option>
+                                    <option value="2">Wednesday</option>
+                                    <option value="3">Thursday</option>
+                                    <option value="4">Friday</option>
+                                    <option value="5">Saturday</option>
+                                    <option value="6">Sunday</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Assigned To (optional)</label>
@@ -556,7 +612,28 @@
             if (rt.recurrence_type === 'daily') return 'Daily';
             if (rt.recurrence_type === 'weekly') return `Weekly on ${DAY_NAMES[rt.recurrence_day] || 'Monday'}`;
             if (rt.recurrence_type === 'monthly') return `Monthly on the ${ordinal(rt.recurrence_day || 1)}`;
+            if (rt.recurrence_type === 'custom') return describeCustomRule(rt.custom_rule);
             return rt.recurrence_type;
+        }
+
+        function describeCustomRule(rule) {
+            if (!rule) return 'Custom';
+            const { freq, interval } = rule;
+            const n = interval || 1;
+            const every = n === 1 ? 'Every' : `Every ${n}`;
+            if (freq === 'daily') {
+                return n === 1 ? 'Daily' : `Every ${n} days`;
+            }
+            if (freq === 'weekly') {
+                const days = (rule.weekdays || [0]).map(d => DAY_NAMES[d].slice(0, 3)).join(', ');
+                return `${every} week${n !== 1 ? 's' : ''} on ${days}`;
+            }
+            if (freq === 'monthly') {
+                const mo = `${every} month${n !== 1 ? 's' : ''}`;
+                if (rule.mode === 'day') return `${mo} on the ${ordinal(rule.day)}`;
+                if (rule.mode === 'weekday') return `${mo} on the ${rule.ordinal} ${DAY_NAMES[rule.weekday]}`;
+            }
+            return 'Custom';
         }
 
         function ordinal(n) {
@@ -565,15 +642,32 @@
             return n + (s[(v-20)%10] || s[v] || s[0]);
         }
 
+        // Populate custom monthly day-of-month select on first use
+        (function initCustomMonthlyDay() {
+            const sel = document.getElementById('custom-monthly-day');
+            sel.innerHTML = Array.from({length: 31}, (_, i) =>
+                `<option value="${i + 1}">${ordinal(i + 1)}</option>`
+            ).join('');
+        })();
+
         // Recurring type / day selector logic
         function updateDaySelector() {
             const type = document.getElementById('recurring-type').value;
             const dayGroup = document.getElementById('recurring-day-group');
             const daySelect = document.getElementById('recurring-day');
             const dayLabel = document.getElementById('recurring-day-label');
+            const customGroup = document.getElementById('recurring-custom-group');
+
+            dayGroup.style.display = 'none';
+            customGroup.style.display = 'none';
 
             if (type === 'daily') {
-                dayGroup.style.display = 'none';
+                return;
+            }
+
+            if (type === 'custom') {
+                customGroup.style.display = '';
+                updateCustomSubGroups();
                 return;
             }
 
@@ -591,8 +685,79 @@
             }
         }
 
+        function updateCustomSubGroups() {
+            const freq = document.getElementById('custom-freq').value;
+            document.getElementById('custom-weekly-group').style.display = freq === 'weekly' ? '' : 'none';
+            document.getElementById('custom-monthly-group').style.display = freq === 'monthly' ? '' : 'none';
+        }
+
+        function updateCustomMonthlyMode() {
+            const mode = document.querySelector('input[name="custom-monthly-mode"]:checked').value;
+            document.getElementById('custom-monthly-day-group').style.display = mode === 'day' ? '' : 'none';
+            document.getElementById('custom-monthly-weekday-group').style.display = mode === 'weekday' ? '' : 'none';
+        }
+
         document.getElementById('recurring-type').addEventListener('change', updateDaySelector);
+        document.getElementById('custom-freq').addEventListener('change', updateCustomSubGroups);
+        document.querySelectorAll('input[name="custom-monthly-mode"]').forEach(r =>
+            r.addEventListener('change', updateCustomMonthlyMode)
+        );
         document.getElementById('recurring-has-due-date').addEventListener('change', toggleRecurringRemindGroup);
+
+        function resetCustomFields() {
+            document.getElementById('custom-interval').value = '1';
+            document.getElementById('custom-freq').value = 'daily';
+            document.querySelectorAll('#custom-weekdays input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.querySelector('input[name="custom-monthly-mode"][value="day"]').checked = true;
+            document.getElementById('custom-monthly-day').value = '1';
+            document.getElementById('custom-ordinal').value = 'first';
+            document.getElementById('custom-weekday').value = '0';
+            updateCustomSubGroups();
+            updateCustomMonthlyMode();
+        }
+
+        function loadCustomRule(rule) {
+            if (!rule) return;
+            document.getElementById('custom-interval').value = rule.interval || 1;
+            document.getElementById('custom-freq').value = rule.freq || 'daily';
+            updateCustomSubGroups();
+            if (rule.freq === 'weekly') {
+                const wds = rule.weekdays || [];
+                document.querySelectorAll('#custom-weekdays input[type="checkbox"]').forEach(cb => {
+                    cb.checked = wds.includes(parseInt(cb.value));
+                });
+            } else if (rule.freq === 'monthly') {
+                const mode = rule.mode || 'day';
+                document.querySelector(`input[name="custom-monthly-mode"][value="${mode}"]`).checked = true;
+                updateCustomMonthlyMode();
+                if (mode === 'day') {
+                    document.getElementById('custom-monthly-day').value = rule.day || 1;
+                } else {
+                    document.getElementById('custom-ordinal').value = rule.ordinal || 'first';
+                    document.getElementById('custom-weekday').value = rule.weekday != null ? rule.weekday : 0;
+                }
+            }
+        }
+
+        function buildCustomRule() {
+            const freq = document.getElementById('custom-freq').value;
+            const interval = parseInt(document.getElementById('custom-interval').value) || 1;
+            const rule = { freq, interval };
+            if (freq === 'weekly') {
+                rule.weekdays = [...document.querySelectorAll('#custom-weekdays input[type="checkbox"]:checked')]
+                    .map(cb => parseInt(cb.value));
+                if (rule.weekdays.length === 0) rule.weekdays = [0]; // default Monday
+            } else if (freq === 'monthly') {
+                rule.mode = document.querySelector('input[name="custom-monthly-mode"]:checked').value;
+                if (rule.mode === 'day') {
+                    rule.day = parseInt(document.getElementById('custom-monthly-day').value);
+                } else {
+                    rule.ordinal = document.getElementById('custom-ordinal').value;
+                    rule.weekday = parseInt(document.getElementById('custom-weekday').value);
+                }
+            }
+            return rule;
+        }
 
         function openAddRecurringModal() {
             editingRecurringId = null;
@@ -603,6 +768,7 @@
             document.getElementById('recurring-type').value = 'daily';
             document.getElementById('recurring-remind-days').value = '';
             document.getElementById('btn-delete-recurring').style.display = 'none';
+            resetCustomFields();
             updateDaySelector();
             toggleRecurringRemindGroup();
             document.getElementById('recurring-modal-overlay').style.display = 'flex';
@@ -618,8 +784,11 @@
             document.getElementById('recurring-title').value = rt.title;
             document.getElementById('recurring-description').value = rt.description || '';
             document.getElementById('recurring-type').value = rt.recurrence_type;
+            resetCustomFields();
             updateDaySelector();
-            if (rt.recurrence_day !== null) {
+            if (rt.recurrence_type === 'custom') {
+                loadCustomRule(rt.custom_rule);
+            } else if (rt.recurrence_day !== null) {
                 document.getElementById('recurring-day').value = rt.recurrence_day;
             }
             document.getElementById('recurring-assigned-to').value = rt.assigned_to || '';
@@ -682,14 +851,16 @@
             const type = document.getElementById('recurring-type').value;
             const assignedTo = document.getElementById('recurring-assigned-to').value;
             const recurringRemindDays = document.getElementById('recurring-remind-days').value;
+            const isBuiltIn = type === 'daily' || type === 'weekly' || type === 'monthly';
             const data = {
                 title: document.getElementById('recurring-title').value,
                 description: document.getElementById('recurring-description').value || null,
                 recurrence_type: type,
-                recurrence_day: type !== 'daily' ? parseInt(document.getElementById('recurring-day').value) : null,
+                recurrence_day: isBuiltIn && type !== 'daily' ? parseInt(document.getElementById('recurring-day').value) : null,
                 assigned_to: assignedTo ? parseInt(assignedTo) : null,
                 has_due_date: document.getElementById('recurring-has-due-date').checked,
                 remind_days_before: recurringRemindDays !== '' ? parseInt(recurringRemindDays) : null,
+                custom_rule: type === 'custom' ? buildCustomRule() : null,
             };
 
             try {

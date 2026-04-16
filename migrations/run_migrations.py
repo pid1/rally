@@ -18,6 +18,7 @@ def run_migrations():
         from migrate_add_due_date import migrate as migrate_001_add_due_date
         from migrate_add_family_members import migrate as migrate_002_add_family_members
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
+        from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
         from migrate_add_last_generated_date import (
             migrate as migrate_007_add_last_generated_date,
         )
@@ -38,6 +39,7 @@ def run_migrations():
         ("006_add_reminder_window", migrate_006_add_reminder_window),
         ("007_add_last_generated_date", migrate_007_add_last_generated_date),
         ("008_add_caldav_support", migrate_008_add_caldav_support),
+        ("009_add_custom_recurrence", migrate_009_add_custom_recurrence),
     ]
 
     print("=" * 60)

@@ -139,11 +139,12 @@ class TodoResponse(TodoBase):
 class RecurringTodoBase(BaseModel):
     title: str
     description: str | None = None
-    recurrence_type: str  # daily, weekly, monthly
+    recurrence_type: str  # daily, weekly, monthly, custom
     recurrence_day: int | None = None  # 0-6 for weekly, 1-31 for monthly
     assigned_to: int | None = None
     has_due_date: bool = False
     remind_days_before: int | None = None  # Days before due_date to start LLM reminders
+    custom_rule: dict | None = None  # JSON rule for custom recurrence type
 
 
 class RecurringTodoCreate(RecurringTodoBase):
@@ -159,6 +160,7 @@ class RecurringTodoUpdate(BaseModel):
     has_due_date: bool | None = None
     remind_days_before: int | None = UNSET  # Days before due_date; None means "always"
     active: bool | None = None
+    custom_rule: dict | None = UNSET  # UNSET means not changing; None means clear
 
 
 class RecurringTodoResponse(RecurringTodoBase):
