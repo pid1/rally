@@ -423,6 +423,7 @@
                             <div class="editable-item-content">
                                 <div class="editable-item-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
                                 <div class="recurring-schedule">${describeRecurrence(rt)} ${dueBadge}</div>
+                                <div class="recurring-schedule">Last completed: ${formatLastCompleted(rt.last_completed_date)}</div>
                             </div>
                             <div class="editable-item-actions">
                                 <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
@@ -640,6 +641,19 @@
             const s = ['th','st','nd','rd'];
             const v = n % 100;
             return n + (s[(v-20)%10] || s[v] || s[0]);
+        }
+
+        function formatLastCompleted(dateStr) {
+            if (!dateStr) return 'Never';
+            const completed = new Date(dateStr + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const yesterday = new Date(today);
+            yesterday.setDate(today.getDate() - 1);
+            if (completed.getTime() === today.getTime()) return 'Today';
+            if (completed.getTime() === yesterday.getTime()) return 'Yesterday';
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return `${months[completed.getMonth()]} ${ordinal(completed.getDate())}, ${completed.getFullYear()}`;
         }
 
         // Populate custom monthly day-of-month select on first use

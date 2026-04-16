@@ -167,6 +167,7 @@ class RecurringTodoResponse(RecurringTodoBase):
     id: int
     active: bool
     last_generated_date: str | None = None
+    last_completed_date: str | None = None
     created_at: datetime
     updated_at: datetime
 
