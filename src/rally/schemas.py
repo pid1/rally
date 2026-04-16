@@ -116,7 +116,7 @@ class TodoCreate(TodoBase):
 class TodoUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
-    due_date: str | None = None  # YYYY-MM-DD format
+    due_date: str | None = UNSET  # YYYY-MM-DD format; None means "clear"; UNSET means "not provided"
     assigned_to: int | None = UNSET  # family_members.id; None means "Everyone"
     remind_days_before: int | None = UNSET  # Days before due_date; None means "always"
     completed: bool | None = None

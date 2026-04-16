@@ -83,7 +83,7 @@ def update_todo(
         db_todo.title = todo.title
     if todo.description is not None:
         db_todo.description = todo.description
-    if todo.due_date is not None:
+    if todo.due_date is not UNSET:
         db_todo.due_date = todo.due_date
     if todo.assigned_to is not UNSET:
         db_todo.assigned_to = todo.assigned_to
