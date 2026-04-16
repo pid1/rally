@@ -1,11 +1,13 @@
 """Recurring todos router for Rally."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import RecurringTodo
+from rally.models import RecurringTodo, Todo
 from rally.schemas import UNSET, RecurringTodoCreate, RecurringTodoResponse, RecurringTodoUpdate
+from rally.utils.timezone import ensure_utc
 
 router = APIRouter(prefix="/api/recurring-todos", tags=["recurring-todos"])
 
@@ -13,7 +15,25 @@ router = APIRouter(prefix="/api/recurring-todos", tags=["recurring-todos"])
 @router.get("", response_model=list[RecurringTodoResponse])
 def list_recurring_todos(db: Session = Depends(get_db)):
     """List all recurring todo templates."""
-    return db.query(RecurringTodo).order_by(RecurringTodo.created_at.desc()).all()
+    rts = db.query(RecurringTodo).order_by(RecurringTodo.created_at.desc()).all()
+
+    last_completed_rows = (
+        db.query(Todo.recurring_todo_id, func.max(Todo.updated_at).label("last_completed_at"))
+        .filter(Todo.completed == True, Todo.recurring_todo_id.isnot(None))  # noqa: E712
+        .group_by(Todo.recurring_todo_id)
+        .all()
+    )
+    last_completed_map = {row.recurring_todo_id: row.last_completed_at for row in last_completed_rows}
+
+    results = []
+    for rt in rts:
+        response = RecurringTodoResponse.model_validate(rt)
+        last_dt = last_completed_map.get(rt.id)
+        if last_dt:
+            response.last_completed_date = ensure_utc(last_dt).date().isoformat()
+        results.append(response)
+
+    return results
 
 
 @router.post("", response_model=RecurringTodoResponse, status_code=201)
