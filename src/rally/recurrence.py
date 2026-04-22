@@ -258,7 +258,22 @@ def _resolve_reference_date(rt: RecurringTodo, db: Session) -> date | None:
     or None if no instances have ever been created.
     """
     if rt.last_generated_date:
-        return date.fromisoformat(rt.last_generated_date)
+        ref = date.fromisoformat(rt.last_generated_date)
+        # If a completed instance was rescheduled to a later date, advance the
+        # reference so the next occurrence doesn't land on the same day.
+        latest_completed = (
+            db.query(Todo)
+            .filter(
+                Todo.recurring_todo_id == rt.id,
+                Todo.completed == True,  # noqa: E712
+                Todo.due_date.isnot(None),
+            )
+            .order_by(Todo.due_date.desc())
+            .first()
+        )
+        if latest_completed:
+            return max(ref, date.fromisoformat(latest_completed.due_date))
+        return ref
 
     # Backfill: find the most recent instance by due_date (or created_at)
     latest = (
