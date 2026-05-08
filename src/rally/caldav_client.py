@@ -9,6 +9,7 @@ so the generator can consume them identically.
 from datetime import timedelta
 
 import caldav
+import recurring_ical_events
 from icalendar import Calendar as ICalCalendar
 
 from rally.utils.timezone import ensure_utc, today_utc
@@ -67,8 +68,9 @@ def _parse_caldav_events(caldav_client: caldav.DAVClient, local_tz, owner_email=
     """Fetch events from a CalDAV principal, returning a list of event dicts.
 
     Each calendar discovered under the principal produces events.
-    Events are expanded (recurring instances resolved by the server) and filtered
-    to the next 7 days.
+    Events are expanded client-side via recurring_ical_events so that
+    RECURRENCE-ID exceptions (canceled and rescheduled instances) are
+    handled correctly. Filtered to the next 7 days.
     """
     today = today_utc()
     end_date = today + timedelta(days=7)
@@ -80,53 +82,64 @@ def _parse_caldav_events(caldav_client: caldav.DAVClient, local_tz, owner_email=
     for server_cal in server_calendars:
         cal_name = getattr(server_cal, "name", None) or "Calendar"
         try:
-            search_results = server_cal.search(start=today, end=end_date, event=True, expand=True)
+            # Fetch without server-side expansion so RECURRENCE-ID exceptions
+            # (canceled and rescheduled instances) are returned as raw VEVENTs.
+            # Client-side expansion via recurring_ical_events handles them correctly.
+            search_results = server_cal.search(start=today, end=end_date, event=True, expand=False)
         except Exception as exc:
             print(f"  Warning: failed to search CalDAV calendar '{cal_name}': {exc}")
             continue
 
+        # Collect all VEVENTs into a single Calendar for client-side expansion
+        combined_cal = ICalCalendar()
         for item in search_results:
             try:
-                ical = ICalCalendar.from_ical(item.data)
+                item_cal = ICalCalendar.from_ical(item.data)
             except Exception:
                 continue
+            for component in item_cal.walk():
+                if component.name == "VEVENT":
+                    combined_cal.add_component(component)
 
-            for component in ical.walk():
-                if component.name != "VEVENT":
-                    continue
+        try:
+            expanded = recurring_ical_events.of(combined_cal).between(today, end_date)
+        except Exception as exc:
+            print(f"  Warning: failed to expand events for '{cal_name}': {exc}")
+            continue
 
-                dtstart = component.get("dtstart")
-                if not dtstart:
-                    continue
+        for component in expanded:
+            dtstart = component.get("dtstart")
+            if not dtstart:
+                continue
 
-                # Skip declined / cancelled events
-                if _is_event_declined(component, owner_email):
-                    continue
+            # Skip declined / cancelled events
+            if _is_event_declined(component, owner_email):
+                continue
 
-                event_date = dtstart.dt
-                if hasattr(event_date, "date"):
-                    event_date = event_date.date()
+            event_date = dtstart.dt
+            if hasattr(event_date, "date"):
+                event_date = event_date.date()
 
-                summary = str(component.get("summary", "Untitled Event"))
-                description = str(component.get("description", ""))
-                location = str(component.get("location", ""))
+            summary = str(component.get("summary", "Untitled Event"))
+            description = str(component.get("description", ""))
+            location = str(component.get("location", ""))
 
-                time_str = ""
-                if hasattr(dtstart.dt, "strftime"):
-                    dt = dtstart.dt
-                    if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
-                        dt = ensure_utc(dt).astimezone(local_tz)
-                    time_str = dt.strftime("%I:%M %p %Z").lstrip("0")
+            time_str = ""
+            if hasattr(dtstart.dt, "strftime"):
+                dt = dtstart.dt
+                if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
+                    dt = ensure_utc(dt).astimezone(local_tz)
+                time_str = dt.strftime("%I:%M %p %Z").lstrip("0")
 
-                all_events.append(
-                    {
-                        "summary": summary,
-                        "time": time_str,
-                        "date": event_date.strftime("%Y-%m-%d"),
-                        "description": description,
-                        "location": location,
-                    }
-                )
+            all_events.append(
+                {
+                    "summary": summary,
+                    "time": time_str,
+                    "date": event_date.strftime("%Y-%m-%d"),
+                    "description": description,
+                    "location": location,
+                }
+            )
 
     all_events.sort(key=lambda e: (e["date"], e["time"]))
     return all_events
