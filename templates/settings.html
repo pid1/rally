@@ -19,7 +19,7 @@
     <nav>
         <a href="/dashboard">Dashboard</a>
         <a href="/todo">Tasks</a>
-        <a href="/dinner-planner">Dinner Planner</a>
+        <a href="/dinner-planner">Meal Planner</a>
     </nav>
 
     <!-- Family Members Section -->
@@ -122,6 +122,25 @@
             <div class="form-group">
                 <label>Agent Voice</label>
                 <textarea id="ai-agent-voice" rows="8" placeholder="Describe the tone and personality for Rally's summaries..."></textarea>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
+    <!-- Meal Planner Section -->
+    <div class="border-container">
+        <div class="header-container">
+            <h2>Meal Planner</h2>
+        </div>
+        <form id="meal-planner-form">
+            <div class="form-group">
+                <label>Default Meal Type</label>
+                <select id="meal-default-type">
+                    <option value="Breakfast">Breakfast</option>
+                    <option value="Lunch">Lunch</option>
+                    <option value="Dinner">Dinner</option>
+                    <option value="Snacks">Snacks</option>
+                </select>
             </div>
             <button type="submit" class="btn-save">Save</button>
         </form>
@@ -526,6 +545,9 @@
             document.getElementById('ai-family-context').value = s.family_context || '';
             document.getElementById('ai-agent-voice').value = s.agent_voice || '';
 
+            // Meal Planner
+            document.getElementById('meal-default-type').value = s.meal_default_type || 'Dinner';
+
             // General
             document.getElementById('general-timezone').value = s.local_timezone || '';
         }
@@ -746,6 +768,20 @@
             } catch (error) {
                 console.error('Error saving AI settings:', error);
                 alert('Failed to save AI settings');
+            }
+        });
+
+        // Meal Planner form
+        document.getElementById('meal-planner-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    meal_default_type: document.getElementById('meal-default-type').value
+                });
+                alert('Meal Planner settings saved.');
+            } catch (error) {
+                console.error('Error saving meal planner settings:', error);
+                alert('Failed to save meal planner settings');
             }
         });
 

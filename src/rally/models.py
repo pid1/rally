@@ -128,12 +128,13 @@ class RecurringTodo(Base):
 
 
 class DinnerPlan(Base):
-    """Dinner plan model - meal plans by date."""
+    """Meal plan model - meal plans by date."""
 
     __tablename__ = "dinner_plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD (multiple plans per date allowed)
+    meal_type: Mapped[str] = mapped_column(String(20), default="Dinner")  # Breakfast, Lunch, Dinner, Snacks
     plan: Mapped[str] = mapped_column(Text)
     attendee_ids: Mapped[list | None] = mapped_column(
         JSON, nullable=True

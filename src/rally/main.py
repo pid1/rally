@@ -56,8 +56,14 @@ def todo_page(request: Request):
 
 @app.get("/dinner-planner", response_class=HTMLResponse)
 def dinner_planner_page(request: Request):
-    """Serve the dinner planner page."""
+    """Serve the meal planner page."""
     return templates.TemplateResponse("dinner_planner.html", {"request": request})
+
+
+@app.get("/meal-planner", response_class=RedirectResponse)
+def meal_planner_redirect():
+    """Redirect /meal-planner to /dinner-planner for convenience."""
+    return RedirectResponse(url="/dinner-planner")
 
 
 @app.get("/settings", response_class=HTMLResponse)

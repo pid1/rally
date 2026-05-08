@@ -160,30 +160,46 @@ def seed():
         for todo in todos:
             db.add(todo)
 
-        # Create sample dinner plans (multiple per date to showcase the feature)
+        # Create sample meal plans (multiple per date to showcase the feature)
         today_date = today_utc()
         dinner_plans = [
-            # Tonight: two separate dinners
+            # Today: breakfast and dinner for different groups
             DinnerPlan(
                 date=today_date.strftime("%Y-%m-%d"),
+                meal_type="Breakfast",
+                plan="Pancakes and bacon",
+                attendee_ids=[dad.id, jake.id, emma.id],
+                cook_id=dad.id,
+            ),
+            DinnerPlan(
+                date=today_date.strftime("%Y-%m-%d"),
+                meal_type="Dinner",
                 plan="Chicken pot pie",
                 attendee_ids=[dad.id, jake.id],
                 cook_id=dad.id,
             ),
             DinnerPlan(
                 date=today_date.strftime("%Y-%m-%d"),
+                meal_type="Dinner",
                 plan="Texas Roadhouse",
                 attendee_ids=[mom.id, emma.id],
             ),
-            # Tomorrow: whole family
+            # Tomorrow: whole family dinner
             DinnerPlan(
                 date=(today_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+                meal_type="Dinner",
                 plan="Spaghetti and meatballs with garlic bread",
                 cook_id=mom.id,
             ),
-            # Day after: assigned cook, everyone eating
+            # Day after: lunch and dinner
             DinnerPlan(
                 date=(today_date + timedelta(days=3)).strftime("%Y-%m-%d"),
+                meal_type="Lunch",
+                plan="Leftovers",
+            ),
+            DinnerPlan(
+                date=(today_date + timedelta(days=3)).strftime("%Y-%m-%d"),
+                meal_type="Dinner",
                 plan="Grilled burgers and corn on the cob",
                 cook_id=dad.id,
             ),
@@ -198,7 +214,7 @@ def seed():
         print(f"   - {len(calendars)} calendars")
         print(f"   - {len(sample_settings)} settings")
         print(f"   - {len(todos)} sample todos")
-        print(f"   - {len(dinner_plans)} dinner plans")
+        print(f"   - {len(dinner_plans)} meal plans")
 
     except Exception as e:
         db.rollback()

@@ -174,11 +174,14 @@ class RecurringTodoResponse(RecurringTodoBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# Dinner Plans
+# Meal Plans (stored in dinner_plans table)
+
+MEAL_TYPES = ("Breakfast", "Lunch", "Dinner", "Snacks")
 
 
 class DinnerPlanBase(BaseModel):
     date: str  # YYYY-MM-DD format
+    meal_type: str = "Dinner"  # Breakfast, Lunch, Dinner, Snacks
     plan: str
     attendee_ids: list[int] | None = None  # family_member IDs (who's eating); None = everyone
     cook_id: int | None = None  # family_member ID (who's cooking)
@@ -190,6 +193,7 @@ class DinnerPlanCreate(DinnerPlanBase):
 
 class DinnerPlanUpdate(BaseModel):
     date: str | None = None
+    meal_type: str | None = None
     plan: str | None = None
     attendee_ids: list[int] | None = UNSET  # None means "clear"; UNSET means "not provided"
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
