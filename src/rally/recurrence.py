@@ -50,7 +50,14 @@ def _next_custom(rule: dict, after_date: date) -> date:
     interval = int(rule.get("interval", 1))
 
     if freq == "daily":
-        return after_date + timedelta(days=interval)
+        next_date = after_date + timedelta(days=interval)
+        if rule.get("weekdays_only"):
+            wd = next_date.weekday()
+            if wd == 5:  # Saturday -> Monday
+                next_date += timedelta(days=2)
+            elif wd == 6:  # Sunday -> Monday
+                next_date += timedelta(days=1)
+        return next_date
 
     if freq == "weekly":
         weekdays = sorted(rule["weekdays"])

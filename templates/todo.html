@@ -107,6 +107,12 @@
                             </select>
                         </div>
                     </div>
+                    <div class="form-group" id="custom-weekdays-only-group" style="display:none;">
+                        <label title="When checked, if the next due date falls on a weekend, it will be moved to the following Monday. Useful for tasks that must be done at a specific interval but can only be completed on weekdays (e.g., medical appointments, office pickups).">
+                            <input type="checkbox" id="custom-weekdays-only">
+                            Schedule on weekdays only
+                        </label>
+                    </div>
                     <div class="form-group" id="custom-weekly-group" style="display:none;">
                         <label>On</label>
                         <div class="weekday-checkboxes" id="custom-weekdays">
@@ -623,7 +629,8 @@
             const n = interval || 1;
             const every = n === 1 ? 'Every' : `Every ${n}`;
             if (freq === 'daily') {
-                return n === 1 ? 'Daily' : `Every ${n} days`;
+                const base = n === 1 ? 'Daily' : `Every ${n} days`;
+                return rule.weekdays_only ? `${base} (weekdays only)` : base;
             }
             if (freq === 'weekly') {
                 const days = (rule.weekdays || [0]).map(d => DAY_NAMES[d].slice(0, 3)).join(', ');
@@ -701,8 +708,12 @@
 
         function updateCustomSubGroups() {
             const freq = document.getElementById('custom-freq').value;
+            document.getElementById('custom-weekdays-only-group').style.display = freq === 'daily' ? '' : 'none';
             document.getElementById('custom-weekly-group').style.display = freq === 'weekly' ? '' : 'none';
             document.getElementById('custom-monthly-group').style.display = freq === 'monthly' ? '' : 'none';
+            if (freq !== 'daily') {
+                document.getElementById('custom-weekdays-only').checked = false;
+            }
         }
 
         function updateCustomMonthlyMode() {
@@ -721,6 +732,7 @@
         function resetCustomFields() {
             document.getElementById('custom-interval').value = '1';
             document.getElementById('custom-freq').value = 'daily';
+            document.getElementById('custom-weekdays-only').checked = false;
             document.querySelectorAll('#custom-weekdays input[type="checkbox"]').forEach(cb => cb.checked = false);
             document.querySelector('input[name="custom-monthly-mode"][value="day"]').checked = true;
             document.getElementById('custom-monthly-day').value = '1';
@@ -735,6 +747,9 @@
             document.getElementById('custom-interval').value = rule.interval || 1;
             document.getElementById('custom-freq').value = rule.freq || 'daily';
             updateCustomSubGroups();
+            if (rule.freq === 'daily') {
+                document.getElementById('custom-weekdays-only').checked = !!rule.weekdays_only;
+            }
             if (rule.freq === 'weekly') {
                 const wds = rule.weekdays || [];
                 document.querySelectorAll('#custom-weekdays input[type="checkbox"]').forEach(cb => {
@@ -757,6 +772,9 @@
             const freq = document.getElementById('custom-freq').value;
             const interval = parseInt(document.getElementById('custom-interval').value) || 1;
             const rule = { freq, interval };
+            if (freq === 'daily' && document.getElementById('custom-weekdays-only').checked) {
+                rule.weekdays_only = true;
+            }
             if (freq === 'weekly') {
                 rule.weekdays = [...document.querySelectorAll('#custom-weekdays input[type="checkbox"]:checked')]
                     .map(cb => parseInt(cb.value));
