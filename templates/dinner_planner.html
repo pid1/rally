@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rally — Dinner Planner</title>
+    <title>Rally — Meal Planner</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,31 +13,31 @@
 <body>
     <header class="header">
         <h1>Rally</h1>
-        <div class="subtitle">Dinner Planner</div>
+        <div class="subtitle">Meal Planner</div>
     </header>
 
     <nav>
         <a href="/dashboard">Dashboard</a>
         <a href="/todo">Tasks</a>
-        <a href="/dinner-planner" class="active">Dinner Planner</a>
+        <a href="/dinner-planner" class="active">Meal Planner</a>
     </nav>
 
     <div class="section-container">
         <div class="header-container">
-            <h2>Dinner Planner</h2>
+            <h2>Meal Planner</h2>
             <div class="header-actions">
-                <button class="btn-add" id="btn-add-dinner">Add Dinner</button>
+                <button class="btn-add" id="btn-add-meal">Add Meal</button>
             </div>
         </div>
         <div class="list-container" id="plans-list">
-            <div class="container-loading-state">Loading dinner plans...</div>
+            <div class="container-loading-state">Loading meal plans...</div>
         </div>
     </div>
 
     <!-- Modal for add/edit -->
     <div class="modal-overlay" id="modal-overlay">
         <div class="modal-content">
-            <h3 id="modal-title">Add Dinner Plan</h3>
+            <h3 id="modal-title">Add Meal Plan</h3>
             <form id="plan-form">
                 <input type="hidden" id="plan-edit-id">
                 <div class="form-group">
@@ -45,8 +45,17 @@
                     <input type="date" id="plan-date" required>
                 </div>
                 <div class="form-group">
+                    <label>Meal Type</label>
+                    <select id="plan-meal-type" required>
+                        <option value="Breakfast">Breakfast</option>
+                        <option value="Lunch">Lunch</option>
+                        <option value="Dinner">Dinner</option>
+                        <option value="Snacks">Snacks</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Meal Plan</label>
-                    <textarea id="plan-text" placeholder="What's for dinner?" required rows="3"></textarea>
+                    <textarea id="plan-text" placeholder="What's on the menu?" required rows="3"></textarea>
                 </div>
                 <div class="form-group">
                     <label>Who's Eating? <small>(leave unchecked for everyone)</small></label>
@@ -74,6 +83,10 @@
         let plans = [];
         let familyMembers = [];
         let editingId = null;
+        let defaultMealType = 'Dinner';
+
+        const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
+        const MEAL_TYPE_ORDER = { 'Breakfast': 0, 'Lunch': 1, 'Dinner': 2, 'Snacks': 3 };
 
         // Get date N days from now
         function getDateInDays(days) {
@@ -93,7 +106,7 @@
             const planDate = new Date(date);
             planDate.setHours(0, 0, 0, 0);
 
-            if (planDate.getTime() === today.getTime()) return 'Tonight';
+            if (planDate.getTime() === today.getTime()) return 'Today';
             if (planDate.getTime() === tomorrow.getTime()) return 'Tomorrow';
 
             return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -136,15 +149,41 @@
             return val ? parseInt(val) : null;
         }
 
+        // Settings
+        async function fetchDefaultMealType() {
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                const s = data.settings || {};
+                defaultMealType = s.meal_default_type || 'Dinner';
+            } catch (_) {
+                defaultMealType = 'Dinner';
+            }
+            populateMealTypeSelector();
+        }
+
+        function populateMealTypeSelector() {
+            const select = document.getElementById('plan-meal-type');
+            select.innerHTML = MEAL_TYPES.map(t => {
+                const label = t === defaultMealType ? `${t} (default)` : t;
+                return `<option value="${t}">${label}</option>`;
+            }).join('');
+        }
+
         // API calls
         async function fetchPlans() {
             const response = await fetch('/api/dinner-plans');
             const allPlans = await response.json();
 
-            // Filter to next 7 days
+            // Filter to next 7 days, then sort by date then meal type order
             const today = new Date().toISOString().split('T')[0];
             const weekFromNow = getDateInDays(7);
-            plans = allPlans.filter(p => p.date >= today && p.date <= weekFromNow);
+            plans = allPlans
+                .filter(p => p.date >= today && p.date <= weekFromNow)
+                .sort((a, b) => {
+                    if (a.date !== b.date) return a.date.localeCompare(b.date);
+                    return (MEAL_TYPE_ORDER[a.meal_type] ?? 99) - (MEAL_TYPE_ORDER[b.meal_type] ?? 99);
+                });
 
             renderPlans();
         }
@@ -181,7 +220,7 @@
             const container = document.getElementById('plans-list');
 
             if (plans.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No dinner plans for the next 7 days. Click "Add Dinner" to get started.</div>';
+                container.innerHTML = '<div class="container-empty-state">No meal plans for the next 7 days. Click "Add Meal" to get started.</div>';
                 return;
             }
 
@@ -199,10 +238,12 @@
                 const metaHtml = parts.length > 0
                     ? `<div class="editable-item-description">${parts.join(' · ')}</div>` : '';
 
+                const mealType = plan.meal_type || 'Dinner';
+
                 return `
                     <div class="editable-item" data-id="${plan.id}">
                         <div class="editable-item-content">
-                            <div class="editable-item-title">${escapeHtml(plan.plan)}</div>
+                            <div class="editable-item-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
                             ${metaHtml}
                             <div class="plan-date">${escapeHtml(formatDate(plan.date))}</div>
                         </div>
@@ -223,10 +264,12 @@
         // Modal
         function openAddModal() {
             editingId = null;
-            document.getElementById('modal-title').textContent = 'Add Dinner Plan';
+            document.getElementById('modal-title').textContent = 'Add Meal Plan';
             document.getElementById('plan-form').reset();
             document.getElementById('plan-edit-id').value = '';
             document.getElementById('plan-date').value = new Date().toISOString().split('T')[0];
+            // Pre-select default meal type
+            document.getElementById('plan-meal-type').value = defaultMealType;
             document.querySelectorAll('.attendee-cb').forEach(cb => cb.checked = false);
             document.getElementById('plan-cook').value = '';
             document.getElementById('btn-delete-plan').style.display = 'none';
@@ -238,9 +281,10 @@
             if (!plan) return;
 
             editingId = id;
-            document.getElementById('modal-title').textContent = 'Edit Dinner Plan';
+            document.getElementById('modal-title').textContent = 'Edit Meal Plan';
             document.getElementById('plan-edit-id').value = id;
             document.getElementById('plan-date').value = plan.date;
+            document.getElementById('plan-meal-type').value = plan.meal_type || 'Dinner';
             document.getElementById('plan-text').value = plan.plan;
 
             // Set attendee checkboxes
@@ -260,33 +304,21 @@
             editingId = null;
         }
 
-        async function confirmDelete(id) {
-            if (!confirm('Are you sure you want to delete this dinner plan?')) return;
-
-            try {
-                await deletePlan(id);
-                await fetchPlans();
-            } catch (error) {
-                console.error('Error deleting plan:', error);
-                alert('Failed to delete dinner plan');
-            }
-        }
-
         async function confirmDeleteFromModal() {
             if (!editingId) return;
-            if (!confirm('Are you sure you want to delete this dinner plan?')) return;
+            if (!confirm('Are you sure you want to delete this meal plan?')) return;
             try {
                 await deletePlan(editingId);
                 closeModal();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error deleting plan:', error);
-                alert('Failed to delete dinner plan');
+                alert('Failed to delete meal plan');
             }
         }
 
         // Event handlers
-        document.getElementById('btn-add-dinner').addEventListener('click', openAddModal);
+        document.getElementById('btn-add-meal').addEventListener('click', openAddModal);
         document.getElementById('btn-cancel').addEventListener('click', closeModal);
         document.getElementById('modal-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'modal-overlay') closeModal();
@@ -296,26 +328,27 @@
             e.preventDefault();
 
             const date = document.getElementById('plan-date').value;
+            const meal_type = document.getElementById('plan-meal-type').value;
             const plan = document.getElementById('plan-text').value;
             const attendee_ids = getSelectedAttendeeIds();
             const cook_id = getSelectedCookId();
 
             try {
                 if (editingId) {
-                    await updatePlan(editingId, { date, plan, attendee_ids, cook_id });
+                    await updatePlan(editingId, { date, meal_type, plan, attendee_ids, cook_id });
                 } else {
-                    await savePlan({ date, plan, attendee_ids, cook_id });
+                    await savePlan({ date, meal_type, plan, attendee_ids, cook_id });
                 }
                 closeModal();
                 await fetchPlans();
             } catch (error) {
                 console.error('Error saving plan:', error);
-                alert('Failed to save dinner plan');
+                alert('Failed to save meal plan');
             }
         });
 
-        // Initialize — family members must load before plans render (plans display member names)
-        fetchFamilyMembers().then(() => {
+        // Initialize — settings and family members load before plans render
+        Promise.all([fetchDefaultMealType(), fetchFamilyMembers()]).then(() => {
             fetchPlans();
         });
     </script>

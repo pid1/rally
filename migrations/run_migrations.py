@@ -22,6 +22,7 @@ def run_migrations():
         from migrate_add_last_generated_date import (
             migrate as migrate_007_add_last_generated_date,
         )
+        from migrate_add_meal_type import migrate as migrate_010_add_meal_type
         from migrate_add_recurring_todos import migrate as migrate_004_add_recurring_todos
         from migrate_add_reminder_window import migrate as migrate_006_add_reminder_window
         from migrate_add_settings import migrate as migrate_003_add_settings
@@ -40,6 +41,7 @@ def run_migrations():
         ("007_add_last_generated_date", migrate_007_add_last_generated_date),
         ("008_add_caldav_support", migrate_008_add_caldav_support),
         ("009_add_custom_recurrence", migrate_009_add_custom_recurrence),
+        ("010_add_meal_type", migrate_010_add_meal_type),
     ]
 
     print("=" * 60)

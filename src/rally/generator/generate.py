@@ -483,7 +483,7 @@ class SummaryGenerator:
             db.close()
 
     def load_dinner_plans(self) -> str:
-        """Load dinner plans for next 7 days from database for LLM context."""
+        """Load meal plans for next 7 days from database for LLM context."""
         db = SessionLocal()
         try:
             from datetime import datetime
@@ -504,7 +504,7 @@ class SummaryGenerator:
             )
 
             if not plans:
-                return "No dinner plans for the next 7 days."
+                return "No meal plans for the next 7 days."
 
             # Load family members for attendee/cook names
             members = self.load_family_members()
@@ -514,13 +514,14 @@ class SummaryGenerator:
             for plan in plans:
                 plan_date = datetime.strptime(plan.date, "%Y-%m-%d").date()
                 days_away = (plan_date - today).days
+                meal_type = getattr(plan, "meal_type", "Dinner") or "Dinner"
 
                 if days_away == 0:
-                    day_label = "Tonight"
+                    day_label = f"Today ({meal_type})"
                 elif days_away == 1:
-                    day_label = "Tomorrow night"
+                    day_label = f"Tomorrow ({meal_type})"
                 else:
-                    day_label = f"{plan_date.strftime('%A')} ({plan_date.strftime('%b %d')})"
+                    day_label = f"{plan_date.strftime('%A')} ({plan_date.strftime('%b %d')}) [{meal_type}]"
 
                 line = f"{day_label}: {plan.plan}"
 
