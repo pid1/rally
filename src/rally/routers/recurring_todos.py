@@ -17,20 +17,42 @@ def list_recurring_todos(db: Session = Depends(get_db)):
     """List all recurring todo templates."""
     rts = db.query(RecurringTodo).order_by(RecurringTodo.created_at.desc()).all()
 
-    last_completed_rows = (
-        db.query(Todo.recurring_todo_id, func.max(Todo.updated_at).label("last_completed_at"))
-        .filter(Todo.completed == True, Todo.recurring_todo_id.isnot(None))  # noqa: E712
+    # For instances with a due_date, use it directly — it's a local YYYY-MM-DD string
+    # and avoids the UTC-offset bug that affects updated_at timestamps.
+    due_date_rows = (
+        db.query(Todo.recurring_todo_id, func.max(Todo.due_date).label("last_due_date"))
+        .filter(
+            Todo.completed == True,  # noqa: E712
+            Todo.recurring_todo_id.isnot(None),
+            Todo.due_date.isnot(None),
+        )
         .group_by(Todo.recurring_todo_id)
         .all()
     )
-    last_completed_map = {row.recurring_todo_id: row.last_completed_at for row in last_completed_rows}
+    # Fall back to updated_at for instances that have no due_date.
+    no_due_date_rows = (
+        db.query(Todo.recurring_todo_id, func.max(Todo.updated_at).label("last_completed_at"))
+        .filter(
+            Todo.completed == True,  # noqa: E712
+            Todo.recurring_todo_id.isnot(None),
+            Todo.due_date.is_(None),
+        )
+        .group_by(Todo.recurring_todo_id)
+        .all()
+    )
+
+    last_completed_map: dict[int, str] = {}
+    for row in no_due_date_rows:
+        last_completed_map[row.recurring_todo_id] = ensure_utc(row.last_completed_at).date().isoformat()
+    for row in due_date_rows:
+        last_completed_map[row.recurring_todo_id] = row.last_due_date
 
     results = []
     for rt in rts:
         response = RecurringTodoResponse.model_validate(rt)
-        last_dt = last_completed_map.get(rt.id)
-        if last_dt:
-            response.last_completed_date = ensure_utc(last_dt).date().isoformat()
+        last_date = last_completed_map.get(rt.id)
+        if last_date:
+            response.last_completed_date = last_date
         results.append(response)
 
     return results
