@@ -22,7 +22,7 @@ def run_migrations():
         from migrate_add_last_generated_date import (
             migrate as migrate_007_add_last_generated_date,
         )
-        from migrate_add_meal_reviews import migrate as migrate_011_add_meal_reviews
+        from migrate_011_add_meal_reviews import migrate as migrate_011_add_meal_reviews
         from migrate_add_meal_type import migrate as migrate_010_add_meal_type
         from migrate_add_recurring_todos import migrate as migrate_004_add_recurring_todos
         from migrate_add_reminder_window import migrate as migrate_006_add_reminder_window
