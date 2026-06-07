@@ -882,16 +882,16 @@ footer a:hover {
     color: var(--white);
 }
 
-/* Desktop: show on hover (only at desktop widths to prevent flat display on resized browsers) */
-@media (hover: hover) and (min-width: 768px) {
+/* Click toggle (mobile) */
+.nav-dropdown.open .nav-dropdown-content {
+    display: block;
+}
+
+/* Desktop: show on hover */
+@media (min-width: 768px) {
     .nav-dropdown:hover .nav-dropdown-content {
         display: block;
     }
-}
-
-/* Mobile/touch: show on click via .open class */
-.nav-dropdown.open .nav-dropdown-content {
-    display: block;
 }
 
 /* Mobile layout: stack nav vertically */
