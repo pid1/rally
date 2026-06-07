@@ -116,7 +116,9 @@ class TodoCreate(TodoBase):
 class TodoUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
-    due_date: str | None = UNSET  # YYYY-MM-DD format; None means "clear"; UNSET means "not provided"
+    due_date: str | None = (
+        UNSET  # YYYY-MM-DD format; None means "clear"; UNSET means "not provided"
+    )
     assigned_to: int | None = UNSET  # family_members.id; None means "Everyone"
     remind_days_before: int | None = UNSET  # Days before due_date; None means "always"
     completed: bool | None = None
@@ -185,6 +187,8 @@ class DinnerPlanBase(BaseModel):
     plan: str
     attendee_ids: list[int] | None = None  # family_member IDs (who's eating); None = everyone
     cook_id: int | None = None  # family_member ID (who's cooking)
+    rating: int | None = None  # 1-5 star rating; null = not yet reviewed
+    review: str | None = None  # Free-text review
 
 
 class DinnerPlanCreate(DinnerPlanBase):
@@ -197,6 +201,13 @@ class DinnerPlanUpdate(BaseModel):
     plan: str | None = None
     attendee_ids: list[int] | None = UNSET  # None means "clear"; UNSET means "not provided"
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
+
+
+class DinnerPlanReviewUpdate(BaseModel):
+    """Lightweight schema for submitting/editing a meal review."""
+
+    rating: int | None = None  # 1-5; None means "clear rating"
+    review: str | None = None  # Free-text; None means "clear review"
 
 
 class DinnerPlanResponse(DinnerPlanBase):

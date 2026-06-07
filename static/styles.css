@@ -807,6 +807,225 @@ footer a:hover {
 }
 /** End Dinner Planner Styles **/
 
+/** Nav Dropdown Styles **/
+.nav-dropdown {
+    display: inline-block;
+    position: relative;
+    margin: 0 8px;
+}
+
+.nav-dropdown-btn {
+    color: var(--charcoal);
+    text-decoration: none;
+    padding: 8px 16px;
+    border: 1px solid var(--charcoal);
+    display: inline-block;
+    transition: background 0.2s;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    font-family: var(--body-font);
+    cursor: pointer;
+    background: var(--white);
+    line-height: inherit;
+}
+
+.nav-dropdown-btn::after {
+    content: "";
+    display: inline-block;
+    margin-left: 6px;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--charcoal);
+    vertical-align: middle;
+}
+
+.nav-dropdown-btn:hover,
+.nav-dropdown-btn.active {
+    background: var(--off-white);
+}
+
+.nav-dropdown-btn.active {
+    background: var(--charcoal);
+    color: var(--white);
+}
+
+.nav-dropdown-content {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: var(--white);
+    border: 1px solid var(--charcoal);
+    border-top: none;
+    min-width: 180px;
+    z-index: 100;
+}
+
+.nav-dropdown-content a {
+    display: block;
+    padding: 8px 16px;
+    color: var(--charcoal);
+    text-decoration: none;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    border: none;
+    margin: 0;
+    transition: background 0.15s;
+}
+
+.nav-dropdown-content a:hover {
+    background: var(--off-white);
+}
+
+.nav-dropdown-content a.active {
+    background: var(--charcoal);
+    color: var(--white);
+}
+
+/* Desktop: show on hover */
+@media (hover: hover) {
+    .nav-dropdown:hover .nav-dropdown-content {
+        display: block;
+    }
+}
+
+/* Mobile/touch: show on click via .open class */
+.nav-dropdown.open .nav-dropdown-content {
+    display: block;
+}
+
+/* Mobile layout: stack nav vertically */
+@media screen and (max-width: 767px) {
+    nav {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .nav-dropdown {
+        margin: 0;
+        width: 100%;
+        text-align: center;
+    }
+
+    .nav-dropdown-btn {
+        width: 100%;
+    }
+
+    .nav-dropdown-content {
+        position: static;
+        border: 1px solid var(--charcoal);
+        margin-top: 8px;
+    }
+}
+/** End Nav Dropdown Styles **/
+
+/** Star Rating Styles **/
+.star-rating {
+    display: inline-flex;
+    gap: 2px;
+    cursor: default;
+}
+
+.star-rating .star {
+    font-size: 1.1rem;
+    color: var(--pale-gray);
+    user-select: none;
+}
+
+.star-rating .star.filled {
+    color: var(--charcoal);
+}
+
+/* Interactive star rating (for review modal) */
+.star-rating-input {
+    display: inline-flex;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.star-rating-input .star {
+    font-size: 1.4rem;
+    color: var(--pale-gray);
+    transition: color 0.1s;
+    user-select: none;
+}
+
+.star-rating-input .star.filled {
+    color: var(--charcoal);
+}
+
+.star-rating-input .star.hover {
+    color: var(--medium-gray);
+}
+/** End Star Rating Styles **/
+
+/** Meal History Styles **/
+.history-card {
+    padding: 16px;
+    border: 1px solid var(--pale-gray);
+    background: var(--white);
+    transition: background 0.2s;
+}
+
+.history-card:hover {
+    background: var(--off-white);
+}
+
+.history-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.history-card-title {
+    font-size: 1rem;
+    font-weight: 500;
+    word-wrap: break-word;
+}
+
+.history-card-date {
+    font-size: 0.85rem;
+    color: var(--medium-gray);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.history-card-meta {
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+    font-style: italic;
+    margin-bottom: 8px;
+}
+
+.history-card-review {
+    font-size: 0.95rem;
+    color: var(--dark-gray);
+    font-style: italic;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--silver);
+    line-height: 1.6;
+}
+
+.history-card-rating-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.no-review-text {
+    font-size: 0.85rem;
+    color: var(--light-gray);
+    font-style: italic;
+}
+/** End Meal History Styles **/
+
 /** Custom Recurrence Styles **/
 .custom-recurrence-row {
     display: flex;
@@ -952,12 +1171,6 @@ footer a:hover {
 @media screen and (max-width: 767px) {
     body {
         padding: 24px 16px;
-    }
-
-    nav {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
     }
 
     .header h1 {

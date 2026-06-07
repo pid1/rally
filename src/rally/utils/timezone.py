@@ -4,7 +4,8 @@ Provides timezone-aware datetime functions to ensure consistent behavior
 regardless of server timezone configuration.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 
 def now_utc() -> datetime:
@@ -23,6 +24,18 @@ def today_utc():
         date: Today's date in UTC timezone.
     """
     return now_utc().date()
+
+
+def today_local(tz_name: str = "UTC") -> date:
+    """Get today's date in the user's configured timezone.
+
+    Args:
+        tz_name: IANA timezone name (e.g. "America/Chicago"). Defaults to UTC.
+
+    Returns:
+        date: Today's date in the specified timezone.
+    """
+    return now_utc().astimezone(ZoneInfo(tz_name)).date()
 
 
 def ensure_utc(dt: datetime) -> datetime:
