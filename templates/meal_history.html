@@ -68,11 +68,11 @@
                 <div class="form-group">
                     <label>Rating</label>
                     <div class="star-rating-input" id="star-rating-input" role="radiogroup" aria-label="Meal rating">
-                        <span class="star" data-value="1" tabindex="0" role="radio" aria-checked="false" aria-label="1 star">&#9733;</span>
-                        <span class="star" data-value="2" tabindex="0" role="radio" aria-checked="false" aria-label="2 stars">&#9733;</span>
-                        <span class="star" data-value="3" tabindex="0" role="radio" aria-checked="false" aria-label="3 stars">&#9733;</span>
-                        <span class="star" data-value="4" tabindex="0" role="radio" aria-checked="false" aria-label="4 stars">&#9733;</span>
-                        <span class="star" data-value="5" tabindex="0" role="radio" aria-checked="false" aria-label="5 stars">&#9733;</span>
+                        <span class="star" data-value="1" tabindex="0" role="radio" aria-checked="false" aria-label="1 star">&#9734;</span>
+                        <span class="star" data-value="2" tabindex="0" role="radio" aria-checked="false" aria-label="2 stars">&#9734;</span>
+                        <span class="star" data-value="3" tabindex="0" role="radio" aria-checked="false" aria-label="3 stars">&#9734;</span>
+                        <span class="star" data-value="4" tabindex="0" role="radio" aria-checked="false" aria-label="4 stars">&#9734;</span>
+                        <span class="star" data-value="5" tabindex="0" role="radio" aria-checked="false" aria-label="5 stars">&#9734;</span>
                     </div>
                 </div>
                 <div class="form-group">
@@ -170,19 +170,6 @@
             }
 
             container.innerHTML = historyPlans.map(plan => {
-                // Build meta parts
-                const parts = [];
-                if (plan.attendee_ids && plan.attendee_ids.length > 0) {
-                    const names = plan.attendee_ids.map(id => getMemberById(id)?.name || '?').join(', ');
-                    parts.push(`Eating: ${escapeHtml(names)}`);
-                }
-                if (plan.cook_id) {
-                    const cook = getMemberById(plan.cook_id);
-                    if (cook) parts.push(`Cook: ${escapeHtml(cook.name)}`);
-                }
-                const metaHtml = parts.length > 0
-                    ? `<div class="history-card-meta">${parts.join(' · ')}</div>` : '';
-
                 const mealType = plan.meal_type || 'Dinner';
                 const reviewHtml = plan.review
                     ? `<div class="history-card-review">${escapeHtml(plan.review)}</div>`
@@ -199,7 +186,6 @@
                             <div class="history-card-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
                             <div class="history-card-date">${escapeHtml(formatDate(plan.date))}</div>
                         </div>
-                        ${metaHtml}
                         ${ratingRow}
                         ${reviewHtml}
                     </div>
@@ -233,8 +219,10 @@
             const stars = document.querySelectorAll('#star-rating-input .star');
             stars.forEach(star => {
                 const val = parseInt(star.dataset.value);
-                star.classList.toggle('filled', val <= selectedRating);
-                star.setAttribute('aria-checked', val <= selectedRating ? 'true' : 'false');
+                const isSelected = val <= selectedRating;
+                star.classList.toggle('filled', isSelected);
+                star.textContent = isSelected ? '\u2605' : '\u2606';
+                star.setAttribute('aria-checked', isSelected ? 'true' : 'false');
             });
         }
 
@@ -257,13 +245,21 @@
                 const hoverVal = parseInt(this.dataset.value);
                 document.querySelectorAll('#star-rating-input .star').forEach(s => {
                     const val = parseInt(s.dataset.value);
-                    s.classList.toggle('hover', val <= hoverVal && val > selectedRating);
+                    const isHover = val <= hoverVal && val > selectedRating;
+                    s.classList.toggle('hover', isHover);
+                    if (isHover) {
+                        s.textContent = '\u2605';
+                    } else if (val > selectedRating) {
+                        s.textContent = '\u2606';
+                    }
                 });
             });
 
             star.addEventListener('mouseleave', function() {
                 document.querySelectorAll('#star-rating-input .star').forEach(s => {
+                    const val = parseInt(s.dataset.value);
                     s.classList.remove('hover');
+                    s.textContent = val <= selectedRating ? '\u2605' : '\u2606';
                 });
             });
         });
