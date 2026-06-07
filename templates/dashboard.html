@@ -19,7 +19,13 @@
     <nav>
         <a href="/dashboard" class="active">Dashboard</a>
         <a href="/todo">Tasks</a>
-        <a href="/dinner-planner">Meal Planner</a>
+        <div class="nav-dropdown" id="meal-dropdown">
+            <button class="nav-dropdown-btn" onclick="toggleMealDropdown(event)">Meal Planner</button>
+            <div class="nav-dropdown-content">
+                <a href="/dinner-planner">Current &amp; Upcoming</a>
+                <a href="/meal-history">Previous Meals</a>
+            </div>
+        </div>
     </nav>
 
     <!-- Greeting -->
@@ -86,6 +92,15 @@
         
         // Auto-refresh every 30 minutes
         setTimeout(function() { location.reload(); }, 30 * 60 * 1000);
+
+        // Nav dropdown toggle (for touch devices)
+        function toggleMealDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('meal-dropdown').classList.toggle('open');
+        }
+        document.addEventListener('click', function() {
+            document.getElementById('meal-dropdown').classList.remove('open');
+        });
     </script>
 </body>
 </html>

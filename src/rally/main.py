@@ -60,6 +60,12 @@ def dinner_planner_page(request: Request):
     return templates.TemplateResponse("dinner_planner.html", {"request": request})
 
 
+@app.get("/meal-history", response_class=HTMLResponse)
+def meal_history_page(request: Request):
+    """Serve the meal history and reviews page."""
+    return templates.TemplateResponse("meal_history.html", {"request": request})
+
+
 @app.get("/meal-planner", response_class=RedirectResponse)
 def meal_planner_redirect():
     """Redirect /meal-planner to /dinner-planner for convenience."""

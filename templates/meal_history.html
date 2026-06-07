@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally — Meal History</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Meal History</div>
+    </header>
+
+    <nav>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todo">Tasks</a>
+        <div class="nav-dropdown" id="meal-dropdown">
+            <button class="nav-dropdown-btn active" onclick="toggleMealDropdown(event)">Meal Planner</button>
+            <div class="nav-dropdown-content">
+                <a href="/dinner-planner">Current &amp; Upcoming</a>
+                <a href="/meal-history" class="active">Previous Meals</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="section-container">
+        <div class="header-container">
+            <h2>Meal History</h2>
+        </div>
+
+        <!-- Sort/filter toolbar -->
+        <div class="todo-toolbar">
+            <div class="toolbar-group">
+                <label>Sort</label>
+                <select id="sort-select">
+                    <option value="rating_desc">Highest Rated</option>
+                    <option value="date_desc">Most Recent</option>
+                    <option value="date_asc">Oldest First</option>
+                </select>
+            </div>
+            <div class="toolbar-group">
+                <label>Rating</label>
+                <div class="filter-chips" id="rating-filters">
+                    <button class="filter-chip active" data-min="">All</button>
+                    <button class="filter-chip" data-min="5">5 Stars</button>
+                    <button class="filter-chip" data-min="4">4+ Stars</button>
+                    <button class="filter-chip" data-min="3">3+ Stars</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="list-container" id="history-list">
+            <div class="container-loading-state">Loading meal history...</div>
+        </div>
+    </div>
+
+    <!-- Review modal -->
+    <div class="modal-overlay" id="review-modal-overlay">
+        <div class="modal-content">
+            <h3 id="review-modal-title">Add Review</h3>
+            <form id="review-form">
+                <input type="hidden" id="review-plan-id">
+                <div class="form-group">
+                    <label>Rating</label>
+                    <div class="star-rating-input" id="star-rating-input" role="radiogroup" aria-label="Meal rating">
+                        <span class="star" data-value="1" tabindex="0" role="radio" aria-checked="false" aria-label="1 star">&#9733;</span>
+                        <span class="star" data-value="2" tabindex="0" role="radio" aria-checked="false" aria-label="2 stars">&#9733;</span>
+                        <span class="star" data-value="3" tabindex="0" role="radio" aria-checked="false" aria-label="3 stars">&#9733;</span>
+                        <span class="star" data-value="4" tabindex="0" role="radio" aria-checked="false" aria-label="4 stars">&#9733;</span>
+                        <span class="star" data-value="5" tabindex="0" role="radio" aria-checked="false" aria-label="5 stars">&#9733;</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Review <small>(optional)</small></label>
+                    <textarea id="review-text" placeholder="How was this meal?" rows="4"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Save Review</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel-review">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let historyPlans = [];
+        let familyMembers = [];
+        let currentSort = 'rating_desc';
+        let currentMinRating = '';
+
+        // Star rating state
+        let selectedRating = 0;
+
+        // Family member helpers
+        async function fetchFamilyMembers() {
+            const response = await fetch('/api/family');
+            familyMembers = await response.json();
+        }
+
+        function getMemberById(id) {
+            return familyMembers.find(m => m.id === id);
+        }
+
+        // Format date for display
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Build star display HTML
+        function renderStars(rating) {
+            if (!rating) return '<span class="no-review-text">Not yet rated</span>';
+            let html = '<span class="star-rating">';
+            for (let i = 1; i <= 5; i++) {
+                html += `<span class="star${i <= rating ? ' filled' : ''}">&#9733;</span>`;
+            }
+            html += '</span>';
+            return html;
+        }
+
+        // API calls
+        async function fetchHistory() {
+            const params = new URLSearchParams({ sort: currentSort });
+            if (currentMinRating) {
+                params.set('min_rating', currentMinRating);
+            }
+            const response = await fetch(`/api/dinner-plans/history?${params}`);
+            historyPlans = await response.json();
+            renderHistory();
+        }
+
+        async function saveReview(planId, rating, review) {
+            const body = {};
+            if (rating > 0) body.rating = rating;
+            if (review) body.review = review;
+
+            const response = await fetch(`/api/dinner-plans/${planId}/review`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (!response.ok) throw new Error('Failed to save review');
+            return response.json();
+        }
+
+        // Render
+        function renderHistory() {
+            const container = document.getElementById('history-list');
+
+            if (historyPlans.length === 0) {
+                container.innerHTML = '<div class="container-empty-state">No meal history yet. Past meals will appear here once you have some plans behind you.</div>';
+                return;
+            }
+
+            container.innerHTML = historyPlans.map(plan => {
+                // Build meta parts
+                const parts = [];
+                if (plan.attendee_ids && plan.attendee_ids.length > 0) {
+                    const names = plan.attendee_ids.map(id => getMemberById(id)?.name || '?').join(', ');
+                    parts.push(`Eating: ${escapeHtml(names)}`);
+                }
+                if (plan.cook_id) {
+                    const cook = getMemberById(plan.cook_id);
+                    if (cook) parts.push(`Cook: ${escapeHtml(cook.name)}`);
+                }
+                const metaHtml = parts.length > 0
+                    ? `<div class="history-card-meta">${parts.join(' · ')}</div>` : '';
+
+                const mealType = plan.meal_type || 'Dinner';
+                const reviewHtml = plan.review
+                    ? `<div class="history-card-review">${escapeHtml(plan.review)}</div>`
+                    : '';
+
+                const ratingRow = `<div class="history-card-rating-row">
+                    ${renderStars(plan.rating)}
+                    <button class="btn-edit" onclick="openReviewModal(${plan.id})">${plan.rating ? 'Edit Review' : 'Add Review'}</button>
+                </div>`;
+
+                return `
+                    <div class="history-card" data-id="${plan.id}">
+                        <div class="history-card-header">
+                            <div class="history-card-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
+                            <div class="history-card-date">${escapeHtml(formatDate(plan.date))}</div>
+                        </div>
+                        ${metaHtml}
+                        ${ratingRow}
+                        ${reviewHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Review modal
+        function openReviewModal(planId) {
+            const plan = historyPlans.find(p => p.id === planId);
+            if (!plan) return;
+
+            document.getElementById('review-plan-id').value = planId;
+            document.getElementById('review-modal-title').textContent =
+                plan.rating ? 'Edit Review' : 'Add Review';
+            document.getElementById('review-text').value = plan.review || '';
+
+            // Set star rating
+            selectedRating = plan.rating || 0;
+            updateStarDisplay();
+
+            document.getElementById('review-modal-overlay').style.display = 'flex';
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal-overlay').style.display = 'none';
+            selectedRating = 0;
+        }
+
+        function updateStarDisplay() {
+            const stars = document.querySelectorAll('#star-rating-input .star');
+            stars.forEach(star => {
+                const val = parseInt(star.dataset.value);
+                star.classList.toggle('filled', val <= selectedRating);
+                star.setAttribute('aria-checked', val <= selectedRating ? 'true' : 'false');
+            });
+        }
+
+        // Star rating interaction
+        document.querySelectorAll('#star-rating-input .star').forEach(star => {
+            star.addEventListener('click', function() {
+                selectedRating = parseInt(this.dataset.value);
+                updateStarDisplay();
+            });
+
+            star.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectedRating = parseInt(this.dataset.value);
+                    updateStarDisplay();
+                }
+            });
+
+            star.addEventListener('mouseenter', function() {
+                const hoverVal = parseInt(this.dataset.value);
+                document.querySelectorAll('#star-rating-input .star').forEach(s => {
+                    const val = parseInt(s.dataset.value);
+                    s.classList.toggle('hover', val <= hoverVal && val > selectedRating);
+                });
+            });
+
+            star.addEventListener('mouseleave', function() {
+                document.querySelectorAll('#star-rating-input .star').forEach(s => {
+                    s.classList.remove('hover');
+                });
+            });
+        });
+
+        // Sort/filter handlers
+        document.getElementById('sort-select').addEventListener('change', function() {
+            currentSort = this.value;
+            fetchHistory();
+        });
+
+        document.getElementById('rating-filters').addEventListener('click', function(e) {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+
+            document.querySelectorAll('#rating-filters .filter-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            currentMinRating = chip.dataset.min;
+            fetchHistory();
+        });
+
+        // Modal events
+        document.getElementById('btn-cancel-review').addEventListener('click', closeReviewModal);
+        document.getElementById('review-modal-overlay').addEventListener('click', function(e) {
+            if (e.target.id === 'review-modal-overlay') closeReviewModal();
+        });
+
+        document.getElementById('review-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const planId = parseInt(document.getElementById('review-plan-id').value);
+            const reviewText = document.getElementById('review-text').value.trim();
+
+            try {
+                await saveReview(planId, selectedRating, reviewText || null);
+                closeReviewModal();
+                await fetchHistory();
+            } catch (error) {
+                console.error('Error saving review:', error);
+                alert('Failed to save review');
+            }
+        });
+
+        // Nav dropdown toggle (for touch devices)
+        function toggleMealDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('meal-dropdown').classList.toggle('open');
+        }
+        document.addEventListener('click', function() {
+            document.getElementById('meal-dropdown').classList.remove('open');
+        });
+
+        // Initialize
+        fetchFamilyMembers().then(() => {
+            fetchHistory();
+        });
+    </script>
+
+    <footer>
+        <a href="/settings">Settings</a>
+    </footer>
+</body>
+</html>

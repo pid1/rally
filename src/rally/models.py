@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Integer, String, Text
+from sqlalchemy import JSON, Boolean, CheckConstraint, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rally.database import Base
@@ -113,7 +113,9 @@ class RecurringTodo(Base):
     recurrence_day: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # 0-6 for weekly, 1-31 for monthly
-    custom_rule: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # rule dict for custom recurrence type
+    custom_rule: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True
+    )  # rule dict for custom recurrence type
     assigned_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_due_date: Mapped[bool] = mapped_column(default=False)
     remind_days_before: Mapped[int | None] = mapped_column(
@@ -134,7 +136,9 @@ class DinnerPlan(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD (multiple plans per date allowed)
-    meal_type: Mapped[str] = mapped_column(String(20), default="Dinner")  # Breakfast, Lunch, Dinner, Snacks
+    meal_type: Mapped[str] = mapped_column(
+        String(20), default="Dinner"
+    )  # Breakfast, Lunch, Dinner, Snacks
     plan: Mapped[str] = mapped_column(Text)
     attendee_ids: Mapped[list | None] = mapped_column(
         JSON, nullable=True
@@ -142,5 +146,15 @@ class DinnerPlan(Base):
     cook_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # FK to family_members.id (who's cooking)
+    rating: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 1-5 star rating; null means not yet reviewed
+    review: Mapped[str | None] = mapped_column(Text, nullable=True)  # Free-text review of the meal
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        CheckConstraint(
+            "rating IS NULL OR (rating >= 1 AND rating <= 5)", name="ck_dinner_plan_rating"
+        ),
+    )

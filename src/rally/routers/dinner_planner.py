@@ -1,12 +1,19 @@
 """Meal planner router for Rally."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import case
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import case, nullslast
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import DinnerPlan
-from rally.schemas import UNSET, DinnerPlanCreate, DinnerPlanResponse, DinnerPlanUpdate
+from rally.models import DinnerPlan, Setting
+from rally.schemas import (
+    UNSET,
+    DinnerPlanCreate,
+    DinnerPlanResponse,
+    DinnerPlanReviewUpdate,
+    DinnerPlanUpdate,
+)
+from rally.utils.timezone import today_local
 
 router = APIRouter(prefix="/api/dinner-plans", tags=["dinner-plans"])
 
@@ -41,15 +48,42 @@ def create_dinner_plan(plan: DinnerPlanCreate, db: Session = Depends(get_db)):
     return db_plan
 
 
+@router.get("/history", response_model=list[DinnerPlanResponse])
+def list_meal_history(
+    sort: str = Query("rating_desc", pattern="^(rating_desc|date_desc|date_asc)$"),
+    min_rating: int | None = Query(None, ge=1, le=5),
+    db: Session = Depends(get_db),
+):
+    """List past meal plans (before today in the user's timezone).
+
+    Sort options:
+    - rating_desc: highest rated first, null ratings last
+    - date_desc: most recent first
+    - date_asc: oldest first
+    """
+    settings = {r.key: r.value for r in db.query(Setting).all()}
+    tz_name = settings.get("local_timezone", "UTC")
+    today = today_local(tz_name).strftime("%Y-%m-%d")
+
+    query = db.query(DinnerPlan).filter(DinnerPlan.date < today)
+
+    if min_rating is not None:
+        query = query.filter(DinnerPlan.rating >= min_rating)
+
+    if sort == "rating_desc":
+        query = query.order_by(nullslast(DinnerPlan.rating.desc()), DinnerPlan.date.desc())
+    elif sort == "date_asc":
+        query = query.order_by(DinnerPlan.date.asc(), _MEAL_TYPE_ORDER)
+    else:  # date_desc
+        query = query.order_by(DinnerPlan.date.desc(), _MEAL_TYPE_ORDER)
+
+    return query.all()
+
+
 @router.get("/date/{date}", response_model=list[DinnerPlanResponse])
 def get_dinner_plans_by_date(date: str, db: Session = Depends(get_db)):
     """Get all meal plans for a specific date (YYYY-MM-DD)."""
-    plans = (
-        db.query(DinnerPlan)
-        .filter(DinnerPlan.date == date)
-        .order_by(_MEAL_TYPE_ORDER)
-        .all()
-    )
+    plans = db.query(DinnerPlan).filter(DinnerPlan.date == date).order_by(_MEAL_TYPE_ORDER).all()
     return plans
 
 
@@ -83,6 +117,34 @@ def update_dinner_plan(
         db_plan.attendee_ids = plan.attendee_ids
     if plan.cook_id is not UNSET:
         db_plan.cook_id = plan.cook_id
+
+    db.commit()
+    db.refresh(db_plan)
+    return db_plan
+
+
+@router.put("/{plan_id}/review", response_model=DinnerPlanResponse)
+def review_meal(
+    plan_id: int,
+    review: DinnerPlanReviewUpdate,
+    db: Session = Depends(get_db),
+):
+    """Submit or update a meal review (rating and/or text)."""
+    db_plan = db.query(DinnerPlan).filter(DinnerPlan.id == plan_id).first()
+    if not db_plan:
+        raise HTTPException(status_code=404, detail="Meal plan not found")
+
+    if review.rating is not None:
+        if review.rating < 1 or review.rating > 5:
+            raise HTTPException(status_code=422, detail="Rating must be between 1 and 5")
+        db_plan.rating = review.rating
+    elif review.rating is None and "rating" in review.model_fields_set:
+        db_plan.rating = None
+
+    if review.review is not None:
+        db_plan.review = review.review
+    elif review.review is None and "review" in review.model_fields_set:
+        db_plan.review = None
 
     db.commit()
     db.refresh(db_plan)
