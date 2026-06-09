@@ -900,7 +900,11 @@ footer a:hover {
         display: flex;
         flex-direction: column;
         gap: 12px;
-        align-items: center;
+        align-items: stretch;
+    }
+
+    nav > a {
+        margin: 0;
     }
 
     .nav-dropdown {
