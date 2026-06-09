@@ -12,6 +12,10 @@ def run_migrations():
     """Run all migrations in order."""
     # Import migrations
     try:
+        from migrate_011_add_meal_reviews import migrate as migrate_011_add_meal_reviews
+        from migrate_012_add_ai_settings_history import (
+            migrate as migrate_012_add_ai_settings_history,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
         from migrate_add_dinner_plan_assignees import (
@@ -22,7 +26,6 @@ def run_migrations():
         from migrate_add_last_generated_date import (
             migrate as migrate_007_add_last_generated_date,
         )
-        from migrate_011_add_meal_reviews import migrate as migrate_011_add_meal_reviews
         from migrate_add_meal_type import migrate as migrate_010_add_meal_type
         from migrate_add_recurring_todos import migrate as migrate_004_add_recurring_todos
         from migrate_add_reminder_window import migrate as migrate_006_add_reminder_window
@@ -44,6 +47,7 @@ def run_migrations():
         ("009_add_custom_recurrence", migrate_009_add_custom_recurrence),
         ("010_add_meal_type", migrate_010_add_meal_type),
         ("011_add_meal_reviews", migrate_011_add_meal_reviews),
+        ("012_add_ai_settings_history", migrate_012_add_ai_settings_history),
     ]
 
     print("=" * 60)

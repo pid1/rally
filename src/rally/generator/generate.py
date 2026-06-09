@@ -12,8 +12,8 @@ import requests
 from icalendar import Calendar
 
 from rally.database import SessionLocal, init_db
+from rally.models import AISettingsHistory, DashboardSnapshot, FamilyMember, Setting
 from rally.models import Calendar as CalendarModel
-from rally.models import DashboardSnapshot, FamilyMember, Setting
 from rally.utils.timezone import ensure_utc, now_utc, today_utc
 
 
@@ -521,7 +521,9 @@ class SummaryGenerator:
                 elif days_away == 1:
                     day_label = f"Tomorrow ({meal_type})"
                 else:
-                    day_label = f"{plan_date.strftime('%A')} ({plan_date.strftime('%b %d')}) [{meal_type}]"
+                    day_label = (
+                        f"{plan_date.strftime('%A')} ({plan_date.strftime('%b %d')}) [{meal_type}]"
+                    )
 
                 line = f"{day_label}: {plan.plan}"
 
@@ -540,16 +542,35 @@ class SummaryGenerator:
         finally:
             db.close()
 
+    def _load_ai_setting(self, field_name: str) -> str | None:
+        """Resolve the active AI setting value via its history pointer in settings."""
+        pointer = self._db_settings.get(f"current_{field_name}_history_id")
+        if pointer:
+            try:
+                db = SessionLocal()
+                try:
+                    row = db.get(AISettingsHistory, int(pointer))
+                    if row and row.value:
+                        return row.value
+                finally:
+                    db.close()
+            except Exception:
+                pass
+        # Pre-migration fallback: value stored directly in the settings table
+        return self._db_settings.get(field_name)
+
     def load_context(self) -> str:
         """Load family context from DB settings, falling back to file."""
-        if self._db_settings.get("family_context"):
-            return self._db_settings["family_context"]
+        value = self._load_ai_setting("family_context")
+        if value:
+            return value
         return (self.data_dir / "context.txt").read_text()
 
     def load_voice(self) -> str:
         """Load agent voice profile from DB settings, falling back to file."""
-        if self._db_settings.get("agent_voice"):
-            return self._db_settings["agent_voice"]
+        value = self._load_ai_setting("agent_voice")
+        if value:
+            return value
         return (self.data_dir / "agent_voice.txt").read_text()
 
     def load_template(self) -> str:

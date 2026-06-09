@@ -4,14 +4,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import Calendar, Setting
+from rally.models import AISettingsHistory, Calendar, Setting
 from rally.schemas import (
+    AI_SETTINGS_FIELDS,
+    AISettingHistoryEntry,
+    AISettingHistoryResponse,
+    AISettingRollback,
+    AISettingState,
+    AISettingValueUpdate,
     CalendarCreate,
     CalendarResponse,
     CalendarUpdate,
     SettingsResponse,
     SettingsUpdate,
 )
+from rally.utils.timezone import now_utc
 
 router = APIRouter(tags=["settings"])
 
@@ -39,6 +46,100 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
 
     rows = db.query(Setting).all()
     return SettingsResponse(settings={r.key: r.value for r in rows})
+
+
+# --- AI Settings (versioned agent_voice / family_context) ---
+
+
+def _ai_pointer_key(field_name: str) -> str:
+    """Settings key referencing the active ai_settings_history row for a field."""
+    return f"current_{field_name}_history_id"
+
+
+def _validate_ai_field(field_name: str) -> None:
+    if field_name not in AI_SETTINGS_FIELDS:
+        raise HTTPException(status_code=404, detail=f"Unknown AI settings field: {field_name}")
+
+
+def _get_current_ai_snapshot(db: Session, field_name: str) -> AISettingsHistory | None:
+    """Resolve the active history row for a field via its settings pointer."""
+    pointer = db.query(Setting).filter(Setting.key == _ai_pointer_key(field_name)).first()
+    if not pointer:
+        return None
+    return db.get(AISettingsHistory, int(pointer.value))
+
+
+def _set_ai_pointer(db: Session, field_name: str, history_id: int) -> None:
+    """Upsert the settings pointer for a field to reference a history row."""
+    key = _ai_pointer_key(field_name)
+    pointer = db.query(Setting).filter(Setting.key == key).first()
+    if pointer:
+        pointer.value = str(history_id)
+    else:
+        db.add(Setting(key=key, value=str(history_id)))
+
+
+@router.get("/api/settings/ai", response_model=dict[str, AISettingState])
+def get_ai_settings(db: Session = Depends(get_db)):
+    """Get the currently active value for each AI settings field."""
+    result = {}
+    for field_name in AI_SETTINGS_FIELDS:
+        row = _get_current_ai_snapshot(db, field_name)
+        result[field_name] = AISettingState(
+            field_name=field_name,
+            value=row.value if row else "",
+            history_id=row.id if row else None,
+        )
+    return result
+
+
+@router.put("/api/settings/ai/{field_name}", response_model=AISettingState)
+def save_ai_setting(field_name: str, payload: AISettingValueUpdate, db: Session = Depends(get_db)):
+    """Explicitly save an AI settings field — inserts a new history snapshot."""
+    _validate_ai_field(field_name)
+    now = now_utc()  # Single timestamp so created_at == last_used_at on insert
+    row = AISettingsHistory(
+        field_name=field_name, value=payload.value, created_at=now, last_used_at=now
+    )
+    db.add(row)
+    db.flush()  # Assign row.id before pointing the setting at it
+    _set_ai_pointer(db, field_name, row.id)
+    db.commit()
+    db.refresh(row)
+    return AISettingState(field_name=field_name, value=row.value, history_id=row.id)
+
+
+@router.get("/api/settings/ai/{field_name}/history", response_model=AISettingHistoryResponse)
+def get_ai_setting_history(field_name: str, db: Session = Depends(get_db)):
+    """List all snapshots for a field, newest first."""
+    _validate_ai_field(field_name)
+    rows = (
+        db.query(AISettingsHistory)
+        .filter(AISettingsHistory.field_name == field_name)
+        .order_by(AISettingsHistory.created_at.desc(), AISettingsHistory.id.desc())
+        .all()
+    )
+    current = _get_current_ai_snapshot(db, field_name)
+    return AISettingHistoryResponse(
+        field_name=field_name,
+        current_history_id=current.id if current else None,
+        history=[AISettingHistoryEntry.model_validate(r) for r in rows],
+    )
+
+
+@router.post("/api/settings/ai/{field_name}/rollback", response_model=AISettingState)
+def rollback_ai_setting(field_name: str, payload: AISettingRollback, db: Session = Depends(get_db)):
+    """Make an existing snapshot the active version — no new history row."""
+    _validate_ai_field(field_name)
+    row = db.get(AISettingsHistory, payload.history_id)
+    if not row or row.field_name != field_name:
+        raise HTTPException(status_code=404, detail="History entry not found")
+
+    row.last_used_at = now_utc()
+    _set_ai_pointer(db, field_name, row.id)
+    db.commit()
+    db.refresh(row)
+    return AISettingState(field_name=field_name, value=row.value, history_id=row.id)
 
 
 # --- Connectivity Tests ---

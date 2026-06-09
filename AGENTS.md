@@ -297,6 +297,11 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `005_add_dinner_plan_assignees` - Add `attendee_ids` and `cook_id` to `dinner_plans`
 - `006_add_reminder_window` - Add `remind_days_before` to `todos` and `recurring_todos`
 - `007_add_last_generated_date` - Add `last_generated_date` to `recurring_todos` (tracks most recently generated instance to prevent duplicates)
+- `008_add_caldav_support` - Add CalDAV fields (`cal_type`, `username`, `password`) to `calendars`
+- `009_add_custom_recurrence` - Add `custom_rule` to `recurring_todos`
+- `010_add_meal_type` - Add `meal_type` to `dinner_plans`
+- `011_add_meal_reviews` - Add `rating` and `review` to `dinner_plans`
+- `012_add_ai_settings_history` - Add `ai_settings_history` table; seed it from existing `agent_voice` / `family_context` settings rows, point `current_agent_voice_history_id` / `current_family_context_history_id` settings keys at the seed rows, and remove the original settings rows
 
 ### Running Migrations
 
@@ -436,7 +441,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -473,6 +478,11 @@ rally/
 │   ├── migrate_add_dinner_plan_assignees.py # Migration 005: add attendee_ids, cook_id to dinner_plans
 │   ├── migrate_add_reminder_window.py # Migration 006: add remind_days_before to todos and recurring_todos
 │   ├── migrate_add_last_generated_date.py # Migration 007: add last_generated_date to recurring_todos
+│   ├── migrate_add_caldav_support.py  # Migration 008: add CalDAV fields to calendars
+│   ├── migrate_add_custom_recurrence.py # Migration 009: add custom_rule to recurring_todos
+│   ├── migrate_add_meal_type.py       # Migration 010: add meal_type to dinner_plans
+│   ├── migrate_011_add_meal_reviews.py # Migration 011: add rating and review to dinner_plans
+│   ├── migrate_012_add_ai_settings_history.py # Migration 012: add ai_settings_history table
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
@@ -515,6 +525,11 @@ rally/
   - Configure LLM provider, API keys, timezone
   - DB settings take precedence over config.toml
   - Connection verification on save: LLM, Weather, and Calendar settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
+- ✅ AI settings snapshotting with version history and rollback
+  - `agent_voice` and `family_context` each have their own Save button and Version History link on the settings page
+  - Every explicit save inserts a versioned snapshot into `ai_settings_history` (`field_name` discriminator); the active snapshot per field is referenced by the `current_agent_voice_history_id` / `current_family_context_history_id` settings keys
+  - Version History modal lists snapshots newest first with a `Current` badge and in-place expandable value previews; **Change Version** rolls the field back (bumps `last_used_at`, repoints the setting, no new row) and updates the field without a page reload
+  - Fields roll back independently; all snapshots are retained indefinitely
 - ✅ Todo management - Full CRUD API and UI
   - Create, read, update, delete todos
   - Optional due dates with native HTML5 date picker
@@ -590,6 +605,11 @@ rally/
 - `/api/settings` - Key-value settings endpoints
   - `GET /api/settings` - Get all settings
   - `PUT /api/settings` - Bulk upsert settings
+- `/api/settings/ai` - Versioned AI settings endpoints (`agent_voice`, `family_context`)
+  - `GET /api/settings/ai` - Get the currently active value and history ID for each field
+  - `PUT /api/settings/ai/{field_name}` - Explicit save: inserts a new `ai_settings_history` snapshot (`created_at` = `last_used_at` = now, UTC) and points the field's `current_<field>_history_id` setting at it
+  - `GET /api/settings/ai/{field_name}/history` - List all snapshots for a field, newest first (by `created_at` descending), plus the current history ID
+  - `POST /api/settings/ai/{field_name}/rollback` - Make an existing snapshot active: bumps its `last_used_at` and repoints the setting — no new row inserted. Body: `{history_id}`
 - `/api/settings/test-llm` - LLM connectivity test
   - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`.
 - `/api/settings/test-weather` - Weather connectivity test
@@ -657,6 +677,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `FamilyMember` - Family members with name, color, and timestamps
 - `Calendar` - ICS calendar feeds linked to family members, with optional owner email
 - `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
+- `AISettingsHistory` - Versioned snapshots of `agent_voice` / `family_context` with field_name discriminator, value, created_at, and last_used_at; active snapshot per field referenced via `current_<field>_history_id` settings keys
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
 - `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), optional recurring_todo_id (link to recurring template), optional remind_days_before (reminder window), completion status, and timestamps
 - `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, last_generated_date (tracks most recently generated instance's recurrence date), active flag, and timestamps

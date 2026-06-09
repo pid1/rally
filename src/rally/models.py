@@ -65,6 +65,29 @@ class Setting(Base):
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
 
+class AISettingsHistory(Base):
+    """Versioned snapshots of AI settings (agent_voice, family_context).
+
+    A new row is inserted on every explicit save of either field. The active
+    snapshot for each field is referenced from the settings table via the
+    'current_agent_voice_history_id' / 'current_family_context_history_id'
+    keys. Rollback re-points the reference and bumps last_used_at — no new
+    row is inserted.
+    """
+
+    __tablename__ = "ai_settings_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    field_name: Mapped[str] = mapped_column(
+        String(50), index=True
+    )  # 'agent_voice' or 'family_context'
+    value: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    last_used_at: Mapped[datetime] = mapped_column(
+        default=now_utc
+    )  # Bumped whenever this row becomes the active version (save or rollback)
+
+
 class DashboardSnapshot(Base):
     """Dashboard snapshot model - stores generated daily summary data."""
 
