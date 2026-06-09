@@ -5,11 +5,26 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.responses import Response
 
 from rally.database import init_db
 from rally.routers import dashboard, dinner_planner, family, recurring_todos, settings, todos
+from rally.utils.static_version import STATIC_VERSION
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """Serve static files with Cache-Control: no-cache.
+
+    Browsers must revalidate (cheap 304 via ETag) instead of heuristically
+    caching assets and serving stale CSS after a deploy.
+    """
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 @asynccontextmanager
@@ -28,10 +43,11 @@ app = FastAPI(
 # Static files
 static_dir = BASE_DIR / "static"
 if static_dir.is_dir():
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    app.mount("/static", NoCacheStaticFiles(directory=str(static_dir)), name="static")
 
 # Templates
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.globals["css_version"] = STATIC_VERSION
 
 # Include routers
 app.include_router(dashboard.router)
