@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.generator.generate import SummaryGenerator
 from rally.models import DashboardSnapshot
+from rally.utils.static_version import STATIC_VERSION
 from rally.utils.timezone import ensure_utc, now_utc
 
 router = APIRouter(tags=["dashboard"])
@@ -63,6 +64,7 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     html = html.replace("{{briefing_section}}", briefing_section)
     html = html.replace("{{timestamp}}", timestamp_str)  # Fallback for non-JS browsers
     html = html.replace("{{timestamp_utc}}", timestamp_utc)  # For JS timezone conversion
+    html = html.replace("{{css_version}}", STATIC_VERSION)
     return html
 
 
