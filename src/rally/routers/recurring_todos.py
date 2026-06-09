@@ -1,11 +1,13 @@
 """Recurring todos router for Rally."""
 
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import RecurringTodo, Todo
+from rally.models import RecurringTodo, Setting, Todo
 from rally.schemas import UNSET, RecurringTodoCreate, RecurringTodoResponse, RecurringTodoUpdate
 from rally.utils.timezone import ensure_utc
 
@@ -17,8 +19,8 @@ def list_recurring_todos(db: Session = Depends(get_db)):
     """List all recurring todo templates."""
     rts = db.query(RecurringTodo).order_by(RecurringTodo.created_at.desc()).all()
 
-    # For instances with a due_date, use it directly — it's a local YYYY-MM-DD string
-    # and avoids the UTC-offset bug that affects updated_at timestamps.
+    # For instances with a due_date, use it directly — it's already a local
+    # YYYY-MM-DD string, so no timezone conversion is needed.
     due_date_rows = (
         db.query(Todo.recurring_todo_id, func.max(Todo.due_date).label("last_due_date"))
         .filter(
@@ -41,9 +43,15 @@ def list_recurring_todos(db: Session = Depends(get_db)):
         .all()
     )
 
+    # Convert completion timestamps to the configured local timezone so the
+    # reported date matches the day the user actually completed the task.
+    tz_row = db.query(Setting).filter(Setting.key == "local_timezone").first()
+    local_tz = ZoneInfo(tz_row.value if tz_row and tz_row.value else "UTC")
+
     last_completed_map: dict[int, str] = {}
     for row in no_due_date_rows:
-        last_completed_map[row.recurring_todo_id] = ensure_utc(row.last_completed_at).date().isoformat()
+        local_dt = ensure_utc(row.last_completed_at).astimezone(local_tz)
+        last_completed_map[row.recurring_todo_id] = local_dt.date().isoformat()
     for row in due_date_rows:
         last_completed_map[row.recurring_todo_id] = row.last_due_date
 
