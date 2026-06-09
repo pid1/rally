@@ -98,6 +98,51 @@ class SettingsResponse(BaseModel):
     settings: dict[str, str]
 
 
+# AI Settings (versioned agent_voice / family_context)
+
+AI_SETTINGS_FIELDS = ("agent_voice", "family_context")
+
+
+class AISettingValueUpdate(BaseModel):
+    """Explicit save of an AI settings field — creates a new history snapshot."""
+
+    value: str
+
+
+class AISettingRollback(BaseModel):
+    """Roll an AI settings field back to an existing history snapshot."""
+
+    history_id: int
+
+
+class AISettingState(BaseModel):
+    """Currently active value of an AI settings field."""
+
+    field_name: str
+    value: str
+    history_id: int | None = None  # None when no snapshot exists yet
+
+
+class AISettingHistoryEntry(BaseModel):
+    """One snapshot row from ai_settings_history."""
+
+    id: int
+    field_name: str
+    value: str
+    created_at: datetime
+    last_used_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AISettingHistoryResponse(BaseModel):
+    """Version history for one AI settings field, newest first."""
+
+    field_name: str
+    current_history_id: int | None = None
+    history: list[AISettingHistoryEntry]
+
+
 # Todos
 
 

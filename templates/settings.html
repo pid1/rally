@@ -120,17 +120,24 @@
         <div class="header-container">
             <h2>AI</h2>
         </div>
-        <form id="ai-form">
+        <div id="ai-form">
             <div class="form-group">
                 <label>Family Context</label>
                 <textarea id="ai-family-context" rows="12" placeholder="Describe your family, routines, values, and scheduling preferences..."></textarea>
+                <div class="ai-field-actions">
+                    <button type="button" class="btn-save" onclick="saveAiField('family_context')">Save</button>
+                    <button type="button" class="btn-ghost" onclick="openHistoryModal('family_context')">Version History</button>
+                </div>
             </div>
             <div class="form-group">
                 <label>Agent Voice</label>
                 <textarea id="ai-agent-voice" rows="8" placeholder="Describe the tone and personality for Rally's summaries..."></textarea>
+                <div class="ai-field-actions">
+                    <button type="button" class="btn-save" onclick="saveAiField('agent_voice')">Save</button>
+                    <button type="button" class="btn-ghost" onclick="openHistoryModal('agent_voice')">Version History</button>
+                </div>
             </div>
-            <button type="submit" class="btn-save">Save</button>
-        </form>
+        </div>
     </div>
 
     <!-- Meal Planner Section -->
@@ -237,6 +244,18 @@
                     <button type="button" class="btn-cancel" id="btn-cancel-calendar">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Version History Modal -->
+    <div class="modal-overlay" id="history-modal-overlay">
+        <div class="modal-content">
+            <h3 id="history-modal-title">Version History</h3>
+            <div class="history-list" id="history-list"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary" id="btn-change-version">Change Version</button>
+                <button type="button" class="btn-cancel" id="btn-cancel-history">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -547,10 +566,6 @@
             document.getElementById('llm-anthropic-model').value = s.llm_anthropic_model || '';
             toggleLlmFields(provider);
 
-            // AI
-            document.getElementById('ai-family-context').value = s.family_context || '';
-            document.getElementById('ai-agent-voice').value = s.agent_voice || '';
-
             // Meal Planner
             document.getElementById('meal-default-type').value = s.meal_default_type || 'Dinner';
 
@@ -571,6 +586,147 @@
         function toggleLlmFields(provider) {
             document.querySelector('.llm-fields-local').classList.toggle('active', provider === 'local');
             document.querySelector('.llm-fields-anthropic').classList.toggle('active', provider === 'anthropic');
+        }
+
+        // ── AI Settings (versioned agent_voice / family_context) ──
+
+        const AI_FIELD_META = {
+            family_context: { label: 'Family Context', inputId: 'ai-family-context' },
+            agent_voice: { label: 'Agent Voice', inputId: 'ai-agent-voice' }
+        };
+
+        let historyField = null;
+        let historyEntries = [];
+        let currentHistoryId = null;
+        let selectedHistoryId = null;
+        let expandedHistoryIds = new Set();
+
+        async function fetchAiSettings() {
+            const response = await fetch('/api/settings/ai');
+            const data = await response.json();
+            for (const [field, meta] of Object.entries(AI_FIELD_META)) {
+                document.getElementById(meta.inputId).value = (data[field] && data[field].value) || '';
+            }
+        }
+
+        async function saveAiField(field) {
+            const meta = AI_FIELD_META[field];
+            try {
+                const response = await fetch('/api/settings/ai/' + field, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: document.getElementById(meta.inputId).value })
+                });
+                if (!response.ok) throw new Error('Failed to save');
+                alert(meta.label + ' saved.');
+            } catch (error) {
+                console.error('Error saving ' + field + ':', error);
+                alert('Failed to save ' + meta.label);
+            }
+        }
+
+        async function openHistoryModal(field) {
+            historyField = field;
+            historyEntries = [];
+            currentHistoryId = null;
+            selectedHistoryId = null;
+            expandedHistoryIds = new Set();
+
+            document.getElementById('history-modal-title').textContent = AI_FIELD_META[field].label + ' Version History';
+            document.getElementById('history-list').innerHTML = '<div class="container-loading-state">Loading version history...</div>';
+            document.getElementById('history-modal-overlay').style.display = 'flex';
+
+            try {
+                const response = await fetch('/api/settings/ai/' + field + '/history');
+                if (!response.ok) throw new Error('Failed to load history');
+                const data = await response.json();
+                historyEntries = data.history;
+                currentHistoryId = data.current_history_id;
+                selectedHistoryId = data.current_history_id;
+                renderHistoryList();
+            } catch (error) {
+                console.error('Error loading version history:', error);
+                document.getElementById('history-list').innerHTML = '<div class="container-empty-state">Failed to load version history.</div>';
+            }
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('history-modal-overlay').style.display = 'none';
+            historyField = null;
+        }
+
+        function formatUtcTimestamp(isoString) {
+            // Timestamps are stored as naive UTC; tag them so Date parses correctly
+            const hasZone = isoString.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(isoString);
+            const d = new Date(hasZone ? isoString : isoString + 'Z');
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} `
+                + `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
+        }
+
+        function renderHistoryList() {
+            const container = document.getElementById('history-list');
+
+            if (historyEntries.length === 0) {
+                container.innerHTML = '<div class="container-empty-state">No saved versions yet. Click "Save" to create the first snapshot.</div>';
+                return;
+            }
+
+            container.innerHTML = historyEntries.map(entry => {
+                const selected = entry.id === selectedHistoryId;
+                const expanded = expandedHistoryIds.has(entry.id);
+                const currentBadge = entry.id === currentHistoryId
+                    ? '<span class="history-current-badge">Current</span>'
+                    : '';
+                return `
+                    <div class="history-item ${selected ? 'selected' : ''}" onclick="selectHistoryEntry(${entry.id})">
+                        <div class="history-item-header">
+                            <span class="history-radio">${selected ? '●' : '○'}</span>
+                            <span class="history-timestamp">${formatUtcTimestamp(entry.created_at)}</span>
+                            ${currentBadge}
+                        </div>
+                        <button type="button" class="history-value-toggle" onclick="toggleHistoryValue(event, ${entry.id})">${expanded ? '▼' : '►'} Value</button>
+                        <div class="history-value" style="display: ${expanded ? 'block' : 'none'}">${escapeHtml(entry.value)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectHistoryEntry(id) {
+            selectedHistoryId = id;
+            renderHistoryList();
+        }
+
+        function toggleHistoryValue(event, id) {
+            event.stopPropagation();
+            if (expandedHistoryIds.has(id)) {
+                expandedHistoryIds.delete(id);
+            } else {
+                expandedHistoryIds.add(id);
+            }
+            renderHistoryList();
+        }
+
+        async function changeVersion() {
+            if (!historyField || selectedHistoryId == null) {
+                closeHistoryModal();
+                return;
+            }
+            const field = historyField;
+            try {
+                const response = await fetch('/api/settings/ai/' + field + '/rollback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ history_id: selectedHistoryId })
+                });
+                if (!response.ok) throw new Error('Failed to change version');
+                const data = await response.json();
+                document.getElementById(AI_FIELD_META[field].inputId).value = data.value;
+                closeHistoryModal();
+            } catch (error) {
+                console.error('Error changing version:', error);
+                alert('Failed to change version');
+            }
         }
 
         // ── Connection Verification ──
@@ -762,19 +918,11 @@
             }
         });
 
-        // AI form
-        document.getElementById('ai-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    family_context: document.getElementById('ai-family-context').value,
-                    agent_voice: document.getElementById('ai-agent-voice').value
-                });
-                alert('AI settings saved.');
-            } catch (error) {
-                console.error('Error saving AI settings:', error);
-                alert('Failed to save AI settings');
-            }
+        // Version history modal
+        document.getElementById('btn-change-version').addEventListener('click', changeVersion);
+        document.getElementById('btn-cancel-history').addEventListener('click', closeHistoryModal);
+        document.getElementById('history-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'history-modal-overlay') closeHistoryModal();
         });
 
         // Meal Planner form
@@ -806,7 +954,7 @@
         });
 
         // ── Initialize ──
-        Promise.all([fetchMembers(), fetchCalendars(), fetchSettings()]);
+        Promise.all([fetchMembers(), fetchCalendars(), fetchSettings(), fetchAiSettings()]);
 
         // Nav dropdown toggle (for touch devices)
         function toggleMealDropdown(e) {

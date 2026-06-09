@@ -1141,6 +1141,104 @@ footer a:hover {
     overflow-y: auto;
 }
 
+/* AI Settings Version History */
+.ai-field-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.btn-ghost {
+    border: none;
+    background: transparent;
+    color: var(--medium-gray);
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    letter-spacing: 0.02em;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 10px 8px;
+    transition: color 0.2s;
+}
+
+.btn-ghost:hover {
+    color: var(--charcoal);
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 55vh;
+    overflow-y: auto;
+}
+
+.history-item {
+    border: 1px solid var(--pale-gray);
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.history-item.selected {
+    border-color: var(--charcoal);
+}
+
+.history-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.history-radio {
+    color: var(--charcoal);
+    flex-shrink: 0;
+}
+
+.history-timestamp {
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    color: var(--charcoal);
+}
+
+.history-current-badge {
+    border: 1px solid var(--charcoal);
+    padding: 2px 8px;
+    font-family: var(--body-font);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--charcoal);
+}
+
+.history-value-toggle {
+    border: none;
+    background: transparent;
+    color: var(--medium-gray);
+    font-family: var(--body-font);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 6px 0 0 26px;
+    transition: color 0.2s;
+}
+
+.history-value-toggle:hover {
+    color: var(--charcoal);
+}
+
+.history-value {
+    margin: 8px 0 0 26px;
+    padding: 12px;
+    border: 1px solid var(--pale-gray);
+    background: var(--off-white);
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    color: var(--charcoal);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 /** End Settings Page Styles **/
 
 /** Responsive Design **/
