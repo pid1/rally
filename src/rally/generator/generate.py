@@ -439,7 +439,7 @@ class SummaryGenerator:
                         window_start = due - timedelta(days=todo.remind_days_before)
                         if today < window_start:
                             continue
-                    except ValueError, TypeError, OverflowError:
+                    except (ValueError, TypeError, OverflowError):
                         pass  # If date is unparseable or calculation fails, include the todo
 
                 line = f"{todo.title}"
@@ -602,7 +602,9 @@ class SummaryGenerator:
                     }
                 ]
             response = self.client.messages.create(**kwargs)
-            return response.content[0].text if response.content else ""
+            # Newer models may return thinking blocks before the text block,
+            # so filter by type instead of assuming content[0] is text.
+            return "".join(b.text for b in response.content if b.type == "text")
         else:
             messages = []
             if system_prompt:
