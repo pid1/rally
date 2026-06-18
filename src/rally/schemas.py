@@ -174,6 +174,7 @@ class TodoResponse(TodoBase):
     recurring_todo_id: int | None = None
     remind_days_before: int | None = None
     completed: bool
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -215,6 +216,8 @@ class RecurringTodoResponse(RecurringTodoBase):
     active: bool
     last_generated_date: str | None = None
     last_completed_date: str | None = None
+    last_completed_at: datetime | None = None
+    last_completed_display: str | None = None
     created_at: datetime
     updated_at: datetime
 

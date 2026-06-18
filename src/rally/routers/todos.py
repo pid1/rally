@@ -33,7 +33,7 @@ def list_todos(
         # Show incomplete todos OR completed today (local time)
         cutoff = now_utc() - timedelta(hours=datetime.now().time().hour, minutes=datetime.now().time().minute, seconds=datetime.now().time().second, microseconds=datetime.now().time().microsecond)
         query = query.filter(
-            (Todo.completed == False) | (Todo.updated_at > cutoff)  # noqa: E712
+            (Todo.completed == False) | (Todo.completed_at > cutoff)  # noqa: E712
         )
 
     # Sort by created_at DESC (newest first)
@@ -90,6 +90,10 @@ def update_todo(
     if todo.remind_days_before is not UNSET:
         db_todo.remind_days_before = todo.remind_days_before
     if todo.completed is not None:
+        if todo.completed and not db_todo.completed:
+            db_todo.completed_at = now_utc()
+        elif not todo.completed:
+            db_todo.completed_at = None
         db_todo.completed = todo.completed
 
     # updated_at is automatically set by SQLAlchemy via onupdate

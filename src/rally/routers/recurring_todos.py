@@ -1,5 +1,6 @@
 """Recurring todos router for Rally."""
 
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,9 +10,23 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.models import RecurringTodo, Setting, Todo
 from rally.schemas import UNSET, RecurringTodoCreate, RecurringTodoResponse, RecurringTodoUpdate
-from rally.utils.timezone import ensure_utc
+from rally.utils.timezone import ensure_utc, now_utc
 
 router = APIRouter(prefix="/api/recurring-todos", tags=["recurring-todos"])
+
+
+def format_local_completion(completed_at: datetime, local_tz: ZoneInfo) -> str:
+    local_dt = completed_at.astimezone(local_tz)
+    today = now_utc().astimezone(local_tz).date()
+    if local_dt.date() == today:
+        date_label = "Today"
+    elif local_dt.date() == today.replace(day=today.day) - __import__("datetime").timedelta(days=1):
+        date_label = "Yesterday"
+    else:
+        suffix = "th" if 11 <= local_dt.day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(local_dt.day % 10, "th")
+        date_label = f"{local_dt.strftime('%b')} {local_dt.day}{suffix}, {local_dt.year}"
+    time_label = local_dt.strftime("%I:%M %p").lstrip("0")
+    return f"{date_label} at {time_label}"
 
 
 @router.get("", response_model=list[RecurringTodoResponse])
@@ -19,48 +34,40 @@ def list_recurring_todos(db: Session = Depends(get_db)):
     """List all recurring todo templates."""
     rts = db.query(RecurringTodo).order_by(RecurringTodo.created_at.desc()).all()
 
-    # For instances with a due_date, use it directly — it's already a local
-    # YYYY-MM-DD string, so no timezone conversion is needed.
-    due_date_rows = (
-        db.query(Todo.recurring_todo_id, func.max(Todo.due_date).label("last_due_date"))
-        .filter(
-            Todo.completed == True,  # noqa: E712
-            Todo.recurring_todo_id.isnot(None),
-            Todo.due_date.isnot(None),
+    completed_rows = (
+        db.query(
+            Todo.recurring_todo_id,
+            func.max(func.coalesce(Todo.completed_at, Todo.updated_at)).label("last_completed_at"),
         )
-        .group_by(Todo.recurring_todo_id)
-        .all()
-    )
-    # Fall back to updated_at for instances that have no due_date.
-    no_due_date_rows = (
-        db.query(Todo.recurring_todo_id, func.max(Todo.updated_at).label("last_completed_at"))
         .filter(
             Todo.completed == True,  # noqa: E712
             Todo.recurring_todo_id.isnot(None),
-            Todo.due_date.is_(None),
         )
         .group_by(Todo.recurring_todo_id)
         .all()
     )
 
-    # Convert completion timestamps to the configured local timezone so the
-    # reported date matches the day the user actually completed the task.
     tz_row = db.query(Setting).filter(Setting.key == "local_timezone").first()
     local_tz = ZoneInfo(tz_row.value if tz_row and tz_row.value else "UTC")
 
-    last_completed_map: dict[int, str] = {}
-    for row in no_due_date_rows:
-        local_dt = ensure_utc(row.last_completed_at).astimezone(local_tz)
-        last_completed_map[row.recurring_todo_id] = local_dt.date().isoformat()
-    for row in due_date_rows:
-        last_completed_map[row.recurring_todo_id] = row.last_due_date
+    last_completed_map: dict[int, datetime] = {}
+    last_completed_date_map: dict[int, str] = {}
+    for row in completed_rows:
+        completed_at = row.last_completed_at
+        if isinstance(completed_at, str):
+            completed_at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        utc_dt = ensure_utc(completed_at)
+        local_dt = utc_dt.astimezone(local_tz)
+        last_completed_map[row.recurring_todo_id] = utc_dt
+        last_completed_date_map[row.recurring_todo_id] = local_dt.date().isoformat()
 
     results = []
     for rt in rts:
         response = RecurringTodoResponse.model_validate(rt)
-        last_date = last_completed_map.get(rt.id)
-        if last_date:
-            response.last_completed_date = last_date
+        last_completed_at = last_completed_map.get(rt.id)
+        if last_completed_at:
+            response.last_completed_at = last_completed_at
+            response.last_completed_date = last_completed_date_map[rt.id]
         results.append(response)
 
     return results
