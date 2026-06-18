@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rally — Todos</title>
+    <title>Rally - Todos</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -435,7 +435,7 @@
                             <div class="editable-item-content">
                                 <div class="editable-item-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
                                 <div class="recurring-schedule">${describeRecurrence(rt)} ${dueBadge}</div>
-                                <div class="recurring-schedule">Last completed: ${formatLastCompleted(rt.last_completed_date)}</div>
+                                <div class="recurring-schedule">Last completed: ${formatLastCompleted(rt.last_completed_at || rt.last_completed_date)}</div>
                             </div>
                             <div class="editable-item-actions">
                                 <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
@@ -656,15 +656,17 @@
             return n + (s[(v-20)%10] || s[v] || s[0]);
         }
 
-        function formatLastCompleted(dateStr) {
-            if (!dateStr) return 'Never';
-            const completed = new Date(dateStr + 'T00:00:00');
+        function formatLastCompleted(value) {
+            if (!value) return 'Never';
+            const completed = value.includes('T') ? new Date(value) : new Date(value + 'T00:00:00');
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const yesterday = new Date(today);
             yesterday.setDate(today.getDate() - 1);
-            if (completed.getTime() === today.getTime()) return 'Today';
-            if (completed.getTime() === yesterday.getTime()) return 'Yesterday';
+            const completedDay = new Date(completed);
+            completedDay.setHours(0, 0, 0, 0);
+            if (completedDay.getTime() === today.getTime()) return 'Today';
+            if (completedDay.getTime() === yesterday.getTime()) return 'Yesterday';
             const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             return `${months[completed.getMonth()]} ${ordinal(completed.getDate())}, ${completed.getFullYear()}`;
         }

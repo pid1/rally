@@ -16,6 +16,7 @@ def run_migrations():
         from migrate_012_add_ai_settings_history import (
             migrate as migrate_012_add_ai_settings_history,
         )
+        from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
         from migrate_add_dinner_plan_assignees import (
@@ -48,6 +49,7 @@ def run_migrations():
         ("010_add_meal_type", migrate_010_add_meal_type),
         ("011_add_meal_reviews", migrate_011_add_meal_reviews),
         ("012_add_ai_settings_history", migrate_012_add_ai_settings_history),
+        ("013_add_completed_at", migrate_013_add_completed_at),
     ]
 
     print("=" * 60)
