@@ -108,9 +108,10 @@ def seed():
         # Create sample settings
         sample_settings = [
             Setting(key="local_timezone", value="America/Chicago"),
-            Setting(key="weather_api_key", value="your_openweather_api_key_here"),
-            Setting(key="weather_lat", value="32.7767"),
-            Setting(key="weather_lon", value="-96.7970"),
+            Setting(
+                key="weather_nws_url",
+                value="https://forecast.weather.gov/MapClick.php?lat=33.085&lon=-97.0542&unit=0&lg=english&FcstType=dwml",
+            ),
             Setting(key="llm_provider", value="local"),
             Setting(key="llm_local_base_url", value="http://localhost:1234/v1"),
             Setting(key="llm_local_model", value="your-model-name"),

@@ -187,36 +187,54 @@ def test_llm_connection(db: Session = Depends(get_db)):
 
 @router.post("/api/settings/test-weather")
 def test_weather_connection(db: Session = Depends(get_db)):
-    """Test OpenWeather API connectivity using current DB settings."""
+    """Test NWS forecast URL connectivity using current DB settings."""
     settings = {r.key: r.value for r in db.query(Setting).all()}
 
-    api_key = settings.get("weather_api_key", "")
-    lat = settings.get("weather_lat", "")
-    lon = settings.get("weather_lon", "")
-
-    if not all([api_key, lat, lon]):
-        return {"success": False, "error": "Missing API key, latitude, or longitude"}
+    url = settings.get("weather_nws_url", "")
+    if not url:
+        return {"success": False, "error": "Missing NWS forecast URL"}
 
     try:
+        import xml.etree.ElementTree as ET
+
         import requests
 
         response = requests.get(
-            "https://api.openweathermap.org/data/3.0/onecall",
-            params={
-                "lat": lat,
-                "lon": lon,
-                "appid": api_key,
-                "units": "imperial",
-                "exclude": "minutely,hourly,daily,alerts",
-            },
+            url,
             timeout=10,
+            headers={"User-Agent": "Rally family dashboard (https://github.com/pid1/rally)"},
         )
         response.raise_for_status()
-        data = response.json()
-        temp = data.get("current", {}).get("temp", "?")
-        weather_list = data.get("current", {}).get("weather", [{}])
-        desc = weather_list[0].get("description", "") if weather_list else ""
-        return {"success": True, "message": f"Connected: {temp}\u00b0F, {desc}"}
+
+        try:
+            root = ET.fromstring(response.text)
+        except ET.ParseError:
+            return {
+                "success": False,
+                "error": "URL did not return NWS DWML weather data",
+            }
+
+        if root.tag != "dwml":
+            return {
+                "success": False,
+                "error": "URL did not return NWS DWML weather data",
+            }
+
+        # Surface the current temperature/conditions when available
+        current = root.find(".//data[@type='current observations']")
+        temp = current.find("parameters/temperature/value") if current is not None else None
+        conditions = (
+            current.find("parameters/weather/weather-conditions")
+            if current is not None
+            else None
+        )
+        detail = []
+        if temp is not None and temp.text:
+            detail.append(f"{temp.text.strip()}\u00b0F")
+        if conditions is not None and conditions.get("weather-summary"):
+            detail.append(conditions.get("weather-summary"))
+        message = "Connected: " + ", ".join(detail) if detail else "Connected to NWS forecast"
+        return {"success": True, "message": message}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
