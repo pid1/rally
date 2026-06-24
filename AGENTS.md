@@ -508,7 +508,7 @@ rally/
   - Todo and dinner plan date comparisons use the user's configured local timezone
 - ✅ Configuration via Settings UI (stored in DB) with config.toml fallback
 - ✅ Calendar integration (Google Calendar, iCloud) - filters to next 7 days, deduplicates, handles declined events
-- ✅ Weather integration (OpenWeather API)
+- ✅ Weather integration (configurable National Weather Service forecast URL — DWML feed)
 - ✅ Configurable LLM provider - Anthropic Claude or any OpenAI-compatible API
 - ✅ Idempotent database migrations - Run automatically on container startup
 - ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, and DinnerPlan models
@@ -613,7 +613,7 @@ rally/
 - `/api/settings/test-llm` - LLM connectivity test
   - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`.
 - `/api/settings/test-weather` - Weather connectivity test
-  - `POST /api/settings/test-weather` - Test OpenWeather API connection (10-second timeout). Returns `{success, message}` or `{success, error}`.
+  - `POST /api/settings/test-weather` - Fetch the configured NWS forecast URL and confirm it returns DWML weather data (10-second timeout). Returns `{success, message}` or `{success, error}`.
 - `/api/calendars` - Calendar feed CRUD endpoints
   - `GET /api/calendars` - List all calendar feeds
   - `POST /api/calendars` - Create new calendar feed

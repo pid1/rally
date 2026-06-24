@@ -16,6 +16,9 @@ def run_migrations():
         from migrate_012_add_ai_settings_history import (
             migrate as migrate_012_add_ai_settings_history,
         )
+        from migrate_014_configurable_nws_weather import (
+            migrate as migrate_014_configurable_nws_weather,
+        )
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -50,6 +53,7 @@ def run_migrations():
         ("011_add_meal_reviews", migrate_011_add_meal_reviews),
         ("012_add_ai_settings_history", migrate_012_add_ai_settings_history),
         ("013_add_completed_at", migrate_013_add_completed_at),
+        ("014_configurable_nws_weather", migrate_014_configurable_nws_weather),
     ]
 
     print("=" * 60)

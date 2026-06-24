@@ -59,16 +59,9 @@
         </div>
         <form id="weather-form">
             <div class="form-group">
-                <label>API Key</label>
-                <input type="password" id="weather-api-key" placeholder="OpenWeather API key" autocomplete="off">
-            </div>
-            <div class="form-group">
-                <label>Latitude</label>
-                <input type="text" id="weather-lat" placeholder="e.g. 30.2672">
-            </div>
-            <div class="form-group">
-                <label>Longitude</label>
-                <input type="text" id="weather-lon" placeholder="e.g. -97.7431">
+                <label>NWS Forecast URL</label>
+                <input type="text" id="weather-nws-url" placeholder="https://forecast.weather.gov/MapClick.php?lat=33.085&lon=-97.0542&FcstType=dwml">
+                <small>Search your location at <a href="https://forecast.weather.gov" target="_blank">forecast.weather.gov</a>, then copy the page URL and append <code>&FcstType=dwml</code>.</small>
             </div>
             <button type="submit" class="btn-save">Save</button>
         </form>
@@ -552,9 +545,7 @@
             const s = data.settings || {};
 
             // Weather
-            document.getElementById('weather-api-key').value = s.weather_api_key || '';
-            document.getElementById('weather-lat').value = s.weather_lat || '';
-            document.getElementById('weather-lon').value = s.weather_lon || '';
+            document.getElementById('weather-nws-url').value = s.weather_nws_url || '';
 
             // LLM
             const provider = s.llm_provider || 'local';
@@ -888,9 +879,7 @@
             e.preventDefault();
             try {
                 await saveSettings({
-                    weather_api_key: document.getElementById('weather-api-key').value,
-                    weather_lat: document.getElementById('weather-lat').value,
-                    weather_lon: document.getElementById('weather-lon').value
+                    weather_nws_url: document.getElementById('weather-nws-url').value
                 });
                 await verifyConnection('/api/settings/test-weather', 'weather');
             } catch (error) {

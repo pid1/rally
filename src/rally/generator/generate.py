@@ -306,85 +306,111 @@ class SummaryGenerator:
 
         return None
 
-    def fetch_weather(self) -> dict | None:
-        """Get weather from OpenWeather."""
-        # Try DB settings first, fall back to config.toml
-        if all(k in self._db_settings for k in ("weather_api_key", "weather_lat", "weather_lon")):
-            api_key = self._db_settings["weather_api_key"]
-            lat = float(self._db_settings["weather_lat"])
-            lon = float(self._db_settings["weather_lon"])
-        else:
-            api_key = self.config["weather"]["api_key"]
-            lat = self.config["weather"]["lat"]
-            lon = self.config["weather"]["lon"]
+    def _weather_url(self) -> str | None:
+        """Resolve the configured NWS forecast URL (DB settings, then config.toml)."""
+        url = self._db_settings.get("weather_nws_url")
+        if not url:
+            url = self.config.get("weather", {}).get("nws_url")
+        return url or None
 
-        url = "https://api.openweathermap.org/data/3.0/onecall"
-        params = {
-            "lat": lat,
-            "lon": lon,
-            "appid": api_key,
-            "units": "imperial",
-            "exclude": "minutely,alerts",
-        }
+    def fetch_weather(self) -> str | None:
+        """Fetch the raw NWS forecast (DWML XML) from the configured URL."""
+        url = self._weather_url()
+        if not url:
+            print("No NWS forecast URL configured.")
+            return None
 
         try:
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(
+                url,
+                timeout=10,
+                headers={"User-Agent": "Rally family dashboard (https://github.com/pid1/rally)"},
+            )
             response.raise_for_status()
-            return response.json()
+            return response.text
         except Exception as e:
             print(f"Error fetching weather: {e}")
             return None
 
-    def format_weather(self, weather: dict | None) -> str:
-        """Format raw OpenWeather API response into human-readable local-time text.
+    def format_weather(self, weather: str | None) -> str:
+        """Parse NWS DWML XML into clean, human-readable forecast text.
 
-        Converts UTC timestamps to local time and strips raw JSON so the LLM
-        sees only clean, unambiguous weather data.
+        The National Weather Service feed reports times already in the location's
+        local timezone and includes plain-English worded forecasts, so the LLM
+        sees unambiguous weather data without any unit or timezone conversion.
         """
         if not weather:
             return "No weather data available."
 
-        from datetime import datetime
+        import xml.etree.ElementTree as ET
 
-        def fmt_time(ts: int) -> str:
-            return datetime.fromtimestamp(ts, tz=self.local_tz).strftime("%I:%M %p").lstrip("0")
+        try:
+            root = ET.fromstring(weather)
+        except ET.ParseError as e:
+            print(f"Error parsing weather XML: {e}")
+            return "No weather data available."
 
-        def fmt_day(ts: int) -> str:
-            return datetime.fromtimestamp(ts, tz=self.local_tz).strftime("%A, %b %d")
+        def text_of(el) -> str | None:
+            return el.text.strip() if el is not None and el.text and el.text.strip() else None
 
-        lines = []
+        lines: list[str] = []
 
         # Current conditions
-        cur = weather.get("current", {})
-        if cur:
-            desc = cur["weather"][0]["description"] if cur.get("weather") else "unknown"
-            lines.append(
-                f"Current: {cur.get('temp', '?')}°F (feels like {cur.get('feels_like', '?')}°F), {desc}"
-            )
-            lines.append(
-                f"  Wind: {cur.get('wind_speed', '?')} mph, Humidity: {cur.get('humidity', '?')}%"
-            )
-            if "sunrise" in cur and "sunset" in cur:
-                lines.append(
-                    f"  Sunrise: {fmt_time(cur['sunrise'])}, Sunset: {fmt_time(cur['sunset'])}"
+        current = root.find(".//data[@type='current observations']")
+        if current is not None:
+            params = current.find("parameters")
+            if params is not None:
+                temp = text_of(params.find("temperature/value"))
+                conditions_el = params.find("weather/weather-conditions")
+                summary = (
+                    conditions_el.get("weather-summary") if conditions_el is not None else None
                 )
+                humidity = text_of(params.find("humidity/value"))
 
-        # Daily forecast
-        daily = weather.get("daily", [])
-        if daily:
-            lines.append("\nDaily forecast:")
-            for day in daily:
-                day_label = fmt_day(day["dt"])
-                temp = day.get("temp", {})
-                desc = day["weather"][0]["description"] if day.get("weather") else "unknown"
-                wind = f", wind {day.get('wind_speed', '?')} mph"
-                if day.get("wind_gust"):
-                    wind += f" (gusts {day['wind_gust']} mph)"
-                pop = day.get("pop", 0)
-                rain = f", {int(pop * 100)}% chance of rain" if pop > 0.1 else ""
-                lines.append(
-                    f"  {day_label}: High {temp.get('max', '?')}°F / Low {temp.get('min', '?')}°F, {desc}{wind}{rain}"
-                )
+                parts = []
+                if temp:
+                    parts.append(f"{temp}°F")
+                if summary:
+                    parts.append(summary)
+                if parts:
+                    line = "Current conditions: " + ", ".join(parts)
+                    if humidity:
+                        line += f". Humidity {humidity}%"
+                    lines.append(line)
+
+        # Worded forecast (Today / Tonight / weekday labels paired with text)
+        forecast = root.find(".//data[@type='forecast']")
+        if forecast is not None:
+            params = forecast.find("parameters")
+            worded = params.find("wordedForecast") if params is not None else None
+            if worded is not None:
+                layout_key = worded.get("time-layout")
+                period_names: list[str] = []
+                for time_layout in forecast.findall("time-layout"):
+                    key = time_layout.find("layout-key")
+                    if key is not None and key.text == layout_key:
+                        period_names = [
+                            svt.get("period-name", "")
+                            for svt in time_layout.findall("start-valid-time")
+                        ]
+                        break
+
+                texts = [text_of(t) for t in worded.findall("text")]
+                forecast_lines = []
+                for i, txt in enumerate(texts):
+                    if not txt:
+                        continue
+                    label = period_names[i] if i < len(period_names) and period_names[i] else None
+                    forecast_lines.append(f"  {label}: {txt}" if label else f"  {txt}")
+
+                if forecast_lines:
+                    if lines:
+                        lines.append("")
+                    lines.append("Forecast:")
+                    lines.extend(forecast_lines)
+
+        if not lines:
+            return "No weather data available."
 
         return "\n".join(lines)
 

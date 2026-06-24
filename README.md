@@ -61,7 +61,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 ### For Production
 
 - Docker
-- OpenWeather API key (free tier)
+- A National Weather Service forecast URL for your location (free — see the Weather section of the Settings UI)
 - LLM API key (Anthropic or an OpenAI-compatible provider)
 - Calendar access — ICS feed URLs, or Google/Apple CalDAV with app-specific passwords (configured via the Settings UI)
 - Your local timezone (IANA format, e.g. "America/Chicago")
