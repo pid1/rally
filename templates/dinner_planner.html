@@ -90,30 +90,37 @@
         let familyMembers = [];
         let editingId = null;
         let defaultMealType = 'Dinner';
+        let localTimezone = 'UTC';
 
         const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
         const MEAL_TYPE_ORDER = { 'Breakfast': 0, 'Lunch': 1, 'Dinner': 2, 'Snacks': 3 };
 
-        // Get date N days from now
+        // Today's date (YYYY-MM-DD) in the configured local timezone.
+        // Mirrors the backend's today_local() so Current & Upcoming and
+        // Previous Meals agree on the day boundary.
+        function todayLocal() {
+            return new Intl.DateTimeFormat('en-CA', { timeZone: localTimezone }).format(new Date());
+        }
+
+        // Get date N days from today (YYYY-MM-DD) in the configured local timezone.
         function getDateInDays(days) {
-            const date = new Date();
-            date.setDate(date.getDate() + days);
-            return date.toISOString().split('T')[0];
+            // Anchor to local calendar midnight so day arithmetic isn't skewed by UTC.
+            const base = new Date(todayLocal() + 'T00:00:00');
+            base.setDate(base.getDate() + days);
+            const y = base.getFullYear();
+            const m = String(base.getMonth() + 1).padStart(2, '0');
+            const d = String(base.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
         }
 
         // Format date for display
         function formatDate(dateStr) {
             const date = new Date(dateStr + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
+            const today = todayLocal();
+            const tomorrow = getDateInDays(1);
 
-            const planDate = new Date(date);
-            planDate.setHours(0, 0, 0, 0);
-
-            if (planDate.getTime() === today.getTime()) return 'Today';
-            if (planDate.getTime() === tomorrow.getTime()) return 'Tomorrow';
+            if (dateStr === today) return 'Today';
+            if (dateStr === tomorrow) return 'Tomorrow';
 
             return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
         }
@@ -162,6 +169,7 @@
                 const data = await response.json();
                 const s = data.settings || {};
                 defaultMealType = s.meal_default_type || 'Dinner';
+                localTimezone = s.local_timezone || 'UTC';
             } catch (_) {
                 defaultMealType = 'Dinner';
             }
@@ -182,7 +190,7 @@
             const allPlans = await response.json();
 
             // Filter to next 7 days, then sort by date then meal type order
-            const today = new Date().toISOString().split('T')[0];
+            const today = todayLocal();
             const weekFromNow = getDateInDays(7);
             plans = allPlans
                 .filter(p => p.date >= today && p.date <= weekFromNow)
