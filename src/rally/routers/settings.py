@@ -1,12 +1,15 @@
 """Settings and calendars router for Rally."""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import AISettingsHistory, Calendar, Setting
+from rally.models import AISettingsHistory, Calendar, LLMSettingsHistory, Setting
 from rally.schemas import (
     AI_SETTINGS_FIELDS,
+    LLM_CONFIG_FIELD,
     AISettingHistoryEntry,
     AISettingHistoryResponse,
     AISettingRollback,
@@ -15,6 +18,10 @@ from rally.schemas import (
     CalendarCreate,
     CalendarResponse,
     CalendarUpdate,
+    LLMConfigHistoryEntry,
+    LLMConfigHistoryResponse,
+    LLMConfigState,
+    LLMConfigUpdate,
     SettingsResponse,
     SettingsUpdate,
 )
@@ -37,11 +44,7 @@ def get_settings(db: Session = Depends(get_db)):
 def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
     """Bulk upsert settings."""
     for key, value in payload.settings.items():
-        existing = db.query(Setting).filter(Setting.key == key).first()
-        if existing:
-            existing.value = value
-        else:
-            db.add(Setting(key=key, value=value))
+        _upsert_setting(db, key, value)
     db.commit()
 
     rows = db.query(Setting).all()
@@ -69,14 +72,18 @@ def _get_current_ai_snapshot(db: Session, field_name: str) -> AISettingsHistory 
     return db.get(AISettingsHistory, int(pointer.value))
 
 
+def _upsert_setting(db: Session, key: str, value: str) -> None:
+    """Insert or update a key-value settings row."""
+    row = db.query(Setting).filter(Setting.key == key).first()
+    if row:
+        row.value = value
+    else:
+        db.add(Setting(key=key, value=value))
+
+
 def _set_ai_pointer(db: Session, field_name: str, history_id: int) -> None:
     """Upsert the settings pointer for a field to reference a history row."""
-    key = _ai_pointer_key(field_name)
-    pointer = db.query(Setting).filter(Setting.key == key).first()
-    if pointer:
-        pointer.value = str(history_id)
-    else:
-        db.add(Setting(key=key, value=str(history_id)))
+    _upsert_setting(db, _ai_pointer_key(field_name), str(history_id))
 
 
 @router.get("/api/settings/ai", response_model=dict[str, AISettingState])
@@ -140,6 +147,99 @@ def rollback_ai_setting(field_name: str, payload: AISettingRollback, db: Session
     db.commit()
     db.refresh(row)
     return AISettingState(field_name=field_name, value=row.value, history_id=row.id)
+
+
+# --- LLM Config (versioned provider + model, coupled as a single snapshot) ---
+
+LLM_CONFIG_POINTER_KEY = f"current_{LLM_CONFIG_FIELD}_history_id"
+
+
+def _get_current_llm_snapshot(db: Session) -> LLMSettingsHistory | None:
+    """Resolve the active llm_settings_history row via its settings pointer."""
+    pointer = db.query(Setting).filter(Setting.key == LLM_CONFIG_POINTER_KEY).first()
+    if not pointer:
+        return None
+    return db.get(LLMSettingsHistory, int(pointer.value))
+
+
+def _llm_config_from_row(row: LLMSettingsHistory) -> dict:
+    """Unpack a snapshot row's coupled JSON value into provider/model."""
+    config = json.loads(row.value)
+    return {"provider": config.get("provider", ""), "model": config.get("model", "")}
+
+
+def _apply_llm_config(db: Session, provider: str, model: str) -> None:
+    """Write the provider + model into the plain settings keys read by the generator."""
+    _upsert_setting(db, "llm_provider", provider)
+    model_key = "llm_anthropic_model" if provider == "anthropic" else "llm_local_model"
+    _upsert_setting(db, model_key, model)
+
+
+@router.get("/api/settings/llm/config", response_model=LLMConfigState)
+def get_llm_config(db: Session = Depends(get_db)):
+    """Get the currently active LLM provider + model configuration."""
+    row = _get_current_llm_snapshot(db)
+    if not row:
+        return LLMConfigState(provider="", model="", history_id=None)
+    return LLMConfigState(**_llm_config_from_row(row), history_id=row.id)
+
+
+@router.put("/api/settings/llm/config", response_model=LLMConfigState)
+def save_llm_config(payload: LLMConfigUpdate, db: Session = Depends(get_db)):
+    """Explicitly save the LLM provider + model pair — inserts a new history snapshot."""
+    now = now_utc()  # Single timestamp so created_at == last_used_at on insert
+    row = LLMSettingsHistory(
+        field_name=LLM_CONFIG_FIELD,
+        value=json.dumps({"provider": payload.provider, "model": payload.model}),
+        created_at=now,
+        last_used_at=now,
+    )
+    db.add(row)
+    db.flush()  # Assign row.id before pointing the setting at it
+    _upsert_setting(db, LLM_CONFIG_POINTER_KEY, str(row.id))
+    _apply_llm_config(db, payload.provider, payload.model)
+    db.commit()
+    return LLMConfigState(provider=payload.provider, model=payload.model, history_id=row.id)
+
+
+@router.get("/api/settings/llm/config/history", response_model=LLMConfigHistoryResponse)
+def get_llm_config_history(db: Session = Depends(get_db)):
+    """List all LLM configuration snapshots, newest first."""
+    rows = (
+        db.query(LLMSettingsHistory)
+        .filter(LLMSettingsHistory.field_name == LLM_CONFIG_FIELD)
+        .order_by(LLMSettingsHistory.created_at.desc(), LLMSettingsHistory.id.desc())
+        .all()
+    )
+    current = _get_current_llm_snapshot(db)
+    return LLMConfigHistoryResponse(
+        current_history_id=current.id if current else None,
+        history=[
+            LLMConfigHistoryEntry(
+                id=r.id,
+                **_llm_config_from_row(r),
+                created_at=r.created_at,
+                last_used_at=r.last_used_at,
+            )
+            for r in rows
+        ],
+    )
+
+
+@router.post("/api/settings/llm/config/rollback", response_model=LLMConfigState)
+def rollback_llm_config(payload: AISettingRollback, db: Session = Depends(get_db)):
+    """Make an existing snapshot the active version — restores provider and model together."""
+    row = db.get(LLMSettingsHistory, payload.history_id)
+    if not row or row.field_name != LLM_CONFIG_FIELD:
+        raise HTTPException(status_code=404, detail="History entry not found")
+
+    row.last_used_at = now_utc()
+    _upsert_setting(db, LLM_CONFIG_POINTER_KEY, str(row.id))
+    config = _llm_config_from_row(row)
+    _apply_llm_config(db, config["provider"], config["model"])
+    db.commit()
+    db.refresh(row)
+    return LLMConfigState(**config, history_id=row.id)
 
 
 # --- Connectivity Tests ---

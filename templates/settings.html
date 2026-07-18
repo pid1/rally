@@ -104,7 +104,10 @@
                     <input type="text" id="llm-anthropic-model" placeholder="e.g. claude-sonnet-4-20250514">
                 </div>
             </div>
-            <button type="submit" class="btn-save">Save</button>
+            <div class="ai-field-actions">
+                <button type="submit" class="btn-save">Save</button>
+                <button type="button" class="btn-ghost" onclick="openHistoryModal('llm_config')">Version History</button>
+            </div>
         </form>
     </div>
 
@@ -586,6 +589,38 @@
             agent_voice: { label: 'Agent Voice', inputId: 'ai-agent-voice' }
         };
 
+        // Version-history metadata: AI fields plus the coupled LLM provider+model config.
+        // Each entry knows its API base URL, how to render a snapshot's value in the
+        // history modal, and how to apply a rollback response back into the form.
+        function aiHistoryMeta(field) {
+            const meta = AI_FIELD_META[field];
+            return {
+                label: meta.label,
+                baseUrl: '/api/settings/ai/' + field,
+                formatValue: entry => escapeHtml(entry.value),
+                applyRollback: data => { document.getElementById(meta.inputId).value = data.value; }
+            };
+        }
+
+        function llmModelInputId(provider) {
+            return provider === 'anthropic' ? 'llm-anthropic-model' : 'llm-local-model';
+        }
+
+        const HISTORY_FIELD_META = {
+            family_context: aiHistoryMeta('family_context'),
+            agent_voice: aiHistoryMeta('agent_voice'),
+            llm_config: {
+                label: 'LLM',
+                baseUrl: '/api/settings/llm/config',
+                formatValue: entry => escapeHtml('Provider: ' + entry.provider + '\nModel: ' + entry.model),
+                applyRollback: data => {
+                    document.getElementById('llm-provider').value = data.provider;
+                    document.getElementById(llmModelInputId(data.provider)).value = data.model;
+                    toggleLlmFields(data.provider);
+                }
+            }
+        };
+
         let historyField = null;
         let historyEntries = [];
         let currentHistoryId = null;
@@ -623,12 +658,12 @@
             selectedHistoryId = null;
             expandedHistoryIds = new Set();
 
-            document.getElementById('history-modal-title').textContent = AI_FIELD_META[field].label + ' Version History';
+            document.getElementById('history-modal-title').textContent = HISTORY_FIELD_META[field].label + ' Version History';
             document.getElementById('history-list').innerHTML = '<div class="container-loading-state">Loading version history...</div>';
             document.getElementById('history-modal-overlay').style.display = 'flex';
 
             try {
-                const response = await fetch('/api/settings/ai/' + field + '/history');
+                const response = await fetch(HISTORY_FIELD_META[field].baseUrl + '/history');
                 if (!response.ok) throw new Error('Failed to load history');
                 const data = await response.json();
                 historyEntries = data.history;
@@ -663,6 +698,7 @@
                 return;
             }
 
+            const formatValue = HISTORY_FIELD_META[historyField].formatValue;
             container.innerHTML = historyEntries.map(entry => {
                 const selected = entry.id === selectedHistoryId;
                 const expanded = expandedHistoryIds.has(entry.id);
@@ -677,7 +713,7 @@
                             ${currentBadge}
                         </div>
                         <button type="button" class="history-value-toggle" onclick="toggleHistoryValue(event, ${entry.id})">${expanded ? '▼' : '►'} Value</button>
-                        <div class="history-value" style="display: ${expanded ? 'block' : 'none'}">${escapeHtml(entry.value)}</div>
+                        <div class="history-value" style="display: ${expanded ? 'block' : 'none'}">${formatValue(entry)}</div>
                     </div>
                 `;
             }).join('');
@@ -703,16 +739,16 @@
                 closeHistoryModal();
                 return;
             }
-            const field = historyField;
+            const meta = HISTORY_FIELD_META[historyField];
             try {
-                const response = await fetch('/api/settings/ai/' + field + '/rollback', {
+                const response = await fetch(meta.baseUrl + '/rollback', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ history_id: selectedHistoryId })
                 });
                 if (!response.ok) throw new Error('Failed to change version');
                 const data = await response.json();
-                document.getElementById(AI_FIELD_META[field].inputId).value = data.value;
+                meta.applyRollback(data);
                 closeHistoryModal();
             } catch (error) {
                 console.error('Error changing version:', error);
@@ -891,15 +927,26 @@
         // LLM form
         document.getElementById('llm-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const provider = document.getElementById('llm-provider').value;
             try {
                 await saveSettings({
-                    llm_provider: document.getElementById('llm-provider').value,
+                    llm_provider: provider,
                     llm_local_base_url: document.getElementById('llm-local-base-url').value,
                     llm_local_api_key: document.getElementById('llm-local-api-key').value,
                     llm_local_model: document.getElementById('llm-local-model').value,
                     llm_anthropic_api_key: document.getElementById('llm-anthropic-api-key').value,
                     llm_anthropic_model: document.getElementById('llm-anthropic-model').value
                 });
+                // Snapshot the coupled provider + model pair for version history
+                const response = await fetch('/api/settings/llm/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: provider,
+                        model: document.getElementById(llmModelInputId(provider)).value
+                    })
+                });
+                if (!response.ok) throw new Error('Failed to save LLM config snapshot');
                 await verifyConnection('/api/settings/test-llm', 'LLM');
             } catch (error) {
                 console.error('Error saving LLM settings:', error);
