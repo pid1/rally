@@ -20,6 +20,51 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
+def _build_stem_section(stem: dict | None) -> str:
+    """Render the optional STEM 'concept of the day' card, or '' when absent.
+
+    The LLM is instructed to emit plain text, but values are HTML-escaped here
+    to guarantee the dashboard never renders injected markup.
+    """
+    from html import escape
+
+    if not isinstance(stem, dict):
+        return ""
+
+    title = str(stem.get("title", "")).strip()
+    if not title:
+        return ""
+
+    field = str(stem.get("field", "")).strip()
+    explanation = str(stem.get("explanation", "")).strip()
+
+    activities_html = ""
+    for activity in stem.get("activities", []) or []:
+        if not isinstance(activity, dict):
+            continue
+        idea = str(activity.get("idea", "")).strip()
+        if not idea:
+            continue
+        audience = str(activity.get("audience", "")).strip()
+        audience_html = (
+            f'<span class="stem-audience">{escape(audience)}</span> ' if audience else ""
+        )
+        activities_html += f"<li>{audience_html}{escape(idea)}</li>"
+
+    parts = ['<section class="card stem-card">']
+    parts.append('<div class="card-header">STEM Concept of the Day</div>')
+    parts.append('<div class="card-content">')
+    if field:
+        parts.append(f'<div class="stem-field">{escape(field)}</div>')
+    parts.append(f'<div class="stem-title">{escape(title)}</div>')
+    if explanation:
+        parts.append(f"<p>{escape(explanation)}</p>")
+    if activities_html:
+        parts.append(f'<ul class="stem-activities">{activities_html}</ul>')
+    parts.append("</div></section>")
+    return "".join(parts)
+
+
 def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     """Render snapshot data into HTML template."""
     base_dir = Path(__file__).resolve().parent.parent.parent.parent
@@ -57,11 +102,15 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     else:
         briefing_section = ""
 
+    # Build optional STEM "concept of the day" card
+    stem_section = _build_stem_section(data.get("stem_concept"))
+
     html = template.replace("{{date}}", date_str)
     html = html.replace("{{greeting}}", data.get("greeting", ""))
     html = html.replace("{{weather_summary}}", data.get("weather_summary", ""))
     html = html.replace("{{schedule}}", schedule_html)
     html = html.replace("{{briefing_section}}", briefing_section)
+    html = html.replace("{{stem_section}}", stem_section)
     html = html.replace("{{timestamp}}", timestamp_str)  # Fallback for non-JS browsers
     html = html.replace("{{timestamp_utc}}", timestamp_utc)  # For JS timezone conversion
     html = html.replace("{{css_version}}", STATIC_VERSION)

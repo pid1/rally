@@ -551,6 +551,50 @@ footer a:hover {
 .card--featured {
     border: 1px solid var(--charcoal);
 }
+
+/* STEM Concept of the Day card */
+.stem-field {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--medium-gray);
+    margin-bottom: 4px;
+}
+
+.stem-title {
+    font-family: var(--header-font);
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--black);
+    margin-bottom: 10px;
+}
+
+.stem-activities {
+    list-style: none;
+    padding-left: 0;
+    margin-bottom: 0;
+}
+
+.stem-activities li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--pale-gray);
+}
+
+.stem-activities li:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.stem-audience {
+    display: inline-block;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--medium-gray);
+    margin-right: 6px;
+}
 /** End Dashboard Page Styles **/
 
 /**Todo Page Styles**/

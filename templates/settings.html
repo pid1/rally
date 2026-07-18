@@ -155,6 +155,23 @@
         </form>
     </div>
 
+    <!-- Learning Section -->
+    <div class="border-container">
+        <div class="header-container">
+            <h2>Learning</h2>
+        </div>
+        <form id="learning-form">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="stem-concept-enabled">
+                    <span>STEM Concept of the Day</span>
+                </label>
+                <small>Add a family-friendly STEM concept to the daily summary, with super-easy, age-appropriate ways to explore it during your day.</small>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
     <!-- General Section -->
     <div class="border-container">
         <div class="header-container">
@@ -562,6 +579,9 @@
 
             // Meal Planner
             document.getElementById('meal-default-type').value = s.meal_default_type || 'Dinner';
+
+            // Learning
+            document.getElementById('stem-concept-enabled').checked = s.stem_concept_enabled === 'true';
 
             // General
             document.getElementById('general-timezone').value = s.local_timezone || '';
@@ -972,6 +992,20 @@
             } catch (error) {
                 console.error('Error saving meal planner settings:', error);
                 alert('Failed to save meal planner settings');
+            }
+        });
+
+        // Learning form
+        document.getElementById('learning-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    stem_concept_enabled: document.getElementById('stem-concept-enabled').checked ? 'true' : 'false'
+                });
+                alert('Learning settings saved.');
+            } catch (error) {
+                console.error('Error saving learning settings:', error);
+                alert('Failed to save learning settings');
             }
         });
 

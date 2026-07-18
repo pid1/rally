@@ -529,6 +529,7 @@ rally/
 - ✅ Settings management - Key-value store with web UI
   - Configure LLM provider, API keys, timezone
   - DB settings take precedence over config.toml
+  - `stem_concept_enabled` ("true"/"false") toggles the STEM Concept of the Day feature (Learning section)
   - Connection verification on save: LLM, Weather, and Calendar settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
 - ✅ AI settings snapshotting with version history and rollback
   - `agent_voice` and `family_context` each have their own Save button and Version History link on the settings page
@@ -564,6 +565,11 @@ rally/
   - Auto-generates concrete todo instances when due and no open instance exists
   - Recurrence processing runs during dashboard generation
   - Activate/deactivate templates without deleting
+- ✅ STEM Concept of the Day - Optional family learning feature (toggle in Settings → Learning)
+  - When `stem_concept_enabled` is "true", the generator adds a `stem_concept` object to the summary JSON (title, field, explanation, and age-appropriate `activities`)
+  - The LLM tailors ideas to the ages described in FAMILY CONTEXT and keeps each idea super easy to fold into the day's existing plans
+  - Rendered as a dedicated dashboard card; when disabled, the field is omitted from the schema and nothing renders
+  - The LLM-as-judge eval exempts `stem_concept` from groundedness/completeness (it is intentionally generative)
 - ✅ Dinner planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
   - Optional attendees: select which family members are eating (defaults to everyone)
