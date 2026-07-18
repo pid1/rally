@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from rally.models import RecurringTodo, Todo
 from rally.utils.timezone import today_utc
 
-
 # ── Custom rule helpers ──────────────────────────────────────────────────────
 
 
