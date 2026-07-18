@@ -302,6 +302,9 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `010_add_meal_type` - Add `meal_type` to `dinner_plans`
 - `011_add_meal_reviews` - Add `rating` and `review` to `dinner_plans`
 - `012_add_ai_settings_history` - Add `ai_settings_history` table; seed it from existing `agent_voice` / `family_context` settings rows, point `current_agent_voice_history_id` / `current_family_context_history_id` settings keys at the seed rows, and remove the original settings rows
+- `013_add_completed_at` - Add `completed_at` to `todos`
+- `014_configurable_nws_weather` - Replace OpenWeather settings with configurable NWS forecast URL
+- `015_add_llm_settings_history` - Add `llm_settings_history` table; seed a coupled provider+model snapshot from the existing `llm_provider` / model settings rows and point the `current_llm_config_history_id` settings key at it (original settings rows are preserved — they remain the source of truth for the generator)
 
 ### Running Migrations
 
@@ -441,7 +444,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, LLMSettingsHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -483,6 +486,7 @@ rally/
 │   ├── migrate_add_meal_type.py       # Migration 010: add meal_type to dinner_plans
 │   ├── migrate_011_add_meal_reviews.py # Migration 011: add rating and review to dinner_plans
 │   ├── migrate_012_add_ai_settings_history.py # Migration 012: add ai_settings_history table
+│   ├── migrate_015_add_llm_settings_history.py # Migration 015: add llm_settings_history table
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
@@ -530,6 +534,10 @@ rally/
   - Every explicit save inserts a versioned snapshot into `ai_settings_history` (`field_name` discriminator); the active snapshot per field is referenced by the `current_agent_voice_history_id` / `current_family_context_history_id` settings keys
   - Version History modal lists snapshots newest first with a `Current` badge and in-place expandable value previews; **Change Version** rolls the field back (bumps `last_used_at`, repoints the setting, no new row) and updates the field without a page reload
   - Fields roll back independently; all snapshots are retained indefinitely
+- ✅ LLM settings snapshotting with version history and rollback
+  - The LLM section's `Provider` and `Model` are versioned as a **single coupled snapshot** (`llm_config`) — saving the LLM form records one `llm_settings_history` row whose JSON `value` captures the provider and its active model together; the active snapshot is referenced by the `current_llm_config_history_id` settings key
+  - The LLM section has one `Save` button and one `Version History` link; the shared Version History modal shows each snapshot's `Provider` / `Model` pair, and **Change Version** restores both together (select flips, provider fields toggle, model input updates — no page reload, no new row)
+  - The plain `llm_provider` / `llm_local_model` / `llm_anthropic_model` settings keys remain the source of truth read by the generator; save and rollback keep them in sync
 - ✅ Todo management - Full CRUD API and UI
   - Create, read, update, delete todos
   - Optional due dates with native HTML5 date picker
@@ -610,6 +618,11 @@ rally/
   - `PUT /api/settings/ai/{field_name}` - Explicit save: inserts a new `ai_settings_history` snapshot (`created_at` = `last_used_at` = now, UTC) and points the field's `current_<field>_history_id` setting at it
   - `GET /api/settings/ai/{field_name}/history` - List all snapshots for a field, newest first (by `created_at` descending), plus the current history ID
   - `POST /api/settings/ai/{field_name}/rollback` - Make an existing snapshot active: bumps its `last_used_at` and repoints the setting — no new row inserted. Body: `{history_id}`
+- `/api/settings/llm/config` - Versioned LLM configuration endpoints (coupled `provider` + `model` snapshot)
+  - `GET /api/settings/llm/config` - Get the currently active provider + model and history ID
+  - `PUT /api/settings/llm/config` - Explicit save: inserts a new `llm_settings_history` snapshot capturing the provider + model pair, points `current_llm_config_history_id` at it, and syncs the plain `llm_provider` / model settings keys. Body: `{provider, model}`
+  - `GET /api/settings/llm/config/history` - List all snapshots, newest first, plus the current history ID
+  - `POST /api/settings/llm/config/rollback` - Make an existing snapshot active: restores provider and model together, bumps `last_used_at`, repoints the setting, and syncs the plain settings keys — no new row inserted. Body: `{history_id}`
 - `/api/settings/test-llm` - LLM connectivity test
   - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`.
 - `/api/settings/test-weather` - Weather connectivity test
@@ -678,6 +691,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `Calendar` - ICS calendar feeds linked to family members, with optional owner email
 - `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
 - `AISettingsHistory` - Versioned snapshots of `agent_voice` / `family_context` with field_name discriminator, value, created_at, and last_used_at; active snapshot per field referenced via `current_<field>_history_id` settings keys
+- `LLMSettingsHistory` - Versioned snapshots of the coupled LLM provider + model configuration (JSON value `{"provider": ..., "model": ...}`, field_name always `llm_config`); active snapshot referenced via the `current_llm_config_history_id` settings key
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
 - `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), optional recurring_todo_id (link to recurring template), optional remind_days_before (reminder window), completion status, and timestamps
 - `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, last_generated_date (tracks most recently generated instance's recurrence date), active flag, and timestamps

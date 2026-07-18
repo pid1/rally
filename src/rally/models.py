@@ -88,6 +88,29 @@ class AISettingsHistory(Base):
     )  # Bumped whenever this row becomes the active version (save or rollback)
 
 
+class LLMSettingsHistory(Base):
+    """Versioned snapshots of the coupled LLM provider + model configuration.
+
+    A new row is inserted on every explicit save of the LLM settings, capturing
+    the provider and its model together as one unit (value is a JSON object
+    {"provider": ..., "model": ...}). The active snapshot is referenced from
+    the settings table via the 'current_llm_config_history_id' key. Rollback
+    re-points the reference and bumps last_used_at — no new row is inserted.
+    """
+
+    __tablename__ = "llm_settings_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    field_name: Mapped[str] = mapped_column(
+        String(50), index=True
+    )  # Always 'llm_config' (kept for parity with ai_settings_history / future fields)
+    value: Mapped[str] = mapped_column(Text)  # JSON: {"provider": ..., "model": ...}
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    last_used_at: Mapped[datetime] = mapped_column(
+        default=now_utc
+    )  # Bumped whenever this row becomes the active version (save or rollback)
+
+
 class DashboardSnapshot(Base):
     """Dashboard snapshot model - stores generated daily summary data."""
 

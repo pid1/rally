@@ -143,6 +143,43 @@ class AISettingHistoryResponse(BaseModel):
     history: list[AISettingHistoryEntry]
 
 
+# LLM Config (versioned provider + model, coupled as a single snapshot)
+
+LLM_CONFIG_FIELD = "llm_config"
+
+
+class LLMConfigUpdate(BaseModel):
+    """Explicit save of the LLM provider + model pair — creates a new history snapshot."""
+
+    provider: str
+    model: str
+
+
+class LLMConfigState(BaseModel):
+    """Currently active LLM provider + model configuration."""
+
+    provider: str
+    model: str
+    history_id: int | None = None  # None when no snapshot exists yet
+
+
+class LLMConfigHistoryEntry(BaseModel):
+    """One snapshot row from llm_settings_history, with the coupled value unpacked."""
+
+    id: int
+    provider: str
+    model: str
+    created_at: datetime
+    last_used_at: datetime
+
+
+class LLMConfigHistoryResponse(BaseModel):
+    """Version history for the LLM configuration, newest first."""
+
+    current_history_id: int | None = None
+    history: list[LLMConfigHistoryEntry]
+
+
 # Todos
 
 
