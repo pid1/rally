@@ -111,6 +111,24 @@ class LLMSettingsHistory(Base):
     )  # Bumped whenever this row becomes the active version (save or rollback)
 
 
+class StemConceptHistory(Base):
+    """History of STEM 'concept of the day' topics that have been used.
+
+    One row per (title, used_on) usage. The generator loads concepts used within
+    the last 60 days and instructs the LLM not to repeat those specific topics.
+    """
+
+    __tablename__ = "stem_concept_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))  # Concept name as generated
+    field: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # Science, Technology, Engineering, or Math
+    used_on: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD (local date used)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+
 class DashboardSnapshot(Base):
     """Dashboard snapshot model - stores generated daily summary data."""
 

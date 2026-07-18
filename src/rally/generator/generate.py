@@ -571,6 +571,68 @@ class SummaryGenerator:
         finally:
             db.close()
 
+    def load_recent_stem_concepts(self, limit: int = 250) -> list[str]:
+        """Load titles of previously used STEM concepts (newest first).
+
+        These are injected into the generation prompt so the LLM avoids
+        repeating concepts. Returns an empty list if none are recorded yet or
+        the history table is not available.
+        """
+        try:
+            db = SessionLocal()
+            try:
+                from rally.models import StemConceptHistory
+
+                rows = (
+                    db.query(StemConceptHistory.title)
+                    .order_by(StemConceptHistory.id.desc())
+                    .limit(limit)
+                    .all()
+                )
+                return [r[0] for r in rows if r[0]]
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Could not load STEM concept history: {e}")
+            return []
+
+    def save_stem_concept(self, concept: dict | None) -> None:
+        """Record a used STEM concept in history, deduplicated by title.
+
+        A no-op when the concept is missing, has no title, or already exists
+        (case-insensitive). Keeps the "do not repeat" list free of duplicates.
+        """
+        if not isinstance(concept, dict):
+            return
+        title = str(concept.get("title", "")).strip()
+        if not title:
+            return
+
+        try:
+            from sqlalchemy import func
+
+            db = SessionLocal()
+            try:
+                from rally.models import StemConceptHistory
+
+                existing = (
+                    db.query(StemConceptHistory)
+                    .filter(func.lower(StemConceptHistory.title) == title.lower())
+                    .first()
+                )
+                if existing:
+                    return
+
+                field = str(concept.get("field", "")).strip() or None
+                used_on = now_utc().astimezone(self.local_tz).strftime("%Y-%m-%d")
+                db.add(StemConceptHistory(title=title, field=field, used_on=used_on))
+                db.commit()
+                print(f"Recorded STEM concept in history: {title}")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Could not record STEM concept history: {e}")
+
     def _load_ai_setting(self, field_name: str) -> str | None:
         """Resolve the active AI setting value via its history pointer in settings."""
         pointer = self._db_settings.get(f"current_{field_name}_history_id")
@@ -802,7 +864,8 @@ class SummaryGenerator:
 11. STEM CONCEPT OF THE DAY: Include a "stem_concept" object with one simple, everyday STEM concept the family can notice or play with today.
     - Tailor the activities to the ages of the children described in FAMILY CONTEXT. If ages aren't clear, give one idea for younger kids and one for older kids.
     - Every idea MUST be SUPER EASY to fold into what the family is already doing today (a meal, an errand, the weather, a scheduled activity, play or bath time). No special supplies, no extra trips — just a few minutes and a question or observation.
-    - Keep it playful, curious, and encouraging — a fun bonus, not homework. Pick a concept that connects naturally to today's schedule, weather, or dinner when possible."""
+    - Keep it playful, curious, and encouraging — a fun bonus, not homework. Pick a concept that connects naturally to today's schedule, weather, or dinner when possible.
+    - DO NOT repeat any concept listed under PREVIOUSLY USED STEM CONCEPTS — always choose a fresh topic that is not on that list."""
 
         # Static content → system prompt (cached by Anthropic, system role for local models)
         system_prompt = f"""You are creating content for a daily family summary.
@@ -840,6 +903,18 @@ Guidelines:
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
+        # Build the "avoid repeats" block from STEM concept history (dynamic → user prompt)
+        stem_avoid_block = ""
+        if self.stem_concept_enabled:
+            recent_concepts = self.load_recent_stem_concepts()
+            if recent_concepts:
+                joined = "\n".join(f"- {t}" for t in recent_concepts)
+                stem_avoid_block = (
+                    "\n\nPREVIOUSLY USED STEM CONCEPTS "
+                    "(do NOT repeat any of these — pick a different concept):\n"
+                    f"{joined}"
+                )
+
         # Dynamic content → user prompt (changes every generation)
         user_prompt = f"""Create a daily family summary for {today}.
 
@@ -856,7 +931,7 @@ TODOS:
 {todos}
 
 DINNER PLANS (next 7 days):
-{dinner_plans}"""
+{dinner_plans}{stem_avoid_block}"""
 
         try:
             response_text = self._call_llm(user_prompt, system_prompt=system_prompt)
@@ -1062,6 +1137,9 @@ FAMILY MEMBERS:
             print(f"Snapshot saved at {now_utc()}")
         finally:
             db.close()
+
+        # Record the STEM concept (if any) so future generations don't repeat it
+        self.save_stem_concept(data.get("stem_concept"))
 
 
 EVAL_DIMENSIONS = [
