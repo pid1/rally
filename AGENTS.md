@@ -454,7 +454,7 @@ rally/
 │   │   └── __main__.py   # CLI entry point
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   └── timezone.py   # Timezone helpers (now_utc, today_utc, ensure_utc)
+│   │   └── timezone.py   # Timezone helpers (now_utc, today_utc, today_local, ensure_utc)
 │   └── routers/
 │       ├── __init__.py
 │       ├── dashboard.py     # Dashboard routes
@@ -468,6 +468,7 @@ rally/
 ├── templates/
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── todo.html            # Todo management page
+│   ├── todo_completed.html  # Read-only previously-completed tasks page
 │   ├── dinner_planner.html  # Dinner planner page
 │   └── settings.html        # Settings, family member, and calendar management page
 ├── config.toml.example   # Example configuration file
@@ -545,9 +546,16 @@ rally/
   - Configurable reminder window (`remind_days_before`) — controls when a todo appears in LLM briefings relative to its due date. Uses local timezone (not UTC) for date comparisons.
   - AI formats due dates with day-of-week (e.g., "[Due Friday, Feb 20]")
   - Overdue styling for past-due items
-  - Completion tracking with 24-hour visibility window
+  - Completion tracking — a completed todo stays on `/todo` until the end of the local day it was completed
   - Integrated into LLM generator for schedule optimization
   - Luxury UI with inline editing
+- ✅ Completed tasks history (`/todo/completed`)
+  - Read-only archive of todos completed before today: no add, edit, delete, or completion checkbox
+  - Mirrors the `/todo` layout (same heading, toolbar, and list styles) minus the Recurring Tasks section
+  - Two extra sort options — `Completion Date (Most Recent)` (default) and `Completion Date (Oldest)` — alongside the `/todo` sorts
+  - Assignee filter chips behave as on `/todo`; each row shows its completion date beneath the due date
+  - Paginated 50 at a time via a `Load more` button; changing sort or filter resets to the first page
+  - The two pages **partition** all todos — the local-midnight boundary comes from the shared `today_start_utc()` helper in `routers/todos.py`, so every todo appears on exactly one of them
 - ✅ Recurring todos - Full CRUD API and UI
   - Define recurring templates (daily, weekly, monthly)
   - Configurable recurrence day (day-of-week for weekly, day-of-month for monthly)
@@ -580,13 +588,15 @@ rally/
 - `/` - Redirects to `/dashboard`
 - `/dashboard` - Serves the generated daily summary from cached snapshot (shows error if missing)
 - `/todo` - Todo management page with full CRUD interface
+- `/todo/completed` - Read-only page of todos completed before today (local time); reachable only via the `View completed tasks` link on `/todo`, not from the nav bar
 - `/dinner-planner` - Dinner planning page with date picker and plan management
 - `/settings` - Settings, family member, and calendar management page
 
 ### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot
 - `/api/todos` - Todo CRUD endpoints
-  - `GET /api/todos` - List todos (24-hour visibility filter for completed)
+  - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
+  - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
   - `POST /api/todos` - Create new todo
   - `GET /api/todos/{id}` - Get specific todo
   - `PUT /api/todos/{id}` - Update todo

@@ -585,6 +585,59 @@ footer a:hover {
     font-weight: 600;
 }
 
+.todo-completed-date {
+    font-size: 0.85rem;
+    color: var(--light-gray);
+    letter-spacing: 0.02em;
+    font-style: italic;
+    margin-top: 4px;
+}
+
+/* Toggle between the current tasks page and the completed tasks page.
+   Sits directly above the toolbar, in the same spot on both pages. */
+.todo-view-switch {
+    display: inline-block;
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    margin-top: 4px;
+}
+
+.todo-view-switch:hover {
+    color: var(--charcoal);
+}
+
+.load-more-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 24px;
+}
+
+.btn-load-more {
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    padding: 8px 24px;
+    border: 1px solid var(--pale-gray);
+    background: var(--white);
+    color: var(--charcoal);
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.btn-load-more:hover:not(:disabled) {
+    border-color: var(--medium-gray);
+    background: var(--off-white);
+}
+
+.btn-load-more:disabled {
+    color: var(--light-gray);
+    cursor: default;
+}
+
 
 .todo-toolbar {
     display: flex;
