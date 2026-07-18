@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally - Todos</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Todo Management</div>
+    </header>
+
+    <nav>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todo" class="active">Tasks</a>
+        <div class="nav-dropdown" id="meal-dropdown">
+            <button class="nav-dropdown-btn" onclick="toggleMealDropdown(event)">Meal Planner</button>
+            <div class="nav-dropdown-content">
+                <a href="/dinner-planner">Current &amp; Upcoming</a>
+                <a href="/meal-history">Previous Meals</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="section-container">
+        <div class="header-container">
+            <h2>Tasks</h2>
+        </div>
+
+        <a class="todo-view-switch" href="/todo">Back to current tasks</a>
+
+        <div class="todo-toolbar">
+            <div class="toolbar-group">
+                <label>Assignee</label>
+                <div class="filter-chips" id="filter-assignee-chips">
+                    <button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>
+                </div>
+                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
+            </div>
+            <div class="toolbar-group">
+                <label for="sort-by">Sort</label>
+                <select id="sort-by">
+                    <option value="completed-newest">Completion Date (Most Recent)</option>
+                    <option value="completed-oldest">Completion Date (Oldest)</option>
+                    <option value="due-soonest">Due Date (Soonest)</option>
+                    <option value="due-furthest">Due Date (Furthest Out)</option>
+                    <option value="assignee">Assignee</option>
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="list-container" id="list-container">
+            <div class="container-loading-state">Loading completed tasks...</div>
+        </div>
+
+        <div class="load-more-container" id="load-more-container" style="display:none;">
+            <button type="button" class="btn-load-more" id="btn-load-more">Load more</button>
+        </div>
+    </div>
+
+    <script>
+        const PAGE_SIZE = 50;
+
+        // State
+        let todos = [];          // every page loaded so far, in server order
+        let familyMembers = [];
+        let hasMore = false;
+        let loading = false;
+        // Guards against a slow earlier request overwriting a newer one's results
+        let requestToken = 0;
+
+        // Track selected assignee filter values
+        let selectedFilters = new Set();
+
+        async function fetchFamilyMembers() {
+            const response = await fetch('/api/family');
+            familyMembers = await response.json();
+            populateAssigneeDropdown();
+        }
+
+        function populateAssigneeDropdown() {
+            const chips = document.getElementById('filter-assignee-chips');
+            chips.innerHTML = '<button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>';
+            familyMembers.forEach(m => {
+                chips.innerHTML += `<button type="button" class="filter-chip" data-value="${m.id}">${escapeHtml(m.name)}</button>`;
+            });
+            // Re-apply active state from selectedFilters
+            chips.querySelectorAll('.filter-chip').forEach(chip => {
+                if (selectedFilters.has(chip.dataset.value)) {
+                    chip.classList.add('active');
+                }
+            });
+        }
+
+        function clearFilters() {
+            selectedFilters.clear();
+            document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+            });
+            reload();
+        }
+
+        function getMemberById(id) {
+            return familyMembers.find(m => m.id === id);
+        }
+
+        // API calls
+        //
+        // Sorting, filtering and paging all happen server-side: the client only
+        // ever holds the pages it has loaded, so it can't sort or filter the
+        // full set itself.
+        function buildQuery(offset) {
+            const params = new URLSearchParams({
+                sort: document.getElementById('sort-by').value,
+                limit: PAGE_SIZE,
+                offset: offset
+            });
+            selectedFilters.forEach(value => params.append('assignee', value));
+            return params;
+        }
+
+        async function fetchPage(offset) {
+            const token = ++requestToken;
+            loading = true;
+            updateLoadMore();
+            try {
+                const response = await fetch(`/api/todos/completed?${buildQuery(offset)}`);
+                if (!response.ok) throw new Error('Failed to load completed tasks');
+                const page = await response.json();
+                if (token !== requestToken) return; // superseded by a newer request
+                todos = offset === 0 ? page.items : todos.concat(page.items);
+                hasMore = page.has_more;
+                renderTodos();
+            } catch (error) {
+                if (token !== requestToken) return;
+                console.error('Error loading completed tasks:', error);
+                document.getElementById('list-container').innerHTML =
+                    '<div class="container-empty-state">Could not load completed tasks. Please try again.</div>';
+                hasMore = false;
+            } finally {
+                if (token === requestToken) {
+                    loading = false;
+                    updateLoadMore();
+                }
+            }
+        }
+
+        function reload() {
+            todos = [];
+            document.getElementById('list-container').innerHTML =
+                '<div class="container-loading-state">Loading completed tasks...</div>';
+            fetchPage(0);
+        }
+
+        function loadMore() {
+            if (loading || !hasMore) return;
+            fetchPage(todos.length);
+        }
+
+        // Render
+        function renderTodos() {
+            const container = document.getElementById('list-container');
+
+            if (todos.length === 0) {
+                container.innerHTML = selectedFilters.size > 0
+                    ? '<div class="container-empty-state">No completed tasks match the current filter.</div>'
+                    : '<div class="container-empty-state">No completed tasks yet. Tasks appear here the day after you finish them.</div>';
+                return;
+            }
+
+            container.innerHTML = todos.map(todo => {
+                const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
+                const completedHtml = formatCompletedDate(todo.completed_at);
+                const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
+                const assigneeHtml = member
+                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                    : '';
+                const recurringIcon = todo.recurring_todo_id ? '<span class="recurring-indicator">↻</span>' : '';
+                return `
+                    <div class="editable-item" data-id="${todo.id}">
+                        <div class="editable-item-content">
+                            <div class="editable-item-title">${escapeHtml(todo.title)} ${recurringIcon} ${assigneeHtml}</div>
+                            ${todo.description ? `<div class="editable-item-description">${escapeHtml(todo.description)}</div>` : ''}
+                            ${dueDateHtml}
+                            ${completedHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateLoadMore() {
+            const container = document.getElementById('load-more-container');
+            const button = document.getElementById('btn-load-more');
+            container.style.display = hasMore ? '' : 'none';
+            button.disabled = loading;
+            button.textContent = loading ? 'Loading…' : 'Load more';
+        }
+
+        // Every task here is finished, so due dates render in their neutral
+        // style — no overdue emphasis.
+        function formatDueDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr + 'T00:00:00');
+            return `<div class="todo-due-date">Due ${formatDayMonth(date)}</div>`;
+        }
+
+        function formatCompletedDate(value) {
+            if (!value) return '';
+            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
+            if (isNaN(date)) return '';
+            return `<div class="todo-completed-date">Completed ${formatDayMonth(date)}</div>`;
+        }
+
+        function formatDayMonth(date) {
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Event handlers
+        document.getElementById('filter-assignee-chips').addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+            const value = chip.dataset.value;
+            if (selectedFilters.has(value)) {
+                selectedFilters.delete(value);
+                chip.classList.remove('active');
+            } else {
+                selectedFilters.add(value);
+                chip.classList.add('active');
+            }
+            reload();
+        });
+        document.getElementById('filter-clear').addEventListener('click', clearFilters);
+        document.getElementById('sort-by').addEventListener('change', reload);
+        document.getElementById('btn-load-more').addEventListener('click', loadMore);
+
+        // Initialize
+        fetchFamilyMembers().then(reload);
+
+        // Nav dropdown toggle (for touch devices)
+        function toggleMealDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('meal-dropdown').classList.toggle('open');
+        }
+        document.addEventListener('click', function() {
+            document.getElementById('meal-dropdown').classList.remove('open');
+        });
+    </script>
+
+    <footer>
+        <a href="/settings">Settings</a>
+    </footer>
+</body>
+</html>

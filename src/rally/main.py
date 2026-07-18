@@ -70,6 +70,12 @@ def todo_page(request: Request):
     return templates.TemplateResponse("todo.html", {"request": request})
 
 
+@app.get("/todo/completed", response_class=HTMLResponse)
+def todo_completed_page(request: Request):
+    """Serve the read-only page of previously completed tasks."""
+    return templates.TemplateResponse("todo_completed.html", {"request": request})
+
+
 @app.get("/dinner-planner", response_class=HTMLResponse)
 def dinner_planner_page(request: Request):
     """Serve the meal planner page."""

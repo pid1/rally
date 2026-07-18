@@ -218,6 +218,13 @@ class TodoResponse(TodoBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CompletedTodoPage(BaseModel):
+    """One page of previously completed todos."""
+
+    items: list[TodoResponse]
+    has_more: bool  # True when another page exists beyond this one
+
+
 # Recurring Todos
 
 
