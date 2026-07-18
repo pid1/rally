@@ -10,6 +10,7 @@ Run this once to upgrade existing databases. Safe to run multiple times (idempot
 import os
 import sqlite3
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_NWS_URL = (
@@ -63,9 +64,11 @@ def migrate():
         if cursor.fetchone():
             print("✓ Migration: weather_nws_url already configured (idempotent check)")
         else:
+            # Match SQLAlchemy's SQLite datetime format (naive UTC)
+            now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
             cursor.execute(
-                "INSERT INTO settings (key, value) VALUES ('weather_nws_url', ?)",
-                (DEFAULT_NWS_URL,),
+                "INSERT INTO settings (key, value, updated_at) VALUES ('weather_nws_url', ?, ?)",
+                (DEFAULT_NWS_URL, now),
             )
             print("✓ Migration: seeded default weather_nws_url")
 
