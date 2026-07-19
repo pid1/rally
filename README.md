@@ -21,6 +21,11 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - Optional due dates and reminder windows per template
   - Assign to family members
   - Activate/deactivate templates without deleting
+- 🔬 **STEM Concept of the Day** - Optional family learning boost (toggle in Settings)
+  - Adds one simple, everyday STEM concept to the daily summary
+  - Age-appropriate ideas tailored to the kids in your family context
+  - Every idea is super easy to fold into what you're already doing that day — no special supplies
+  - Remembers past concepts in the database and won't repeat a specific topic within 60 days (different sub-topics in the same area are still fair game)
 - 🍕 **Dinner Planner** - Plan meals ahead with prep reminders
   - Date-based meal planning with simple text field
   - View next 7 days of planned dinners
@@ -219,7 +224,7 @@ rally/
 ├── src/rally/              # Application source code
 │   ├── main.py             # FastAPI application entry point
 │   ├── database.py         # SQLAlchemy database configuration
-│   ├── models.py           # Database models (FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
+│   ├── models.py           # Database models (FamilyMember, Calendar, Setting, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
 │   ├── schemas.py          # Pydantic request/response schemas
 │   ├── cli.py              # CLI commands (seed, etc.)
 │   ├── recurrence.py       # Recurring todo processing (template → instance generation)

@@ -16,6 +16,10 @@ from rally.models import AISettingsHistory, DashboardSnapshot, FamilyMember, Set
 from rally.models import Calendar as CalendarModel
 from rally.utils.timezone import ensure_utc, now_utc, today_utc
 
+# A specific STEM concept should not repeat within this many days. Different
+# sub-topics within the same broader area are still allowed inside the window.
+STEM_REPEAT_WINDOW_DAYS = 60
+
 
 class SummaryGenerator:
     """Generate daily family summaries with calendar, weather, and todos."""
@@ -94,6 +98,9 @@ class SummaryGenerator:
 
         # Store DB settings for use by other methods
         self._db_settings = db_settings
+
+        # Optional: STEM "concept of the day" for the family (toggle in Settings)
+        self.stem_concept_enabled = db_settings.get("stem_concept_enabled", "false") == "true"
 
         # Optional: owner emails for accurate declined-event detection (config.toml fallback only)
         self.calendar_owners = self.config.get("calendar_owners", {})
@@ -568,6 +575,90 @@ class SummaryGenerator:
         finally:
             db.close()
 
+    def load_recent_stem_concepts(self) -> list[str]:
+        """Load titles of STEM concepts used within the last 60 days (newest first).
+
+        These are injected into the generation prompt as a "do not repeat" list.
+        A specific topic older than the window is allowed to recur, so it drops
+        off the list. Returns an empty list if none are in-window or the history
+        table is not available.
+        """
+        try:
+            today = now_utc().astimezone(self.local_tz).date()
+            cutoff = (today - timedelta(days=STEM_REPEAT_WINDOW_DAYS)).strftime("%Y-%m-%d")
+
+            db = SessionLocal()
+            try:
+                from rally.models import StemConceptHistory
+
+                # used_on is an ISO YYYY-MM-DD string, so lexicographic >= is a date compare
+                rows = (
+                    db.query(StemConceptHistory.title)
+                    .filter(StemConceptHistory.used_on >= cutoff)
+                    .order_by(StemConceptHistory.id.desc())
+                    .all()
+                )
+                # De-duplicate titles case-insensitively while preserving order
+                seen: set[str] = set()
+                titles: list[str] = []
+                for (title,) in rows:
+                    if not title:
+                        continue
+                    key = title.strip().lower()
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    titles.append(title)
+                return titles
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Could not load STEM concept history: {e}")
+            return []
+
+    def save_stem_concept(self, concept: dict | None) -> None:
+        """Record a used STEM concept in history.
+
+        Deduplicated by (title, used_on) so regenerating the same day doesn't add
+        duplicate rows, but the same topic used again on a later date (after the
+        60-day window, when the LLM is allowed to reuse it) records a fresh row.
+        A no-op when the concept is missing or has no title.
+        """
+        if not isinstance(concept, dict):
+            return
+        title = str(concept.get("title", "")).strip()
+        if not title:
+            return
+
+        try:
+            from sqlalchemy import func
+
+            used_on = now_utc().astimezone(self.local_tz).strftime("%Y-%m-%d")
+
+            db = SessionLocal()
+            try:
+                from rally.models import StemConceptHistory
+
+                existing = (
+                    db.query(StemConceptHistory)
+                    .filter(
+                        func.lower(StemConceptHistory.title) == title.lower(),
+                        StemConceptHistory.used_on == used_on,
+                    )
+                    .first()
+                )
+                if existing:
+                    return
+
+                field = str(concept.get("field", "")).strip() or None
+                db.add(StemConceptHistory(title=title, field=field, used_on=used_on))
+                db.commit()
+                print(f"Recorded STEM concept in history: {title}")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"Could not record STEM concept history: {e}")
+
     def _load_ai_setting(self, field_name: str) -> str | None:
         """Resolve the active AI setting value via its history pointer in settings."""
         pointer = self._db_settings.get(f"current_{field_name}_history_id")
@@ -779,6 +870,29 @@ class SummaryGenerator:
 
         today = now_utc().astimezone(self.local_tz).strftime("%A, %B %d, %Y")
 
+        # Optional STEM "concept of the day" — schema block + guideline, only when enabled
+        stem_schema = ""
+        stem_guideline = ""
+        if self.stem_concept_enabled:
+            stem_schema = """,
+  "stem_concept": {
+    "title": "Short name of the concept (e.g. 'Buoyancy' or 'Patterns')",
+    "field": "One of: Science, Technology, Engineering, Math",
+    "explanation": "A warm, plain-language explanation the whole family can understand (1-2 sentences)",
+    "activities": [
+      {
+        "audience": "Who it's for (e.g. 'Ages 4-6', 'Older kids', or a child's name)",
+        "idea": "One super-easy, low-prep way to explore the concept during what the family is ALREADY doing today"
+      }
+    ]
+  }"""
+            stem_guideline = """
+11. STEM CONCEPT OF THE DAY: Include a "stem_concept" object with one simple, everyday STEM concept the family can notice or play with today.
+    - Tailor the activities to the ages of the children described in FAMILY CONTEXT. If ages aren't clear, give one idea for younger kids and one for older kids.
+    - Every idea MUST be SUPER EASY to fold into what the family is already doing today (a meal, an errand, the weather, a scheduled activity, play or bath time). No special supplies, no extra trips — just a few minutes and a question or observation.
+    - Keep it playful, curious, and encouraging — a fun bonus, not homework. Pick a concept that connects naturally to today's schedule, weather, or dinner when possible.
+    - DO NOT reuse any of the specific concepts listed under STEM CONCEPTS USED RECENTLY. Exploring a DIFFERENT sub-topic within the same broader area (e.g. a new idea in "weather" or "fractions") is fine — only the specific topics on that list are off-limits."""
+
         # Static content → system prompt (cached by Anthropic, system role for local models)
         system_prompt = f"""You are creating content for a daily family summary.
 
@@ -799,7 +913,7 @@ Respond with ONLY a JSON object (no markdown fences) using this exact schema:
       "notes": "Optional context or suggestion (or empty string)"
     }}
   ],
-  "briefing": "Optional warnings or coordination notes. Empty string if nothing notable."
+  "briefing": "Optional warnings or coordination notes. Empty string if nothing notable."{stem_schema}
 }}
 
 Guidelines:
@@ -811,9 +925,22 @@ Guidelines:
 7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 9. If the weather is actively dangerous (snow, thunderstorms, or tornado risk) within the next 7 days, mention it.
-10. TASK FILTERING: The TODOS section below is pre-filtered. Only mention, reference, or suggest tasks that explicitly appear in the TODOS section. Do not infer, recall, or invent tasks that are not listed. If the TODOS section says "No todos currently active," do not suggest any specific tasks.
+10. TASK FILTERING: The TODOS section below is pre-filtered. Only mention, reference, or suggest tasks that explicitly appear in the TODOS section. Do not infer, recall, or invent tasks that are not listed. If the TODOS section says "No todos currently active," do not suggest any specific tasks.{stem_guideline}
 
 Do NOT include any HTML in your response. Plain text only for all values."""
+
+        # Build the "avoid repeats" block from STEM concept history (dynamic → user prompt)
+        stem_avoid_block = ""
+        if self.stem_concept_enabled:
+            recent_concepts = self.load_recent_stem_concepts()
+            if recent_concepts:
+                joined = "\n".join(f"- {t}" for t in recent_concepts)
+                stem_avoid_block = (
+                    f"\n\nSTEM CONCEPTS USED RECENTLY (within the last {STEM_REPEAT_WINDOW_DAYS} "
+                    "days — do NOT reuse any of these specific topics; a different sub-topic in "
+                    "the same broader area is fine):\n"
+                    f"{joined}"
+                )
 
         # Dynamic content → user prompt (changes every generation)
         user_prompt = f"""Create a daily family summary for {today}.
@@ -831,7 +958,7 @@ TODOS:
 {todos}
 
 DINNER PLANS (next 7 days):
-{dinner_plans}"""
+{dinner_plans}{stem_avoid_block}"""
 
         try:
             response_text = self._call_llm(user_prompt, system_prompt=system_prompt)
@@ -895,8 +1022,19 @@ DINNER PLANS (next 7 days):
         ctx = self._generation_context
         summary_json = json.dumps(summary_data, indent=2)
 
+        # When the STEM concept feature is on, that field is intentionally
+        # generative and must not be judged against the raw input data.
+        stem_eval_note = ""
+        if self.stem_concept_enabled:
+            stem_eval_note = (
+                '\n\nNOTE: The optional "stem_concept" field is intentionally generative '
+                "educational content. Do NOT penalize groundedness or completeness for it — "
+                "it is not expected to trace to the raw input data."
+            )
+
         # Static evaluation criteria → system prompt (cached / system role)
-        eval_system = """You are a quality evaluator for Rally, a family command center.
+        eval_system = (
+            """You are a quality evaluator for Rally, a family command center.
 Your job is to judge the quality of an AI-generated daily family summary by
 comparing it against the raw input data that was available to the generator.
 
@@ -967,6 +1105,8 @@ Respond with ONLY a JSON object (no markdown fences):
   "pass": <true if all scores >= 3 AND overall >= 3.5 else false>,
   "summary": "<1 sentence overall assessment>"
 }"""
+            + stem_eval_note
+        )
 
         # Dynamic data → user prompt
         eval_user = f"""== GENERATED SUMMARY (to evaluate) ==
@@ -1024,6 +1164,9 @@ FAMILY MEMBERS:
             print(f"Snapshot saved at {now_utc()}")
         finally:
             db.close()
+
+        # Record the STEM concept (if any) so future generations don't repeat it
+        self.save_stem_concept(data.get("stem_concept"))
 
 
 EVAL_DIMENSIONS = [

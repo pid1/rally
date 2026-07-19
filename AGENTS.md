@@ -305,6 +305,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `013_add_completed_at` - Add `completed_at` to `todos`
 - `014_configurable_nws_weather` - Replace OpenWeather settings with configurable NWS forecast URL
 - `015_add_llm_settings_history` - Add `llm_settings_history` table; seed a coupled provider+model snapshot from the existing `llm_provider` / model settings rows and point the `current_llm_config_history_id` settings key at it (original settings rows are preserved — they remain the source of truth for the generator)
+- `016_add_stem_concept_history` - Add `stem_concept_history` table (records used STEM "concept of the day" topics so the generator avoids repeating a specific topic within 60 days)
 
 ### Running Migrations
 
@@ -444,7 +445,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, LLMSettingsHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -529,6 +530,7 @@ rally/
 - ✅ Settings management - Key-value store with web UI
   - Configure LLM provider, API keys, timezone
   - DB settings take precedence over config.toml
+  - `stem_concept_enabled` ("true"/"false") toggles the STEM Concept of the Day feature (Learning section)
   - Connection verification on save: LLM, Weather, and Calendar settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
 - ✅ AI settings snapshotting with version history and rollback
   - `agent_voice` and `family_context` each have their own Save button and Version History link on the settings page
@@ -564,6 +566,12 @@ rally/
   - Auto-generates concrete todo instances when due and no open instance exists
   - Recurrence processing runs during dashboard generation
   - Activate/deactivate templates without deleting
+- ✅ STEM Concept of the Day - Optional family learning feature (toggle in Settings → Learning)
+  - When `stem_concept_enabled` is "true", the generator adds a `stem_concept` object to the summary JSON (title, field, explanation, and age-appropriate `activities`)
+  - The LLM tailors ideas to the ages described in FAMILY CONTEXT and keeps each idea super easy to fold into the day's existing plans
+  - Rendered as a dedicated dashboard card; when disabled, the field is omitted from the schema and nothing renders
+  - The LLM-as-judge eval exempts `stem_concept` from groundedness/completeness (it is intentionally generative)
+  - Used concepts are recorded in the `stem_concept_history` table (one row per `(title, used_on)`). Concepts used within the last 60 days (`STEM_REPEAT_WINDOW_DAYS`) are injected into the generation prompt as a "do not reuse" list, so a specific topic won't repeat within that window; a specific topic older than 60 days drops off the list and may recur. Different sub-topics within the same broader area are always allowed
 - ✅ Dinner planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
   - Optional attendees: select which family members are eating (defaults to everyone)
@@ -702,6 +710,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
 - `AISettingsHistory` - Versioned snapshots of `agent_voice` / `family_context` with field_name discriminator, value, created_at, and last_used_at; active snapshot per field referenced via `current_<field>_history_id` settings keys
 - `LLMSettingsHistory` - Versioned snapshots of the coupled LLM provider + model configuration (JSON value `{"provider": ..., "model": ...}`, field_name always `llm_config`); active snapshot referenced via the `current_llm_config_history_id` settings key
+- `StemConceptHistory` - Records used STEM "concept of the day" topics (title, field, used_on date) so the generator avoids repeating a specific topic within 60 days; one row per (title, used_on)
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
 - `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), optional recurring_todo_id (link to recurring template), optional remind_days_before (reminder window), completion status, and timestamps
 - `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, last_generated_date (tracks most recently generated instance's recurrence date), active flag, and timestamps

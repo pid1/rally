@@ -22,6 +22,9 @@ def run_migrations():
         from migrate_015_add_llm_settings_history import (
             migrate as migrate_015_add_llm_settings_history,
         )
+        from migrate_016_add_stem_concept_history import (
+            migrate as migrate_016_add_stem_concept_history,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -58,6 +61,7 @@ def run_migrations():
         ("013_add_completed_at", migrate_013_add_completed_at),
         ("014_configurable_nws_weather", migrate_014_configurable_nws_weather),
         ("015_add_llm_settings_history", migrate_015_add_llm_settings_history),
+        ("016_add_stem_concept_history", migrate_016_add_stem_concept_history),
     ]
 
     print("=" * 60)
