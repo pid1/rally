@@ -25,7 +25,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - Adds one simple, everyday STEM concept to the daily summary
   - Age-appropriate ideas tailored to the kids in your family context
   - Every idea is super easy to fold into what you're already doing that day — no special supplies
-  - Remembers past concepts in the database and avoids repeating them
+  - Remembers past concepts in the database and won't repeat a specific topic within 60 days (different sub-topics in the same area are still fair game)
 - 🍕 **Dinner Planner** - Plan meals ahead with prep reminders
   - Date-based meal planning with simple text field
   - View next 7 days of planned dinners

@@ -16,6 +16,10 @@ from rally.models import AISettingsHistory, DashboardSnapshot, FamilyMember, Set
 from rally.models import Calendar as CalendarModel
 from rally.utils.timezone import ensure_utc, now_utc, today_utc
 
+# A specific STEM concept should not repeat within this many days. Different
+# sub-topics within the same broader area are still allowed inside the window.
+STEM_REPEAT_WINDOW_DAYS = 60
+
 
 class SummaryGenerator:
     """Generate daily family summaries with calendar, weather, and todos."""
@@ -571,25 +575,41 @@ class SummaryGenerator:
         finally:
             db.close()
 
-    def load_recent_stem_concepts(self, limit: int = 250) -> list[str]:
-        """Load titles of previously used STEM concepts (newest first).
+    def load_recent_stem_concepts(self) -> list[str]:
+        """Load titles of STEM concepts used within the last 60 days (newest first).
 
-        These are injected into the generation prompt so the LLM avoids
-        repeating concepts. Returns an empty list if none are recorded yet or
-        the history table is not available.
+        These are injected into the generation prompt as a "do not repeat" list.
+        A specific topic older than the window is allowed to recur, so it drops
+        off the list. Returns an empty list if none are in-window or the history
+        table is not available.
         """
         try:
+            today = now_utc().astimezone(self.local_tz).date()
+            cutoff = (today - timedelta(days=STEM_REPEAT_WINDOW_DAYS)).strftime("%Y-%m-%d")
+
             db = SessionLocal()
             try:
                 from rally.models import StemConceptHistory
 
+                # used_on is an ISO YYYY-MM-DD string, so lexicographic >= is a date compare
                 rows = (
                     db.query(StemConceptHistory.title)
+                    .filter(StemConceptHistory.used_on >= cutoff)
                     .order_by(StemConceptHistory.id.desc())
-                    .limit(limit)
                     .all()
                 )
-                return [r[0] for r in rows if r[0]]
+                # De-duplicate titles case-insensitively while preserving order
+                seen: set[str] = set()
+                titles: list[str] = []
+                for (title,) in rows:
+                    if not title:
+                        continue
+                    key = title.strip().lower()
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    titles.append(title)
+                return titles
             finally:
                 db.close()
         except Exception as e:
@@ -597,10 +617,12 @@ class SummaryGenerator:
             return []
 
     def save_stem_concept(self, concept: dict | None) -> None:
-        """Record a used STEM concept in history, deduplicated by title.
+        """Record a used STEM concept in history.
 
-        A no-op when the concept is missing, has no title, or already exists
-        (case-insensitive). Keeps the "do not repeat" list free of duplicates.
+        Deduplicated by (title, used_on) so regenerating the same day doesn't add
+        duplicate rows, but the same topic used again on a later date (after the
+        60-day window, when the LLM is allowed to reuse it) records a fresh row.
+        A no-op when the concept is missing or has no title.
         """
         if not isinstance(concept, dict):
             return
@@ -611,20 +633,24 @@ class SummaryGenerator:
         try:
             from sqlalchemy import func
 
+            used_on = now_utc().astimezone(self.local_tz).strftime("%Y-%m-%d")
+
             db = SessionLocal()
             try:
                 from rally.models import StemConceptHistory
 
                 existing = (
                     db.query(StemConceptHistory)
-                    .filter(func.lower(StemConceptHistory.title) == title.lower())
+                    .filter(
+                        func.lower(StemConceptHistory.title) == title.lower(),
+                        StemConceptHistory.used_on == used_on,
+                    )
                     .first()
                 )
                 if existing:
                     return
 
                 field = str(concept.get("field", "")).strip() or None
-                used_on = now_utc().astimezone(self.local_tz).strftime("%Y-%m-%d")
                 db.add(StemConceptHistory(title=title, field=field, used_on=used_on))
                 db.commit()
                 print(f"Recorded STEM concept in history: {title}")
@@ -865,7 +891,7 @@ class SummaryGenerator:
     - Tailor the activities to the ages of the children described in FAMILY CONTEXT. If ages aren't clear, give one idea for younger kids and one for older kids.
     - Every idea MUST be SUPER EASY to fold into what the family is already doing today (a meal, an errand, the weather, a scheduled activity, play or bath time). No special supplies, no extra trips — just a few minutes and a question or observation.
     - Keep it playful, curious, and encouraging — a fun bonus, not homework. Pick a concept that connects naturally to today's schedule, weather, or dinner when possible.
-    - DO NOT repeat any concept listed under PREVIOUSLY USED STEM CONCEPTS — always choose a fresh topic that is not on that list."""
+    - DO NOT reuse any of the specific concepts listed under STEM CONCEPTS USED RECENTLY. Exploring a DIFFERENT sub-topic within the same broader area (e.g. a new idea in "weather" or "fractions") is fine — only the specific topics on that list are off-limits."""
 
         # Static content → system prompt (cached by Anthropic, system role for local models)
         system_prompt = f"""You are creating content for a daily family summary.
@@ -910,8 +936,9 @@ Do NOT include any HTML in your response. Plain text only for all values."""
             if recent_concepts:
                 joined = "\n".join(f"- {t}" for t in recent_concepts)
                 stem_avoid_block = (
-                    "\n\nPREVIOUSLY USED STEM CONCEPTS "
-                    "(do NOT repeat any of these — pick a different concept):\n"
+                    f"\n\nSTEM CONCEPTS USED RECENTLY (within the last {STEM_REPEAT_WINDOW_DAYS} "
+                    "days — do NOT reuse any of these specific topics; a different sub-topic in "
+                    "the same broader area is fine):\n"
                     f"{joined}"
                 )
 

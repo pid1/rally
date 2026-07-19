@@ -571,7 +571,7 @@ rally/
   - The LLM tailors ideas to the ages described in FAMILY CONTEXT and keeps each idea super easy to fold into the day's existing plans
   - Rendered as a dedicated dashboard card; when disabled, the field is omitted from the schema and nothing renders
   - The LLM-as-judge eval exempts `stem_concept` from groundedness/completeness (it is intentionally generative)
-  - Used concepts are recorded in the `stem_concept_history` table (deduplicated by title). Past titles are injected into the generation prompt as a "do not repeat" list so topics don't recur
+  - Used concepts are recorded in the `stem_concept_history` table (one row per `(title, used_on)`). Concepts used within the last 60 days (`STEM_REPEAT_WINDOW_DAYS`) are injected into the generation prompt as a "do not reuse" list, so a specific topic won't repeat within that window; a specific topic older than 60 days drops off the list and may recur. Different sub-topics within the same broader area are always allowed
 - ✅ Dinner planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
   - Optional attendees: select which family members are eating (defaults to everyone)
