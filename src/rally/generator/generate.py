@@ -917,11 +917,13 @@ FAMILY CONTEXT:
 {context}
 
 TIMEZONE:
-The family's local timezone is {tz_label}. Interpret every time mentioned in
-FAMILY CONTEXT (and anywhere else without an explicit zone) as local time in
-this timezone. For example, "7PM" means 7:00 PM local. Only use a different
-timezone when the text states one explicitly (e.g. "7PM UTC" or "2100 Eastern"),
-in which case convert it to the family's local timezone before using it.
+The family's local timezone is {tz_label}. Every time written in FAMILY CONTEXT
+(and anywhere else without an explicit zone) is ALREADY in this local timezone.
+Reproduce those times EXACTLY as written — do NOT shift, convert, or reinterpret
+them. A bare "7PM" is 7:00 PM local and MUST appear in the schedule as 7:00 PM,
+never 2:00 PM or any other shifted value. Treat these times as UTC only if the
+text explicitly says so (e.g. "7PM UTC" or "2100 Eastern"); in that one case,
+convert into the family's local timezone before using it.
 
 Respond with ONLY a JSON object (no markdown fences) using this exact schema:
 {{
@@ -946,7 +948,8 @@ Guidelines:
 7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 9. If the weather is actively dangerous (snow, thunderstorms, or tornado risk) within the next 7 days, mention it.
-10. TASK FILTERING: The TODOS section below is pre-filtered. Only mention, reference, or suggest tasks that explicitly appear in the TODOS section. Do not infer, recall, or invent tasks that are not listed. If the TODOS section says "No todos currently active," do not suggest any specific tasks.{stem_guideline}
+10. TASK FILTERING: The TODOS section below is pre-filtered. Only mention, reference, or suggest tasks that explicitly appear in the TODOS section. Do not infer, recall, or invent tasks that are not listed. If the TODOS section says "No todos currently active," do not suggest any specific tasks.
+5. LOCAL TIMES: Times in FAMILY CONTEXT are already in the family's local timezone (see TIMEZONE above). Copy them through unchanged — a "7PM" reminder is scheduled at 7:00 PM, not a converted time. Never apply a UTC/local offset to a bare time.{stem_guideline}
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
