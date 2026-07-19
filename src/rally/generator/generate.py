@@ -94,6 +94,7 @@ class SummaryGenerator:
 
         # Get local timezone: DB setting > config.toml > UTC
         tz_name = db_settings.get("local_timezone", self.config.get("local_timezone", "UTC"))
+        self.local_tz_name = tz_name
         self.local_tz = ZoneInfo(tz_name)
 
         # Store DB settings for use by other methods
@@ -870,6 +871,19 @@ class SummaryGenerator:
 
         today = now_utc().astimezone(self.local_tz).strftime("%A, %B %d, %Y")
 
+        # Human-readable label for the family's configured timezone. Any bare
+        # time in FAMILY CONTEXT (e.g. "7PM") is assumed to be in this zone, so
+        # the LLM must not silently reinterpret it as UTC or anything else.
+        local_now = now_utc().astimezone(self.local_tz)
+        tz_abbrev = local_now.strftime("%Z")
+        tz_offset = local_now.strftime("%z")
+        if tz_offset:
+            tz_offset = f"UTC{tz_offset[:3]}:{tz_offset[3:]}"
+        tz_label = self.local_tz_name
+        tz_detail = ", ".join(part for part in (tz_abbrev, tz_offset) if part)
+        if tz_detail:
+            tz_label = f"{self.local_tz_name} (currently {tz_detail})"
+
         # Optional STEM "concept of the day" — schema block + guideline, only when enabled
         stem_schema = ""
         stem_guideline = ""
@@ -901,6 +915,13 @@ AGENT VOICE:
 
 FAMILY CONTEXT:
 {context}
+
+TIMEZONE:
+The family's local timezone is {tz_label}. Interpret every time mentioned in
+FAMILY CONTEXT (and anywhere else without an explicit zone) as local time in
+this timezone. For example, "7PM" means 7:00 PM local. Only use a different
+timezone when the text states one explicitly (e.g. "7PM UTC" or "2100 Eastern"),
+in which case convert it to the family's local timezone before using it.
 
 Respond with ONLY a JSON object (no markdown fences) using this exact schema:
 {{
