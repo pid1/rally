@@ -21,6 +21,17 @@ dependencies = [
 [project.scripts]
 seed = "rally.cli:seed"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The app is a src-layout package that runs with src on PYTHONPATH rather than
+# being installed, so make `import rally` resolve the same way under pytest.
+pythonpath = ["src"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"
