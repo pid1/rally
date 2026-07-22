@@ -34,7 +34,9 @@ def migrate():
     try:
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='dinner_plans'")
         if not cursor.fetchone():
-            print("✓ Migration: dinner_plans table does not exist yet (will be created on first run)")
+            print(
+                "✓ Migration: dinner_plans table does not exist yet (will be created on first run)"
+            )
             return True
 
         cursor.execute("PRAGMA table_info(dinner_plans)")
@@ -45,7 +47,9 @@ def migrate():
             cursor.execute(
                 "ALTER TABLE dinner_plans ADD COLUMN meal_type VARCHAR(20) NOT NULL DEFAULT 'Dinner'"
             )
-            print("✓ Migration: dinner_plans.meal_type column added (existing records set to 'Dinner')")
+            print(
+                "✓ Migration: dinner_plans.meal_type column added (existing records set to 'Dinner')"
+            )
         else:
             print("✓ Migration: dinner_plans.meal_type column already exists (idempotent check)")
 

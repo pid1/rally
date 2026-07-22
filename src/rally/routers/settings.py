@@ -324,9 +324,7 @@ def test_weather_connection(db: Session = Depends(get_db)):
         current = root.find(".//data[@type='current observations']")
         temp = current.find("parameters/temperature/value") if current is not None else None
         conditions = (
-            current.find("parameters/weather/weather-conditions")
-            if current is not None
-            else None
+            current.find("parameters/weather/weather-conditions") if current is not None else None
         )
         detail = []
         if temp is not None and temp.text:

@@ -473,7 +473,7 @@ class SummaryGenerator:
                         window_start = due - timedelta(days=todo.remind_days_before)
                         if today < window_start:
                             continue
-                    except (ValueError, TypeError, OverflowError):
+                    except ValueError, TypeError, OverflowError:
                         pass  # If date is unparseable or calculation fails, include the todo
 
                 line = f"{todo.title}"
