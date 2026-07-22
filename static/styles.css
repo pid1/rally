@@ -787,6 +787,62 @@ footer a:hover {
     color: var(--medium-gray);
 }
 
+/* Keyword search: its own full-width row at the bottom of the toolbar, below
+   both the assignee filters and the sort control. */
+.toolbar-search {
+    flex-basis: 100%;
+}
+
+.search-input {
+    box-sizing: border-box;
+    min-height: 2.25rem;
+    min-width: 240px;
+    padding: 4px 10px;
+    border: 1px solid var(--pale-gray);
+    border-radius: 0;
+    background: var(--white);
+    font-family: var(--body-font);
+    font-size: 1rem;
+    color: var(--charcoal);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--medium-gray);
+}
+
+.search-btn {
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    padding: 8px 24px;
+    border: 1px solid var(--pale-gray);
+    background: var(--white);
+    color: var(--charcoal);
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.search-btn:hover:not(:disabled) {
+    border-color: var(--medium-gray);
+}
+
+.search-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Deemphasized match count, shown only while a search is active. Sits on its
+   own row below the search bar and above the toolbar's bottom divider. */
+.search-results-count {
+    flex-basis: 100%;
+    font-family: var(--body-font);
+    font-size: 0.85rem;
+    color: var(--medium-gray);
+    font-style: italic;
+}
+
 .header-actions {
     display: flex;
     gap: 12px;

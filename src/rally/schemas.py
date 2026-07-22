@@ -223,6 +223,7 @@ class CompletedTodoPage(BaseModel):
 
     items: list[TodoResponse]
     has_more: bool  # True when another page exists beyond this one
+    total: int  # Total matches across all pages for the current query (search + filters)
 
 
 # Recurring Todos
