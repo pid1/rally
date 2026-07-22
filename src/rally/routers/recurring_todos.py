@@ -23,7 +23,11 @@ def format_local_completion(completed_at: datetime, local_tz: ZoneInfo) -> str:
     elif local_dt.date() == today.replace(day=today.day) - __import__("datetime").timedelta(days=1):
         date_label = "Yesterday"
     else:
-        suffix = "th" if 11 <= local_dt.day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(local_dt.day % 10, "th")
+        suffix = (
+            "th"
+            if 11 <= local_dt.day % 100 <= 13
+            else {1: "st", 2: "nd", 3: "rd"}.get(local_dt.day % 10, "th")
+        )
         date_label = f"{local_dt.strftime('%b')} {local_dt.day}{suffix}, {local_dt.year}"
     time_label = local_dt.strftime("%I:%M %p").lstrip("0")
     return f"{date_label} at {time_label}"

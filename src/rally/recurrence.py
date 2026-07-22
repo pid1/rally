@@ -33,7 +33,11 @@ def _find_nth_weekday_in_month(year: int, month: int, ordinal: str, weekday: int
     exist (e.g. "fifth Monday").
     """
     num_days = cal_module.monthrange(year, month)[1]
-    occurrences = [date(year, month, d) for d in range(1, num_days + 1) if date(year, month, d).weekday() == weekday]
+    occurrences = [
+        date(year, month, d)
+        for d in range(1, num_days + 1)
+        if date(year, month, d).weekday() == weekday
+    ]
 
     ordinal_map = {"first": 0, "second": 1, "third": 2, "fourth": 3, "last": -1}
     idx = ordinal_map.get(ordinal, 0)
@@ -82,7 +86,9 @@ def _next_custom(rule: dict, after_date: date) -> date:
         if mode == "weekday":
             ordinal = rule["ordinal"]
             weekday = int(rule["weekday"])
-            candidate = _find_nth_weekday_in_month(after_date.year, after_date.month, ordinal, weekday)
+            candidate = _find_nth_weekday_in_month(
+                after_date.year, after_date.month, ordinal, weekday
+            )
             if candidate > after_date:
                 return candidate
             ny, nm = _advance_months(after_date.year, after_date.month, interval)
@@ -119,7 +125,9 @@ def _last_custom(rule: dict, today: date) -> date:
                 return today.replace(day=clamped)
             first = today.replace(day=1)
             prev_end = first - timedelta(days=1)
-            return prev_end.replace(day=min(day, cal_module.monthrange(prev_end.year, prev_end.month)[1]))
+            return prev_end.replace(
+                day=min(day, cal_module.monthrange(prev_end.year, prev_end.month)[1])
+            )
 
         if mode == "weekday":
             ordinal = rule["ordinal"]
