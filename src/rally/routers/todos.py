@@ -75,6 +75,9 @@ def list_completed_todos(
         default=[],
         description='Family member IDs to filter to, and/or "unassigned". Empty means all.',
     ),
+    search: str | None = Query(
+        None, description="Case-insensitive keyword matched against title and description."
+    ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -86,8 +89,8 @@ def list_completed_todos(
     the local date rolls over. Read-only — recurring processing is deliberately
     not run here.
 
-    Sorting and pagination are server-side because the client only ever holds
-    one page of results.
+    Sorting, searching and pagination are server-side because the client only
+    ever holds one page of results.
     """
     cutoff = today_start_utc(db)
 
@@ -110,6 +113,16 @@ def list_completed_todos(
             clauses.append(Todo.assigned_to.in_(member_ids))
         query = query.filter(or_(*clauses)) if clauses else query.filter(false())
 
+    # Keyword search: case-insensitive match against title OR description.
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.filter(or_(Todo.title.ilike(term), Todo.description.ilike(term)))
+
+    # Total matches for the current query, computed before ordering/joining so the
+    # count is unaffected by the assignee-sort outer join. Drives the search
+    # results-count indicator on the client.
+    total = query.count()
+
     newest_completed_first = (nullslast(Todo.completed_at.desc()), Todo.id.desc())
 
     if sort == "completed-oldest":
@@ -131,7 +144,7 @@ def list_completed_todos(
 
     # Fetch one extra row to determine whether another page exists.
     rows = query.offset(offset).limit(limit + 1).all()
-    return CompletedTodoPage(items=rows[:limit], has_more=len(rows) > limit)
+    return CompletedTodoPage(items=rows[:limit], has_more=len(rows) > limit, total=total)
 
 
 @router.post("", response_model=TodoResponse, status_code=201)

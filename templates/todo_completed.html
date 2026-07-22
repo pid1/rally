@@ -55,6 +55,14 @@
                     <option value="oldest">Oldest First</option>
                 </select>
             </div>
+            <div class="toolbar-group toolbar-search">
+                <label for="search-input">Search</label>
+                <input type="text" id="search-input" class="search-input"
+                       placeholder="Search completed tasks" autocomplete="off">
+                <button type="button" class="search-btn" id="search-btn" disabled>Search</button>
+                <button type="button" class="filter-clear" id="search-clear">Clear Search</button>
+            </div>
+            <div class="search-results-count" id="search-results-count" hidden></div>
         </div>
 
         <div class="list-container" id="list-container">
@@ -79,6 +87,10 @@
 
         // Track selected assignee filter values
         let selectedFilters = new Set();
+
+        // The currently submitted search term ('' when no search is active).
+        // Search runs only on submit (button click or Enter), never on keystroke.
+        let searchTerm = '';
 
         async function fetchFamilyMembers() {
             const response = await fetch('/api/family');
@@ -108,6 +120,53 @@
             reload();
         }
 
+        function clearAssigneeChips() {
+            selectedFilters.clear();
+            document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+            });
+        }
+
+        // The Search button is disabled unless the field holds non-whitespace text.
+        function updateSearchButton() {
+            const hasText = document.getElementById('search-input').value.trim().length > 0;
+            document.getElementById('search-btn').disabled = !hasText;
+        }
+
+        // Submitting a search clears any applied filters and resets sort to the
+        // default, then loads a fresh result set for the new term.
+        function submitSearch() {
+            const value = document.getElementById('search-input').value.trim();
+            if (!value) return;
+            searchTerm = value;
+            clearAssigneeChips();
+            document.getElementById('sort-by').value = 'completed-newest';
+            reload();
+        }
+
+        // Reset the page to its default state: no search, no filters, default sort.
+        function clearSearch() {
+            searchTerm = '';
+            document.getElementById('search-input').value = '';
+            updateSearchButton();
+            clearAssigneeChips();
+            document.getElementById('sort-by').value = 'completed-newest';
+            reload();
+        }
+
+        // Deemphasized count shown only while a search is active. Reflects the
+        // total matches for the current query (search plus any filters applied
+        // to the results afterward), across all pages — not just what's loaded.
+        function updateSearchCount(total) {
+            const el = document.getElementById('search-results-count');
+            if (!searchTerm) {
+                el.hidden = true;
+                return;
+            }
+            el.hidden = false;
+            el.textContent = total === 1 ? '1 matching task.' : `${total} matching tasks.`;
+        }
+
         function getMemberById(id) {
             return familyMembers.find(m => m.id === id);
         }
@@ -124,6 +183,7 @@
                 offset: offset
             });
             selectedFilters.forEach(value => params.append('assignee', value));
+            if (searchTerm) params.set('search', searchTerm);
             return params;
         }
 
@@ -138,6 +198,7 @@
                 if (token !== requestToken) return; // superseded by a newer request
                 todos = offset === 0 ? page.items : todos.concat(page.items);
                 hasMore = page.has_more;
+                updateSearchCount(page.total);
                 renderTodos();
             } catch (error) {
                 if (token !== requestToken) return;
@@ -170,9 +231,15 @@
             const container = document.getElementById('list-container');
 
             if (todos.length === 0) {
-                container.innerHTML = selectedFilters.size > 0
-                    ? '<div class="container-empty-state">No completed tasks match the current filter.</div>'
-                    : '<div class="container-empty-state">No completed tasks yet. Tasks appear here the day after you finish them.</div>';
+                let message;
+                if (searchTerm) {
+                    message = 'No completed tasks match the current search.';
+                } else if (selectedFilters.size > 0) {
+                    message = 'No completed tasks match the current filter.';
+                } else {
+                    message = 'No completed tasks yet. Tasks appear here the day after you finish them.';
+                }
+                container.innerHTML = `<div class="container-empty-state">${message}</div>`;
                 return;
             }
 
@@ -249,6 +316,15 @@
         document.getElementById('filter-clear').addEventListener('click', clearFilters);
         document.getElementById('sort-by').addEventListener('change', reload);
         document.getElementById('btn-load-more').addEventListener('click', loadMore);
+        document.getElementById('search-btn').addEventListener('click', submitSearch);
+        document.getElementById('search-clear').addEventListener('click', clearSearch);
+        document.getElementById('search-input').addEventListener('input', updateSearchButton);
+        document.getElementById('search-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitSearch();
+            }
+        });
 
         // Initialize
         fetchFamilyMembers().then(reload);
