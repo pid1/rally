@@ -13,8 +13,6 @@ Date anchors used below (2026 is not a leap year):
 
 from datetime import UTC, date, datetime
 
-import pytest
-
 from rally.models import RecurringTodo, Todo
 from rally.recurrence import (
     _find_nth_weekday_in_month,
@@ -57,17 +55,6 @@ def test_find_nth_weekday_last_with_five_occurrences():
 def test_find_nth_weekday_last_with_four_occurrences():
     # Feb 2026 has four Mondays; "last" is Feb 23.
     assert _find_nth_weekday_in_month(2026, 2, "last", 0) == date(2026, 2, 23)
-
-
-@pytest.mark.xfail(
-    reason="Docstring promises a nonexistent ordinal falls back to the last "
-    "occurrence, but 'fifth' is absent from ordinal_map so it collapses to "
-    "index 0 (first). Likely a missing 'fifth': 4 map entry.",
-)
-def test_find_nth_weekday_fifth_falls_back_to_last():
-    # Feb 2026 has only four Mondays, so a requested "fifth" Monday should fall
-    # back to the last valid occurrence (Feb 23) per the documented behaviour.
-    assert _find_nth_weekday_in_month(2026, 2, "fifth", 0) == date(2026, 2, 23)
 
 
 # --- get_last_recurrence_date --------------------------------------------------

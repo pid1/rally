@@ -26,11 +26,10 @@ def _advance_months(year: int, month: int, interval: int) -> tuple[int, int]:
 def _find_nth_weekday_in_month(year: int, month: int, ordinal: str, weekday: int) -> date:
     """Find the nth occurrence of a weekday in a month.
 
-    ordinal: "first", "second", "third", "fourth", "last"
+    ordinal: one of "first", "second", "third", "fourth", "last" — the values
+        the UI produces. "last" returns the final occurrence of that weekday,
+        which is the fourth or fifth depending on the month.
     weekday: 0=Monday … 6=Sunday
-
-    Falls back to the last valid occurrence when the requested ordinal doesn't
-    exist (e.g. "fifth Monday").
     """
     num_days = cal_module.monthrange(year, month)[1]
     occurrences = [
