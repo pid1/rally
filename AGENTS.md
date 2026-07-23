@@ -193,6 +193,38 @@ logs-tail
 # Not logs (that follows and blocks)
 ```
 
+### 7. Pull Request Format
+
+Open PRs with `gh pr create` and follow the template at
+`.github/pull_request_template.md`. **`gh pr create` does not auto-apply the
+template**, so fill the sections in yourself and pass them with `--body-file`.
+
+Every PR body must have these sections (in this order):
+
+- **Summary** — one short paragraph on what changes and why.
+- **Changes** — a bulleted list of the concrete changes, grouped by area
+  (backend / frontend / config / tests) when helpful; identifiers and paths in
+  `backticks`.
+- **Notes for reviewers** — *optional*; non-obvious decisions, trade-offs, or
+  follow-ups deliberately deferred. Omit the section when there is nothing to add.
+- **Testing** — what was run and verified (tests, coverage delta, manual checks),
+  stated honestly.
+- **Closes #\<issue\>** — the issue this resolves, so it auto-closes on merge.
+
+Workflow conventions:
+
+- Write a concise, imperative title that summarizes the change.
+- Open as a **draft** (`gh pr create --draft`) and mark it ready
+  (`gh pr ready <n>`) only once CI is green.
+- Apply the appropriate label (`enhancement`, `bug`, `documentation`, …), assign
+  the author, and set the milestone when the work belongs to one.
+- Run the test suite before opening (see the testing note below); PR CI runs
+  `pytest`, `ruff check`, and `ruff format --check` and must pass.
+
+> **Running the suite:** tests run under the project's Python 3.14 env, so use
+> `uv run pytest` (or `.devenv/state/venv/bin/pytest`) — a bare `pytest` may be
+> shadowed by another interpreter on your `PATH` and fail to import.
+
 ## Example Workflows
 
 ### Setting Up Development Environment
