@@ -60,6 +60,21 @@ def test_not_declined_when_accepted():
     assert _is_event_declined(ev) is False
 
 
+def test_owner_not_in_attendees_is_not_declined():
+    # Owner isn't listed (they may be the organizer) -> treated as not declined.
+    ev = Event()
+    ev.add("attendee", _attendee("someone@else.com", "DECLINED"))
+    assert _is_event_declined(ev, owner_email="me@example.com") is False
+
+
+def test_outlook_busystatus_free_with_declined_attendee():
+    ev = Event()
+    ev.add("X-MICROSOFT-CDO-BUSYSTATUS", "FREE")
+    ev.add("attendee", _attendee("a@example.com", "DECLINED"))
+    ev.add("attendee", _attendee("b@example.com", "ACCEPTED"))
+    assert _is_event_declined(ev) is True
+
+
 # --- _parse_caldav_events ------------------------------------------------------
 
 
@@ -100,6 +115,29 @@ def test_parse_skips_declined_events():
     assert _parse_caldav_events(client, ZoneInfo("UTC")) == []
 
 
+class _RaisingSearchCalendar:
+    name = "Bad"
+
+    def search(self, **kwargs):
+        raise RuntimeError("search failed")
+
+
+def test_parse_skips_calendar_when_search_raises():
+    client = _FakeClient([_RaisingSearchCalendar()])
+    assert _parse_caldav_events(client, ZoneInfo("UTC")) == []
+
+
+def test_parse_skips_unparseable_item():
+    client = _FakeClient([_FakeCalendar([_FakeItem(b"this is not iCalendar data")])])
+    assert _parse_caldav_events(client, ZoneInfo("UTC")) == []
+
+
+def test_parse_skips_event_without_dtstart():
+    ics = b"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:NoStart\r\nEND:VEVENT\r\nEND:VCALENDAR"
+    client = _FakeClient([_FakeCalendar([_FakeItem(ics)])])
+    assert _parse_caldav_events(client, ZoneInfo("UTC")) == []
+
+
 # --- fetch wrappers ------------------------------------------------------------
 
 
@@ -127,3 +165,44 @@ def test_fetch_google_success(monkeypatch):
 
     assert len(events) == 1
     assert events[0]["summary"] == "Meeting"
+
+
+def test_fetch_apple_success(monkeypatch):
+    import caldav
+
+    monkeypatch.setattr(
+        caldav, "DAVClient", lambda **kwargs: _FakeClient([_FakeCalendar([_FakeItem(_ICS)])])
+    )
+    record = SimpleNamespace(
+        username="user", password="secret", label="A", url="https://dav.example", owner_email=None
+    )
+
+    events = fetch_apple_caldav(record, ZoneInfo("UTC"))
+
+    assert len(events) == 1
+    assert events[0]["summary"] == "Meeting"
+
+
+class _RaisingPrincipalClient:
+    def principal(self):
+        raise RuntimeError("dav connection failed")
+
+
+def test_fetch_google_error_returns_empty(monkeypatch):
+    import caldav
+
+    monkeypatch.setattr(caldav, "DAVClient", lambda **kwargs: _RaisingPrincipalClient())
+    record = SimpleNamespace(
+        username="user", password="secret", label="G", url="https://dav.example", owner_email=None
+    )
+    assert fetch_google_caldav(record, ZoneInfo("UTC")) == []
+
+
+def test_fetch_apple_error_returns_empty(monkeypatch):
+    import caldav
+
+    monkeypatch.setattr(caldav, "DAVClient", lambda **kwargs: _RaisingPrincipalClient())
+    record = SimpleNamespace(
+        username="user", password="secret", label="A", url="https://dav.example", owner_email=None
+    )
+    assert fetch_apple_caldav(record, ZoneInfo("UTC")) == []
