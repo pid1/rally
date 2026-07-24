@@ -26,6 +26,17 @@ _MEAL_TYPE_ORDER = case(
 )
 
 
+def _today_local_str(db: Session) -> str:
+    """Today's date (YYYY-MM-DD) in the configured local timezone.
+
+    This is the day boundary that splits Meal History (``date < today``) from the
+    Meal Planner (``date >= today``); both use it so the two pages agree.
+    """
+    settings = {r.key: r.value for r in db.query(Setting).all()}
+    tz_name = settings.get("local_timezone", "UTC")
+    return today_local(tz_name).strftime("%Y-%m-%d")
+
+
 @router.get("", response_model=list[DinnerPlanResponse])
 def list_dinner_plans(db: Session = Depends(get_db)):
     """List all meal plans ordered by date then meal type."""
@@ -72,9 +83,7 @@ def list_meal_history(
         if invalid:
             raise HTTPException(status_code=422, detail=f"Invalid meal_type value(s): {invalid}")
 
-    settings = {r.key: r.value for r in db.query(Setting).all()}
-    tz_name = settings.get("local_timezone", "UTC")
-    today = today_local(tz_name).strftime("%Y-%m-%d")
+    today = _today_local_str(db)
 
     query = db.query(DinnerPlan).filter(DinnerPlan.date < today)
 
@@ -131,6 +140,14 @@ def update_dinner_plan(
         db_plan.attendee_ids = plan.attendee_ids
     if plan.cook_id is not UNSET:
         db_plan.cook_id = plan.cook_id
+
+    # A rating/review only makes sense for a past meal. If the date is moved onto
+    # the Meal Planner (today or later, out of Meal History), discard any existing
+    # rating and review. The client warns and confirms before sending such a
+    # change; enforcing it here keeps the invariant regardless of the caller.
+    if plan.date is not None and db_plan.date >= _today_local_str(db):
+        db_plan.rating = None
+        db_plan.review = None
 
     db.commit()
     db.refresh(db_plan)

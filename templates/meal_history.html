@@ -96,6 +96,10 @@
         </div>
     </div>
 
+    <!-- Shared meal add/edit modal (see templates/_meal_edit_modal.html) -->
+    {% include "_meal_edit_modal.html" %}
+
+    <script src="/static/meal_edit_modal.js?v={{ css_version }}"></script>
     <script>
         // State
         let historyPlans = [];
@@ -103,6 +107,9 @@
         let currentSort = 'rating_desc';
         let currentMinRating = '';
         let selectedMealTypes = new Set();
+        let defaultMealType = 'Dinner';
+        let localTimezone = 'UTC';
+        let mealModal = null;  // shared MealEditModal instance
 
         // Star rating state
         let selectedRating = 0;
@@ -111,6 +118,20 @@
         async function fetchFamilyMembers() {
             const response = await fetch('/api/family');
             familyMembers = await response.json();
+        }
+
+        // Settings — needed by the shared edit modal (default meal type, and the
+        // timezone that decides whether an edited date lands on the planner).
+        async function fetchSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                const s = data.settings || {};
+                defaultMealType = s.meal_default_type || 'Dinner';
+                localTimezone = s.local_timezone || 'UTC';
+            } catch (_) {
+                defaultMealType = 'Dinner';
+            }
         }
 
         function getMemberById(id) {
@@ -192,6 +213,7 @@
                 const ratingRow = `<div class="history-card-rating-row">
                     ${renderStars(plan.rating)}
                     <button class="btn-edit" onclick="openReviewModal(${plan.id})">${plan.rating ? 'Edit Review' : 'Add Review'}</button>
+                    <button class="btn-edit" onclick="openEditModal(${plan.id})">Edit</button>
                 </div>`;
 
                 return `
@@ -205,6 +227,13 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        // Edit modal — the shared MealEditModal (static/meal_edit_modal.js) owns
+        // the edit/delete behavior. Editing a meal's date onto the planner
+        // (today or later) discards its rating/review after a confirm prompt.
+        function openEditModal(planId) {
+            mealModal.openEdit(historyPlans.find(p => p.id === planId));
         }
 
         // Review modal
@@ -355,8 +384,14 @@
             document.getElementById('meal-dropdown').classList.remove('open');
         });
 
-        // Initialize
-        fetchFamilyMembers().then(() => {
+        // Initialize — settings and family members load before the modal and list
+        Promise.all([fetchSettings(), fetchFamilyMembers()]).then(() => {
+            mealModal = new MealEditModal({
+                getFamilyMembers: () => familyMembers,
+                getDefaultMealType: () => defaultMealType,
+                getTimezone: () => localTimezone,
+                onSaved: fetchHistory,
+            });
             fetchHistory();
         });
     </script>

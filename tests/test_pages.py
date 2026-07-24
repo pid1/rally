@@ -13,6 +13,16 @@ def test_page_renders_html(client, path):
     assert resp.headers["content-type"].startswith("text/html")
 
 
+@pytest.mark.parametrize("path", ["/dinner-planner", "/meal-history"])
+def test_meal_pages_include_shared_edit_modal(client, path):
+    """Both meal pages render the shared edit modal partial and load its JS, so
+    the edit experience has a single source of truth."""
+    html = client.get(path).text
+    assert 'id="modal-overlay"' in html  # markup from _meal_edit_modal.html
+    assert 'id="plan-form"' in html
+    assert "/static/meal_edit_modal.js" in html
+
+
 def test_root_redirects_to_dashboard(client):
     resp = client.get("/", follow_redirects=False)
     assert resp.status_code in (307, 308)

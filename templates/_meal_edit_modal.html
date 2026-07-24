@@ -1,0 +1,50 @@
+<!--
+  Shared meal add/edit modal.
+
+  Included by both the Meal Planner (Current & Upcoming) and Meal History
+  (Previous Meals) pages so the edit experience has a single source of truth.
+  Behavior lives in /static/meal_edit_modal.js (class MealEditModal); each page
+  constructs one with page-specific hooks.
+-->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal-content">
+        <h3 id="modal-title">Add Meal Plan</h3>
+        <form id="plan-form">
+            <input type="hidden" id="plan-edit-id">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="plan-date" required>
+            </div>
+            <div class="form-group">
+                <label>Meal Type</label>
+                <select id="plan-meal-type" required>
+                    <option value="Breakfast">Breakfast</option>
+                    <option value="Lunch">Lunch</option>
+                    <option value="Dinner">Dinner</option>
+                    <option value="Snacks">Snacks</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Meal Plan</label>
+                <textarea id="plan-text" placeholder="What's on the menu?" required rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Who's Eating? <small>(leave unchecked for everyone)</small></label>
+                <div class="checkbox-group" id="attendee-checkboxes">
+                    <!-- Populated from /api/family -->
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Who's Cooking? <small>(optional)</small></label>
+                <select id="plan-cook">
+                    <option value="">— nobody assigned —</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn-primary">Save</button>
+                <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
+                <button type="button" class="btn-delete modal-delete" id="btn-delete-plan" style="display:none">Delete</button>
+            </div>
+        </form>
+    </div>
+</div>
