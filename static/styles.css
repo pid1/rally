@@ -246,7 +246,11 @@ footer a:hover {
     padding: 32px;
     width: 90%;
     max-width: 500px;
-    max-height: 95vh;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    /* Fallback scroll for modals without a .modal-body wrapper. Modals that
+       use .modal-body never trigger this — their body flexes to fit. */
     overflow: auto;
 }
 
@@ -256,7 +260,56 @@ footer a:hover {
     margin-bottom: 24px;
     text-transform: uppercase;
     letter-spacing: 0.1em;
+    flex-shrink: 0;
 }
+
+/* Wrapper positioned over the scroll viewport. Its ::before/::after paint a
+   fade in the modal's background colour over the top/bottom edges — a plain
+   overlay rather than a CSS mask.*/
+.modal-scroll {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Scrollable inner area — the form and actions scroll together. */
+.modal-body {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    /* Padding so content isn't clipped under the scrollbar. */
+    padding: 0 4px 0 0;
+}
+
+.modal-scroll::before,
+.modal-scroll::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 32px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 1;
+}
+
+.modal-scroll::before {
+    top: 0;
+    background: linear-gradient(to bottom, var(--white), transparent);
+}
+
+.modal-scroll::after {
+    bottom: 0;
+    background: linear-gradient(to top, var(--white), transparent);
+}
+
+/* Fade an edge only when content is actually hidden in that direction, so the
+   Save/Cancel buttons render crisp once you scroll to the bottom. */
+.modal-scroll[data-overflow-top]::before { opacity: 1; }
+.modal-scroll[data-overflow-bottom]::after { opacity: 1; }
 
 .modal-actions {
     display: flex;

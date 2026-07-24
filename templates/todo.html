@@ -80,6 +80,8 @@
     <div class="modal-overlay" id="recurring-modal-overlay">
         <div class="modal-content">
             <h3 id="recurring-modal-title">Add Recurring Task</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
             <form id="recurring-form">
                 <input type="hidden" id="recurring-id">
                 <div class="form-group">
@@ -181,12 +183,14 @@
                     <label>Include in The Briefing starting <input type="number" id="recurring-remind-days" min="0" step="1" placeholder="e.g. 3" class="remind-days-input"> days before the due date</label>
                     <small>Leave blank to always include in briefings</small>
                 </div>
+            </form>
                 <div class="modal-actions">
-                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="submit" form="recurring-form" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel-recurring">Cancel</button>
                     <button type="button" class="btn-delete modal-delete" id="btn-delete-recurring" style="display:none" onclick="confirmDeleteRecurringFromModal()">Delete</button>
                 </div>
-            </form>
+            </div>
+            </div>
         </div>
     </div>
 
@@ -194,37 +198,41 @@
     <div class="modal-overlay" id="modal-overlay">
         <div class="modal-content">
             <h3 id="modal-title">Add Task</h3>
-            <form id="todo-form">
-                <input type="hidden" id="todo-id">
-                <div class="form-group">
-                    <label>Task</label>
-                    <input type="text" id="todo-title" placeholder="Task title" required>
-                </div>
-                <div class="form-group">
-                    <label>Notes (optional)</label>
-                    <textarea id="todo-description" placeholder="Additional details" rows="3"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Assigned To (optional)</label>
-                    <select id="todo-assigned-to">
-                        <option value="">Unassigned</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Due Date (optional)</label>
-                    <input type="date" id="todo-due-date">
-                    <small>Leave blank if no specific deadline</small>
-                </div>
-                <div class="form-group" id="todo-remind-group" style="display:none;">
-                    <label>Include in The Briefing starting <input type="number" id="todo-remind-days" min="0" step="1" placeholder="e.g. 3" class="remind-days-input"> days before the due date</label>
-                    <small>Leave blank to always include in briefings</small>
-                </div>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="todo-form">
+                    <input type="hidden" id="todo-id">
+                    <div class="form-group">
+                        <label>Task</label>
+                        <input type="text" id="todo-title" placeholder="Task title" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes (optional)</label>
+                        <textarea id="todo-description" placeholder="Additional details" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Assigned To (optional)</label>
+                        <select id="todo-assigned-to">
+                            <option value="">Unassigned</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Due Date (optional)</label>
+                        <input type="date" id="todo-due-date">
+                        <small>Leave blank if no specific deadline</small>
+                    </div>
+                    <div class="form-group" id="todo-remind-group" style="display:none;">
+                        <label>Include in The Briefing starting <input type="number" id="todo-remind-days" min="0" step="1" placeholder="e.g. 3" class="remind-days-input"> days before the due date</label>
+                        <small>Leave blank to always include in briefings</small>
+                    </div>
+                </form>
                 <div class="modal-actions">
-                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="submit" form="todo-form" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
                     <button type="button" class="btn-delete modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
                 </div>
-            </form>
+            </div>
+            </div>
         </div>
     </div>
 
@@ -497,7 +505,7 @@
             document.getElementById('todo-remind-days').value = '';
             document.getElementById('btn-delete-todo').style.display = 'none';
             toggleRemindGroup();
-            document.getElementById('modal-overlay').style.display = 'flex';
+            showModalOverlay('modal-overlay');
         }
 
         function openEditModal(id) {
@@ -514,7 +522,7 @@
             document.getElementById('todo-remind-days').value = todo.remind_days_before != null ? todo.remind_days_before : '';
             document.getElementById('btn-delete-todo').style.display = '';
             toggleRemindGroup();
-            document.getElementById('modal-overlay').style.display = 'flex';
+            showModalOverlay('modal-overlay');
         }
 
         function closeModal() {
@@ -813,7 +821,7 @@
             resetCustomFields();
             updateDaySelector();
             toggleRecurringRemindGroup();
-            document.getElementById('recurring-modal-overlay').style.display = 'flex';
+            showModalOverlay('recurring-modal-overlay');
         }
 
         function openEditRecurringModal(id) {
@@ -838,7 +846,7 @@
             document.getElementById('recurring-remind-days').value = rt.remind_days_before != null ? rt.remind_days_before : '';
             document.getElementById('btn-delete-recurring').style.display = '';
             toggleRecurringRemindGroup();
-            document.getElementById('recurring-modal-overlay').style.display = 'flex';
+            showModalOverlay('recurring-modal-overlay');
         }
 
         function closeRecurringModal() {
@@ -926,6 +934,36 @@
                 alert('Failed to save recurring task');
             }
         });
+
+        // Fade the top/bottom edges of a scrollable modal only when content is
+        // hidden in that direction, so the scrolled-to actions stay crisp.
+        function updateModalFade(scroll) {
+            const body = scroll.querySelector('.modal-body');
+            const maxScroll = body.scrollHeight - body.clientHeight;
+            scroll.toggleAttribute('data-overflow-top', body.scrollTop > 1);
+            scroll.toggleAttribute('data-overflow-bottom', body.scrollTop < maxScroll - 1);
+        }
+        document.querySelectorAll('.modal-scroll').forEach(scroll => {
+            const body = scroll.querySelector('.modal-body');
+            const refresh = () => updateModalFade(scroll);
+            body.addEventListener('scroll', refresh);
+            // Recompute when fields toggle the body's height (e.g. switching
+            // to custom recurrence). Field handlers run before this bubbles.
+            body.addEventListener('change', refresh);
+            // Backstop for size changes not driven by a change event.
+            if (window.ResizeObserver) {
+                const ro = new ResizeObserver(refresh);
+                Array.from(body.children).forEach(child => ro.observe(child));
+            }
+        });
+
+        // Show a modal and compute its fade state once it's laid out.
+        function showModalOverlay(overlayId) {
+            const overlay = document.getElementById(overlayId);
+            overlay.style.display = 'flex';
+            const scroll = overlay.querySelector('.modal-scroll');
+            if (scroll) requestAnimationFrame(() => updateModalFade(scroll));
+        }
 
         // Initialize
         fetchFamilyMembers().then(() => {
