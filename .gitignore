@@ -66,3 +66,6 @@ envrc
 
 # FastForward runtime artifacts
 .fastforward/
+
+# Claude Code (local agent config, e.g. launch.json)
+.claude/

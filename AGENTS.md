@@ -179,7 +179,35 @@ sleep 2       # Give it time to start
 dev-logs      # Check for errors
 ```
 
-### 6. Working with Docker
+### 6. Never Destructively Mutate the Local Dev Database
+
+The dev database (`rally.db`) holds the developer's local data. It is **gitignored**,
+and SQLite keeps **no history** — an `UPDATE`/`DELETE` that commits overwrites the
+old value irreversibly. There is no `git checkout` to fall back on. So verification
+that drives the **running app against write endpoints** (create/update/delete, or
+UI actions that call them) will permanently change local data.
+
+❌ **Don't** exercise write paths against `rally.db` for exploratory/manual testing.
+
+✅ **Prefer the automated suite** — each test gets an isolated in-memory database
+(see `tests/conftest.py`), so it never touches `rally.db`:
+
+```bash
+uv run pytest
+```
+
+✅ **If you must drive the running app against write paths**, isolate the data first:
+
+```bash
+resetdb && seed     # start from a known, reproducible sample state
+```
+
+and, before mutating any specific row, read and stash its full contents so you can
+put it back. If you do mutate `rally.db` incidentally, restore it: the sample data
+is defined in `src/rally/cli.py` (the `seed` command), or run `resetdb && seed` to
+rebuild the whole thing. Tell the user what you changed and how you restored it.
+
+### 7. Working with Docker
 
 For Docker operations, use non-blocking variants:
 
@@ -193,7 +221,7 @@ logs-tail
 # Not logs (that follows and blocks)
 ```
 
-### 7. Pull Request Format
+### 8. Pull Request Format
 
 Open PRs with `gh pr create` and follow the template at
 `.github/pull_request_template.md`. **`gh pr create` does not auto-apply the

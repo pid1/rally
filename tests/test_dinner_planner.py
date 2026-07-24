@@ -268,6 +268,73 @@ def test_history_respects_local_timezone(client, make_dinner_plan, frozen_now, l
     assert dates == ["2026-05-09"]
 
 
+# --- Moving a meal onto the planner discards its rating/review -----------------
+#
+# A rating/review only makes sense for a past meal (Meal History). Editing a
+# meal's date to today or later moves it onto the Meal Planner, which clears any
+# rating and review. The frozen "today" here is TODAY (2026-05-10, UTC).
+
+
+def test_update_date_to_today_discards_rating_and_review(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=5, review="Great")
+
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-10"}).json()
+
+    assert body["date"] == "2026-05-10"
+    assert body["rating"] is None
+    assert body["review"] is None
+
+
+def test_update_date_to_future_discards_rating_and_review(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=4, review="Yum")
+
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-06-01"}).json()
+
+    assert body["rating"] is None
+    assert body["review"] is None
+
+
+def test_update_date_still_past_keeps_rating_and_review(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=5, review="Great")
+
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-05"}).json()
+
+    assert body["date"] == "2026-05-05"
+    assert body["rating"] == 5
+    assert body["review"] == "Great"
+
+
+def test_update_without_date_change_keeps_rating_and_review(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=5, review="Great")
+
+    # No date field in the payload -> rating/review untouched even though the
+    # meal's date remains in the past.
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"plan": "Tacos al pastor"}).json()
+
+    assert body["plan"] == "Tacos al pastor"
+    assert body["rating"] == 5
+    assert body["review"] == "Great"
+
+
+def test_update_respects_local_timezone_for_planner_boundary(
+    client, make_dinner_plan, frozen_now, local_timezone
+):
+    # At 02:00Z the local date in Kolkata (+05:30) is already 2026-05-10, so
+    # editing a meal to 2026-05-10 moves it onto the planner and clears its rating.
+    frozen_now(datetime(2026, 5, 10, 2, 0, tzinfo=UTC))
+    local_timezone("Asia/Kolkata")
+    plan = make_dinner_plan("2026-05-08", plan="Tacos", rating=5, review="Great")
+
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-10"}).json()
+
+    assert body["rating"] is None
+    assert body["review"] is None
+
+
 # --- DB-level rating constraint ------------------------------------------------
 
 
