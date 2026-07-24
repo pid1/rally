@@ -70,9 +70,7 @@ def list_meal_history(
     if meal_type:
         invalid = [m for m in meal_type if m not in MEAL_TYPES]
         if invalid:
-            raise HTTPException(
-                status_code=422, detail=f"Invalid meal_type value(s): {invalid}"
-            )
+            raise HTTPException(status_code=422, detail=f"Invalid meal_type value(s): {invalid}")
 
     settings = {r.key: r.value for r in db.query(Setting).all()}
     tz_name = settings.get("local_timezone", "UTC")
