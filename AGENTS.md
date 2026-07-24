@@ -245,12 +245,20 @@ dev
 
 ### Running Tests
 
+Before pushing, run everything CI runs, or the PR check will fail. PR CI runs
+`pytest`, `ruff check`, and `ruff format --check` (see Pull Request Format).
+The `check` command covers both the linter **and** the formatter check — plain
+`lint` only runs `ruff check` and will miss formatting problems.
+
 ```bash
 # Ensure dependencies are installed
 install-deps
 
-# Run linting
-lint
+# Lint + format check together (mirrors CI's `ruff check` + `ruff format --check`)
+check
+
+# Run the full test suite (see the env note under Pull Request Format)
+uv run pytest
 
 # Test summary generation
 test-generate
