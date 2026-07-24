@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.models import DinnerPlan, Setting
 from rally.schemas import (
+    MEAL_TYPES,
     UNSET,
     DinnerPlanCreate,
     DinnerPlanResponse,
@@ -52,6 +53,7 @@ def create_dinner_plan(plan: DinnerPlanCreate, db: Session = Depends(get_db)):
 def list_meal_history(
     sort: str = Query("rating_desc", pattern="^(rating_desc|date_desc|date_asc)$"),
     min_rating: int | None = Query(None, ge=1, le=5),
+    meal_type: list[str] | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """List past meal plans (before today in the user's timezone).
@@ -60,7 +62,18 @@ def list_meal_history(
     - rating_desc: highest rated first, null ratings last
     - date_desc: most recent first
     - date_asc: oldest first
+
+    ``meal_type`` may be repeated to filter to any of the given types (e.g.
+    ``?meal_type=Breakfast&meal_type=Lunch``); each value must be a known meal
+    type.
     """
+    if meal_type:
+        invalid = [m for m in meal_type if m not in MEAL_TYPES]
+        if invalid:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid meal_type value(s): {invalid}"
+            )
+
     settings = {r.key: r.value for r in db.query(Setting).all()}
     tz_name = settings.get("local_timezone", "UTC")
     today = today_local(tz_name).strftime("%Y-%m-%d")
@@ -69,6 +82,9 @@ def list_meal_history(
 
     if min_rating is not None:
         query = query.filter(DinnerPlan.rating >= min_rating)
+
+    if meal_type:
+        query = query.filter(DinnerPlan.meal_type.in_(meal_type))
 
     if sort == "rating_desc":
         query = query.order_by(nullslast(DinnerPlan.rating.desc()), DinnerPlan.date.desc())

@@ -209,6 +209,52 @@ def test_history_sort_date_asc_and_desc(client, make_dinner_plan, frozen_now):
     assert [p["date"] for p in desc] == ["2026-05-05", "2026-05-01"]
 
 
+def test_history_meal_type_filter(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    make_dinner_plan("2026-05-01", plan="Eggs", meal_type="Breakfast", rating=4)
+    make_dinner_plan("2026-05-02", plan="Steak", meal_type="Dinner", rating=4)
+
+    hist = client.get("/api/dinner-plans/history", params={"meal_type": "Breakfast"}).json()
+
+    assert [p["plan"] for p in hist] == ["Eggs"]
+
+
+def test_history_meal_type_filter_multiple(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    make_dinner_plan("2026-05-01", plan="Eggs", meal_type="Breakfast", rating=4)
+    make_dinner_plan("2026-05-02", plan="Sandwich", meal_type="Lunch", rating=4)
+    make_dinner_plan("2026-05-03", plan="Steak", meal_type="Dinner", rating=4)
+
+    hist = client.get(
+        "/api/dinner-plans/history", params={"meal_type": ["Breakfast", "Lunch"]}
+    ).json()
+
+    assert sorted(p["plan"] for p in hist) == ["Eggs", "Sandwich"]
+
+
+def test_history_meal_type_composes_with_min_rating(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    make_dinner_plan("2026-05-01", plan="GoodDinner", meal_type="Dinner", rating=5)
+    make_dinner_plan("2026-05-02", plan="BadDinner", meal_type="Dinner", rating=2)
+    make_dinner_plan("2026-05-03", plan="GoodLunch", meal_type="Lunch", rating=5)
+
+    hist = client.get(
+        "/api/dinner-plans/history",
+        params={"meal_type": "Dinner", "min_rating": 3},
+    ).json()
+
+    assert [p["plan"] for p in hist] == ["GoodDinner"]
+
+
+def test_history_invalid_meal_type_returns_422(client, make_dinner_plan, frozen_now):
+    frozen_now(TODAY)
+    make_dinner_plan("2026-05-01", plan="Eggs", meal_type="Breakfast", rating=4)
+
+    resp = client.get("/api/dinner-plans/history", params={"meal_type": "Brunch"})
+
+    assert resp.status_code == 422
+
+
 def test_history_respects_local_timezone(client, make_dinner_plan, frozen_now, local_timezone):
     # At 02:00Z the local date in Kolkata (+05:30) is already the next day, so a
     # plan dated that local day counts as "today" and is excluded from history.

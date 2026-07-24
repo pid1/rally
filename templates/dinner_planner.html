@@ -35,6 +35,21 @@
                 <button class="btn-add" id="btn-add-meal">Add Meal</button>
             </div>
         </div>
+
+        <!-- Filter toolbar (filters first; this page has no sort control) -->
+        <div class="filter-toolbar">
+            <div class="toolbar-group">
+                <label>Meal Type</label>
+                <div class="filter-chips" id="meal-type-filters">
+                    <button type="button" class="filter-chip" data-meal="Breakfast">Breakfast</button>
+                    <button type="button" class="filter-chip" data-meal="Lunch">Lunch</button>
+                    <button type="button" class="filter-chip" data-meal="Dinner">Dinner</button>
+                    <button type="button" class="filter-chip" data-meal="Snacks">Snacks</button>
+                </div>
+                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
+            </div>
+        </div>
+
         <div class="list-container" id="plans-list">
             <div class="container-loading-state">Loading meal plans...</div>
         </div>
@@ -91,6 +106,7 @@
         let editingId = null;
         let defaultMealType = 'Dinner';
         let localTimezone = 'UTC';
+        let selectedMealTypes = new Set();
 
         const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
         const MEAL_TYPE_ORDER = { 'Breakfast': 0, 'Lunch': 1, 'Dinner': 2, 'Snacks': 3 };
@@ -229,16 +245,25 @@
             if (!response.ok) throw new Error('Failed to delete plan');
         }
 
+        // Apply the active meal-type filter (empty selection = show all).
+        function getVisiblePlans() {
+            if (selectedMealTypes.size === 0) return plans;
+            return plans.filter(p => selectedMealTypes.has(p.meal_type || 'Dinner'));
+        }
+
         // Render
         function renderPlans() {
             const container = document.getElementById('plans-list');
+            const visible = getVisiblePlans();
 
-            if (plans.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No meal plans for the next 7 days. Click "Add Meal" to get started.</div>';
+            if (visible.length === 0) {
+                container.innerHTML = selectedMealTypes.size > 0
+                    ? '<div class="container-empty-state">No meals match the current filters.</div>'
+                    : '<div class="container-empty-state">No meal plans for the next 7 days. Click "Add Meal" to get started.</div>';
                 return;
             }
 
-            container.innerHTML = plans.map(plan => {
+            container.innerHTML = visible.map(plan => {
                 // Build meta parts
                 const parts = [];
                 if (plan.attendee_ids && plan.attendee_ids.length > 0) {
@@ -330,6 +355,29 @@
                 alert('Failed to delete meal plan');
             }
         }
+
+        // Meal type filter: multi-select (any of the selected types). Filtering
+        // is client-side over the already-loaded week, so no refetch is needed.
+        document.getElementById('meal-type-filters').addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+
+            const meal = chip.dataset.meal;
+            if (selectedMealTypes.has(meal)) {
+                selectedMealTypes.delete(meal);
+                chip.classList.remove('active');
+            } else {
+                selectedMealTypes.add(meal);
+                chip.classList.add('active');
+            }
+            renderPlans();
+        });
+
+        document.getElementById('filter-clear').addEventListener('click', () => {
+            selectedMealTypes.clear();
+            document.querySelectorAll('#meal-type-filters .filter-chip').forEach(c => c.classList.remove('active'));
+            renderPlans();
+        });
 
         // Event handlers
         document.getElementById('btn-add-meal').addEventListener('click', openAddModal);
