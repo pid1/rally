@@ -265,8 +265,7 @@ footer a:hover {
 
 /* Wrapper positioned over the scroll viewport. Its ::before/::after paint a
    fade in the modal's background colour over the top/bottom edges — a plain
-   overlay rather than a CSS mask, which would break native <select>/date
-   pickers inside the scroller (they close immediately) in Firefox. */
+   overlay rather than a CSS mask.*/
 .modal-scroll {
     position: relative;
     flex: 1;
