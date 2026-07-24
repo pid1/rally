@@ -46,3 +46,45 @@ def test_build_stem_section_escapes_injected_markup():
     assert "&lt;script&gt;" in html
     assert "<b>build</b>" not in html
     assert "&lt;b&gt;build&lt;/b&gt;" in html
+
+
+def test_build_stem_section_renders_and_filters_activities():
+    html = _build_stem_section(
+        {
+            "title": "Buoyancy",
+            "field": "Science",
+            "explanation": "Some things float.",
+            "activities": [
+                {"idea": "Float toys in the tub", "audience": "kids"},
+                "not a dict",  # skipped
+                {"idea": "   "},  # empty idea skipped
+                {"idea": "Guess sink or float"},  # no audience
+            ],
+        }
+    )
+
+    assert "Float toys in the tub" in html
+    assert "kids" in html
+    assert "Guess sink or float" in html
+    assert "not a dict" not in html
+
+
+def test_dashboard_renders_schedule_notes_and_briefing(client, db_session):
+    data = {
+        "greeting": "Morning!",
+        "weather_summary": "Sunny",
+        "briefing": "Pack an umbrella",
+        "schedule": [
+            {"time": "8:00 AM", "title": "School", "notes": "early release"},
+            {"time": "9:00 AM", "title": "Gym"},
+        ],
+    }
+    db_session.add(DashboardSnapshot(date="2026-03-15", data=data, is_active=True))
+    db_session.commit()
+
+    html = client.get("/dashboard").text
+
+    assert "early release" in html  # schedule item notes
+    assert "Pack an umbrella" in html  # briefing section
+    assert "School" in html
+    assert "Gym" in html

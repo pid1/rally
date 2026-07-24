@@ -28,6 +28,38 @@ def get_completed(client, **params):
     return response.json()
 
 
+def test_completed_sort_due_soonest(client, make_todo):
+    make_todo("Near", due_date="2026-01-01")
+    make_todo("Far", due_date="2026-12-01")
+    assert titles(get_completed(client, sort="due-soonest")) == ["Near", "Far"]
+
+
+def test_completed_sort_due_furthest(client, make_todo):
+    make_todo("Near", due_date="2026-01-01")
+    make_todo("Far", due_date="2026-12-01")
+    assert titles(get_completed(client, sort="due-furthest")) == ["Far", "Near"]
+
+
+def test_completed_sort_by_assignee(client, make_todo, make_member):
+    zoe = make_member("Zoe")
+    amy = make_member("Amy")
+    make_todo("Zoe task", assigned_to=zoe.id)
+    make_todo("Amy task", assigned_to=amy.id)
+    assert titles(get_completed(client, sort="assignee")) == ["Amy task", "Zoe task"]
+
+
+def test_completed_sort_newest(client, make_todo):
+    make_todo("Old", created_at=datetime(2026, 1, 1))
+    make_todo("New", created_at=datetime(2026, 2, 1))
+    assert titles(get_completed(client, sort="newest")) == ["New", "Old"]
+
+
+def test_completed_sort_oldest(client, make_todo):
+    make_todo("Old", created_at=datetime(2026, 1, 1))
+    make_todo("New", created_at=datetime(2026, 2, 1))
+    assert titles(get_completed(client, sort="oldest")) == ["Old", "New"]
+
+
 def titles(payload) -> list[str]:
     return [item["title"] for item in payload["items"]]
 
