@@ -230,6 +230,101 @@ def test_first_custom_monthly_weekday_current_month():
     assert _first_custom(rule, date(2026, 1, 1)) == date(2026, 1, 12)
 
 
+# --- fallthroughs and remaining custom branches --------------------------------
+
+
+def test_next_custom_daily_weekdays_only_sunday_to_monday():
+    rule = {"freq": "daily", "interval": 1, "weekdays_only": True}
+    # after Sat Jan 3 -> Sun Jan 4 -> pushed forward to Mon Jan 5.
+    assert _next_custom(rule, date(2026, 1, 3)) == date(2026, 1, 5)
+
+
+def test_next_custom_monthly_weekday_this_month():
+    rule = {"freq": "monthly", "mode": "weekday", "ordinal": "third", "weekday": 0, "interval": 1}
+    # after Jan 5, the third Monday of Jan (19th) is still ahead -> returned directly.
+    assert _next_custom(rule, date(2026, 1, 5)) == date(2026, 1, 19)
+
+
+def test_first_custom_monthly_weekday_advances_when_passed():
+    rule = {"freq": "monthly", "mode": "weekday", "ordinal": "first", "weekday": 0, "interval": 1}
+    # today Jan 20; first Monday of Jan (5th) has passed -> first Monday of Feb (2nd).
+    assert _first_custom(rule, date(2026, 1, 20)) == date(2026, 2, 2)
+
+
+def test_custom_helpers_unknown_freq_fall_through():
+    assert _next_custom({"freq": "yearly"}, date(2026, 1, 1)) == date(2026, 1, 2)
+    assert _last_custom({"freq": "yearly"}, date(2026, 1, 7)) == date(2026, 1, 7)
+    assert _first_custom({"freq": "yearly"}, date(2026, 1, 7)) == date(2026, 1, 7)
+
+
+def test_public_api_unknown_recurrence_type_falls_through():
+    # "custom" with no custom_rule, and an unrecognized type, hit the defaults.
+    assert get_next_recurrence_date(rt("custom"), date(2026, 1, 1)) == date(2026, 1, 2)
+    assert get_last_recurrence_date(rt("weekdays"), date(2026, 1, 7)) == date(2026, 1, 7)
+    assert get_first_recurrence_date(rt("custom"), date(2026, 1, 7)) == date(2026, 1, 7)
+
+
+def test_public_api_custom_type_delegates_to_helpers():
+    r = rt("custom", custom_rule={"freq": "daily"})
+    assert get_next_recurrence_date(r, date(2026, 1, 1)) == date(2026, 1, 2)
+    assert get_last_recurrence_date(r, date(2026, 1, 7)) == date(2026, 1, 7)
+    assert get_first_recurrence_date(r, date(2026, 1, 7)) == date(2026, 1, 7)
+
+
+def test_next_custom_monthly_day_this_month():
+    rule = {"freq": "monthly", "mode": "day", "day": 15, "interval": 1}
+    assert _next_custom(rule, date(2026, 1, 10)) == date(2026, 1, 15)
+
+
+def test_last_custom_monthly_day_this_month():
+    rule = {"freq": "monthly", "mode": "day", "day": 15}
+    assert _last_custom(rule, date(2026, 1, 20)) == date(2026, 1, 15)
+
+
+def test_first_custom_daily_returns_today():
+    assert _first_custom({"freq": "daily"}, date(2026, 1, 7)) == date(2026, 1, 7)
+
+
+def test_first_custom_weekly_wraps_to_next_week():
+    # today Wed Jan 7; only Monday is listed, and it's behind -> next week's Monday.
+    assert _first_custom({"freq": "weekly", "weekdays": [0]}, date(2026, 1, 7)) == date(2026, 1, 12)
+
+
+def test_first_custom_monthly_day_this_month():
+    rule = {"freq": "monthly", "mode": "day", "day": 15, "interval": 1}
+    assert _first_custom(rule, date(2026, 1, 10)) == date(2026, 1, 15)
+
+
+def test_process_backfills_reference_from_due_date(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
+    template = make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=True)
+    # No last_generated_date -> backfill from the most recent instance's due_date.
+    make_todo("Vitamins", completed=True, due_date="2026-03-12", recurring_todo_id=template.id)
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-13"
+
+
+def test_process_backfills_reference_from_created_at_when_no_due_date(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
+    template = make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=False)
+    # No due_date on the instance -> backfill from its created_at date.
+    make_todo(
+        "Vitamins",
+        completed=True,
+        due_date=None,
+        recurring_todo_id=template.id,
+        created_at=datetime(2026, 3, 10, 8, 0),
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-11"
+
+
 # --- process_recurring_todos (integration) -------------------------------------
 
 FROZEN = datetime(2026, 3, 15, 12, 0, tzinfo=UTC)  # a Sunday

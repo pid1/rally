@@ -59,3 +59,16 @@ def test_seed_is_idempotent(cli_db):
     cli.seed()
     # seed() clears before inserting, so a second run yields the same counts.
     assert _counts(cli_db) == EXPECTED_COUNTS
+
+
+def test_seed_handles_error_and_rolls_back(cli_db, monkeypatch, capsys):
+    def boom(*args, **kwargs):
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(cli, "FamilyMember", boom)
+
+    cli.seed()  # the error is caught, not raised
+
+    assert "Error seeding" in capsys.readouterr().out
+    # The aborted insert rolled back, so nothing was seeded.
+    assert _counts(cli_db)["family"] == 0
