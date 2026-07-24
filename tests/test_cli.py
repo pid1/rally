@@ -8,13 +8,14 @@ from sqlalchemy.pool import StaticPool
 from rally import cli
 from rally.database import Base
 from rally.models import Calendar, DashboardSnapshot, DinnerPlan, FamilyMember, Setting, Todo
+from rally.utils.timezone import today_utc
 
 EXPECTED_COUNTS = {
     "family": 4,
     "calendars": 3,
     "settings": 5,
     "todos": 6,
-    "dinner": 6,
+    "dinner": 16,  # 6 upcoming + 10 past
     "snapshots": 1,
 }
 
@@ -52,6 +53,23 @@ def _counts(session):
 def test_seed_populates_sample_data(cli_db):
     cli.seed()
     assert _counts(cli_db) == EXPECTED_COUNTS
+
+
+def test_seed_creates_past_meals_for_history_filters(cli_db):
+    """Seeded history must span all meal types and a range of ratings so the
+    Previous Meals meal-type and rating filters have data to act on."""
+    cli.seed()
+    today = today_utc().strftime("%Y-%m-%d")
+
+    past = cli_db.query(DinnerPlan).filter(DinnerPlan.date < today).all()
+
+    assert past, "expected seeded meals in the past for the Previous Meals page"
+    # All four meal types are represented.
+    assert {p.meal_type for p in past} == {"Breakfast", "Lunch", "Dinner", "Snacks"}
+    # A spread of ratings, including at least one unrated meal.
+    ratings = {p.rating for p in past}
+    assert None in ratings
+    assert len([r for r in ratings if r is not None]) >= 3
 
 
 def test_seed_is_idempotent(cli_db):

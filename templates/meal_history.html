@@ -33,8 +33,26 @@
             <h2>Meal History</h2>
         </div>
 
-        <!-- Sort/filter toolbar -->
-        <div class="todo-toolbar">
+        <!-- Filter/sort toolbar (filters first, sort last) -->
+        <div class="filter-toolbar">
+            <div class="toolbar-group">
+                <label>Meal Type</label>
+                <div class="filter-chips" id="meal-type-filters">
+                    <button type="button" class="filter-chip" data-meal="Breakfast">Breakfast</button>
+                    <button type="button" class="filter-chip" data-meal="Lunch">Lunch</button>
+                    <button type="button" class="filter-chip" data-meal="Dinner">Dinner</button>
+                    <button type="button" class="filter-chip" data-meal="Snacks">Snacks</button>
+                </div>
+            </div>
+            <div class="toolbar-group">
+                <label>Rating</label>
+                <div class="filter-chips" id="rating-filters">
+                    <button type="button" class="filter-chip" data-min="5">5 Stars</button>
+                    <button type="button" class="filter-chip" data-min="4">4+ Stars</button>
+                    <button type="button" class="filter-chip" data-min="3">3+ Stars</button>
+                </div>
+                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
+            </div>
             <div class="toolbar-group">
                 <label>Sort</label>
                 <select id="sort-select">
@@ -42,15 +60,6 @@
                     <option value="date_desc">Most Recent</option>
                     <option value="date_asc">Oldest First</option>
                 </select>
-            </div>
-            <div class="toolbar-group">
-                <label>Rating</label>
-                <div class="filter-chips" id="rating-filters">
-                    <button class="filter-chip active" data-min="">All</button>
-                    <button class="filter-chip" data-min="5">5 Stars</button>
-                    <button class="filter-chip" data-min="4">4+ Stars</button>
-                    <button class="filter-chip" data-min="3">3+ Stars</button>
-                </div>
             </div>
         </div>
 
@@ -93,6 +102,7 @@
         let familyMembers = [];
         let currentSort = 'rating_desc';
         let currentMinRating = '';
+        let selectedMealTypes = new Set();
 
         // Star rating state
         let selectedRating = 0;
@@ -141,6 +151,7 @@
             if (currentMinRating) {
                 params.set('min_rating', currentMinRating);
             }
+            selectedMealTypes.forEach(t => params.append('meal_type', t));
             const response = await fetch(`/api/dinner-plans/history?${params}`);
             historyPlans = await response.json();
             renderHistory();
@@ -165,7 +176,10 @@
             const container = document.getElementById('history-list');
 
             if (historyPlans.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No meal history yet. Past meals will appear here once you have some plans behind you.</div>';
+                const filtersActive = selectedMealTypes.size > 0 || currentMinRating;
+                container.innerHTML = filtersActive
+                    ? '<div class="container-empty-state">No meals match the current filters.</div>'
+                    : '<div class="container-empty-state">No meal history yet. Past meals will appear here once you have some plans behind you.</div>';
                 return;
             }
 
@@ -270,13 +284,44 @@
             fetchHistory();
         });
 
+        // Meal type: multi-select (any of the selected types).
+        document.getElementById('meal-type-filters').addEventListener('click', function(e) {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+
+            const meal = chip.dataset.meal;
+            if (selectedMealTypes.has(meal)) {
+                selectedMealTypes.delete(meal);
+                chip.classList.remove('active');
+            } else {
+                selectedMealTypes.add(meal);
+                chip.classList.add('active');
+            }
+            fetchHistory();
+        });
+
+        // Rating: single-select; clicking the active chip clears it.
         document.getElementById('rating-filters').addEventListener('click', function(e) {
             const chip = e.target.closest('.filter-chip');
             if (!chip) return;
 
+            const alreadyActive = chip.classList.contains('active');
             document.querySelectorAll('#rating-filters .filter-chip').forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
-            currentMinRating = chip.dataset.min;
+            if (alreadyActive) {
+                currentMinRating = '';
+            } else {
+                chip.classList.add('active');
+                currentMinRating = chip.dataset.min;
+            }
+            fetchHistory();
+        });
+
+        document.getElementById('filter-clear').addEventListener('click', function() {
+            selectedMealTypes.clear();
+            currentMinRating = '';
+            currentSort = 'rating_desc';
+            document.getElementById('sort-select').value = currentSort;
+            document.querySelectorAll('.filter-toolbar .filter-chip').forEach(c => c.classList.remove('active'));
             fetchHistory();
         });
 

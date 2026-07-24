@@ -163,6 +163,86 @@ def seed():
 
         # Create sample meal plans (multiple per date to showcase the feature)
         today_date = today_utc()
+
+        # Past meals across all meal types with a range of ratings (and some
+        # unrated) so the Previous Meals page and its meal-type/rating filters
+        # have realistic data to act on.
+        past_meals = [
+            DinnerPlan(
+                date=(today_date - timedelta(days=2)).strftime("%Y-%m-%d"),
+                meal_type="Breakfast",
+                plan="Veggie omelettes and toast",
+                cook_id=mom.id,
+                rating=5,
+                review="Fluffy and filling — a keeper for weekend mornings.",
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=3)).strftime("%Y-%m-%d"),
+                meal_type="Lunch",
+                plan="Turkey and avocado sandwiches",
+                attendee_ids=[emma.id, jake.id],
+                rating=3,
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=4)).strftime("%Y-%m-%d"),
+                meal_type="Dinner",
+                plan="Meatloaf with mashed potatoes",
+                cook_id=dad.id,
+                rating=4,
+                review="Comfort food done right.",
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=5)).strftime("%Y-%m-%d"),
+                meal_type="Snacks",
+                plan="Fruit and cheese board",
+                rating=2,
+                review="Fine, but the crackers were stale.",
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=6)).strftime("%Y-%m-%d"),
+                meal_type="Dinner",
+                plan="Taco night",
+                cook_id=mom.id,
+                rating=5,
+                review="Everyone's favorite — always a hit.",
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=7)).strftime("%Y-%m-%d"),
+                meal_type="Breakfast",
+                plan="Oatmeal with berries",
+                # Not yet rated
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=9)).strftime("%Y-%m-%d"),
+                meal_type="Lunch",
+                plan="Grilled cheese and tomato soup",
+                rating=4,
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=10)).strftime("%Y-%m-%d"),
+                meal_type="Snacks",
+                plan="Popcorn and smoothies",
+                # Not yet rated
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=12)).strftime("%Y-%m-%d"),
+                meal_type="Dinner",
+                plan="Roast chicken with vegetables",
+                cook_id=dad.id,
+                rating=5,
+                review="Crispy skin, juicy inside. Restaurant quality.",
+            ),
+            DinnerPlan(
+                date=(today_date - timedelta(days=14)).strftime("%Y-%m-%d"),
+                meal_type="Breakfast",
+                plan="French toast",
+                attendee_ids=[emma.id, jake.id],
+                rating=3,
+            ),
+        ]
+        for dp in past_meals:
+            db.add(dp)
+
         dinner_plans = [
             # Today: breakfast and dinner for different groups
             DinnerPlan(
@@ -215,7 +295,8 @@ def seed():
         print(f"   - {len(calendars)} calendars")
         print(f"   - {len(sample_settings)} settings")
         print(f"   - {len(todos)} sample todos")
-        print(f"   - {len(dinner_plans)} meal plans")
+        print(f"   - {len(dinner_plans)} upcoming meal plans")
+        print(f"   - {len(past_meals)} past meal plans")
 
     except Exception as e:
         db.rollback()
