@@ -319,6 +319,8 @@
         document.getElementById('filter-clear').addEventListener('click', function() {
             selectedMealTypes.clear();
             currentMinRating = '';
+            currentSort = 'rating_desc';
+            document.getElementById('sort-select').value = currentSort;
             document.querySelectorAll('.filter-toolbar .filter-chip').forEach(c => c.classList.remove('active'));
             fetchHistory();
         });
