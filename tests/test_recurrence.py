@@ -474,9 +474,7 @@ def test_process_late_completion_skips_multiple_elapsed_periods(
 
     assert created == 1
     assert template.last_generated_date == "2026-03-15"
-    new_due_dates = {
-        t.due_date for t in _instances(db_session, template.id) if not t.completed
-    }
+    new_due_dates = {t.due_date for t in _instances(db_session, template.id) if not t.completed}
     assert new_due_dates == {"2026-03-15"}
 
 
