@@ -285,7 +285,24 @@ def _resolve_reference_date(rt: RecurringTodo, db: Session) -> date | None:
             .first()
         )
         if latest_completed:
-            return max(ref, date.fromisoformat(latest_completed.due_date))
+            ref = max(ref, date.fromisoformat(latest_completed.due_date))
+        # If the task was completed *after* its scheduled date, advance the
+        # reference past any occurrences that already elapsed, so the next
+        # instance is scheduled in the future instead of on an already-past
+        # date. On-time or early completions leave the reference unchanged
+        # (completed_at falls on or before the scheduled date).
+        latest_completion = (
+            db.query(Todo)
+            .filter(
+                Todo.recurring_todo_id == rt.id,
+                Todo.completed == True,  # noqa: E712
+                Todo.completed_at.isnot(None),
+            )
+            .order_by(Todo.completed_at.desc())
+            .first()
+        )
+        if latest_completion:
+            ref = max(ref, latest_completion.completed_at.date())
         return ref
 
     # Backfill: find the most recent instance by due_date (or created_at)
