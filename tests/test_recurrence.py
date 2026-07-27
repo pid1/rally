@@ -417,6 +417,97 @@ def test_process_reference_advances_past_completed_reschedule(
     assert due_dates == {"2026-03-14", "2026-03-15"}
 
 
+def test_process_late_completion_skips_elapsed_occurrence(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    frozen_now(FROZEN)
+    # Weekly-Sunday task last generated for Sun Mar 1. The instance was not
+    # completed until Mon Mar 9 -- after the Mar 8 occurrence already elapsed.
+    # The next instance should be the next *future* Sunday (Mar 15), not Mar 8.
+    template = make_recurring_todo(
+        "Swap sheets",
+        recurrence_type="weekly",
+        recurrence_day=6,  # Sunday
+        has_due_date=True,
+        last_generated_date="2026-03-01",
+    )
+    make_todo(
+        "Swap sheets",
+        completed=True,
+        due_date="2026-03-01",
+        completed_at=datetime(2026, 3, 9, 12, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    created = process_recurring_todos(db_session)
+
+    assert created == 1
+    assert template.last_generated_date == "2026-03-15"
+    due_dates = {t.due_date for t in _instances(db_session, template.id)}
+    # Mar 8 was skipped; no already-past instance was generated.
+    assert "2026-03-08" not in due_dates
+    assert "2026-03-15" in due_dates
+
+
+def test_process_late_completion_skips_multiple_elapsed_periods(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    frozen_now(FROZEN)
+    # Daily task last generated Mar 10, completed 4 days late (Mar 14). Only the
+    # single next future occurrence (Mar 15) is generated -- not a backlog of the
+    # skipped Mar 11-14 instances.
+    template = make_recurring_todo(
+        "Vitamins",
+        recurrence_type="daily",
+        has_due_date=True,
+        last_generated_date="2026-03-10",
+    )
+    make_todo(
+        "Vitamins",
+        completed=True,
+        due_date="2026-03-10",
+        completed_at=datetime(2026, 3, 14, 12, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    created = process_recurring_todos(db_session)
+
+    assert created == 1
+    assert template.last_generated_date == "2026-03-15"
+    new_due_dates = {
+        t.due_date for t in _instances(db_session, template.id) if not t.completed
+    }
+    assert new_due_dates == {"2026-03-15"}
+
+
+def test_process_early_completion_keeps_cadence(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    frozen_now(FROZEN)
+    # Completed on or before its scheduled date -> completion date must NOT push
+    # the reference forward; the next instance follows the normal cadence.
+    template = make_recurring_todo(
+        "Swap sheets",
+        recurrence_type="weekly",
+        recurrence_day=6,  # Sunday
+        has_due_date=True,
+        last_generated_date="2026-03-08",
+    )
+    make_todo(
+        "Swap sheets",
+        completed=True,
+        due_date="2026-03-08",
+        completed_at=datetime(2026, 3, 5, 12, 0, tzinfo=UTC),  # completed early
+        recurring_todo_id=template.id,
+    )
+
+    created = process_recurring_todos(db_session)
+
+    assert created == 1
+    # Next Sunday after Mar 8, unchanged by the early completion.
+    assert template.last_generated_date == "2026-03-15"
+
+
 def test_process_counts_multiple_and_ignores_inactive(db_session, make_recurring_todo, frozen_now):
     frozen_now(FROZEN)
     make_recurring_todo("Active A", recurrence_type="daily", has_due_date=True)
