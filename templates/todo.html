@@ -123,6 +123,19 @@
                             Schedule on weekdays only
                         </label>
                     </div>
+                    <div class="form-group" id="custom-next-due-from-group" style="display:none;">
+                        <label title="&quot;Due date of the last task&quot; keeps the original cadence — the interval after the last task's due date — but if that date has already passed, it falls back to the interval after completion so a task is never created already overdue. &quot;Date the last task was completed&quot; schedules the next task the interval after you finish the last one.">Calculate next due date from:</label>
+                        <div class="radio-options">
+                            <label>
+                                <input type="radio" name="custom-next-due-from" value="due_date" checked>
+                                Due date of the last task
+                            </label>
+                            <label>
+                                <input type="radio" name="custom-next-due-from" value="completion_date">
+                                Date the last task was completed
+                            </label>
+                        </div>
+                    </div>
                     <div class="form-group" id="custom-weekly-group" style="display:none;">
                         <label>On</label>
                         <div class="weekday-checkboxes" id="custom-weekdays">
@@ -137,9 +150,9 @@
                     </div>
                     <div class="form-group" id="custom-monthly-group" style="display:none;">
                         <label>On</label>
-                        <div style="margin-bottom:8px;">
-                            <label class="weekday-label"><input type="radio" name="custom-monthly-mode" value="day" checked> Day of month</label>
-                            <label class="weekday-label"><input type="radio" name="custom-monthly-mode" value="weekday"> Relative weekday</label>
+                        <div class="radio-options" style="margin-bottom:8px;">
+                            <label><input type="radio" name="custom-monthly-mode" value="day" checked> Day of month</label>
+                            <label><input type="radio" name="custom-monthly-mode" value="weekday"> Relative weekday</label>
                         </div>
                         <div id="custom-monthly-day-group">
                             <select id="custom-monthly-day"></select>
@@ -646,7 +659,10 @@
             const every = n === 1 ? 'Every' : `Every ${n}`;
             if (freq === 'daily') {
                 const base = n === 1 ? 'Daily' : `Every ${n} days`;
-                return rule.weekdays_only ? `${base} (weekdays only)` : base;
+                const notes = [];
+                if (rule.weekdays_only) notes.push('weekdays only');
+                if (rule.next_due_from === 'completion_date') notes.push('from completion date');
+                return notes.length ? `${base} (${notes.join(', ')})` : base;
             }
             if (freq === 'weekly') {
                 const days = (rule.weekdays || [0]).map(d => DAY_NAMES[d].slice(0, 3)).join(', ');
@@ -726,7 +742,12 @@
 
         function updateCustomSubGroups() {
             const freq = document.getElementById('custom-freq').value;
+            const hasDue = document.getElementById('recurring-has-due-date').checked;
             document.getElementById('custom-weekdays-only-group').style.display = freq === 'daily' ? '' : 'none';
+            // The due-date/completion-date anchor only applies to "every N days"
+            // templates that set a due date on their generated tasks.
+            document.getElementById('custom-next-due-from-group').style.display =
+                freq === 'daily' && hasDue ? '' : 'none';
             document.getElementById('custom-weekly-group').style.display = freq === 'weekly' ? '' : 'none';
             document.getElementById('custom-monthly-group').style.display = freq === 'monthly' ? '' : 'none';
             if (freq !== 'daily') {
@@ -746,11 +767,13 @@
             r.addEventListener('change', updateCustomMonthlyMode)
         );
         document.getElementById('recurring-has-due-date').addEventListener('change', toggleRecurringRemindGroup);
+        document.getElementById('recurring-has-due-date').addEventListener('change', updateCustomSubGroups);
 
         function resetCustomFields() {
             document.getElementById('custom-interval').value = '1';
             document.getElementById('custom-freq').value = 'daily';
             document.getElementById('custom-weekdays-only').checked = false;
+            document.querySelector('input[name="custom-next-due-from"][value="due_date"]').checked = true;
             document.querySelectorAll('#custom-weekdays input[type="checkbox"]').forEach(cb => cb.checked = false);
             document.querySelector('input[name="custom-monthly-mode"][value="day"]').checked = true;
             document.getElementById('custom-monthly-day').value = '1';
@@ -767,6 +790,8 @@
             updateCustomSubGroups();
             if (rule.freq === 'daily') {
                 document.getElementById('custom-weekdays-only').checked = !!rule.weekdays_only;
+                const anchor = rule.next_due_from === 'completion_date' ? 'completion_date' : 'due_date';
+                document.querySelector(`input[name="custom-next-due-from"][value="${anchor}"]`).checked = true;
             }
             if (rule.freq === 'weekly') {
                 const wds = rule.weekdays || [];
@@ -792,6 +817,13 @@
             const rule = { freq, interval };
             if (freq === 'daily' && document.getElementById('custom-weekdays-only').checked) {
                 rule.weekdays_only = true;
+            }
+            // Only persist a non-default anchor; absence means "due_date".
+            if (freq === 'daily') {
+                const anchor = document.querySelector('input[name="custom-next-due-from"]:checked');
+                if (anchor && anchor.value === 'completion_date') {
+                    rule.next_due_from = 'completion_date';
+                }
             }
             if (freq === 'weekly') {
                 rule.weekdays = [...document.querySelectorAll('#custom-weekdays input[type="checkbox"]:checked')]

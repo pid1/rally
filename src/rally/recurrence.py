@@ -264,11 +264,59 @@ def get_first_recurrence_date(rt: RecurringTodo, today: date) -> date:
     return today
 
 
-def _resolve_reference_date(rt: RecurringTodo, db: Session) -> date | None:
+def _anchored_custom_daily(rt: RecurringTodo) -> bool:
+    """True when a template uses the configurable next-due-date anchor.
+
+    Only Custom "every N days" templates that set a due date on their generated
+    instances participate; every other template keeps the generic reference
+    logic.
+    """
+    return (
+        rt.recurrence_type == "custom"
+        and bool(rt.custom_rule)
+        and rt.custom_rule.get("freq") == "daily"
+        and rt.has_due_date
+    )
+
+
+def _anchor_reference(
+    rt: RecurringTodo,
+    due_ref: date,
+    latest_completion: Todo | None,
+    today: date,
+) -> date:
+    """Pick the reference date for an anchored custom "every N days" template.
+
+    get_next_recurrence_date() adds the interval (and the weekdays-only weekend
+    adjustment) to whatever reference we return, so selecting the reference is
+    enough to express both anchors:
+
+    - ``"completion_date"``: measure the next due date from when the last task
+      was actually completed.
+    - ``"due_date"`` (default): measure from the last task's due date, but if
+      that would land the next due date in the past (a very late completion),
+      fall back to the completion date so a task is never generated already
+      overdue.
+    """
+    anchor = rt.custom_rule.get("next_due_from", "due_date")
+    completion_ref = latest_completion.completed_at.date() if latest_completion else None
+
+    if anchor == "completion_date" and completion_ref is not None:
+        return completion_ref
+
+    # "due_date" (default), with a past-due fallback to the completion date.
+    if completion_ref is not None and get_next_recurrence_date(rt, due_ref) < today:
+        return completion_ref
+    return due_ref
+
+
+def _resolve_reference_date(rt: RecurringTodo, db: Session, today: date) -> date | None:
     """Determine the reference date for calculating the next instance.
 
-    Returns the recurrence date of the most recently generated instance,
-    or None if no instances have ever been created.
+    Returns the recurrence date of the most recently generated instance, or
+    None if no instances have ever been created. Custom "every N days"
+    templates with a due date honor the ``custom_rule["next_due_from"]`` anchor
+    (see _anchor_reference).
     """
     if rt.last_generated_date:
         ref = date.fromisoformat(rt.last_generated_date)
@@ -286,11 +334,6 @@ def _resolve_reference_date(rt: RecurringTodo, db: Session) -> date | None:
         )
         if latest_completed:
             ref = max(ref, date.fromisoformat(latest_completed.due_date))
-        # If the task was completed *after* its scheduled date, advance the
-        # reference past any occurrences that already elapsed, so the next
-        # instance is scheduled in the future instead of on an already-past
-        # date. On-time or early completions leave the reference unchanged
-        # (completed_at falls on or before the scheduled date).
         latest_completion = (
             db.query(Todo)
             .filter(
@@ -301,6 +344,15 @@ def _resolve_reference_date(rt: RecurringTodo, db: Session) -> date | None:
             .order_by(Todo.completed_at.desc())
             .first()
         )
+        # Custom "every N days" + due date: the user chooses whether the next
+        # due date is measured from the last task's due date or its completion.
+        if _anchored_custom_daily(rt):
+            return _anchor_reference(rt, ref, latest_completion, today)
+        # Generic behavior: if the task was completed *after* its scheduled
+        # date, advance the reference past any occurrences that already elapsed,
+        # so the next instance is scheduled in the future instead of on an
+        # already-past date. On-time or early completions leave the reference
+        # unchanged (completed_at falls on or before the scheduled date).
         if latest_completion:
             ref = max(ref, latest_completion.completed_at.date())
         return ref
@@ -348,7 +400,7 @@ def process_recurring_todos(db: Session) -> int:
             continue
 
         # Determine what recurrence date was last generated
-        ref_date = _resolve_reference_date(rt, db)
+        ref_date = _resolve_reference_date(rt, db, today)
 
         if ref_date:
             # Calculate the next recurrence date after the last generated one
