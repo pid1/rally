@@ -1270,6 +1270,31 @@ footer a:hover {
     accent-color: var(--charcoal);
     margin: 0;
 }
+
+/* A vertical list of plain (borderless) radio options — used for the custom
+   recurrence anchor and the monthly "day vs. weekday" mode selectors. */
+.radio-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.radio-options label {
+    font-family: var(--body-font);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--charcoal);
+    user-select: none;
+}
+
+.radio-options input[type="radio"] {
+    accent-color: var(--charcoal);
+    margin: 0;
+}
 /** End Custom Recurrence Styles **/
 
 /** Settings Page Styles **/

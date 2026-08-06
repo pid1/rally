@@ -516,3 +516,199 @@ def test_process_counts_multiple_and_ignores_inactive(db_session, make_recurring
 
     assert created == 2
     assert db_session.query(Todo).count() == 2
+
+
+# --- custom "every N days" next-due anchor (custom_rule["next_due_from"]) -------
+#
+# For custom daily templates with a due date, the user picks whether the next
+# due date is measured from the last task's due date (default) or its completion
+# date. All dates below use 2026-03 (Mar 15 is a Sunday; Mar 5 is a Thursday).
+
+
+def _daily_rule(interval, *, next_due_from=None, weekdays_only=False):
+    rule = {"freq": "daily", "interval": interval}
+    if next_due_from is not None:
+        rule["next_due_from"] = next_due_from
+    if weekdays_only:
+        rule["weekdays_only"] = True
+    return rule
+
+
+def test_anchor_completion_date_early_completion(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # "Water the plant" every 7 days, anchored to completion. Due Mar 7 but
+    # watered early on Mar 5 -> next due is 7 days after completion: Mar 12
+    # (not Mar 14, which the due-date anchor would give).
+    frozen_now(datetime(2026, 3, 5, 12, tzinfo=UTC))
+    template = make_recurring_todo(
+        "Water the plant",
+        recurrence_type="custom",
+        custom_rule=_daily_rule(7, next_due_from="completion_date"),
+        has_due_date=True,
+        last_generated_date="2026-03-07",
+    )
+    make_todo(
+        "Water the plant",
+        completed=True,
+        due_date="2026-03-07",
+        completed_at=datetime(2026, 3, 5, 9, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-12"
+    new_due = {t.due_date for t in _instances(db_session, template.id) if not t.completed}
+    assert new_due == {"2026-03-12"}
+
+
+def test_anchor_completion_date_late_completion(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # "Allergy shot" every 4 days, anchored to completion. Due Mar 1 but not
+    # done until Mar 5 -> next due 4 days after completion: Mar 9.
+    frozen_now(datetime(2026, 3, 5, 12, tzinfo=UTC))
+    template = make_recurring_todo(
+        "Allergy shot",
+        recurrence_type="custom",
+        custom_rule=_daily_rule(4, next_due_from="completion_date"),
+        has_due_date=True,
+        last_generated_date="2026-03-01",
+    )
+    make_todo(
+        "Allergy shot",
+        completed=True,
+        due_date="2026-03-01",
+        completed_at=datetime(2026, 3, 5, 9, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-09"
+
+
+def test_anchor_due_date_default_keeps_cadence_on_late_completion(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # "Water the garden" every 5 days, default (due-date) anchor with no
+    # explicit key. Due Mar 5, watered late on Mar 6 -> next due stays on the
+    # original cadence: Mar 10 (not Mar 11 from the completion date).
+    frozen_now(datetime(2026, 3, 6, 12, tzinfo=UTC))
+    template = make_recurring_todo(
+        "Water the garden",
+        recurrence_type="custom",
+        custom_rule=_daily_rule(5),  # no next_due_from -> defaults to due_date
+        has_due_date=True,
+        last_generated_date="2026-03-05",
+    )
+    make_todo(
+        "Water the garden",
+        completed=True,
+        due_date="2026-03-05",
+        completed_at=datetime(2026, 3, 6, 9, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-10"
+
+
+def test_anchor_due_date_ignores_early_completion(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # Same template shape as the completion-anchor early case, but due-date
+    # anchored: the early completion is ignored and the next due date is 7 days
+    # after the due date (Mar 14), contrasting Mar 12 for completion anchor.
+    frozen_now(datetime(2026, 3, 5, 12, tzinfo=UTC))
+    template = make_recurring_todo(
+        "Water the plant",
+        recurrence_type="custom",
+        custom_rule=_daily_rule(7, next_due_from="due_date"),
+        has_due_date=True,
+        last_generated_date="2026-03-07",
+    )
+    make_todo(
+        "Water the plant",
+        completed=True,
+        due_date="2026-03-07",
+        completed_at=datetime(2026, 3, 5, 9, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-14"
+
+
+def test_anchor_due_date_falls_back_to_completion_when_past_due(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # Due-date anchor, but a very late completion: due Mar 5 + 5 = Mar 10 is
+    # already in the past on Mar 30, so we fall back to the completion date so
+    # the task is never born overdue: Mar 30 + 5 = Apr 4.
+    frozen_now(datetime(2026, 3, 30, 12, tzinfo=UTC))
+    template = make_recurring_todo(
+        "Water the garden",
+        recurrence_type="custom",
+        custom_rule=_daily_rule(5, next_due_from="due_date"),
+        has_due_date=True,
+        last_generated_date="2026-03-05",
+    )
+    make_todo(
+        "Water the garden",
+        completed=True,
+        due_date="2026-03-05",
+        completed_at=datetime(2026, 3, 30, 9, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-04-04"
+
+
+def test_anchor_completion_date_applies_weekend_adjustment(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # Completion anchor + weekdays-only: completed Thu Mar 5, every 3 days ->
+    # Mar 8 (a Sunday) is bumped to Mon Mar 9.
+    frozen_now(datetime(2026, 3, 5, 12, tzinfo=UTC))
+    template = make_recurring_todo(
+        "Pick up mail",
+        recurrence_type="custom",
+        custom_rule=_daily_rule(3, next_due_from="completion_date", weekdays_only=True),
+        has_due_date=True,
+        last_generated_date="2026-03-01",
+    )
+    make_todo(
+        "Pick up mail",
+        completed=True,
+        due_date="2026-03-01",
+        completed_at=datetime(2026, 3, 5, 9, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-09"
+
+
+def test_anchor_ignored_without_due_date(db_session, make_recurring_todo, make_todo, frozen_now):
+    # No due date -> the anchor does not apply even if custom_rule sets it; the
+    # generic reference logic runs (early completion keeps the cadence). Every 7
+    # days from Mar 8 -> Mar 15, not Mar 12 that a completion anchor would give.
+    frozen_now(FROZEN)
+    template = make_recurring_todo(
+        "Stretch",
+        recurrence_type="custom",
+        custom_rule=_daily_rule(7, next_due_from="completion_date"),
+        has_due_date=False,
+        last_generated_date="2026-03-08",
+    )
+    make_todo(
+        "Stretch",
+        completed=True,
+        due_date=None,
+        completed_at=datetime(2026, 3, 5, 9, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-15"
