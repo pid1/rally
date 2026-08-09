@@ -21,6 +21,13 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - Optional due dates and reminder windows per template
   - Assign to family members
   - Activate/deactivate templates without deleting
+- 🛒 **Shopping List** - A shared family list built for burst entry
+  - Add an item in one interaction: type, Enter, keep typing
+  - Autocomplete from a permanent history of what the family has bought before, ranked by how often you buy it and remembering which store
+  - Group items under your own stores (Costco, Trader Joe's, Hardware Store, …), with an "Anywhere" catch-all, and filter the view to any of them
+  - Purchased items stay visible until local midnight, exactly like tasks, then move behind "Show purchased" — and are deleted after 30 days so the list never grows without bound
+  - Add items from Apple Shortcuts or Siri by store *name*, no ids required (see [Adding Items by Voice](#adding-items-by-voice))
+  - Optionally folds your open list into the AI daily summary (toggle in Settings)
 - 🔬 **STEM Concept of the Day** - Optional family learning boost (toggle in Settings)
   - Adds one simple, everyday STEM concept to the daily summary
   - Age-appropriate ideas tailored to the kids in your family context
@@ -192,6 +199,7 @@ Rally uses a **file-based migration system** that runs automatically on containe
 || `006_add_reminder_window` | Add `remind_days_before` to todos and recurring_todos |
 || `007_add_last_generated_date` | Add `last_generated_date` to recurring_todos |
 || `008_add_caldav_support` | Add `cal_type`, `username`, `password` to calendars for CalDAV |
+|| `017_add_shopping_lists` | Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables |
 
 ### Running Migrations Manually
 
@@ -224,7 +232,7 @@ rally/
 ├── src/rally/              # Application source code
 │   ├── main.py             # FastAPI application entry point
 │   ├── database.py         # SQLAlchemy database configuration
-│   ├── models.py           # Database models (FamilyMember, Calendar, Setting, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
+│   ├── models.py           # Database models (FamilyMember, Calendar, Setting, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan, ShoppingStore, ShoppingItem, ShoppingItemHistory)
 │   ├── schemas.py          # Pydantic request/response schemas
 │   ├── cli.py              # CLI commands (seed, etc.)
 │   ├── recurrence.py       # Recurring todo processing (template → instance generation)
@@ -232,10 +240,12 @@ rally/
 │   │   ├── generate.py     # Core generation logic with calendar, todos, dinner plans
 │   │   └── __main__.py     # CLI entry point
 │   ├── utils/              # Shared utilities
+│   │   ├── settings.py     # Settings-backed helpers (today_start_utc, local_timezone_name)
 │   │   └── timezone.py     # Timezone helpers (now_utc, today_utc, ensure_utc)
 │   └── routers/            # API route handlers
 │       ├── dashboard.py    # Dashboard routes
 │       ├── todos.py        # Todo CRUD API
+│       ├── shopping.py     # Shopping list, store, and suggestion API
 │       ├── recurring_todos.py # Recurring todo template CRUD API
 │       ├── dinner_planner.py # Dinner plan CRUD API
 │       ├── family.py       # Family member CRUD API
@@ -245,6 +255,7 @@ rally/
 ├── templates/              # HTML templates
 │   ├── dashboard.html      # Daily dashboard template
 │   ├── todo.html           # Todo management page
+│   ├── shopping.html       # Shopping list page
 │   ├── dinner_planner.html # Dinner planner page
 │   └── settings.html       # Settings and family/calendar management page
 ├── data/                   # Configuration and data (not in git)
@@ -261,6 +272,7 @@ rally/
 │   ├── migrate_add_reminder_window.py # Migration 006: add remind_days_before to todos and recurring_todos
 │   ├── migrate_add_last_generated_date.py # Migration 007: add last_generated_date to recurring_todos
 │   ├── migrate_add_caldav_support.py  # Migration 008: add CalDAV columns to calendars
+│   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
 │   └── run_migrations.py              # Migration runner (executes all migrations)
 ├── config.toml.example     # Example configuration file
 ├── context.txt.example     # Example family context
@@ -339,6 +351,38 @@ Rally supports three calendar types, all configured through the Settings UI:
 4. Generate a new password with a label like "Rally"
 5. Copy the generated password
 6. In Rally Settings, add a calendar with type "Apple iCloud CalDAV", enter your Apple ID email and the app-specific password
+
+## Adding Items by Voice
+
+The shopping list API is designed so an Apple Shortcut (and therefore Siri) can add
+items without knowing any database ids.
+
+Create a Shortcut with a single **Get Contents of URL** action:
+
+| Field | Value |
+|-------|-------|
+| URL | `http://<your-rally-host>:8000/api/shopping/items` |
+| Method | `POST` |
+| Request Body | `JSON` |
+| `name` (Text) | Ask Each Time — or a Dictated Text variable |
+| `store` (Text) | e.g. `Costco` — optional |
+
+Name the shortcut something like "Add to shopping list" and say *"Hey Siri, add to
+shopping list."*
+
+Two details make this robust:
+
+- **Stores are referenced by name, not id.** A shortcut hardcoding `store_id: 3`
+  breaks silently the first time that store is deleted and recreated.
+- **An unrecognized store name is not an error.** The item lands in the "Anywhere"
+  catch-all instead, because a hard failure mid-dictation is worse than a slightly
+  misfiled item. Unknown names never auto-create a store.
+
+Adding an item that is already on the open list for that store returns the existing
+item rather than creating a duplicate, so a repeated "add milk" is harmless.
+
+> **Note:** a HomePod can't join a Tailscale tailnet, so a kitchen-speaker shortcut
+> needs Rally's LAN address while phone shortcuts can use MagicDNS.
 
 ## Environment Variables
 

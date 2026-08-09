@@ -21,6 +21,7 @@ def make_generator(tz: str = "UTC") -> SummaryGenerator:
     gen.config = {}
     gen.calendar_owners = {}
     gen.stem_concept_enabled = False
+    gen.shopping_list_in_summary_enabled = False
     return gen
 
 
@@ -255,6 +256,84 @@ def test_generate_summary_with_stem_enabled(frozen_now):
     assert "Gravity" in gen.client.last_kwargs["messages"][0]["content"]
 
 
+def _shopping_prompts(gen):
+    """(system_prompt, user_prompt) from the last recorded LLM call."""
+    return gen.client.last_kwargs["system"][0]["text"], gen.client.last_kwargs["messages"][0][
+        "content"
+    ]
+
+
+def test_generate_summary_omits_shopping_section_when_disabled(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.load_shopping_items = lambda: "Costco:\n  - Paper towels"
+
+    gen.generate_summary()
+
+    system_prompt, user_prompt = _shopping_prompts(gen)
+    assert "SHOPPING LIST" not in user_prompt
+    assert "Paper towels" not in user_prompt
+    assert "SHOPPING LIST FILTERING" not in system_prompt
+
+
+def test_generate_summary_includes_shopping_section_when_enabled(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.shopping_list_in_summary_enabled = True
+    gen.load_shopping_items = lambda: "Costco:\n  - Paper towels\nAnywhere:\n  - Stamps"
+
+    gen.generate_summary()
+
+    system_prompt, user_prompt = _shopping_prompts(gen)
+    assert "SHOPPING LIST (open items):" in user_prompt
+    assert "Costco" in user_prompt
+    assert "Paper towels" in user_prompt
+    assert "11. SHOPPING LIST FILTERING" in system_prompt
+
+
+def test_generate_summary_shopping_empty_list_phrasing(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.shopping_list_in_summary_enabled = True
+    gen.load_shopping_items = lambda: "No shopping items currently active."
+
+    gen.generate_summary()
+
+    _, user_prompt = _shopping_prompts(gen)
+    assert "No shopping items currently active." in user_prompt
+
+
+def test_optional_guidelines_are_numbered_sequentially(frozen_now):
+    """With both toggles on the appended guidelines must run 11 then 12 — no
+    collision, no gap, whichever combination of features is enabled."""
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.stem_concept_enabled = True
+    gen.shopping_list_in_summary_enabled = True
+    gen.load_recent_stem_concepts = lambda: []
+    gen.load_shopping_items = lambda: "Anywhere:\n  - Stamps"
+
+    gen.generate_summary()
+
+    system_prompt, _ = _shopping_prompts(gen)
+    assert "11. STEM CONCEPT OF THE DAY" in system_prompt
+    assert "12. SHOPPING LIST FILTERING" in system_prompt
+    assert "13." not in system_prompt
+
+
+def test_shopping_guideline_is_11_when_stem_is_off(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.shopping_list_in_summary_enabled = True
+    gen.load_shopping_items = lambda: "Anywhere:\n  - Stamps"
+
+    gen.generate_summary()
+
+    system_prompt, _ = _shopping_prompts(gen)
+    assert "11. SHOPPING LIST FILTERING" in system_prompt
+    assert "12." not in system_prompt
+
+
 # --- evaluate_summary ----------------------------------------------------------
 
 
@@ -284,6 +363,22 @@ def test_evaluate_summary_parses_json():
     out = gen.evaluate_summary({"greeting": "Hi"})
     assert out["overall_score"] == 4.5
     assert out["pass"] is True
+
+
+def test_evaluate_summary_omits_shopping_ground_truth_when_absent():
+    gen = _eval_gen('{"overall_score":4.0,"pass":true}')
+    gen.evaluate_summary({"greeting": "Hi"})
+    assert "SHOPPING LIST" not in gen.client.last_kwargs["messages"][0]["content"]
+
+
+def test_evaluate_summary_includes_shopping_ground_truth():
+    gen = _eval_gen('{"overall_score":4.0,"pass":true}')
+    gen._generation_context["shopping_items"] = "Costco:\n  - Paper towels"
+    gen.evaluate_summary({"greeting": "Hi"})
+
+    eval_user = gen.client.last_kwargs["messages"][0]["content"]
+    assert "SHOPPING LIST:" in eval_user
+    assert "Paper towels" in eval_user
 
 
 def test_evaluate_summary_extracts_fenced_json():

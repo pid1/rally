@@ -3,8 +3,18 @@
 from datetime import timedelta
 
 from rally.database import SessionLocal, init_db
-from rally.models import Calendar, DashboardSnapshot, DinnerPlan, FamilyMember, Setting, Todo
-from rally.utils.timezone import today_utc
+from rally.models import (
+    Calendar,
+    DashboardSnapshot,
+    DinnerPlan,
+    FamilyMember,
+    Setting,
+    ShoppingItem,
+    ShoppingItemHistory,
+    ShoppingStore,
+    Todo,
+)
+from rally.utils.timezone import now_utc, today_utc
 
 
 def seed():
@@ -19,6 +29,9 @@ def seed():
         db.query(Setting).delete()
         db.query(DashboardSnapshot).delete()
         db.query(Todo).delete()
+        db.query(ShoppingItem).delete()
+        db.query(ShoppingItemHistory).delete()
+        db.query(ShoppingStore).delete()
         db.query(FamilyMember).delete()
         db.commit()
 
@@ -161,6 +174,46 @@ def seed():
         for todo in todos:
             db.add(todo)
 
+        # Create a sample shopping list: two named stores plus catch-all items,
+        # one already purchased today so the dimmed-until-midnight styling shows.
+        costco = ShoppingStore(name="Costco")
+        trader_joes = ShoppingStore(name="Trader Joe's")
+        db.add_all([costco, trader_joes])
+        db.flush()
+
+        shopping_items = [
+            ShoppingItem(name="Paper towels", store_id=costco.id),
+            ShoppingItem(name="Rotisserie chicken", note="2 if they have them", store_id=costco.id),
+            ShoppingItem(
+                name="Coffee beans", store_id=costco.id, completed=True, completed_at=now_utc()
+            ),
+            ShoppingItem(name="Almond milk", store_id=trader_joes.id),
+            ShoppingItem(name="Frozen dumplings", store_id=trader_joes.id),
+            ShoppingItem(name="Stamps"),
+            ShoppingItem(name="Batteries", note="AA"),
+        ]
+        for item in shopping_items:
+            db.add(item)
+
+        # Seed the autocomplete vocabulary so suggestions have something to rank.
+        history = [
+            ("Milk", trader_joes.id, 24),
+            ("Paper towels", costco.id, 12),
+            ("Almond milk", trader_joes.id, 9),
+            ("Coffee beans", costco.id, 7),
+            ("Eggs", trader_joes.id, 6),
+            ("Stamps", None, 2),
+        ]
+        for name, store_id, times_added in history:
+            db.add(
+                ShoppingItemHistory(
+                    name_key=name.strip().casefold(),
+                    name=name,
+                    store_id=store_id,
+                    times_added=times_added,
+                )
+            )
+
         # Create sample meal plans (multiple per date to showcase the feature)
         today_date = today_utc()
 
@@ -295,6 +348,8 @@ def seed():
         print(f"   - {len(calendars)} calendars")
         print(f"   - {len(sample_settings)} settings")
         print(f"   - {len(todos)} sample todos")
+        print(f"   - {len(shopping_items)} shopping items across 2 stores")
+        print(f"   - {len(history)} shopping history entries")
         print(f"   - {len(dinner_plans)} upcoming meal plans")
         print(f"   - {len(past_meals)} past meal plans")
 

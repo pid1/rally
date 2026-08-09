@@ -374,6 +374,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `014_configurable_nws_weather` - Replace OpenWeather settings with configurable NWS forecast URL
 - `015_add_llm_settings_history` - Add `llm_settings_history` table; seed a coupled provider+model snapshot from the existing `llm_provider` / model settings rows and point the `current_llm_config_history_id` settings key at it (original settings rows are preserved — they remain the source of truth for the generator)
 - `016_add_stem_concept_history` - Add `stem_concept_history` table (records used STEM "concept of the day" topics so the generator avoids repeating a specific topic within 60 days)
+- `017_add_shopping_lists` - Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables, plus the case-insensitive unique index on store names and the unique index on `shopping_item_history.name_key`
 
 ### Running Migrations
 
@@ -513,7 +514,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -523,11 +524,13 @@ rally/
 │   │   └── __main__.py   # CLI entry point
 │   ├── utils/
 │   │   ├── __init__.py
+│   │   ├── settings.py   # Settings-backed helpers (today_start_utc, local_timezone_name) — kept out of timezone.py to avoid a models.py import cycle
 │   │   └── timezone.py   # Timezone helpers (now_utc, today_utc, today_local, ensure_utc)
 │   └── routers/
 │       ├── __init__.py
 │       ├── dashboard.py     # Dashboard routes
 │       ├── todos.py         # Todo CRUD API
+│       ├── shopping.py      # Shopping list, store, and autocomplete-suggestion API
 │       ├── recurring_todos.py # Recurring todo template CRUD API
 │       ├── dinner_planner.py # Dinner plan CRUD API
 │       ├── family.py        # Family member CRUD API
@@ -538,6 +541,7 @@ rally/
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── todo.html            # Todo management page
 │   ├── todo_completed.html  # Read-only previously-completed tasks page
+│   ├── shopping.html        # Shopping list page
 │   ├── dinner_planner.html  # Dinner planner page
 │   └── settings.html        # Settings, family member, and calendar management page
 ├── config.toml.example   # Example configuration file
@@ -557,6 +561,7 @@ rally/
 │   ├── migrate_011_add_meal_reviews.py # Migration 011: add rating and review to dinner_plans
 │   ├── migrate_012_add_ai_settings_history.py # Migration 012: add ai_settings_history table
 │   ├── migrate_015_add_llm_settings_history.py # Migration 015: add llm_settings_history table
+│   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
@@ -599,6 +604,8 @@ rally/
   - Configure LLM provider, API keys, timezone
   - DB settings take precedence over config.toml
   - `stem_concept_enabled` ("true"/"false") toggles the STEM Concept of the Day feature (Learning section)
+  - `shopping_list_in_summary_enabled` ("true"/"false", default "false") folds open shopping items into the daily summary (Shopping List section)
+  - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
   - Connection verification on save: LLM, Weather, and Calendar settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
 - ✅ AI settings snapshotting with version history and rollback
   - `agent_voice` and `family_context` each have their own Save button and Version History link on the settings page
@@ -634,6 +641,14 @@ rally/
   - Auto-generates concrete todo instances when due and no open instance exists
   - Recurrence processing runs during dashboard generation
   - Activate/deactivate templates without deleting
+- ✅ Shopping list (`/shopping`) - Store-grouped family shopping list, a peer of Tasks and the Meal Planner
+  - Quick add is a persistent inline row (not a modal): type, Enter, refocus. The store select defaults to the active filter when exactly one store is filtered
+  - Autocomplete is a custom dropdown (not a native `datalist`) reading `GET /api/shopping/suggestions` server-side, with a ~150 ms debounce and a request-sequence guard against out-of-order replies. ↑/↓ move, Enter accepts, Esc dismisses, `×` forgets a suggestion. Accepting fills the store **only when the user hasn't already chosen one** — including a choice inherited from an active single-store filter. `note` is deliberately not restored
+  - Completed items stay on the list until **local midnight**, exactly like tasks, via the shared `today_start_utc()` helper in `utils/settings.py`. There is no countdown and no client-side expiry sweep — the page just refetches periodically
+  - `Show purchased` toggles the `include_hidden` server parameter inline rather than opening a separate archive page: the 30-day purge keeps that set small enough to need no sorting, searching or pagination
+  - **Two separate memories, deliberately.** `shopping_items` is a 30-day rolling record whose completed rows are *deleted*; `shopping_item_history` is permanent and deduplicated with a use counter. The purge is safe precisely because autocomplete reads history, not items — trimming one never damages the other
+  - The purge runs opportunistically from the items listing (the `process_recurring_todos` precedent), gated on the `shopping_last_purge_date` settings row so it executes at most once per local day. The 4 AM container job would be the obvious home but lives in `entrypoint.sh` and only runs under Docker, so a `dev`-served instance would never purge
+  - Open items optionally feed the AI daily summary via `shopping_list_in_summary_enabled` (Settings → Shopping List, default off). Completed items never reach the LLM
 - ✅ STEM Concept of the Day - Optional family learning feature (toggle in Settings → Learning)
   - When `stem_concept_enabled` is "true", the generator adds a `stem_concept` object to the summary JSON (title, field, explanation, and age-appropriate `activities`)
   - The LLM tailors ideas to the ages described in FAMILY CONTEXT and keeps each idea super easy to fold into the day's existing plans
@@ -665,6 +680,7 @@ rally/
 - `/dashboard` - Serves the generated daily summary from cached snapshot (shows error if missing)
 - `/todo` - Todo management page with full CRUD interface
 - `/todo/completed` - Read-only page of todos completed before today (local time); reachable only via the `View completed tasks` link on `/todo`, not from the nav bar
+- `/shopping` - Shopping list page: quick add with history-backed autocomplete, store grouping, store filter chips, a `Show purchased` toggle, and a Manage Stores modal
 - `/dinner-planner` - Dinner planning page with date picker and plan management
 - `/settings` - Settings, family member, and calendar management page
 
@@ -677,6 +693,17 @@ rally/
   - `GET /api/todos/{id}` - Get specific todo
   - `PUT /api/todos/{id}` - Update todo
   - `DELETE /api/todos/{id}` - Delete todo
+- `/api/shopping` - Shopping list endpoints
+  - `GET /api/shopping/stores` - List stores, ordered by name ASC
+  - `POST /api/shopping/stores` - Create a store. `409` on a case-insensitive name conflict
+  - `PUT /api/shopping/stores/{id}` - Rename. `409` on conflict with a *different* store
+  - `DELETE /api/shopping/stores/{id}` - Delete. **Reassigns the store's items to `store_id = NULL` first** — SQLite FKs aren't enforced, so an orphaned `store_id` would make those items vanish from every rendered group
+  - `GET /api/shopping/items?include_hidden=false` - List items, ordered `completed ASC, created_at DESC`. Hides items completed before local midnight today unless `include_hidden=true`. Runs the once-per-local-day retention purge (see below)
+  - `POST /api/shopping/items` - Create. `201`, or `200` with the existing row when an **open** item with the same trimmed, case-insensitive name already exists in the same store (a merely *completed* match creates a new item). Accepts `store` as a store **name** in place of `store_id` for scripted/voice clients; sending both is `422`, and an unrecognized name falls back to the catch-all rather than erroring or auto-creating a store. A `201` upserts `shopping_item_history`; a `200` does not
+  - `PUT /api/shopping/items/{id}` - Partial update of `name`, `note`, `store_id`, `completed` (`note`/`store_id` use the `UNSET` sentinel). Completion stamping matches `PUT /api/todos/{id}` exactly. Does **not** touch history
+  - `DELETE /api/shopping/items/{id}` - Delete an item; history is untouched
+  - `GET /api/shopping/suggestions?q=&limit=8` - Autocomplete over `shopping_item_history`. Substring (wildcard) match with `%`/`_` escaped, ranked prefix-matches-first then by `times_added` DESC, `last_added_at` DESC, `name` ASC. Empty `q` returns the top entries by use count. `limit` defaults to 8 and is clamped to 25
+  - `DELETE /api/shopping/suggestions/{id}` - Forget a suggestion (history is permanent, so a typo'd add would otherwise haunt autocomplete forever). Leaves `shopping_items` alone
 - `/api/recurring-todos` - Recurring todo template CRUD endpoints
   - `GET /api/recurring-todos` - List all recurring todo templates
   - `POST /api/recurring-todos` - Create new recurring todo template
@@ -722,7 +749,7 @@ rally/
   - `POST /api/calendars/{id}/test` - Test calendar feed connectivity. For ICS feeds, fetches the URL and validates calendar data. For CalDAV, connects and counts available calendars. Returns `{success, message}` or `{success, error}`.
 
 ### Navigation
-All pages include a navigation bar allowing users to switch between Dashboard, Todos, Dinner Planner, and Settings.
+All pages include a navigation bar allowing users to switch between Dashboard, Todos, Shopping, Dinner Planner, and Settings. The nav markup is duplicated across all six page templates, so a nav change must be applied to each.
 
 ## Configuration
 
@@ -782,6 +809,9 @@ The database is automatically created when the app starts. Migrations run automa
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
 - `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), optional recurring_todo_id (link to recurring template), optional remind_days_before (reminder window), completion status, and timestamps
 - `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, last_generated_date (tracks most recently generated instance's recurrence date), active flag, and timestamps
+- `ShoppingStore` - User-defined store items are grouped under (Costco, Trader Joe's, …). Names are unique case-insensitively; there is no seeded "Anywhere" row — the catch-all is `store_id IS NULL`
+- `ShoppingItem` - Shopping list item with name, optional note, optional store_id, completion status, completed_at, and timestamps. Uses the same `completed`/`completed_at` columns and semantics as `Todo`, so a completed item stays visible until local midnight; completed rows are deleted 30 days after completion
+- `ShoppingItemHistory` - Permanent, deduplicated record of every name ever added (name_key = trimmed + casefolded), with the display casing, the most recently used store_id, a `times_added` counter and `last_added_at`. Powers autocomplete and deliberately survives the purchased-item purge
 - `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues

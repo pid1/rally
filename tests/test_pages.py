@@ -5,12 +5,29 @@ import pytest
 
 @pytest.mark.parametrize(
     "path",
-    ["/todo", "/todo/completed", "/dinner-planner", "/meal-history", "/settings"],
+    ["/todo", "/todo/completed", "/shopping", "/dinner-planner", "/meal-history", "/settings"],
 )
 def test_page_renders_html(client, path):
     resp = client.get(path)
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/dashboard",
+        "/todo",
+        "/todo/completed",
+        "/shopping",
+        "/dinner-planner",
+        "/meal-history",
+        "/settings",
+    ],
+)
+def test_nav_links_to_shopping(client, path):
+    """The nav is duplicated across templates, so every page must carry the link."""
+    assert 'href="/shopping"' in client.get(path).text
 
 
 @pytest.mark.parametrize("path", ["/dinner-planner", "/meal-history"])

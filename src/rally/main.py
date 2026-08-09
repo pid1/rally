@@ -8,7 +8,15 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
 from rally.database import init_db
-from rally.routers import dashboard, dinner_planner, family, recurring_todos, settings, todos
+from rally.routers import (
+    dashboard,
+    dinner_planner,
+    family,
+    recurring_todos,
+    settings,
+    shopping,
+    todos,
+)
 from rally.utils.static_version import STATIC_VERSION
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -56,6 +64,7 @@ app.include_router(dinner_planner.router)
 app.include_router(family.router)
 app.include_router(recurring_todos.router)
 app.include_router(settings.router)
+app.include_router(shopping.router)
 
 
 @app.get("/", response_class=RedirectResponse)
@@ -74,6 +83,12 @@ def todo_page(request: Request):
 def todo_completed_page(request: Request):
     """Serve the read-only page of previously completed tasks."""
     return templates.TemplateResponse("todo_completed.html", {"request": request})
+
+
+@app.get("/shopping", response_class=HTMLResponse)
+def shopping_page(request: Request):
+    """Serve the shopping list page."""
+    return templates.TemplateResponse("shopping.html", {"request": request})
 
 
 @app.get("/dinner-planner", response_class=HTMLResponse)

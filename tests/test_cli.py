@@ -7,7 +7,17 @@ from sqlalchemy.pool import StaticPool
 
 from rally import cli
 from rally.database import Base
-from rally.models import Calendar, DashboardSnapshot, DinnerPlan, FamilyMember, Setting, Todo
+from rally.models import (
+    Calendar,
+    DashboardSnapshot,
+    DinnerPlan,
+    FamilyMember,
+    Setting,
+    ShoppingItem,
+    ShoppingItemHistory,
+    ShoppingStore,
+    Todo,
+)
 from rally.utils.timezone import today_utc
 
 EXPECTED_COUNTS = {
@@ -17,6 +27,9 @@ EXPECTED_COUNTS = {
     "todos": 6,
     "dinner": 16,  # 6 upcoming + 10 past
     "snapshots": 1,
+    "stores": 2,
+    "shopping_items": 7,
+    "item_history": 6,
 }
 
 
@@ -47,6 +60,9 @@ def _counts(session):
         "todos": session.query(Todo).count(),
         "dinner": session.query(DinnerPlan).count(),
         "snapshots": session.query(DashboardSnapshot).count(),
+        "stores": session.query(ShoppingStore).count(),
+        "shopping_items": session.query(ShoppingItem).count(),
+        "item_history": session.query(ShoppingItemHistory).count(),
     }
 
 

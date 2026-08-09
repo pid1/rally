@@ -23,7 +23,16 @@ from sqlalchemy.pool import StaticPool
 
 from rally.database import Base, get_db
 from rally.main import app
-from rally.models import DinnerPlan, FamilyMember, RecurringTodo, Setting, Todo
+from rally.models import (
+    DinnerPlan,
+    FamilyMember,
+    RecurringTodo,
+    Setting,
+    ShoppingItem,
+    ShoppingItemHistory,
+    ShoppingStore,
+    Todo,
+)
 
 # --- Database + client ---------------------------------------------------------
 
@@ -164,6 +173,75 @@ def make_dinner_plan(db_session: Session):
 
 
 @pytest.fixture
+def make_store(db_session: Session):
+    def _make(name: str = "Costco", **kwargs) -> ShoppingStore:
+        store = ShoppingStore(name=name, **kwargs)
+        db_session.add(store)
+        db_session.commit()
+        db_session.refresh(store)
+        return store
+
+    return _make
+
+
+@pytest.fixture
+def make_shopping_item(db_session: Session):
+    def _make(
+        name: str = "Milk",
+        *,
+        note: str | None = None,
+        store_id: int | None = None,
+        completed: bool = False,
+        completed_at: datetime | None = None,
+        created_at: datetime | None = None,
+        **kwargs,
+    ) -> ShoppingItem:
+        item = ShoppingItem(
+            name=name,
+            note=note,
+            store_id=store_id,
+            completed=completed,
+            completed_at=completed_at,
+            **kwargs,
+        )
+        if created_at is not None:
+            item.created_at = created_at
+        db_session.add(item)
+        db_session.commit()
+        db_session.refresh(item)
+        return item
+
+    return _make
+
+
+@pytest.fixture
+def make_item_history(db_session: Session):
+    def _make(
+        name: str = "Milk",
+        *,
+        store_id: int | None = None,
+        times_added: int = 1,
+        last_added_at: datetime | None = None,
+        **kwargs,
+    ) -> ShoppingItemHistory:
+        row = ShoppingItemHistory(
+            name_key=name.strip().casefold(),
+            name=name,
+            store_id=store_id,
+            times_added=times_added,
+            **kwargs,
+        )
+        if last_added_at is not None:
+            row.last_added_at = last_added_at
+        db_session.add(row)
+        db_session.commit()
+        db_session.refresh(row)
+        return row
+
+    return _make
+
+
+@pytest.fixture
 def make_setting(db_session: Session):
     def _make(key: str, value: str) -> Setting:
         row = db_session.get(Setting, key)
@@ -189,6 +267,7 @@ def make_setting(db_session: Session):
 _NOW_UTC_IMPORTERS = (
     "rally.routers.recurring_todos",
     "rally.routers.todos",
+    "rally.routers.shopping",
     "rally.routers.dashboard",
     "rally.routers.settings",
     "rally.generator.generate",
