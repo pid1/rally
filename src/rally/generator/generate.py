@@ -103,6 +103,11 @@ class SummaryGenerator:
         # Optional: STEM "concept of the day" for the family (toggle in Settings)
         self.stem_concept_enabled = db_settings.get("stem_concept_enabled", "false") == "true"
 
+        # Optional: fold the open shopping list into the briefing (toggle in Settings)
+        self.shopping_list_in_summary_enabled = (
+            db_settings.get("shopping_list_in_summary_enabled", "false") == "true"
+        )
+
         # Optional: owner emails for accurate declined-event detection (config.toml fallback only)
         self.calendar_owners = self.config.get("calendar_owners", {})
 
@@ -576,6 +581,52 @@ class SummaryGenerator:
         finally:
             db.close()
 
+    def load_shopping_items(self) -> str:
+        """Load open shopping items from database for LLM context.
+
+        Open items only — a completed item is a purchase the family already
+        made, and it must never reach the LLM as something still outstanding.
+        Grouped under store names, with the catch-all rendered as "Anywhere"
+        and ordered last, matching the /shopping page.
+        """
+        db = SessionLocal()
+        try:
+            from rally.models import ShoppingItem, ShoppingStore
+
+            items = (
+                db.query(ShoppingItem)
+                .filter(ShoppingItem.completed == False)  # noqa: E712
+                .order_by(ShoppingItem.created_at.desc())
+                .all()
+            )
+
+            if not items:
+                return "No shopping items currently active."
+
+            store_names = {s.id: s.name for s in db.query(ShoppingStore).all()}
+
+            groups: dict[str, list[str]] = {}
+            for item in items:
+                # An item whose store was deleted falls back to the catch-all.
+                label = store_names.get(item.store_id) if item.store_id else None
+                entry = item.name
+                if item.note:
+                    entry += f" - {item.note}"
+                groups.setdefault(label or "Anywhere", []).append(entry)
+
+            ordered = sorted(name for name in groups if name != "Anywhere")
+            if "Anywhere" in groups:
+                ordered.append("Anywhere")
+
+            lines = []
+            for label in ordered:
+                lines.append(f"{label}:")
+                lines.extend(f"  - {entry}" for entry in groups[label])
+
+            return "\n".join(lines)
+        finally:
+            db.close()
+
     def load_recent_stem_concepts(self) -> list[str]:
         """Load titles of STEM concepts used within the last 60 days (newest first).
 
@@ -801,6 +852,9 @@ class SummaryGenerator:
         dinner_plans = self.load_dinner_plans()
         context = self.load_context()
         voice = self.load_voice()
+        # Only queried when the feature is on — an empty section would burn
+        # tokens and invite the model to reference a list that isn't there.
+        shopping_items = self.load_shopping_items() if self.shopping_list_in_summary_enabled else ""
 
         # Format calendars for prompt
         cal_text = ""
@@ -864,6 +918,7 @@ class SummaryGenerator:
             "weather": weather_text,
             "todos": todos,
             "dinner_plans": dinner_plans,
+            "shopping_items": shopping_items,
             "family_members": ", ".join(family_members.values())
             if family_members
             else "No family members configured.",
@@ -884,9 +939,13 @@ class SummaryGenerator:
         if tz_detail:
             tz_label = f"{self.local_tz_name} (currently {tz_detail})"
 
+        # Optional sections. Each appends its guideline body (no leading number)
+        # to optional_guidelines; they are numbered sequentially from 11 below,
+        # so no combination of toggles can collide or leave a gap.
+        optional_guidelines: list[str] = []
+
         # Optional STEM "concept of the day" — schema block + guideline, only when enabled
         stem_schema = ""
-        stem_guideline = ""
         if self.stem_concept_enabled:
             stem_schema = """,
   "stem_concept": {
@@ -900,12 +959,24 @@ class SummaryGenerator:
       }
     ]
   }"""
-            stem_guideline = """
-11. STEM CONCEPT OF THE DAY: Include a "stem_concept" object with one simple, everyday STEM concept the family can notice or play with today.
+            optional_guidelines.append("""STEM CONCEPT OF THE DAY: Include a "stem_concept" object with one simple, everyday STEM concept the family can notice or play with today.
     - Tailor the activities to the ages of the children described in FAMILY CONTEXT. If ages aren't clear, give one idea for younger kids and one for older kids.
     - Every idea MUST be SUPER EASY to fold into what the family is already doing today (a meal, an errand, the weather, a scheduled activity, play or bath time). No special supplies, no extra trips — just a few minutes and a question or observation.
     - Keep it playful, curious, and encouraging — a fun bonus, not homework. Pick a concept that connects naturally to today's schedule, weather, or dinner when possible.
-    - DO NOT reuse any of the specific concepts listed under STEM CONCEPTS USED RECENTLY. Exploring a DIFFERENT sub-topic within the same broader area (e.g. a new idea in "weather" or "fractions") is fine — only the specific topics on that list are off-limits."""
+    - DO NOT reuse any of the specific concepts listed under STEM CONCEPTS USED RECENTLY. Exploring a DIFFERENT sub-topic within the same broader area (e.g. a new idea in "weather" or "fractions") is fine — only the specific topics on that list are off-limits.""")
+
+        # Optional shopping list — guideline only when the section is present
+        if self.shopping_list_in_summary_enabled:
+            optional_guidelines.append(
+                "SHOPPING LIST FILTERING: The SHOPPING LIST section below is pre-filtered to open "
+                "items. Only mention shopping items that explicitly appear in that section. Do not "
+                'infer, recall, or invent items. If it says "No shopping items currently active," '
+                "do not suggest any specific items."
+            )
+
+        optional_guideline_text = "".join(
+            f"\n{number}. {body}" for number, body in enumerate(optional_guidelines, start=11)
+        )
 
         # Static content → system prompt (cached by Anthropic, system role for local models)
         system_prompt = f"""You are creating content for a daily family summary.
@@ -949,7 +1020,7 @@ Guidelines:
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 9. If the weather is actively dangerous (snow, thunderstorms, or tornado risk) within the next 7 days, mention it.
 10. TASK FILTERING: The TODOS section below is pre-filtered. Only mention, reference, or suggest tasks that explicitly appear in the TODOS section. Do not infer, recall, or invent tasks that are not listed. If the TODOS section says "No todos currently active," do not suggest any specific tasks.
-5. LOCAL TIMES: Times in FAMILY CONTEXT are already in the family's local timezone (see TIMEZONE above). Copy them through unchanged — a "7PM" reminder is scheduled at 7:00 PM, not a converted time. Never apply a UTC/local offset to a bare time.{stem_guideline}
+5. LOCAL TIMES: Times in FAMILY CONTEXT are already in the family's local timezone (see TIMEZONE above). Copy them through unchanged — a "7PM" reminder is scheduled at 7:00 PM, not a converted time. Never apply a UTC/local offset to a bare time.{optional_guideline_text}
 
 Do NOT include any HTML in your response. Plain text only for all values."""
 
@@ -965,6 +1036,10 @@ Do NOT include any HTML in your response. Plain text only for all values."""
                     "the same broader area is fine):\n"
                     f"{joined}"
                 )
+
+        shopping_section = ""
+        if self.shopping_list_in_summary_enabled:
+            shopping_section = f"\n\nSHOPPING LIST (open items):\n{shopping_items}"
 
         # Dynamic content → user prompt (changes every generation)
         user_prompt = f"""Create a daily family summary for {today}.
@@ -982,7 +1057,7 @@ TODOS:
 {todos}
 
 DINNER PLANS (next 7 days):
-{dinner_plans}{stem_avoid_block}"""
+{dinner_plans}{shopping_section}{stem_avoid_block}"""
 
         try:
             response_text = self._call_llm(user_prompt, system_prompt=system_prompt)
@@ -1132,6 +1207,13 @@ Respond with ONLY a JSON object (no markdown fences):
             + stem_eval_note
         )
 
+        # The shopping list is ground truth too, so groundedness can be judged
+        # against it. Omitted entirely when the feature is off, matching the
+        # generation prompt.
+        shopping_ground_truth = ""
+        if ctx.get("shopping_items"):
+            shopping_ground_truth = f"\n\nSHOPPING LIST:\n{ctx['shopping_items']}"
+
         # Dynamic data → user prompt
         eval_user = f"""== GENERATED SUMMARY (to evaluate) ==
 {summary_json}
@@ -1147,7 +1229,7 @@ TODOS:
 {ctx["todos"]}
 
 DINNER PLANS:
-{ctx["dinner_plans"]}
+{ctx["dinner_plans"]}{shopping_ground_truth}
 
 FAMILY MEMBERS:
 {ctx["family_members"]}"""

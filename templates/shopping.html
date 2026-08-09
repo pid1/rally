@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally - Shopping List</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Shopping List</div>
+    </header>
+
+    <nav>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todo">Tasks</a>
+        <a href="/shopping" class="active">Shopping</a>
+        <div class="nav-dropdown" id="meal-dropdown">
+            <button class="nav-dropdown-btn" onclick="toggleMealDropdown(event)">Meal Planner</button>
+            <div class="nav-dropdown-content">
+                <a href="/dinner-planner">Current &amp; Upcoming</a>
+                <a href="/meal-history">Previous Meals</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="section-container">
+        <div class="header-container">
+            <h2>Shopping List</h2>
+            <div class="header-actions">
+                <button class="btn-add" id="btn-manage-stores">Manage Stores</button>
+            </div>
+        </div>
+
+        <!-- Quick add: type, Enter, keep typing. Grocery lists are built in bursts. -->
+        <form class="shopping-quick-add" id="quick-add-form" autocomplete="off">
+            <div class="autocomplete-wrap">
+                <input type="text" id="quick-add-name" placeholder="Add an item…" aria-label="Item name"
+                       role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="suggestion-menu" required>
+                <div class="autocomplete-menu" id="suggestion-menu" role="listbox"></div>
+            </div>
+            <select id="quick-add-store" aria-label="Store">
+                <option value="">Anywhere</option>
+            </select>
+            <button type="submit" class="btn-add">Add</button>
+        </form>
+
+        <div class="filter-toolbar">
+            <div class="toolbar-group">
+                <label>Store</label>
+                <div class="filter-chips" id="filter-store-chips"></div>
+                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
+            </div>
+            <div class="toolbar-group">
+                <label class="shopping-toggle">
+                    <input type="checkbox" id="show-purchased">
+                    <span>Show purchased</span>
+                </label>
+            </div>
+        </div>
+
+        <div id="groups-container">
+            <div class="container-loading-state">Loading shopping list…</div>
+        </div>
+    </div>
+
+    <!-- Modal for editing an item -->
+    <div class="modal-overlay" id="item-modal-overlay">
+        <div class="modal-content">
+            <h3>Edit Item</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="item-form">
+                    <div class="form-group">
+                        <label>Item</label>
+                        <input type="text" id="item-name" placeholder="Item name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Note (optional)</label>
+                        <textarea id="item-note" placeholder="Quantity, brand, anything else" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Store</label>
+                        <select id="item-store">
+                            <option value="">Anywhere</option>
+                        </select>
+                    </div>
+                </form>
+                <div class="modal-actions">
+                    <button type="submit" form="item-form" class="btn-primary">Save</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel-item">Cancel</button>
+                    <button type="button" class="btn-delete modal-delete" id="btn-delete-item">Delete</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for managing stores -->
+    <div class="modal-overlay" id="store-modal-overlay">
+        <div class="modal-content">
+            <h3>Manage Stores</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="store-add-form" class="form-group">
+                    <label>Add a store</label>
+                    <div class="store-manage-row">
+                        <input type="text" id="store-add-name" placeholder="Store name" required>
+                        <button type="submit" class="btn-edit">Add</button>
+                    </div>
+                </form>
+                <div id="store-manage-list"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="btn-close-stores">Done</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── State ──
+        let items = [];
+        let stores = [];
+        let selectedStores = new Set();   // chip values: store ids as strings, or 'anywhere'
+        let editingItemId = null;
+
+        const ANYWHERE = 'anywhere';
+        const REFRESH_MS = 60000;   // multi-device sync + the local-midnight rollover
+
+        const nameInput = document.getElementById('quick-add-name');
+        const storeSelect = document.getElementById('quick-add-store');
+        const suggestionMenu = document.getElementById('suggestion-menu');
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // textContent → innerHTML leaves quotes alone, which is fine in a text
+        // node but would break out of a quoted attribute. Store and item names
+        // are user-supplied, so attribute positions need the stricter escape.
+        function escapeAttr(text) {
+            return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function storeName(storeId) {
+            const store = stores.find(s => s.id === storeId);
+            return store ? store.name : null;
+        }
+
+        // ── API ──
+        async function fetchStores() {
+            const response = await fetch('/api/shopping/stores');
+            stores = await response.json();
+            renderStoreOptions();
+            renderStoreChips();
+        }
+
+        async function fetchItems() {
+            const includeHidden = document.getElementById('show-purchased').checked;
+            const response = await fetch(`/api/shopping/items?include_hidden=${includeHidden}`);
+            items = await response.json();
+            renderItems();
+        }
+
+        async function createItem(data) {
+            const response = await fetch('/api/shopping/items', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Failed to add item');
+            return response.json();
+        }
+
+        async function updateItem(id, data) {
+            const response = await fetch(`/api/shopping/items/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Failed to update item');
+            return response.json();
+        }
+
+        async function deleteItem(id) {
+            const response = await fetch(`/api/shopping/items/${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete item');
+        }
+
+        // ── Store select + filter chips ──
+        function renderStoreOptions() {
+            [storeSelect, document.getElementById('item-store')].forEach(select => {
+                const previous = select.value;
+                select.innerHTML = '<option value="">Anywhere</option>' + stores.map(s =>
+                    `<option value="${s.id}">${escapeHtml(s.name)}</option>`
+                ).join('');
+                // Keep a selection alive across a store list refresh.
+                if (previous && select.querySelector(`option[value="${previous}"]`)) {
+                    select.value = previous;
+                }
+            });
+        }
+
+        function renderStoreChips() {
+            const chips = document.getElementById('filter-store-chips');
+            const parts = [`<button type="button" class="filter-chip" data-value="all">All</button>`];
+            stores.forEach(s => {
+                parts.push(`<button type="button" class="filter-chip" data-value="${s.id}">${escapeHtml(s.name)}</button>`);
+            });
+            parts.push(`<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`);
+            chips.innerHTML = parts.join('');
+            syncChipState();
+        }
+
+        function syncChipState() {
+            document.querySelectorAll('#filter-store-chips .filter-chip').forEach(chip => {
+                const isAll = chip.dataset.value === 'all';
+                const active = isAll ? selectedStores.size === 0 : selectedStores.has(chip.dataset.value);
+                chip.classList.toggle('active', active);
+            });
+        }
+
+        // The quick-add store defaults to the filtered store when exactly one is
+        // filtered — but never overrides a choice the user made themselves.
+        function syncQuickAddStoreDefault() {
+            if (storeSelect.dataset.touched === 'true') return;
+            const only = selectedStores.size === 1 ? [...selectedStores][0] : null;
+            if (only && only !== ANYWHERE && storeSelect.querySelector(`option[value="${only}"]`)) {
+                storeSelect.value = only;
+            } else {
+                storeSelect.value = '';
+            }
+        }
+
+        function clearFilters() {
+            selectedStores.clear();
+            syncChipState();
+            syncQuickAddStoreDefault();
+            renderItems();
+        }
+
+        // ── Rendering ──
+        function chipValueForItem(item) {
+            return item.store_id ? String(item.store_id) : ANYWHERE;
+        }
+
+        function visibleItems() {
+            if (selectedStores.size === 0) return items;
+            return items.filter(item => selectedStores.has(chipValueForItem(item)));
+        }
+
+        function groupLabel(value) {
+            if (value === ANYWHERE) return 'Anywhere';
+            return storeName(parseInt(value, 10)) || 'Anywhere';
+        }
+
+        function renderItems() {
+            const container = document.getElementById('groups-container');
+            const visible = visibleItems();
+
+            const groups = new Map();
+            visible.forEach(item => {
+                const key = chipValueForItem(item);
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(item);
+            });
+
+            // An explicitly filtered store renders even when empty, so filtering
+            // to it reads as "nothing here" rather than as a vanished group.
+            selectedStores.forEach(value => {
+                if (!groups.has(value)) groups.set(value, []);
+            });
+
+            // Named stores alphabetically, the catch-all last.
+            const keys = [...groups.keys()].sort((a, b) => {
+                if (a === ANYWHERE) return 1;
+                if (b === ANYWHERE) return -1;
+                return groupLabel(a).localeCompare(groupLabel(b));
+            });
+
+            // Only reachable with no items and no filters: a selected filter
+            // always contributes its own (possibly empty) group above.
+            if (keys.length === 0) {
+                container.innerHTML =
+                    '<div class="container-empty-state">Nothing on the list yet. Type an item above to get started.</div>';
+                return;
+            }
+
+            container.innerHTML = keys.map(key => {
+                const groupItems = [...groups.get(key)].sort((a, b) => {
+                    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                    return new Date(b.created_at) - new Date(a.created_at);
+                });
+                const openCount = groupItems.filter(i => !i.completed).length;
+                const countLabel = `${openCount} item${openCount === 1 ? '' : 's'}`;
+                const rows = groupItems.length === 0
+                    ? '<div class="container-empty-state">Nothing here right now.</div>'
+                    : `<div class="list-container">${groupItems.map(renderItemRow).join('')}</div>`;
+                return `
+                    <div class="shopping-group-header">
+                        <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
+                        <span class="shopping-group-rule"></span>
+                        <span class="shopping-group-count">${countLabel}</span>
+                    </div>
+                    ${rows}
+                `;
+            }).join('');
+        }
+
+        function renderItemRow(item) {
+            const store = item.store_id ? storeName(item.store_id) : null;
+            const storeHtml = store ? `<span class="shopping-item-store">${escapeHtml(store)}</span>` : '';
+            const completedHtml = item.completed
+                ? `<div class="shopping-completed-at">${escapeHtml(formatCompletedAgo(item.completed_at))}</div>`
+                : '';
+            return `
+                <div class="editable-item ${item.completed ? 'completed' : ''}" data-id="${item.id}">
+                    <div class="todo-checkbox">
+                        <input type="checkbox" ${item.completed ? 'checked' : ''}
+                               aria-label="Mark ${escapeAttr(item.name)} as purchased"
+                               onchange="toggleComplete(${item.id}, this.checked)">
+                    </div>
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(item.name)} ${storeHtml}</div>
+                        ${item.note ? `<div class="editable-item-description">${escapeHtml(item.note)}</div>` : ''}
+                        ${completedHtml}
+                    </div>
+                    <div class="editable-item-actions">
+                        <button class="btn-edit" onclick="openEditModal(${item.id})">Edit</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // completed_at serializes without a "Z" for values SQLite hands back
+        // naive, and new Date("2026-08-07T18:00:00") is parsed as *local* time by
+        // JS — so append the zone when it's missing.
+        function formatCompletedAgo(value) {
+            if (!value) return '';
+            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
+            if (isNaN(date)) return '';
+            const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+            if (minutes < 1) return 'Completed just now';
+            if (minutes < 60) return `Completed ${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `Completed ${hours}h ago`;
+            return `Completed ${Math.floor(hours / 24)}d ago`;
+        }
+
+        // ── Autocomplete ──
+        //
+        // Queried server-side (the history corpus is permanent and grows with the
+        // family's vocabulary), so this needs the two classic per-keystroke
+        // guards: a debounce, and a sequence number that drops replies which
+        // arrive after a newer one has already been applied.
+        let suggestions = [];
+        let activeSuggestion = -1;
+        let suggestionSeq = 0;
+        let suggestionTimer = null;
+
+        function closeSuggestions() {
+            suggestions = [];
+            activeSuggestion = -1;
+            suggestionMenu.classList.remove('open');
+            suggestionMenu.innerHTML = '';
+            nameInput.setAttribute('aria-expanded', 'false');
+        }
+
+        function scheduleSuggestions() {
+            clearTimeout(suggestionTimer);
+            suggestionTimer = setTimeout(fetchSuggestions, 150);
+        }
+
+        async function fetchSuggestions() {
+            const query = nameInput.value.trim();
+            if (!query) {
+                closeSuggestions();
+                return;
+            }
+            const seq = ++suggestionSeq;
+            try {
+                const response = await fetch(`/api/shopping/suggestions?q=${encodeURIComponent(query)}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                if (seq !== suggestionSeq) return;   // a newer keystroke already answered
+                suggestions = data;
+                activeSuggestion = -1;
+                renderSuggestions();
+            } catch (error) {
+                console.error('Error fetching suggestions:', error);
+            }
+        }
+
+        function renderSuggestions() {
+            if (suggestions.length === 0) {
+                closeSuggestions();
+                return;
+            }
+            suggestionMenu.innerHTML = suggestions.map((s, index) => {
+                const store = s.store_id ? storeName(s.store_id) : null;
+                return `
+                    <div class="autocomplete-option ${index === activeSuggestion ? 'active' : ''}"
+                         role="option" aria-selected="${index === activeSuggestion}" data-index="${index}">
+                        <span class="autocomplete-name">${escapeHtml(s.name)}</span>
+                        ${store ? `<span class="autocomplete-store">${escapeHtml(store)}</span>` : ''}
+                        <button type="button" class="autocomplete-dismiss" data-dismiss="${s.id}"
+                                aria-label="Forget ${escapeAttr(s.name)}">×</button>
+                    </div>
+                `;
+            }).join('');
+            suggestionMenu.classList.add('open');
+            nameInput.setAttribute('aria-expanded', 'true');
+        }
+
+        function highlightSuggestion(index) {
+            activeSuggestion = index;
+            suggestionMenu.querySelectorAll('.autocomplete-option').forEach((el, i) => {
+                el.classList.toggle('active', i === index);
+                el.setAttribute('aria-selected', String(i === index));
+            });
+            const active = suggestionMenu.querySelector('.autocomplete-option.active');
+            if (active) active.scrollIntoView({ block: 'nearest' });
+        }
+
+        function acceptSuggestion(index) {
+            const suggestion = suggestions[index];
+            if (!suggestion) return;
+            nameInput.value = suggestion.name;
+            // Store affinity only fills a blank: an explicit choice — including one
+            // inherited from an active single-store filter — always wins, so
+            // autocomplete can never silently move an item to another store.
+            if (storeSelect.value === '' && suggestion.store_id != null
+                && storeSelect.querySelector(`option[value="${suggestion.store_id}"]`)) {
+                storeSelect.value = String(suggestion.store_id);
+            }
+            // The note is deliberately not restored: notes are trip-specific, and
+            // a silently attached stale one is worse than retyping.
+            closeSuggestions();
+            nameInput.focus();
+        }
+
+        async function forgetSuggestion(historyId) {
+            try {
+                await fetch(`/api/shopping/suggestions/${historyId}`, { method: 'DELETE' });
+                suggestions = suggestions.filter(s => s.id !== historyId);
+                activeSuggestion = -1;
+                renderSuggestions();
+            } catch (error) {
+                console.error('Error removing suggestion:', error);
+            }
+        }
+
+        nameInput.addEventListener('input', scheduleSuggestions);
+
+        nameInput.addEventListener('keydown', (e) => {
+            const open = suggestionMenu.classList.contains('open');
+            if (e.key === 'ArrowDown' && open) {
+                e.preventDefault();
+                highlightSuggestion((activeSuggestion + 1) % suggestions.length);
+            } else if (e.key === 'ArrowUp' && open) {
+                e.preventDefault();
+                highlightSuggestion((activeSuggestion - 1 + suggestions.length) % suggestions.length);
+            } else if (e.key === 'Enter') {
+                // Enter with nothing highlighted submits what was typed, verbatim —
+                // autocomplete must never block adding a genuinely new item.
+                if (open && activeSuggestion >= 0) {
+                    e.preventDefault();
+                    acceptSuggestion(activeSuggestion);
+                }
+            } else if (e.key === 'Escape') {
+                closeSuggestions();
+            }
+        });
+
+        nameInput.addEventListener('blur', () => {
+            // Delayed so a click on an option lands before the menu closes.
+            setTimeout(closeSuggestions, 150);
+        });
+
+        suggestionMenu.addEventListener('mousedown', (e) => e.preventDefault());
+
+        suggestionMenu.addEventListener('click', (e) => {
+            const dismiss = e.target.closest('.autocomplete-dismiss');
+            if (dismiss) {
+                e.preventDefault();
+                e.stopPropagation();
+                forgetSuggestion(parseInt(dismiss.dataset.dismiss, 10));
+                return;
+            }
+            const option = e.target.closest('.autocomplete-option');
+            if (option) acceptSuggestion(parseInt(option.dataset.index, 10));
+        });
+
+        // ── Quick add ──
+        storeSelect.addEventListener('change', () => {
+            storeSelect.dataset.touched = 'true';
+        });
+
+        document.getElementById('quick-add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            const storeValue = storeSelect.value;
+            closeSuggestions();
+            try {
+                await createItem({
+                    name,
+                    store_id: storeValue ? parseInt(storeValue, 10) : null
+                });
+                nameInput.value = '';
+                storeSelect.dataset.touched = 'false';
+                syncQuickAddStoreDefault();
+                nameInput.focus();   // straight back into the burst
+                await fetchItems();
+            } catch (error) {
+                console.error('Error adding item:', error);
+                alert('Failed to add item');
+            }
+        });
+
+        // ── Item actions ──
+        async function toggleComplete(id, completed) {
+            try {
+                await updateItem(id, { completed });
+                await fetchItems();
+            } catch (error) {
+                console.error('Error updating item:', error);
+                alert('Failed to update item');
+                await fetchItems();   // refresh to revert the checkbox
+            }
+        }
+
+        function openEditModal(id) {
+            const item = items.find(i => i.id === id);
+            if (!item) return;
+            editingItemId = id;
+            document.getElementById('item-name').value = item.name;
+            document.getElementById('item-note').value = item.note || '';
+            document.getElementById('item-store').value = item.store_id ? String(item.store_id) : '';
+            showModalOverlay('item-modal-overlay');
+        }
+
+        function closeItemModal() {
+            document.getElementById('item-modal-overlay').style.display = 'none';
+            editingItemId = null;
+        }
+
+        document.getElementById('item-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!editingItemId) return;
+            const storeValue = document.getElementById('item-store').value;
+            try {
+                await updateItem(editingItemId, {
+                    name: document.getElementById('item-name').value,
+                    note: document.getElementById('item-note').value || null,
+                    store_id: storeValue ? parseInt(storeValue, 10) : null
+                });
+                closeItemModal();
+                await fetchItems();
+            } catch (error) {
+                console.error('Error saving item:', error);
+                alert('Failed to save item');
+            }
+        });
+
+        document.getElementById('btn-delete-item').addEventListener('click', async () => {
+            if (!editingItemId) return;
+            if (!confirm('Delete this item?')) return;
+            try {
+                await deleteItem(editingItemId);
+                closeItemModal();
+                await fetchItems();
+            } catch (error) {
+                console.error('Error deleting item:', error);
+                alert('Failed to delete item');
+            }
+        });
+
+        document.getElementById('btn-cancel-item').addEventListener('click', closeItemModal);
+        document.getElementById('item-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'item-modal-overlay') closeItemModal();
+        });
+
+        // ── Manage stores ──
+        function renderStoreManageList() {
+            const list = document.getElementById('store-manage-list');
+            if (stores.length === 0) {
+                list.innerHTML = '<div class="container-empty-state">No stores yet. Items you add land under "Anywhere".</div>';
+                return;
+            }
+            list.innerHTML = stores.map(s => `
+                <div class="store-manage-row" data-id="${s.id}">
+                    <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
+                    <button type="button" class="btn-edit" data-action="rename">Rename</button>
+                    <button type="button" class="btn-delete" data-action="delete">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('store-manage-list').addEventListener('click', async (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+            const row = button.closest('.store-manage-row');
+            const storeId = parseInt(row.dataset.id, 10);
+
+            if (button.dataset.action === 'rename') {
+                const name = row.querySelector('input').value.trim();
+                if (!name) return;
+                const response = await fetch(`/api/shopping/stores/${storeId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (!response.ok) {
+                    alert(response.status === 409 ? 'A store with that name already exists.' : 'Failed to rename store.');
+                    return;
+                }
+            } else {
+                const store = stores.find(s => s.id === storeId);
+                const label = store ? store.name : 'this store';
+                if (!confirm(`Delete ${label}? Its items move to "Anywhere" — nothing is lost.`)) return;
+                const response = await fetch(`/api/shopping/stores/${storeId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    alert('Failed to delete store.');
+                    return;
+                }
+                selectedStores.delete(String(storeId));
+            }
+
+            await fetchStores();
+            renderStoreManageList();
+            await fetchItems();
+        });
+
+        document.getElementById('store-add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('store-add-name');
+            const name = input.value.trim();
+            if (!name) return;
+            const response = await fetch('/api/shopping/stores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (!response.ok) {
+                alert(response.status === 409 ? 'A store with that name already exists.' : 'Failed to add store.');
+                return;
+            }
+            input.value = '';
+            await fetchStores();
+            renderStoreManageList();
+        });
+
+        document.getElementById('btn-manage-stores').addEventListener('click', () => {
+            renderStoreManageList();
+            showModalOverlay('store-modal-overlay');
+        });
+
+        function closeStoreModal() {
+            document.getElementById('store-modal-overlay').style.display = 'none';
+        }
+
+        document.getElementById('btn-close-stores').addEventListener('click', closeStoreModal);
+        document.getElementById('store-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'store-modal-overlay') closeStoreModal();
+        });
+
+        // ── Toolbar ──
+        document.getElementById('filter-store-chips').addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+            const value = chip.dataset.value;
+            if (value === 'all') {
+                selectedStores.clear();
+            } else if (selectedStores.has(value)) {
+                selectedStores.delete(value);
+            } else {
+                selectedStores.add(value);
+            }
+            syncChipState();
+            syncQuickAddStoreDefault();
+            renderItems();
+        });
+
+        document.getElementById('filter-clear').addEventListener('click', clearFilters);
+        document.getElementById('show-purchased').addEventListener('change', fetchItems);
+
+        // Show a modal and compute its fade state once it's laid out.
+        function showModalOverlay(overlayId) {
+            const overlay = document.getElementById(overlayId);
+            overlay.style.display = 'flex';
+            const scroll = overlay.querySelector('.modal-scroll');
+            if (scroll) requestAnimationFrame(() => updateModalFade(scroll));
+        }
+
+        function updateModalFade(scroll) {
+            const body = scroll.querySelector('.modal-body');
+            const maxScroll = body.scrollHeight - body.clientHeight;
+            scroll.toggleAttribute('data-overflow-top', body.scrollTop > 1);
+            scroll.toggleAttribute('data-overflow-bottom', body.scrollTop < maxScroll - 1);
+        }
+        document.querySelectorAll('.modal-scroll').forEach(scroll => {
+            const body = scroll.querySelector('.modal-body');
+            body.addEventListener('scroll', () => updateModalFade(scroll));
+        });
+
+        // ── Initialize ──
+        fetchStores().then(fetchItems);
+
+        // A plain refetch, not an expiry sweep: the visibility boundary is local
+        // midnight and is decided server-side, so the client only has to ask again.
+        setInterval(() => {
+            fetchStores().then(fetchItems);
+        }, REFRESH_MS);
+
+        // Nav dropdown toggle (for touch devices)
+        function toggleMealDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('meal-dropdown').classList.toggle('open');
+        }
+        document.addEventListener('click', function() {
+            document.getElementById('meal-dropdown').classList.remove('open');
+        });
+    </script>
+
+    <footer>
+        <a href="/settings">Settings</a>
+    </footer>
+</body>
+</html>

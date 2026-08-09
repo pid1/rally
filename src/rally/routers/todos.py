@@ -1,17 +1,15 @@
 """Todos router for Rally."""
 
-from datetime import UTC, datetime, time
-from zoneinfo import ZoneInfo
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import false, nullslast, or_
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import FamilyMember, Setting, Todo
+from rally.models import FamilyMember, Todo
 from rally.recurrence import process_recurring_todos
 from rally.schemas import UNSET, CompletedTodoPage, TodoCreate, TodoResponse, TodoUpdate
-from rally.utils.timezone import now_utc, today_local
+from rally.utils.settings import today_start_utc
+from rally.utils.timezone import now_utc
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
 
@@ -24,19 +22,6 @@ COMPLETED_SORTS = (
     "newest",
     "oldest",
 )
-
-
-def today_start_utc(db: Session) -> datetime:
-    """UTC instant of local midnight today, in the user's configured timezone.
-
-    This is the boundary between "current" todos (shown on /todo) and
-    "previously completed" todos (shown on /todo/completed). Both views must
-    use this same helper or todos would appear on both pages or neither.
-    """
-    setting = db.query(Setting).filter(Setting.key == "local_timezone").first()
-    tz_name = setting.value if setting and setting.value else "UTC"
-    local_midnight = datetime.combine(today_local(tz_name), time.min, tzinfo=ZoneInfo(tz_name))
-    return local_midnight.astimezone(UTC)
 
 
 @router.get("", response_model=list[TodoResponse])

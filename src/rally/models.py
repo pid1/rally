@@ -2,7 +2,17 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from rally.database import Base
@@ -192,6 +202,78 @@ class RecurringTodo(Base):
     active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class ShoppingStore(Base):
+    """A user-defined store items can be grouped under (Costco, Hardware Store, …).
+
+    There is deliberately no seeded "Anywhere" row: an item with no particular
+    store has ``store_id IS NULL``, mirroring ``Todo.assigned_to IS NULL``
+    meaning "Everyone".
+    """
+
+    __tablename__ = "shopping_stores"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))  # Unique case-insensitively (see index below)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_shopping_stores_name_nocase",
+            text("name COLLATE NOCASE"),
+            unique=True,
+        ),
+    )
+
+
+class ShoppingItem(Base):
+    """An item on the family shopping list.
+
+    Completion uses the same column names and semantics as ``Todo`` so the two
+    routers read alike: a completed item stays visible until local midnight.
+    Rows completed more than PURCHASED_RETENTION_DAYS ago are purged from the
+    database — safe because every add is separately recorded in
+    ``ShoppingItemHistory``, which autocomplete reads instead.
+    """
+
+    __tablename__ = "shopping_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    store_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK to shopping_stores.id; NULL is the "Anywhere" catch-all
+    completed: Mapped[bool] = mapped_column(default=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class ShoppingItemHistory(Base):
+    """Permanent, deduplicated record of every item name ever added.
+
+    Powers autocomplete. Deliberately outlives the purchased-item purge: the
+    30-day retention on ``shopping_items`` trims the purchased list without
+    touching the family's vocabulary. ``store_id`` is the *most recently used*
+    store rather than the most common one — a true mode would need a row per
+    (name, store) pair, which un-deduplicates the table this counter exists to
+    keep small.
+    """
+
+    __tablename__ = "shopping_item_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name_key: Mapped[str] = mapped_column(
+        String(200), unique=True, index=True
+    )  # Trimmed + casefolded name; the dedupe key
+    name: Mapped[str] = mapped_column(String(200))  # Display casing from the most recent add
+    store_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Most recently used store
+    times_added: Mapped[int] = mapped_column(Integer, default=1)
+    last_added_at: Mapped[datetime] = mapped_column(default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
 
 
 class DinnerPlan(Base):

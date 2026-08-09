@@ -19,6 +19,7 @@
     <nav>
         <a href="/dashboard">Dashboard</a>
         <a href="/todo">Tasks</a>
+        <a href="/shopping">Shopping</a>
         <div class="nav-dropdown" id="meal-dropdown">
             <button class="nav-dropdown-btn" onclick="toggleMealDropdown(event)">Meal Planner</button>
             <div class="nav-dropdown-content">
@@ -167,6 +168,23 @@
                     <span>STEM Concept of the Day</span>
                 </label>
                 <small>Add a family-friendly STEM concept to the daily summary, with super-easy, age-appropriate ways to explore it during your day.</small>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+    </div>
+
+    <!-- Shopping List Section -->
+    <div class="border-container">
+        <div class="header-container">
+            <h2>Shopping List</h2>
+        </div>
+        <form id="shopping-form">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="shopping-list-in-summary">
+                    <span>Include the shopping list in the daily summary</span>
+                </label>
+                <small>Adds your open shopping items, grouped by store, to The Briefing. Purchased items are never included.</small>
             </div>
             <button type="submit" class="btn-save">Save</button>
         </form>
@@ -582,6 +600,9 @@
 
             // Learning
             document.getElementById('stem-concept-enabled').checked = s.stem_concept_enabled === 'true';
+
+            // Shopping List
+            document.getElementById('shopping-list-in-summary').checked = s.shopping_list_in_summary_enabled === 'true';
 
             // General
             document.getElementById('general-timezone').value = s.local_timezone || '';
@@ -1006,6 +1027,20 @@
             } catch (error) {
                 console.error('Error saving learning settings:', error);
                 alert('Failed to save learning settings');
+            }
+        });
+
+        // Shopping List form
+        document.getElementById('shopping-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    shopping_list_in_summary_enabled: document.getElementById('shopping-list-in-summary').checked ? 'true' : 'false'
+                });
+                alert('Shopping List settings saved.');
+            } catch (error) {
+                console.error('Error saving shopping list settings:', error);
+                alert('Failed to save shopping list settings');
             }
         });
 

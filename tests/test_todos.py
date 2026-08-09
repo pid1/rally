@@ -9,7 +9,7 @@ and DELETE.
 from datetime import UTC, datetime
 
 from rally.models import Todo
-from rally.routers.todos import today_start_utc
+from rally.utils.settings import today_start_utc
 
 NOON = datetime(2026, 3, 15, 12, 0, tzinfo=UTC)
 

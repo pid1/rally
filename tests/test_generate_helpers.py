@@ -18,7 +18,16 @@ from sqlalchemy.pool import StaticPool
 
 from rally.database import Base
 from rally.generator.generate import SummaryGenerator
-from rally.models import AISettingsHistory, Calendar, DinnerPlan, FamilyMember, Setting, Todo
+from rally.models import (
+    AISettingsHistory,
+    Calendar,
+    DinnerPlan,
+    FamilyMember,
+    Setting,
+    ShoppingItem,
+    ShoppingStore,
+    Todo,
+)
 
 
 def make_generator(tz: str = "UTC") -> SummaryGenerator:
@@ -80,6 +89,7 @@ def test_init_anthropic_provider_from_db(gen_db, mock_llm):
             "llm_anthropic_api_key": "sk-test",
             "local_timezone": "America/Chicago",
             "stem_concept_enabled": "true",
+            "shopping_list_in_summary_enabled": "true",
         },
     )
 
@@ -89,6 +99,7 @@ def test_init_anthropic_provider_from_db(gen_db, mock_llm):
     assert gen.model == "claude-x"
     assert gen.local_tz_name == "America/Chicago"
     assert gen.stem_concept_enabled is True
+    assert gen.shopping_list_in_summary_enabled is True
 
 
 def test_init_local_provider_from_db(gen_db, mock_llm):
@@ -107,6 +118,7 @@ def test_init_local_provider_from_db(gen_db, mock_llm):
     assert gen.provider == "local"
     assert gen.model == "llama"
     assert gen.stem_concept_enabled is False  # default when unset
+    assert gen.shopping_list_in_summary_enabled is False  # default when unset
 
 
 # --- load_dinner_plans ---------------------------------------------------------
@@ -215,6 +227,60 @@ def test_load_todos_includes_todo_with_unparseable_due_date(gen_db, frozen_now):
 
     assert "Weird" in out
     assert "[Due not-a-date]" in out
+
+
+# --- load_shopping_items -------------------------------------------------------
+
+
+def test_load_shopping_items_groups_by_store_with_anywhere_last(gen_db):
+    costco = ShoppingStore(name="Costco")
+    aldi = ShoppingStore(name="Aldi")
+    gen_db.add_all([costco, aldi])
+    gen_db.flush()
+    gen_db.add_all(
+        [
+            ShoppingItem(name="Paper towels", store_id=costco.id),
+            ShoppingItem(name="Rotisserie chicken", note="2", store_id=costco.id),
+            ShoppingItem(name="Bread", store_id=aldi.id),
+            ShoppingItem(name="Stamps"),
+        ]
+    )
+    gen_db.commit()
+
+    out = make_generator().load_shopping_items()
+
+    assert out.index("Aldi:") < out.index("Costco:") < out.index("Anywhere:")
+    assert "  - Rotisserie chicken - 2" in out
+    assert "  - Stamps" in out
+
+
+def test_load_shopping_items_excludes_completed_items(gen_db):
+    gen_db.add_all(
+        [
+            ShoppingItem(name="Milk", completed=True, completed_at=datetime(2026, 3, 1, 12)),
+            ShoppingItem(name="Eggs"),
+        ]
+    )
+    gen_db.commit()
+
+    out = make_generator().load_shopping_items()
+
+    assert "Eggs" in out
+    assert "Milk" not in out
+
+
+def test_load_shopping_items_empty(gen_db):
+    assert make_generator().load_shopping_items() == "No shopping items currently active."
+
+
+def test_load_shopping_items_falls_back_when_store_was_deleted(gen_db):
+    """An item pointing at a since-deleted store must still be listed."""
+    gen_db.add(ShoppingItem(name="Orphan", store_id=999))
+    gen_db.commit()
+
+    out = make_generator().load_shopping_items()
+
+    assert out == "Anywhere:\n  - Orphan"
 
 
 # --- load_context / load_voice / load_template ---------------------------------

@@ -941,6 +941,214 @@ footer a:hover {
 }
 /**End Todo Page Styles**/
 
+/** Shopping List Styles **/
+/* Quick add: a persistent inline row, not a modal — a modal per item is too
+   much friction for the burst-entry flow a grocery list is built in. */
+.shopping-quick-add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.shopping-quick-add .autocomplete-wrap {
+    position: relative;
+    flex: 1 1 240px;
+    min-width: 0;
+}
+
+.shopping-quick-add input[type="text"] {
+    appearance: none;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 10px;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+    color: var(--charcoal);
+    font-family: var(--body-font);
+    font-size: 1rem;
+}
+
+.shopping-quick-add select {
+    appearance: none;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    flex: 0 1 180px;
+    padding: 10px 32px 10px 10px;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+    color: var(--charcoal);
+    font-family: var(--body-font);
+    font-size: 1rem;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+
+/* Autocomplete dropdown. A native <datalist> is nearly free but cannot render
+   the two-part name/store row or the per-row dismiss affordance, and store
+   affinity is the main thing that makes this worth building. */
+.autocomplete-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin-top: -1px;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--charcoal);
+    background: var(--white);
+    display: none;
+}
+
+.autocomplete-menu.open {
+    display: block;
+}
+
+.autocomplete-option {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--silver);
+}
+
+.autocomplete-option:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-option.active,
+.autocomplete-option:hover {
+    background: var(--off-white);
+}
+
+.autocomplete-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 1rem;
+    word-wrap: break-word;
+}
+
+.autocomplete-store {
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--medium-gray);
+    white-space: nowrap;
+}
+
+.autocomplete-dismiss {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    color: var(--light-gray);
+    font-family: var(--body-font);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+}
+
+.autocomplete-dismiss:hover {
+    color: var(--charcoal);
+}
+
+/* Store group heading: the identity carrier, since stores have no colour —
+   Rally is grayscale/e-ink first. */
+.shopping-group-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 32px 0 12px;
+}
+
+.shopping-group-header:first-child {
+    margin-top: 0;
+}
+
+.shopping-group-name {
+    font-family: var(--header-font);
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+}
+
+.shopping-group-rule {
+    flex: 1;
+    border-bottom: 1px solid var(--pale-gray);
+}
+
+.shopping-group-count {
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    color: var(--light-gray);
+    white-space: nowrap;
+}
+
+.shopping-item-store {
+    font-family: var(--body-font);
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+    margin-left: 6px;
+}
+
+.shopping-completed-at {
+    font-size: 0.85rem;
+    color: var(--light-gray);
+    letter-spacing: 0.02em;
+    font-style: italic;
+    margin-top: 4px;
+}
+
+/* Inline "Show purchased" toggle. Unlike Tasks there is no separate archive
+   page: the 30-day purge keeps the set small enough to need no sorting,
+   searching or pagination, which is exactly what /todo/completed exists for. */
+.shopping-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.shopping-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.store-manage-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--silver);
+}
+
+.store-manage-row input[type="text"] {
+    appearance: none;
+    box-sizing: border-box;
+    flex: 1;
+    min-width: 0;
+    min-height: 2.5rem;
+    padding: 8px 10px;
+    border: 1px solid var(--pale-gray);
+    background: var(--white);
+    color: var(--charcoal);
+    font-family: var(--body-font);
+    font-size: 1rem;
+}
+/** End Shopping List Styles **/
+
 /** Dinner Planner Styles **/
 .plan-card {
     padding: 20px;

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
@@ -265,6 +265,71 @@ class RecurringTodoResponse(RecurringTodoBase):
     last_completed_display: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Shopping List
+
+
+class ShoppingStoreCreate(BaseModel):
+    name: str
+
+
+class ShoppingStoreUpdate(BaseModel):
+    name: str
+
+
+class ShoppingStoreResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ShoppingItemCreate(BaseModel):
+    name: str
+    note: str | None = None
+    store_id: int | None = None  # NULL / omitted means the "Anywhere" catch-all
+    store: str | None = None  # Store *name*, for clients that know names but not ids
+
+    @model_validator(mode="after")
+    def check_single_store_reference(self):
+        """``store_id`` and ``store`` are two spellings of one field, not both."""
+        if self.store_id is not None and self.store is not None:
+            raise ValueError("Provide either store_id or store, not both")
+        return self
+
+
+class ShoppingItemUpdate(BaseModel):
+    name: str | None = None
+    note: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    store_id: int | None = UNSET  # None means "Anywhere"; UNSET means "not provided"
+    completed: bool | None = None
+
+
+class ShoppingItemResponse(BaseModel):
+    id: int
+    name: str
+    note: str | None = None
+    store_id: int | None = None
+    completed: bool
+    completed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ShoppingSuggestion(BaseModel):
+    """One autocomplete match from the permanent item history."""
+
+    id: int
+    name: str
+    store_id: int | None = None
+    times_added: int
 
     model_config = ConfigDict(from_attributes=True)
 
