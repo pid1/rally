@@ -1091,14 +1091,6 @@ footer a:hover {
     white-space: nowrap;
 }
 
-.shopping-item-store {
-    font-family: var(--body-font);
-    font-style: italic;
-    font-size: 0.9rem;
-    color: var(--medium-gray);
-    margin-left: 6px;
-}
-
 .shopping-completed-at {
     font-size: 0.85rem;
     color: var(--light-gray);

@@ -315,9 +315,10 @@
             }).join('');
         }
 
+        // Every item renders inside its store's group, so the store is already
+        // named by the heading directly above — repeating it on the row is pure
+        // duplication. Add it back only if items ever render ungrouped.
         function renderItemRow(item) {
-            const store = item.store_id ? storeName(item.store_id) : null;
-            const storeHtml = store ? `<span class="shopping-item-store">${escapeHtml(store)}</span>` : '';
             const completedHtml = item.completed
                 ? `<div class="shopping-completed-at">${escapeHtml(formatCompletedAgo(item.completed_at))}</div>`
                 : '';
@@ -329,7 +330,7 @@
                                onchange="toggleComplete(${item.id}, this.checked)">
                     </div>
                     <div class="editable-item-content">
-                        <div class="editable-item-title">${escapeHtml(item.name)} ${storeHtml}</div>
+                        <div class="editable-item-title">${escapeHtml(item.name)}</div>
                         ${item.note ? `<div class="editable-item-description">${escapeHtml(item.note)}</div>` : ''}
                         ${completedHtml}
                     </div>
