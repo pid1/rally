@@ -10,7 +10,9 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-from rally.generator.generate import SummaryGenerator
+import pytest
+
+from rally.generator.generate import LLM_MAX_TOKENS, LLMTruncatedError, SummaryGenerator
 
 
 def make_generator(tz: str = "UTC") -> SummaryGenerator:
@@ -28,33 +30,43 @@ def make_generator(tz: str = "UTC") -> SummaryGenerator:
 class FakeAnthropic:
     """Stands in for anthropic.Anthropic — records the create() kwargs."""
 
-    def __init__(self, text, blocks=None):
+    def __init__(self, text, blocks=None, stop_reason="end_turn", usage=None):
         self._text = text
         self._blocks = blocks
+        self._stop_reason = stop_reason
+        self._usage = usage
         self.messages = self
         self.last_kwargs = None
 
     def create(self, **kwargs):
         self.last_kwargs = kwargs
         content = self._blocks or [SimpleNamespace(type="text", text=self._text)]
-        return SimpleNamespace(content=content)
+        return SimpleNamespace(content=content, stop_reason=self._stop_reason, usage=self._usage)
 
 
 class FakeOpenAI:
     """Stands in for openai.OpenAI — records the create() kwargs."""
 
-    def __init__(self, text, choices=None):
+    def __init__(self, text, choices=None, finish_reason="stop", usage=None):
         self._text = text
         self._choices = choices
+        self._finish_reason = finish_reason
+        self._usage = usage
         self.chat = SimpleNamespace(completions=self)
         self.last_kwargs = None
 
     def create(self, **kwargs):
         self.last_kwargs = kwargs
         if self._choices is not None:
-            return SimpleNamespace(choices=self._choices)
+            return SimpleNamespace(choices=self._choices, usage=self._usage)
         return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=self._text))]
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content=self._text),
+                    finish_reason=self._finish_reason,
+                )
+            ],
+            usage=self._usage,
         )
 
 
@@ -125,6 +137,120 @@ def test_call_llm_local_empty_choices_returns_empty_string():
     assert gen._call_llm("hi") == ""
 
 
+# --- truncation detection ------------------------------------------------------
+
+
+def test_call_llm_anthropic_raises_on_max_tokens_stop_reason():
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-x"
+    gen.client = FakeAnthropic(
+        '{"greeting": "cut off mid-str',
+        stop_reason="max_tokens",
+        usage=SimpleNamespace(input_tokens=1200, output_tokens=LLM_MAX_TOKENS),
+    )
+
+    with pytest.raises(LLMTruncatedError) as excinfo:
+        gen._call_llm("hi")
+
+    message = str(excinfo.value)
+    assert "stop_reason=max_tokens" in message
+    assert f"output_tokens={LLM_MAX_TOKENS}" in message
+    assert f"max_tokens={LLM_MAX_TOKENS}" in message
+
+
+def test_call_llm_local_raises_on_length_finish_reason():
+    gen = make_generator()
+    gen.provider = "local"
+    gen.model = "llama"
+    gen.client = FakeOpenAI(
+        "partial",
+        finish_reason="length",
+        usage=SimpleNamespace(prompt_tokens=900, completion_tokens=LLM_MAX_TOKENS),
+    )
+
+    with pytest.raises(LLMTruncatedError) as excinfo:
+        gen._call_llm("hi")
+
+    assert "finish_reason=length" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("stop_reason", ["end_turn", "stop_sequence", "refusal", None])
+def test_call_llm_anthropic_other_stop_reasons_do_not_raise(stop_reason):
+    """Only budget exhaustion is a truncation; everything else parses as before."""
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-x"
+    gen.client = FakeAnthropic("body", stop_reason=stop_reason)
+
+    assert gen._call_llm("hi") == "body"
+
+
+def test_call_llm_local_other_finish_reasons_do_not_raise():
+    gen = make_generator()
+    gen.provider = "local"
+    gen.model = "llama"
+    gen.client = FakeOpenAI("body", finish_reason="stop")
+
+    assert gen._call_llm("hi") == "body"
+
+
+def test_call_llm_logs_stop_reason_and_usage_on_success(capsys):
+    """Logged on success too — budget headroom must be visible before an outage."""
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-x"
+    gen.client = FakeAnthropic(
+        "ok",
+        usage=SimpleNamespace(
+            input_tokens=1500,
+            output_tokens=820,
+            cache_read_input_tokens=1400,
+        ),
+    )
+
+    gen._call_llm("hi", label="summary")
+
+    out = capsys.readouterr().out
+    assert "[summary]" in out
+    assert "stop_reason=end_turn" in out
+    assert "input=1500" in out
+    assert "output=820" in out
+    assert "cache_read=1400" in out
+
+
+def test_call_llm_logs_reasoning_tokens_when_reported(capsys):
+    gen = make_generator()
+    gen.provider = "local"
+    gen.model = "llama"
+    gen.client = FakeOpenAI(
+        "ok",
+        usage=SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=900,
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=700),
+        ),
+    )
+
+    gen._call_llm("hi", label="eval")
+
+    out = capsys.readouterr().out
+    assert "[eval]" in out
+    assert "reasoning=700" in out
+
+
+def test_call_llm_logs_when_provider_reports_no_usage(capsys):
+    """Stubs and older servers omit usage entirely — logging must still work."""
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-x"
+    gen.client = FakeAnthropic("ok")
+
+    gen._call_llm("hi")
+
+    assert "usage=unavailable" in capsys.readouterr().out
+
+
 # --- generate_summary ----------------------------------------------------------
 
 FROZEN = datetime(2026, 3, 15, 9, 0, tzinfo=UTC)
@@ -176,6 +302,30 @@ def test_generate_summary_unparseable_returns_error_dict(frozen_now):
 
     assert "Unable to generate" in data["greeting"]
     assert data["schedule"] == []
+
+
+def test_generate_summary_truncation_is_not_reported_as_a_json_error(frozen_now, capsys):
+    """The regression this guards: a cut-off response used to surface as
+    'Unable to parse JSON ... line 1 column 1 (char 0)', pointing reviewers at
+    the JSON instead of at the token budget."""
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting": "Happy Monday! Let')
+    gen.client = FakeAnthropic(
+        '{"greeting": "Happy Monday! Let',
+        stop_reason="max_tokens",
+        usage=SimpleNamespace(input_tokens=2000, output_tokens=LLM_MAX_TOKENS),
+    )
+
+    data = gen.generate_summary()
+
+    assert "Unable to generate" in data["greeting"]
+    assert data["weather_summary"].startswith("Truncation Error:")
+    assert "stop_reason=max_tokens" in data["weather_summary"]
+    assert "JSON Error" not in data["weather_summary"]
+
+    out = capsys.readouterr().out
+    assert "LLM truncation error:" in out
+    assert "Unable to parse JSON" not in out
 
 
 def test_generate_summary_local_provider(frozen_now):

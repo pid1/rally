@@ -20,6 +20,68 @@ from rally.utils.timezone import ensure_utc, now_utc, today_utc
 # sub-topics within the same broader area are still allowed inside the window.
 STEM_REPEAT_WINDOW_DAYS = 60
 
+# Token budget for a single LLM call. On the Anthropic Messages API this cap
+# covers thinking tokens *and* visible output, so a reasoning-heavy call can
+# burn most of it before the JSON body is finished.
+LLM_MAX_TOKENS = 4000
+
+
+class LLMTruncatedError(Exception):
+    """Raised when the model stopped because it exhausted the token budget.
+
+    A truncated response is perfectly well-formed right up to the cut, so it
+    fails JSON parsing exactly like malformed output would. Keeping this
+    distinct from json.JSONDecodeError stops that misdiagnosis at the source.
+    """
+
+
+def _describe_usage(usage) -> str:
+    """Render whichever token counters the provider reported, skipping the rest.
+
+    Providers disagree on names (Anthropic ``input_tokens`` vs OpenAI
+    ``prompt_tokens``) and stubs in the test suite report none at all, so every
+    field is optional and the first name to supply a given label wins.
+    """
+    if usage is None:
+        return "usage=unavailable"
+
+    counters = (
+        ("input_tokens", "input"),
+        ("prompt_tokens", "input"),
+        ("output_tokens", "output"),
+        ("completion_tokens", "output"),
+        ("total_tokens", "total"),
+        ("cache_creation_input_tokens", "cache_write"),
+        ("cache_read_input_tokens", "cache_read"),
+    )
+
+    parts: list[str] = []
+    seen: set[str] = set()
+    for attr, label in counters:
+        value = getattr(usage, attr, None)
+        if value is not None and label not in seen:
+            seen.add(label)
+            parts.append(f"{label}={value}")
+
+    # OpenAI-compatible servers report reasoning tokens in a nested object;
+    # Anthropic folds thinking into output_tokens and reports nothing here.
+    details = getattr(usage, "completion_tokens_details", None)
+    reasoning = getattr(details, "reasoning_tokens", None)
+    if reasoning is not None:
+        parts.append(f"reasoning={reasoning}")
+
+    return ", ".join(parts) if parts else "usage=unavailable"
+
+
+def _error_summary(detail: str) -> dict:
+    """Placeholder summary rendered when generation fails, matching the schema."""
+    return {
+        "greeting": "⚠️ Unable to generate today's summary.",
+        "weather_summary": detail,
+        "schedule": [],
+        "briefing": "The system will retry at the next scheduled interval.",
+    }
+
 
 class SummaryGenerator:
     """Generate daily family summaries with calendar, weather, and todos."""
@@ -749,17 +811,26 @@ class SummaryGenerator:
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         return (base_dir / "templates" / "dashboard.html").read_text()
 
-    def _call_llm(self, user_prompt: str, system_prompt: str | None = None) -> str:
+    def _call_llm(
+        self, user_prompt: str, system_prompt: str | None = None, label: str = "llm"
+    ) -> str:
         """Call the configured LLM provider and return the response text.
 
         When a system_prompt is provided it is sent as a separate system message.
         For Anthropic, prompt caching is enabled on the system block so that
         static content (voice, context, guidelines) is cached across calls.
+
+        The stop reason and token usage are logged on every call, successful or
+        not, so budget headroom is visible before it becomes an outage. ``label``
+        distinguishes the callers in those log lines.
+
+        Raises:
+            LLMTruncatedError: the model ran out of token budget mid-response.
         """
         if self.provider == "anthropic":
             kwargs: dict = {
                 "model": self.model,
-                "max_tokens": 4000,
+                "max_tokens": LLM_MAX_TOKENS,
                 "messages": [{"role": "user", "content": user_prompt}],
             }
             if system_prompt:
@@ -771,6 +842,21 @@ class SummaryGenerator:
                     }
                 ]
             response = self.client.messages.create(**kwargs)
+
+            usage = getattr(response, "usage", None)
+            stop_reason = getattr(response, "stop_reason", None)
+            print(
+                f"[{label}] stop_reason={stop_reason} max_tokens={LLM_MAX_TOKENS} "
+                f"{_describe_usage(usage)}"
+            )
+            if stop_reason == "max_tokens":
+                raise LLMTruncatedError(
+                    f"LLM response truncated: stop_reason=max_tokens, "
+                    f"output_tokens={getattr(usage, 'output_tokens', 'unknown')}, "
+                    f"max_tokens={LLM_MAX_TOKENS}. Thinking tokens share this budget — "
+                    f"raise LLM_MAX_TOKENS or shorten the prompt."
+                )
+
             # Newer models may return thinking blocks before the text block,
             # so filter by type instead of assuming content[0] is text.
             return "".join(b.text for b in response.content if b.type == "text")
@@ -781,10 +867,27 @@ class SummaryGenerator:
             messages.append({"role": "user", "content": user_prompt})
             response = self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=4000,
+                max_tokens=LLM_MAX_TOKENS,
                 messages=messages,
             )
-            return response.choices[0].message.content if response.choices else ""
+
+            choices = response.choices
+            usage = getattr(response, "usage", None)
+            # OpenAI-compatible servers signal budget exhaustion as "length".
+            finish_reason = getattr(choices[0], "finish_reason", None) if choices else None
+            print(
+                f"[{label}] finish_reason={finish_reason} max_tokens={LLM_MAX_TOKENS} "
+                f"{_describe_usage(usage)}"
+            )
+            if finish_reason == "length":
+                raise LLMTruncatedError(
+                    f"LLM response truncated: finish_reason=length, "
+                    f"completion_tokens={getattr(usage, 'completion_tokens', 'unknown')}, "
+                    f"max_tokens={LLM_MAX_TOKENS}. Reasoning tokens share this budget — "
+                    f"raise LLM_MAX_TOKENS or shorten the prompt."
+                )
+
+            return choices[0].message.content if choices else ""
 
     def _extract_json_object(self, text: str) -> dict | None:
         """Try to extract the first top-level JSON object from arbitrary text.
@@ -1060,7 +1163,9 @@ DINNER PLANS (next 7 days):
 {dinner_plans}{shopping_section}{stem_avoid_block}"""
 
         try:
-            response_text = self._call_llm(user_prompt, system_prompt=system_prompt)
+            response_text = self._call_llm(
+                user_prompt, system_prompt=system_prompt, label="summary"
+            )
             print(f"LLM response:\n{response_text}")
 
             # Try strict JSON first
@@ -1079,27 +1184,24 @@ DINNER PLANS (next 7 days):
             raise json.JSONDecodeError(
                 "Unable to parse JSON from Claude response", response_text or "", 0
             )
+        # Ordered before the JSONDecodeError handler on purpose: a truncated
+        # response is a budget problem, not a formatting one, and reporting it
+        # as the latter is what made this failure mode so hard to diagnose.
+        except LLMTruncatedError as e:
+            print(f"LLM truncation error: {e}")
+            print(
+                f"Response text: {response_text if 'response_text' in locals() else 'No response'}"
+            )
+            return _error_summary(f"Truncation Error: {e}")
         except json.JSONDecodeError as e:
             print(f"JSON decode error: {e}")
             print(
                 f"Response text: {response_text if 'response_text' in locals() else 'No response'}"
             )
-            # Return error structure matching expected schema
-            return {
-                "greeting": "⚠️ Unable to generate today's summary.",
-                "weather_summary": f"JSON Error: {e}",
-                "schedule": [],
-                "briefing": "The system will retry at the next scheduled interval.",
-            }
+            return _error_summary(f"JSON Error: {e}")
         except Exception as e:
             print(f"General error: {e}")
-            # Return error structure matching expected schema
-            return {
-                "greeting": "⚠️ Unable to generate today's summary.",
-                "weather_summary": f"Error: {e}",
-                "schedule": [],
-                "briefing": "The system will retry at the next scheduled interval.",
-            }
+            return _error_summary(f"Error: {e}")
 
     def evaluate_summary(self, summary_data: dict) -> dict:
         """Evaluate generated summary quality using LLM-as-judge.
@@ -1235,7 +1337,7 @@ FAMILY MEMBERS:
 {ctx["family_members"]}"""
 
         try:
-            response_text = self._call_llm(eval_user, system_prompt=eval_system)
+            response_text = self._call_llm(eval_user, system_prompt=eval_system, label="eval")
             print(f"Eval response:\n{response_text}")
 
             try:
