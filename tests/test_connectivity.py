@@ -35,6 +35,20 @@ def test_llm_anthropic_success(client, make_setting, mock_llm):
     assert mock_llm.calls[0][0] == "anthropic"
 
 
+def test_llm_anthropic_success_includes_configured_budget(client, make_setting, mock_llm):
+    """The verify modal auto-closes, so this is the one place a freshly
+    resolved "Model maximum" budget is confirmed back to the operator."""
+    make_setting("llm_provider", "anthropic")
+    make_setting("llm_anthropic_api_key", "sk-test")
+    make_setting("llm_anthropic_model", "claude-x")
+    make_setting("llm_anthropic_max_tokens", "128000")
+
+    body = client.post("/api/settings/test-llm").json()
+
+    assert body["success"] is True
+    assert "128000" in body["message"]
+
+
 def test_llm_local_success(client, make_setting, mock_llm):
     make_setting("llm_provider", "local")
     make_setting("llm_local_base_url", "http://localhost:1234/v1")

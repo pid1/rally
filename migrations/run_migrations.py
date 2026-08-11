@@ -31,6 +31,9 @@ def run_migrations():
         from migrate_018_add_sports_watchlist import (
             migrate as migrate_018_add_sports_watchlist,
         )
+        from migrate_019_add_llm_max_tokens import (
+            migrate as migrate_019_add_llm_max_tokens,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -70,6 +73,7 @@ def run_migrations():
         ("016_add_stem_concept_history", migrate_016_add_stem_concept_history),
         ("017_add_shopping_lists", migrate_017_add_shopping_lists),
         ("018_add_sports_watchlist", migrate_018_add_sports_watchlist),
+        ("019_add_llm_max_tokens", migrate_019_add_llm_max_tokens),
     ]
 
     print("=" * 60)

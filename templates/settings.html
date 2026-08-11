@@ -94,6 +94,11 @@
                     <label>Model</label>
                     <input type="text" id="llm-local-model" placeholder="e.g. llama3">
                 </div>
+                <div class="form-group">
+                    <label>Max Tokens</label>
+                    <input type="number" id="llm-local-max-tokens" min="1" step="1">
+                    <small>Covers thinking and output together. Must fit within your model's context window.</small>
+                </div>
             </div>
             <div class="llm-fields-anthropic">
                 <div class="form-group">
@@ -103,6 +108,18 @@
                 <div class="form-group">
                     <label>Model</label>
                     <input type="text" id="llm-anthropic-model" placeholder="e.g. claude-sonnet-4-20250514">
+                </div>
+                <div class="form-group">
+                    <label>Budget</label>
+                    <div class="radio-options">
+                        <label><input type="radio" name="llm-max-tokens-mode" value="model_max" id="llm-max-tokens-mode-model-max"> Model maximum</label>
+                        <label><input type="radio" name="llm-max-tokens-mode" value="custom" id="llm-max-tokens-mode-custom" checked> Custom</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Max Tokens</label>
+                    <input type="number" id="llm-anthropic-max-tokens" min="1" step="1">
+                    <small id="llm-anthropic-max-tokens-help"></small>
                 </div>
             </div>
             <div class="ai-field-actions">
@@ -660,9 +677,19 @@
             document.getElementById('llm-local-base-url').value = s.llm_local_base_url || '';
             document.getElementById('llm-local-api-key').value = s.llm_local_api_key || '';
             document.getElementById('llm-local-model').value = s.llm_local_model || '';
+            document.getElementById('llm-local-max-tokens').value = s.llm_local_max_tokens || '';
             document.getElementById('llm-anthropic-api-key').value = s.llm_anthropic_api_key || '';
             document.getElementById('llm-anthropic-model').value = s.llm_anthropic_model || '';
+            const anthropicMaxTokensInput = document.getElementById('llm-anthropic-max-tokens');
+            anthropicMaxTokensInput.value = s.llm_anthropic_max_tokens || '';
+            const mode = s.llm_anthropic_max_tokens_mode === 'model_max' ? 'model_max' : 'custom';
+            // A value loaded from settings is authoritative for its mode — mark
+            // it resolved so updateLlmMaxTokensHelp() doesn't blank it on load.
+            anthropicMaxTokensInput.dataset.resolvedMode = mode;
+            anthropicMaxTokensInput.dataset.resolvedModel = s.llm_anthropic_model || '';
+            document.getElementById(mode === 'model_max' ? 'llm-max-tokens-mode-model-max' : 'llm-max-tokens-mode-custom').checked = true;
             toggleLlmFields(provider);
+            updateLlmMaxTokensHelp();
 
             // Meal Planner
             document.getElementById('meal-default-type').value = s.meal_default_type || 'Dinner';
@@ -695,6 +722,47 @@
             document.querySelector('.llm-fields-anthropic').classList.toggle('active', provider === 'anthropic');
         }
 
+        // Persistent surface for the effective Anthropic budget — the verify
+        // modal that confirms it after a save auto-closes, so this small text
+        // under the field is what stays visible whenever Settings is open.
+        function llmMaxTokensMode() {
+            const checked = document.querySelector('input[name="llm-max-tokens-mode"]:checked');
+            return checked ? checked.value : 'custom';
+        }
+
+        function updateLlmMaxTokensHelp() {
+            const mode = llmMaxTokensMode();
+            const input = document.getElementById('llm-anthropic-max-tokens');
+            const help = document.getElementById('llm-anthropic-max-tokens-help');
+            const model = document.getElementById('llm-anthropic-model').value.trim();
+
+            input.readOnly = mode === 'model_max';
+
+            // "Resolved" means the number currently in the field was actually
+            // returned by the provider for the model currently typed in — not
+            // just whatever custom value happened to be sitting there before
+            // the radio was switched. Anything else and the field is blanked
+            // rather than showing a stale number labeled as this model's max.
+            const isResolved = mode === 'model_max' && !!input.value
+                && input.dataset.resolvedMode === 'model_max'
+                && input.dataset.resolvedModel === model;
+
+            if (mode === 'model_max' && !isResolved) {
+                input.value = '';
+            }
+
+            const value = input.value ? Number(input.value).toLocaleString() : '';
+
+            if (mode === 'model_max') {
+                help.textContent = isResolved
+                    ? value + ' — maximum for ' + model + '. Covers thinking and output together.'
+                    : 'Resolved from the model when you save. Covers thinking and output together.';
+            } else {
+                help.textContent = (value ? value + '. ' : '')
+                    + 'Covers thinking and output together. Raise this if summaries are cut off mid-sentence.';
+            }
+        }
+
         // ── AI Settings (versioned agent_voice / family_context) ──
 
         const AI_FIELD_META = {
@@ -725,11 +793,31 @@
             llm_config: {
                 label: 'LLM',
                 baseUrl: '/api/settings/llm/config',
-                formatValue: entry => escapeHtml('Provider: ' + entry.provider + '\nModel: ' + entry.model),
+                formatValue: entry => {
+                    let text = 'Provider: ' + entry.provider + '\nModel: ' + entry.model
+                        + '\nMax Tokens: ' + entry.max_tokens;
+                    if (entry.provider === 'anthropic' && entry.max_tokens_mode === 'model_max') {
+                        text += '  (model maximum)';
+                    }
+                    return escapeHtml(text);
+                },
                 applyRollback: data => {
                     document.getElementById('llm-provider').value = data.provider;
                     document.getElementById(llmModelInputId(data.provider)).value = data.model;
+                    const maxTokensInputId = data.provider === 'anthropic' ? 'llm-anthropic-max-tokens' : 'llm-local-max-tokens';
+                    const maxTokensInput = document.getElementById(maxTokensInputId);
+                    maxTokensInput.value = data.max_tokens;
+                    if (data.provider === 'anthropic') {
+                        const mode = data.max_tokens_mode === 'model_max' ? 'model_max' : 'custom';
+                        // The rolled-back snapshot is itself an authoritative
+                        // resolved value for its mode — restored verbatim, not
+                        // re-resolved (see the rollback endpoint's docstring).
+                        maxTokensInput.dataset.resolvedMode = mode;
+                        maxTokensInput.dataset.resolvedModel = data.model;
+                        document.getElementById(mode === 'model_max' ? 'llm-max-tokens-mode-model-max' : 'llm-max-tokens-mode-custom').checked = true;
+                    }
                     toggleLlmFields(data.provider);
+                    updateLlmMaxTokensHelp();
                 }
             }
         };
@@ -1204,6 +1292,12 @@
             toggleLlmFields(e.target.value);
         });
 
+        // Budget mode toggle and helper-text refresh
+        document.getElementById('llm-max-tokens-mode-model-max').addEventListener('change', updateLlmMaxTokensHelp);
+        document.getElementById('llm-max-tokens-mode-custom').addEventListener('change', updateLlmMaxTokensHelp);
+        document.getElementById('llm-anthropic-max-tokens').addEventListener('input', updateLlmMaxTokensHelp);
+        document.getElementById('llm-anthropic-model').addEventListener('input', updateLlmMaxTokensHelp);
+
         // Weather form
         document.getElementById('weather-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1222,25 +1316,54 @@
         document.getElementById('llm-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const provider = document.getElementById('llm-provider').value;
+            // The radio group only exists for Anthropic — local is always custom.
+            const mode = provider === 'anthropic' ? llmMaxTokensMode() : 'custom';
+            const maxTokensInputId = provider === 'anthropic' ? 'llm-anthropic-max-tokens' : 'llm-local-max-tokens';
+            const maxTokensInput = document.getElementById(maxTokensInputId);
             try {
                 await saveSettings({
                     llm_provider: provider,
                     llm_local_base_url: document.getElementById('llm-local-base-url').value,
                     llm_local_api_key: document.getElementById('llm-local-api-key').value,
                     llm_local_model: document.getElementById('llm-local-model').value,
+                    llm_local_max_tokens: document.getElementById('llm-local-max-tokens').value,
                     llm_anthropic_api_key: document.getElementById('llm-anthropic-api-key').value,
-                    llm_anthropic_model: document.getElementById('llm-anthropic-model').value
+                    llm_anthropic_model: document.getElementById('llm-anthropic-model').value,
+                    llm_anthropic_max_tokens: document.getElementById('llm-anthropic-max-tokens').value,
+                    llm_anthropic_max_tokens_mode: mode
                 });
-                // Snapshot the coupled provider + model pair for version history
+
+                // This call is authoritative: in "model_max" mode it resolves the
+                // real budget from the provider and is the one place the save can
+                // fail (an unresolvable model name, a missing key). It always runs
+                // before the connectivity test below, so a bad model name fails
+                // once, not twice.
+                openVerifyModal('LLM');
                 const response = await fetch('/api/settings/llm/config', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         provider: provider,
-                        model: document.getElementById(llmModelInputId(provider)).value
+                        model: document.getElementById(llmModelInputId(provider)).value,
+                        max_tokens_mode: mode,
+                        max_tokens: parseInt(maxTokensInput.value, 10) || 0
                     })
                 });
-                if (!response.ok) throw new Error('Failed to save LLM config snapshot');
+                const result = await response.json();
+                if (!response.ok) {
+                    showVerifyError(result.detail || 'Failed to save LLM configuration');
+                    return;
+                }
+
+                // Reflect the resolved value back — the input was read-only in
+                // "model_max" mode, so this is the only place it gets a value.
+                maxTokensInput.value = result.max_tokens;
+                if (provider === 'anthropic') {
+                    maxTokensInput.dataset.resolvedMode = mode;
+                    maxTokensInput.dataset.resolvedModel = document.getElementById('llm-anthropic-model').value;
+                }
+                updateLlmMaxTokensHelp();
+
                 await verifyConnection('/api/settings/test-llm', 'LLM');
             } catch (error) {
                 console.error('Error saving LLM settings:', error);

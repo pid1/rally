@@ -110,32 +110,178 @@ def test_llm_config_get_empty_when_unset(client):
     assert client.get("/api/settings/llm/config").json() == {
         "provider": "",
         "model": "",
+        "max_tokens": None,
+        "max_tokens_mode": None,
         "history_id": None,
     }
 
 
 def test_llm_config_save_writes_derived_keys_anthropic(client):
     body = client.put(
-        "/api/settings/llm/config", json={"provider": "anthropic", "model": "claude-x"}
+        "/api/settings/llm/config",
+        json={"provider": "anthropic", "model": "claude-x", "max_tokens": 16000},
     ).json()
 
     assert (body["provider"], body["model"]) == ("anthropic", "claude-x")
+    assert body["max_tokens"] == 16000
+    assert body["max_tokens_mode"] == "custom"
     assert body["history_id"] is not None
 
     cfg = client.get("/api/settings/llm/config").json()
-    assert (cfg["provider"], cfg["model"]) == ("anthropic", "claude-x")
+    assert (cfg["provider"], cfg["model"], cfg["max_tokens"]) == ("anthropic", "claude-x", 16000)
 
     settings = client.get("/api/settings").json()["settings"]
     assert settings["llm_provider"] == "anthropic"
     assert settings["llm_anthropic_model"] == "claude-x"
+    assert settings["llm_anthropic_max_tokens"] == "16000"
+    assert settings["llm_anthropic_max_tokens_mode"] == "custom"
+    # The other provider's budget key is untouched.
+    assert "llm_local_max_tokens" not in settings
 
 
 def test_llm_config_save_local_uses_local_model_key(client):
-    client.put("/api/settings/llm/config", json={"provider": "local", "model": "llama"})
+    body = client.put(
+        "/api/settings/llm/config",
+        json={"provider": "local", "model": "llama", "max_tokens": 8000},
+    ).json()
+
+    assert body["max_tokens_mode"] == "custom"
 
     settings = client.get("/api/settings").json()["settings"]
     assert settings["llm_provider"] == "local"
     assert settings["llm_local_model"] == "llama"
+    assert settings["llm_local_max_tokens"] == "8000"
+    # Local has no budget-mode setting — the radio only exists for Anthropic.
+    assert "llm_anthropic_max_tokens_mode" not in settings
+
+
+def test_llm_config_save_defaults_max_tokens_when_omitted(client):
+    """Existing callers that don't send max_tokens still work — 4000/custom."""
+    body = client.put("/api/settings/llm/config", json={"provider": "local", "model": "m"}).json()
+
+    assert body["max_tokens"] == 4000
+    assert body["max_tokens_mode"] == "custom"
+
+
+def test_llm_config_save_rejects_non_positive_max_tokens(client):
+    resp = client.put(
+        "/api/settings/llm/config",
+        json={"provider": "local", "model": "m", "max_tokens": 0},
+    )
+    assert resp.status_code == 422
+    # A plain string, not a Pydantic-validation-error array — this is a
+    # deliberate HTTPException from the handler (see the next test for why
+    # positivity can't be a Field-level constraint), and the browser renders
+    # `detail` directly in the verify modal, so an array would show as the
+    # useless literal text "[object Object]".
+    assert isinstance(resp.json()["detail"], str)
+
+
+def test_llm_config_save_model_max_accepts_placeholder_zero_max_tokens(
+    client, make_setting, mock_llm
+):
+    """Regression: the browser blanks the Max Tokens field while "Model
+    maximum" is selected and unresolved, which serializes to 0 — and mode is
+    what the client actually has selected when the field goes blank, so this
+    must succeed exactly like any other model_max save, not 422 on the way in."""
+    make_setting("llm_anthropic_api_key", "sk-test")
+
+    resp = client.put(
+        "/api/settings/llm/config",
+        json={
+            "provider": "anthropic",
+            "model": "claude-x",
+            "max_tokens": 0,
+            "max_tokens_mode": "model_max",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["max_tokens"] == 200000
+
+
+def test_llm_config_save_local_forces_custom_mode_even_if_client_sends_model_max(client):
+    """Defense in depth: local has no Models API, so the server ignores a stray
+    model_max mode from a stale client rather than trusting it."""
+    body = client.put(
+        "/api/settings/llm/config",
+        json={
+            "provider": "local",
+            "model": "llama",
+            "max_tokens": 4000,
+            "max_tokens_mode": "model_max",
+        },
+    ).json()
+
+    assert body["max_tokens_mode"] == "custom"
+    assert body["max_tokens"] == 4000  # not resolved — the submitted value passes through
+
+
+def test_llm_config_save_model_max_resolves_via_models_api(client, make_setting, mock_llm):
+    make_setting("llm_anthropic_api_key", "sk-test")
+
+    body = client.put(
+        "/api/settings/llm/config",
+        json={
+            "provider": "anthropic",
+            "model": "claude-x",
+            "max_tokens": 999,  # ignored — the resolved value wins
+            "max_tokens_mode": "model_max",
+        },
+    ).json()
+
+    assert body["max_tokens"] == 200000  # from FakeModels.retrieve in conftest
+    assert body["max_tokens_mode"] == "model_max"
+    assert ("models.retrieve", "claude-x") in mock_llm.calls
+
+    settings = client.get("/api/settings").json()["settings"]
+    assert settings["llm_anthropic_max_tokens"] == "200000"
+    assert settings["llm_anthropic_max_tokens_mode"] == "model_max"
+
+
+def test_llm_config_save_model_max_rejects_unresolvable_model(client, make_setting, monkeypatch):
+    make_setting("llm_anthropic_api_key", "sk-test")
+
+    import anthropic
+
+    class FailingModels:
+        def retrieve(self, model_id):
+            raise RuntimeError("model not found: bogus-model")
+
+    class FakeAnthropicClient:
+        def __init__(self, **kwargs):
+            self.models = FailingModels()
+
+    monkeypatch.setattr(anthropic, "Anthropic", FakeAnthropicClient)
+
+    resp = client.put(
+        "/api/settings/llm/config",
+        json={
+            "provider": "anthropic",
+            "model": "bogus-model",
+            "max_tokens": 4000,
+            "max_tokens_mode": "model_max",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert "bogus-model" in resp.json()["detail"]
+    # No snapshot was written on the failure path.
+    assert client.get("/api/settings/llm/config").json()["history_id"] is None
+
+
+def test_llm_config_save_model_max_rejects_missing_api_key(client):
+    resp = client.put(
+        "/api/settings/llm/config",
+        json={
+            "provider": "anthropic",
+            "model": "claude-x",
+            "max_tokens": 4000,
+            "max_tokens_mode": "model_max",
+        },
+    )
+    assert resp.status_code == 400
+    assert "API key" in resp.json()["detail"]
 
 
 def test_llm_config_history_is_newest_first(client, frozen_now):
@@ -156,7 +302,8 @@ def test_llm_config_history_is_newest_first(client, frozen_now):
 def test_llm_config_rollback_restores_pair_and_derived_keys(client, db_session, frozen_now):
     frozen_now(T1)
     a = client.put(
-        "/api/settings/llm/config", json={"provider": "anthropic", "model": "claude-1"}
+        "/api/settings/llm/config",
+        json={"provider": "anthropic", "model": "claude-1", "max_tokens": 32000},
     ).json()
     frozen_now(T2)
     client.put("/api/settings/llm/config", json={"provider": "local", "model": "llama"})
@@ -171,17 +318,47 @@ def test_llm_config_rollback_restores_pair_and_derived_keys(client, db_session, 
         "/api/settings/llm/config/rollback", json={"history_id": a["history_id"]}
     ).json()
 
-    assert (rb["provider"], rb["model"]) == ("anthropic", "claude-1")
+    assert (rb["provider"], rb["model"], rb["max_tokens"]) == ("anthropic", "claude-1", 32000)
     cfg = client.get("/api/settings/llm/config").json()
-    assert (cfg["provider"], cfg["model"]) == ("anthropic", "claude-1")
+    assert (cfg["provider"], cfg["model"], cfg["max_tokens"]) == ("anthropic", "claude-1", 32000)
 
     # Derived keys the generator reads are restored too, not just the pointer.
     settings = client.get("/api/settings").json()["settings"]
     assert settings["llm_provider"] == "anthropic"
     assert settings["llm_anthropic_model"] == "claude-1"
+    assert settings["llm_anthropic_max_tokens"] == "32000"
 
     # No new snapshot row.
     assert db_session.query(LLMSettingsHistory).count() == 2
+
+
+def test_llm_config_rollback_restores_max_tokens_verbatim_without_reresolving(
+    client, make_setting, mock_llm
+):
+    """A model_max snapshot's stored number is restored as-is on rollback — the
+    Models API is never called again, even though it's available."""
+    make_setting("llm_anthropic_api_key", "sk-test")
+    a = client.put(
+        "/api/settings/llm/config",
+        json={
+            "provider": "anthropic",
+            "model": "claude-x",
+            "max_tokens": 1,
+            "max_tokens_mode": "model_max",
+        },
+    ).json()
+    assert a["max_tokens"] == 200000  # resolved at save time
+
+    client.put("/api/settings/llm/config", json={"provider": "local", "model": "llama"})
+    calls_before_rollback = len(mock_llm.calls)
+
+    rb = client.post(
+        "/api/settings/llm/config/rollback", json={"history_id": a["history_id"]}
+    ).json()
+
+    assert rb["max_tokens"] == 200000
+    assert rb["max_tokens_mode"] == "model_max"
+    assert len(mock_llm.calls) == calls_before_rollback  # no fresh models.retrieve call
 
 
 def test_llm_config_rollback_missing_history_404(client):

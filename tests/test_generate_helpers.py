@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rally.database import Base
-from rally.generator.generate import SummaryGenerator
+from rally.generator.generate import LLM_MAX_TOKENS, SummaryGenerator
 from rally.models import (
     AISettingsHistory,
     Calendar,
@@ -100,6 +100,7 @@ def test_init_anthropic_provider_from_db(gen_db, mock_llm):
     assert gen.local_tz_name == "America/Chicago"
     assert gen.stem_concept_enabled is True
     assert gen.shopping_list_in_summary_enabled is True
+    assert gen.max_tokens == LLM_MAX_TOKENS  # default when unset
 
 
 def test_init_local_provider_from_db(gen_db, mock_llm):
@@ -119,6 +120,64 @@ def test_init_local_provider_from_db(gen_db, mock_llm):
     assert gen.model == "llama"
     assert gen.stem_concept_enabled is False  # default when unset
     assert gen.shopping_list_in_summary_enabled is False  # default when unset
+    assert gen.max_tokens == LLM_MAX_TOKENS  # default when unset
+
+
+# --- max_tokens resolution -------------------------------------------------------
+
+
+def test_max_tokens_reads_provider_specific_db_setting(gen_db, mock_llm):
+    _seed_settings(
+        gen_db,
+        {
+            "llm_provider": "anthropic",
+            "llm_anthropic_model": "claude-x",
+            "llm_anthropic_api_key": "sk-test",
+            "llm_anthropic_max_tokens": "128000",
+            # A local budget must never leak onto the active Anthropic provider.
+            "llm_local_max_tokens": "4000",
+        },
+    )
+
+    gen = SummaryGenerator()
+
+    assert gen.max_tokens == 128000
+
+
+def test_max_tokens_switches_with_provider(gen_db, mock_llm):
+    """Each provider owns its own key — switching Provider switches budgets."""
+    _seed_settings(
+        gen_db,
+        {
+            "llm_provider": "local",
+            "llm_local_model": "llama",
+            "llm_local_base_url": "http://localhost:1234/v1",
+            "llm_local_max_tokens": "6000",
+            "llm_anthropic_max_tokens": "128000",
+        },
+    )
+
+    gen = SummaryGenerator()
+
+    assert gen.max_tokens == 6000
+
+
+def test_max_tokens_falls_back_to_config_toml_provider_table():
+    """DB setting absent -> falls back to that provider's own config.toml
+    table, exercised directly against the real _resolve_max_tokens method."""
+    gen = SummaryGenerator.__new__(SummaryGenerator)
+    gen.provider = "anthropic"
+    gen.config = {"llm": {"anthropic": {"max_tokens": 32000}}}
+
+    assert gen._resolve_max_tokens({}) == 32000
+
+
+def test_max_tokens_defaults_when_neither_db_nor_config_toml_set():
+    gen = SummaryGenerator.__new__(SummaryGenerator)
+    gen.provider = "local"
+    gen.config = {}
+
+    assert gen._resolve_max_tokens({}) == LLM_MAX_TOKENS
 
 
 # --- load_dinner_plans ---------------------------------------------------------
