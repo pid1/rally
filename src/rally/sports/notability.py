@@ -34,6 +34,20 @@ MLB_RECORD_RULES_FROM_MONTH = 9  # September
 SUNDAY = 6
 NFL_PRIMETIME_HOUR = 19
 
+# ESPN's event notes mix two different things. Some are event *identity* and are
+# exactly the reason we want — "NFL Munich Game", "NHL Global Series". Others
+# are scheduling metadata that says nothing about whether an event is worth
+# watching: measured on a real Patriots season, three of seventeen games carry
+# "Flex Game: 1/2 or 1/3". Treating those as notability would mark an ordinary
+# NHL game notable and, in the NFL, replace a useful reason with a shrug.
+_SCHEDULING_NOTE_PREFIXES = ("flex",)
+
+
+def _is_event_identity(note: str | None) -> bool:
+    if not note:
+        return False
+    return not note.strip().lower().startswith(_SCHEDULING_NOTE_PREFIXES)
+
 
 def _record_phrase(label: str, record) -> str | None:
     """A record or streak, phrased for a reason string. Never a game result."""
@@ -62,8 +76,9 @@ def _universal(event: SportsEvent, season_openers: dict[str, str]) -> str | None
     if opener:
         return opener
 
-    # statsapi labels its own openers and league days; use them verbatim.
-    if event.note:
+    # statsapi labels its own openers and league days, and ESPN names its
+    # special events; use them verbatim when they identify the event.
+    if _is_event_identity(event.note):
         return event.note
 
     return None

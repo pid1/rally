@@ -878,3 +878,31 @@ def test_the_connection_test_returns_the_window_it_found(client, db_session, spo
     assert result["success"] is True
     assert result["events"]
     assert all(e["radio"] for e in result["events"])
+
+
+def test_an_espn_special_event_note_is_a_notability_reason():
+    """ "NHL Global Series" identifies the event and is exactly the reason we want."""
+    game = event(league="hockey/nhl", name="Panthers at Stars", note="NHL Global Series")
+    notable, reason = evaluate(game, None, {}, set())
+    assert (notable, reason) == (True, "NHL Global Series")
+
+
+def test_a_scheduling_note_is_not_a_notability_reason():
+    """ESPN mixes scheduling metadata into the same field — three of seventeen
+    Patriots games carry "Flex Game: 1/2 or 1/3", which says nothing about
+    whether an event is worth watching."""
+    ordinary = event(league="hockey/nhl", name="Blues at Stars", note="Flex Game: 1/2 or 1/3")
+    notable, _ = evaluate(ordinary, None, {}, set())
+    assert notable is False
+
+
+def test_a_scheduling_note_does_not_become_an_nfl_reason():
+    game = event(
+        league="football/nfl",
+        name="Broncos at Patriots",
+        note="Flex Game: 1/2 or 1/3",
+        start=datetime(2026, 9, 13, 18, 0, tzinfo=UTC),  # Sunday, 1 PM Chicago
+    )
+    notable, reason = evaluate(game, None, {}, set())
+    assert notable is True
+    assert reason == "Regular season"
