@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import AISettingsHistory, Calendar, LLMSettingsHistory, Setting
+from rally.models import AISettingsHistory, Calendar, FollowedTeam, LLMSettingsHistory, Setting
 from rally.schemas import (
     AI_SETTINGS_FIELDS,
     LLM_CONFIG_FIELD,
+    UNSET,
     AISettingHistoryEntry,
     AISettingHistoryResponse,
     AISettingRollback,
@@ -18,6 +19,9 @@ from rally.schemas import (
     CalendarCreate,
     CalendarResponse,
     CalendarUpdate,
+    FollowedTeamCreate,
+    FollowedTeamResponse,
+    FollowedTeamUpdate,
     LLMConfigHistoryEntry,
     LLMConfigHistoryResponse,
     LLMConfigState,
@@ -460,3 +464,130 @@ def test_calendar_connection(cal_id: int, db: Session = Depends(get_db)):
             return {"success": False, "error": f"Unknown calendar type: {cal_type}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# --- Followed teams -------------------------------------------------------------
+#
+# CRUD mirroring the calendar endpoints above, plus a connection test. Teams are
+# added by provider + league + key rather than browsed: a team-search browser is
+# an explicit non-goal for v1.
+
+
+@router.get("/api/followed-teams", response_model=list[FollowedTeamResponse])
+def list_followed_teams(db: Session = Depends(get_db)):
+    """List every followed team and racing series, active or not."""
+    return db.query(FollowedTeam).order_by(FollowedTeam.label.asc()).all()
+
+
+@router.post("/api/followed-teams", response_model=FollowedTeamResponse, status_code=201)
+def create_followed_team(team: FollowedTeamCreate, db: Session = Depends(get_db)):
+    """Follow a team or racing series."""
+    db_team = FollowedTeam(
+        provider=team.provider,
+        league=team.league,
+        team_key=team.team_key or None,
+        label=team.label,
+        radio_station=team.radio_station or None,
+        active=team.active,
+    )
+    db.add(db_team)
+    db.commit()
+    db.refresh(db_team)
+    return db_team
+
+
+@router.put("/api/followed-teams/{team_id}", response_model=FollowedTeamResponse)
+def update_followed_team(team_id: int, team: FollowedTeamUpdate, db: Session = Depends(get_db)):
+    """Update a followed team. Omitted fields are left alone."""
+    db_team = db.query(FollowedTeam).filter(FollowedTeam.id == team_id).first()
+    if not db_team:
+        raise HTTPException(status_code=404, detail="Followed team not found")
+
+    if team.provider is not None:
+        db_team.provider = team.provider
+    if team.league is not None:
+        db_team.league = team.league
+    if team.team_key is not UNSET:
+        db_team.team_key = team.team_key or None
+    if team.label is not None:
+        db_team.label = team.label
+    if team.radio_station is not UNSET:
+        db_team.radio_station = team.radio_station or None
+    if team.active is not None:
+        db_team.active = team.active
+
+    db.commit()
+    db.refresh(db_team)
+    return db_team
+
+
+@router.delete("/api/followed-teams/{team_id}", status_code=204)
+def delete_followed_team(team_id: int, db: Session = Depends(get_db)):
+    """Stop following a team. Announcement history is left alone."""
+    db_team = db.query(FollowedTeam).filter(FollowedTeam.id == team_id).first()
+    if not db_team:
+        raise HTTPException(status_code=404, detail="Followed team not found")
+
+    db.delete(db_team)
+    db.commit()
+    return None
+
+
+@router.post("/api/followed-teams/{team_id}/test")
+def test_followed_team(team_id: int, db: Session = Depends(get_db)):
+    """Fetch this team's next two weeks and report what came back.
+
+    The provider keys are undocumented and easy to get subtly wrong — a typo in
+    ``team_key`` returns an empty schedule rather than an error, which would
+    otherwise present as "the sports section just never mentions the Stars".
+    """
+    db_team = db.query(FollowedTeam).filter(FollowedTeam.id == team_id).first()
+    if not db_team:
+        raise HTTPException(status_code=404, detail="Followed team not found")
+
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    from rally.sports import WINDOW_DAYS, espn, mlb
+    from rally.utils.settings import local_timezone_name
+    from rally.utils.timezone import today_local
+
+    tz_name = local_timezone_name(db)
+    tz = ZoneInfo(tz_name)
+    today = today_local(tz_name)
+
+    try:
+        adapter = mlb if db_team.provider == "mlb" else espn
+        schedule = adapter.fetch_schedule(db_team, tz, today, today + timedelta(days=WINDOW_DAYS))
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"Could not reach the provider: {e}", "events": []}
+
+    events = [
+        {
+            "date": event.local_date.strftime("%Y-%m-%d"),
+            "time": event.local_time,
+            "name": event.name,
+            "tv": event.tv_label,
+            "radio": event.radio_label,
+        }
+        for event in schedule.window
+    ]
+
+    if not events:
+        # An empty window is genuinely ambiguous — a wrong key and an off-season
+        # team look identical from here — so say so rather than claim failure.
+        return {
+            "success": True,
+            "message": (
+                f"Reached the provider, but no events in the next {WINDOW_DAYS} days. "
+                "That is expected out of season; if the team is in season, check the "
+                "league and team key."
+            ),
+            "events": [],
+        }
+
+    return {
+        "success": True,
+        "message": f"Found {len(events)} event(s) in the next {WINDOW_DAYS} days.",
+        "events": events,
+    }

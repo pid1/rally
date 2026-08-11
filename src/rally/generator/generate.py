@@ -86,6 +86,13 @@ def _error_summary(detail: str) -> dict:
 class SummaryGenerator:
     """Generate daily family summaries with calendar, weather, and todos."""
 
+    # Class-level defaults for the sports watchlist, so a generator assembled
+    # without __init__ still has a defined optional-feature state. The pending
+    # list is an empty tuple rather than a list: it is only ever rebound, never
+    # mutated, so a shared mutable default cannot leak between instances.
+    sports_watchlist_enabled = False
+    _pending_sports_notices: tuple | list = ()
+
     def __init__(self):
         # Detect environment: production uses /data, development uses PWD
         env = os.getenv("RALLY_ENV", "development")
@@ -169,6 +176,15 @@ class SummaryGenerator:
         self.shopping_list_in_summary_enabled = (
             db_settings.get("shopping_list_in_summary_enabled", "false") == "true"
         )
+
+        # Optional: 14-day TV and radio listings for followed teams (toggle in Settings)
+        self.sports_watchlist_enabled = (
+            db_settings.get("sports_watchlist_enabled", "false") == "true"
+        )
+        # Announcements pending for this run, recorded only once a summary is
+        # actually produced — a failed generation must not silently consume a
+        # "Coming up" mention.
+        self._pending_sports_notices: list = []
 
         # Optional: owner emails for accurate declined-event detection (config.toml fallback only)
         self.calendar_owners = self.config.get("calendar_owners", {})
@@ -689,6 +705,59 @@ class SummaryGenerator:
         finally:
             db.close()
 
+    def load_sports_watchlist(self) -> str:
+        """Build the "Tonight" and "Coming up" blocks for followed teams.
+
+        Network failures are caught and returned as an empty section, the same
+        shape as ``fetch_weather()``: a third-party outage must degrade to a
+        missing section, never a failed summary. Six-to-thirteen HTTP calls run
+        concurrently under one short overall budget so they cannot collectively
+        delay the 4:00 AM run.
+        """
+        try:
+            from rally.sports.watchlist import (
+                build_sections,
+                load_announced_keys,
+                load_followed_teams,
+            )
+
+            db = SessionLocal()
+            try:
+                followed = load_followed_teams(db)
+                if not followed:
+                    return ""
+                announced = load_announced_keys(db)
+            finally:
+                db.close()
+
+            today = now_utc().astimezone(self.local_tz).date()
+            section, notices = build_sections(followed, self.local_tz, today, announced)
+            self._pending_sports_notices = notices
+            return section
+        except Exception as e:  # noqa: BLE001 — a provider outage is not a failed summary
+            print(f"Error building sports watchlist: {e}")
+            self._pending_sports_notices = []
+            return ""
+
+    def save_sports_notices(self) -> None:
+        """Record the "Coming up" announcements this run actually made."""
+        if not self._pending_sports_notices:
+            return
+        try:
+            from rally.sports.watchlist import record_notices
+
+            db = SessionLocal()
+            try:
+                today = now_utc().astimezone(self.local_tz).date()
+                record_notices(db, self._pending_sports_notices, today)
+                print(f"Recorded {len(self._pending_sports_notices)} sports event notices")
+            finally:
+                db.close()
+        except Exception as e:  # noqa: BLE001
+            print(f"Could not record sports event notices: {e}")
+        finally:
+            self._pending_sports_notices = ()
+
     def load_recent_stem_concepts(self) -> list[str]:
         """Load titles of STEM concepts used within the last 60 days (newest first).
 
@@ -958,6 +1027,7 @@ class SummaryGenerator:
         # Only queried when the feature is on — an empty section would burn
         # tokens and invite the model to reference a list that isn't there.
         shopping_items = self.load_shopping_items() if self.shopping_list_in_summary_enabled else ""
+        sports_watchlist = self.load_sports_watchlist() if self.sports_watchlist_enabled else ""
 
         # Format calendars for prompt
         cal_text = ""
@@ -1077,6 +1147,21 @@ class SummaryGenerator:
                 "do not suggest any specific items."
             )
 
+        # Optional sports watchlist — guideline only when the section is present
+        if self.sports_watchlist_enabled and sports_watchlist:
+            optional_guidelines.append(
+                "SPORTS WATCHLIST: The SPORTS section below lists every game and race the "
+                "family can watch or listen to. Sports schedules are exactly the kind of "
+                "content you have strong, confident, wrong priors about, so treat that "
+                "section as the ONLY source of truth. Only mention games, opponents, dates, "
+                "times, channels and stations that appear VERBATIM in that section. Do NOT "
+                "infer, recall, or invent any matchup, broadcaster, score, standing or "
+                'result. If a channel reads "channel TBD", say it is not announced yet — '
+                "never guess a network. Never state or imply the outcome of any game, past "
+                'or future. If the section says "Nothing on tonight," do not suggest '
+                "anything is on."
+            )
+
         optional_guideline_text = "".join(
             f"\n{number}. {body}" for number, body in enumerate(optional_guidelines, start=11)
         )
@@ -1144,6 +1229,10 @@ Do NOT include any HTML in your response. Plain text only for all values."""
         if self.shopping_list_in_summary_enabled:
             shopping_section = f"\n\nSHOPPING LIST (open items):\n{shopping_items}"
 
+        sports_section = ""
+        if self.sports_watchlist_enabled and sports_watchlist:
+            sports_section = f"\n\nSPORTS (followed teams — TV and radio):\n{sports_watchlist}"
+
         # Dynamic content → user prompt (changes every generation)
         user_prompt = f"""Create a daily family summary for {today}.
 
@@ -1160,7 +1249,7 @@ TODOS:
 {todos}
 
 DINNER PLANS (next 7 days):
-{dinner_plans}{shopping_section}{stem_avoid_block}"""
+{dinner_plans}{shopping_section}{sports_section}{stem_avoid_block}"""
 
         try:
             response_text = self._call_llm(
@@ -1375,6 +1464,11 @@ FAMILY MEMBERS:
 
         # Record the STEM concept (if any) so future generations don't repeat it
         self.save_stem_concept(data.get("stem_concept"))
+
+        # Record the "Coming up" announcements, so a notable event is mentioned
+        # once rather than in all fourteen summaries leading up to it. Done here
+        # rather than at build time so a failed generation doesn't consume one.
+        self.save_sports_notices()
 
 
 EVAL_DIMENSIONS = [

@@ -190,6 +190,28 @@
         </form>
     </div>
 
+    <!-- Sports Section -->
+    <div class="border-container">
+        <div class="header-container">
+            <h2>Sports</h2>
+            <button class="btn-add" id="btn-add-team">Add Team</button>
+        </div>
+        <form id="sports-form">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="sports-watchlist-enabled">
+                    <span>Include followed teams in the daily summary</span>
+                </label>
+                <small>Adds tonight's games and races with their TV channel and radio station, plus notable events in the next two weeks. Notable events are announced once, not every morning.</small>
+            </div>
+            <button type="submit" class="btn-save">Save</button>
+        </form>
+
+        <div class="list-container" id="followed-team-list">
+            <div class="container-loading-state">Loading followed teams…</div>
+        </div>
+    </div>
+
     <!-- General Section -->
     <div class="border-container">
         <div class="header-container">
@@ -273,6 +295,53 @@
                 <div class="modal-actions">
                     <button type="submit" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel-calendar">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Followed Team Modal -->
+    <div class="modal-overlay" id="team-modal-overlay">
+        <div class="modal-content">
+            <h3 id="team-modal-title">Add Team</h3>
+            <form id="team-form">
+                <input type="hidden" id="team-id">
+                <div class="form-group">
+                    <label>League</label>
+                    <select id="team-league">
+                        <option value="football/nfl">NFL</option>
+                        <option value="hockey/nhl">NHL</option>
+                        <option value="baseball/mlb">MLB</option>
+                        <option value="racing/nascar-premier">NASCAR Cup Series</option>
+                        <option value="racing/nascar-secondary">NASCAR O'Reilly Auto Parts Series</option>
+                        <option value="racing/nascar-truck">NASCAR Truck Series</option>
+                    </select>
+                    <small>Baseball uses MLB's own API — the only source that carries radio. Everything else uses ESPN.</small>
+                </div>
+                <div class="form-group">
+                    <label>Label</label>
+                    <input type="text" id="team-label" placeholder="e.g. Dallas Stars" required>
+                    <small>How the team appears in the summary.</small>
+                </div>
+                <div class="form-group" id="team-key-group">
+                    <label>Team key</label>
+                    <input type="text" id="team-key" placeholder="e.g. dal">
+                    <small id="team-key-help">ESPN's team abbreviation, lowercase — <code>ne</code>, <code>dal</code>, <code>tex</code>.</small>
+                </div>
+                <div class="form-group">
+                    <label>Radio station (optional)</label>
+                    <input type="text" id="team-radio" placeholder="e.g. 96.7 The Ticket">
+                    <small>A season-long constant that no feed carries, so it is configured here. Baseball overrides it per game; racing defaults to "MRN or PRN".</small>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="team-active" checked>
+                        <span>Active</span>
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel-team">Cancel</button>
                 </div>
             </form>
         </div>
@@ -604,6 +673,9 @@
             // Shopping List
             document.getElementById('shopping-list-in-summary').checked = s.shopping_list_in_summary_enabled === 'true';
 
+            // Sports
+            document.getElementById('sports-watchlist-enabled').checked = s.sports_watchlist_enabled === 'true';
+
             // General
             document.getElementById('general-timezone').value = s.local_timezone || '';
         }
@@ -839,6 +911,120 @@
             document.getElementById('verify-modal-overlay').style.display = 'none';
         }
 
+        // ── Followed teams ──
+        //
+        // Teams are added by league + key rather than browsed: a team-search
+        // browser is an explicit non-goal. The keys are undocumented and easy
+        // to typo, and a wrong one returns an empty schedule rather than an
+        // error, so saving runs a connection test.
+
+        let followedTeams = [];
+        let editingTeamId = null;
+
+        const MLB_LEAGUE = 'baseball/mlb';
+
+        function isRacing(league) {
+            return league.startsWith('racing/');
+        }
+
+        async function fetchFollowedTeams() {
+            const response = await fetch('/api/followed-teams');
+            followedTeams = await response.json();
+            renderFollowedTeams();
+        }
+
+        function leagueLabel(league) {
+            const option = document.querySelector(`#team-league option[value="${league}"]`);
+            return option ? option.textContent : league;
+        }
+
+        function renderFollowedTeams() {
+            const container = document.getElementById('followed-team-list');
+            if (followedTeams.length === 0) {
+                container.innerHTML = '<div class="container-empty-state">No teams followed yet. Click "Add Team" to get started.</div>';
+                return;
+            }
+            container.innerHTML = followedTeams.map(team => {
+                const inactive = team.active ? '' : '<span class="assignee-label">[Inactive]</span>';
+                const league = `<span class="assignee-label">[${escapeHtml(leagueLabel(team.league))}]</span>`;
+                const radio = team.radio_station
+                    ? `<div class="editable-item-description">Radio: ${escapeHtml(team.radio_station)}</div>`
+                    : '';
+                return `
+                    <div class="editable-item" data-id="${team.id}">
+                        <div class="editable-item-content">
+                            <div class="editable-item-title">${escapeHtml(team.label)} ${league} ${inactive}</div>
+                            ${radio}
+                        </div>
+                        <div class="editable-item-actions">
+                            <button class="btn-edit" onclick="testFollowedTeam(${team.id})">Test</button>
+                            <button class="btn-edit" onclick="openEditTeamModal(${team.id})">Edit</button>
+                            <button class="btn-delete" onclick="confirmDeleteTeam(${team.id})">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // A racing series is a league-level subscription with no team, so the
+        // key field disappears rather than asking for something that cannot exist.
+        function toggleTeamKeyField() {
+            const league = document.getElementById('team-league').value;
+            const racing = isRacing(league);
+            document.getElementById('team-key-group').style.display = racing ? 'none' : '';
+            document.getElementById('team-key').required = !racing;
+            document.getElementById('team-key-help').innerHTML = league === MLB_LEAGUE
+                ? "MLB's numeric team id — <code>140</code> is the Rangers."
+                : "ESPN's team abbreviation, lowercase — <code>ne</code>, <code>dal</code>.";
+        }
+
+        function openAddTeamModal() {
+            editingTeamId = null;
+            document.getElementById('team-modal-title').textContent = 'Add Team';
+            document.getElementById('team-form').reset();
+            document.getElementById('team-id').value = '';
+            document.getElementById('team-active').checked = true;
+            toggleTeamKeyField();
+            document.getElementById('team-modal-overlay').style.display = 'flex';
+        }
+
+        function openEditTeamModal(id) {
+            const team = followedTeams.find(t => t.id === id);
+            if (!team) return;
+            editingTeamId = id;
+            document.getElementById('team-modal-title').textContent = 'Edit Team';
+            document.getElementById('team-id').value = id;
+            document.getElementById('team-league').value = team.league;
+            document.getElementById('team-label').value = team.label;
+            document.getElementById('team-key').value = team.team_key || '';
+            document.getElementById('team-radio').value = team.radio_station || '';
+            document.getElementById('team-active').checked = team.active;
+            toggleTeamKeyField();
+            document.getElementById('team-modal-overlay').style.display = 'flex';
+        }
+
+        function closeTeamModal() {
+            document.getElementById('team-modal-overlay').style.display = 'none';
+            editingTeamId = null;
+        }
+
+        async function confirmDeleteTeam(id) {
+            const team = followedTeams.find(t => t.id === id);
+            if (!confirm(`Stop following ${team ? team.label : 'this team'}?`)) return;
+            try {
+                const response = await fetch(`/api/followed-teams/${id}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('Failed to delete');
+                await fetchFollowedTeams();
+            } catch (error) {
+                console.error('Error deleting followed team:', error);
+                alert('Failed to remove the team');
+            }
+        }
+
+        async function testFollowedTeam(id) {
+            await verifyConnection(`/api/followed-teams/${id}/test`, 'sports provider');
+        }
+
         async function verifyConnection(testUrl, serviceName) {
             openVerifyModal(serviceName);
             try {
@@ -943,6 +1129,73 @@
             } catch (error) {
                 console.error('Error saving calendar:', error);
                 alert('Failed to save calendar');
+            }
+        });
+
+        // Followed team modal
+        document.getElementById('btn-add-team').addEventListener('click', openAddTeamModal);
+        document.getElementById('btn-cancel-team').addEventListener('click', closeTeamModal);
+        document.getElementById('team-league').addEventListener('change', toggleTeamKeyField);
+        document.getElementById('team-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'team-modal-overlay') closeTeamModal();
+        });
+
+        document.getElementById('team-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const league = document.getElementById('team-league').value;
+            const key = document.getElementById('team-key').value.trim();
+            const data = {
+                // Stored rather than inferred from the league, so moving a
+                // league to another source is a field change, not a code change.
+                provider: league === MLB_LEAGUE ? 'mlb' : 'espn',
+                league,
+                team_key: isRacing(league) ? null : (key || null),
+                label: document.getElementById('team-label').value.trim(),
+                radio_station: document.getElementById('team-radio').value.trim() || null,
+                active: document.getElementById('team-active').checked
+            };
+
+            try {
+                let teamId = editingTeamId;
+                if (editingTeamId) {
+                    const response = await fetch(`/api/followed-teams/${editingTeamId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (!response.ok) throw new Error('Failed to update team');
+                } else {
+                    const response = await fetch('/api/followed-teams', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (!response.ok) throw new Error('Failed to create team');
+                    teamId = (await response.json()).id;
+                }
+                closeTeamModal();
+                await fetchFollowedTeams();
+                // A wrong key returns an empty schedule rather than an error, so
+                // confirm the team actually resolves instead of failing silently
+                // for a season.
+                await verifyConnection(`/api/followed-teams/${teamId}/test`, 'sports provider');
+            } catch (error) {
+                console.error('Error saving followed team:', error);
+                alert('Failed to save the team');
+            }
+        });
+
+        // Sports form
+        document.getElementById('sports-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    sports_watchlist_enabled: document.getElementById('sports-watchlist-enabled').checked ? 'true' : 'false'
+                });
+                alert('Sports settings saved.');
+            } catch (error) {
+                console.error('Error saving sports settings:', error);
+                alert('Failed to save sports settings');
             }
         });
 
@@ -1059,7 +1312,7 @@
         });
 
         // ── Initialize ──
-        Promise.all([fetchMembers(), fetchCalendars(), fetchSettings(), fetchAiSettings()]);
+        Promise.all([fetchMembers(), fetchCalendars(), fetchFollowedTeams(), fetchSettings(), fetchAiSettings()]);
 
         // Nav dropdown toggle (for touch devices)
         function toggleMealDropdown(e) {

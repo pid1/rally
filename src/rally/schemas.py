@@ -374,3 +374,33 @@ class DinnerPlanResponse(DinnerPlanBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FollowedTeamBase(BaseModel):
+    provider: str = "espn"  # espn | mlb
+    league: str  # e.g. hockey/nhl, racing/nascar-premier
+    team_key: str | None = None  # None for a racing series, which has no team
+    label: str
+    radio_station: str | None = None
+    active: bool = True
+
+
+class FollowedTeamCreate(FollowedTeamBase):
+    pass
+
+
+class FollowedTeamUpdate(BaseModel):
+    provider: str | None = None
+    league: str | None = None
+    team_key: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    label: str | None = None
+    radio_station: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    active: bool | None = None
+
+
+class FollowedTeamResponse(FollowedTeamBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

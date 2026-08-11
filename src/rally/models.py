@@ -139,6 +139,61 @@ class StemConceptHistory(Base):
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
 
 
+class FollowedTeam(Base):
+    """A team or racing series whose schedule appears in the daily summary.
+
+    ``team_key`` is nullable rather than seeded with a fake team for racing: a
+    racing series is a league-level subscription and forcing a team id would be
+    a lie, the same way ``Todo.assigned_to IS NULL`` means "Everyone".
+
+    ``radio_station`` lives here rather than on the event because for NFL, NHL
+    and NASCAR a radio affiliation is a season-long constant that no feed
+    carries. For MLB it is overridden per game by statsapi, which does.
+
+    ``provider`` is stored rather than inferred from ``league`` so moving a
+    league to a different source is a column update, not a branch in the fetch
+    path.
+    """
+
+    __tablename__ = "followed_teams"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20))  # espn | mlb
+    league: Mapped[str] = mapped_column(String(30))  # e.g. hockey/nhl, racing/nascar-premier
+    team_key: Mapped[str | None] = mapped_column(
+        String(30), nullable=True
+    )  # NULL for a racing series, which has no team
+    label: Mapped[str] = mapped_column(String(100))  # Display name
+    radio_station: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class SportsEventNotice(Base):
+    """Record that a notable upcoming event has already been announced.
+
+    Mirrors ``StemConceptHistory``: same problem (don't repeat yourself across
+    days), same shape, same purge discipline. Without it a season opener would
+    be announced in all fourteen morning summaries leading up to it.
+
+    A notice is written once and never rewritten. Record-driven notability means
+    an event can *become* notable partway through the window; it is announced
+    the morning it first qualifies, with the reason true at that moment.
+    """
+
+    __tablename__ = "sports_event_notices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)  # provider + id
+    event_local_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
+    announced_on: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
+    notability_reason: Mapped[str | None] = mapped_column(
+        String(60), nullable=True
+    )  # The reason shown when it was announced; for debugging, never re-announced on
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+
 class DashboardSnapshot(Base):
     """Dashboard snapshot model - stores generated daily summary data."""
 
