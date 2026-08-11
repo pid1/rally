@@ -28,6 +28,9 @@ def run_migrations():
         from migrate_017_add_shopping_lists import (
             migrate as migrate_017_add_shopping_lists,
         )
+        from migrate_018_add_sports_watchlist import (
+            migrate as migrate_018_add_sports_watchlist,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -66,6 +69,7 @@ def run_migrations():
         ("015_add_llm_settings_history", migrate_015_add_llm_settings_history),
         ("016_add_stem_concept_history", migrate_016_add_stem_concept_history),
         ("017_add_shopping_lists", migrate_017_add_shopping_lists),
+        ("018_add_sports_watchlist", migrate_018_add_sports_watchlist),
     ]
 
     print("=" * 60)

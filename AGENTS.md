@@ -375,6 +375,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `015_add_llm_settings_history` - Add `llm_settings_history` table; seed a coupled provider+model snapshot from the existing `llm_provider` / model settings rows and point the `current_llm_config_history_id` settings key at it (original settings rows are preserved — they remain the source of truth for the generator)
 - `016_add_stem_concept_history` - Add `stem_concept_history` table (records used STEM "concept of the day" topics so the generator avoids repeating a specific topic within 60 days)
 - `017_add_shopping_lists` - Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables, plus the case-insensitive unique index on store names and the unique index on `shopping_item_history.name_key`
+- `018_add_sports_watchlist` - Add `followed_teams` and `sports_event_notices` tables, plus the unique index on `sports_event_notices.event_key` (records which notable upcoming events have already been announced, so one is mentioned once rather than every morning for two weeks)
 
 ### Running Migrations
 
@@ -606,7 +607,8 @@ rally/
   - `stem_concept_enabled` ("true"/"false") toggles the STEM Concept of the Day feature (Learning section)
   - `shopping_list_in_summary_enabled` ("true"/"false", default "false") folds open shopping items into the daily summary (Shopping List section)
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
-  - Connection verification on save: LLM, Weather, and Calendar settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
+  - `sports_watchlist_enabled` ("true"/"false", default "false") folds tonight's games and notable upcoming events for followed teams into the daily summary (Sports section)
+  - Connection verification on save: LLM, Weather, Calendar, and Followed Team settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
 - ✅ AI settings snapshotting with version history and rollback
   - `agent_voice` and `family_context` each have their own Save button and Version History link on the settings page
   - Every explicit save inserts a versioned snapshot into `ai_settings_history` (`field_name` discriminator); the active snapshot per field is referenced by the `current_agent_voice_history_id` / `current_family_context_history_id` settings keys
@@ -642,10 +644,12 @@ rally/
   - Recurrence processing runs during dashboard generation
   - Activate/deactivate templates without deleting
 - ✅ Shopping list (`/shopping`) - Store-grouped family shopping list, a peer of Tasks and the Meal Planner
-  - Quick add is a persistent inline row (not a modal): type, Enter, refocus. The store select defaults to the active filter when exactly one store is filtered
-  - Autocomplete is a custom dropdown (not a native `datalist`) reading `GET /api/shopping/suggestions` server-side, with a ~150 ms debounce and a request-sequence guard against out-of-order replies. ↑/↓ move, Enter accepts, Esc dismisses, `×` forgets a suggestion. Accepting fills the store **only when the user hasn't already chosen one** — including a choice inherited from an active single-store filter. `note` is deliberately not restored
+  - `Add Item` is the header button, in the same position and styling as `Add Task` and `Add Meal`, and opens a dual-mode modal (add/edit) following `todo.html` exactly. `Save` closes it — burst entry was tried inline and as a stay-open modal, and both times cost more in consistency than they bought in keystrokes. The store select reads `Anywhere` on every open, ignoring the active chips, matching `openAddModal()` on `/todo`
+  - Autocomplete is a custom dropdown (not a native `datalist`) reading `GET /api/shopping/suggestions` server-side, with a ~150 ms debounce and a request-sequence guard against out-of-order replies. ↑/↓ move, Enter accepts, Esc dismisses, `×` forgets a suggestion. Accepting fills the store **only when the user hasn't already chosen one**. `note` is deliberately not restored. The menu lives inside `.modal-body`, which is a scroll box, so it is capped at 240px with its own scroll rather than spilling down the page. Wired in add mode only — editing is a correction, not a lookup
   - Completed items stay on the list until **local midnight**, exactly like tasks, via the shared `today_start_utc()` helper in `utils/settings.py`. There is no countdown and no client-side expiry sweep — the page just refetches periodically
-  - `Show purchased` toggles the `include_hidden` server parameter inline rather than opening a separate archive page: the 30-day purge keeps that set small enough to need no sorting, searching or pagination
+  - Purchased items live on their own page (`/shopping/purchased`), reached by a `.view-switch` link exactly as `/todo/completed` is. A checkbox that changes what the list means underneath you is a mode; the archive is different data with a different lifetime. Backed by `GET /api/shopping/purchased` — store chips filter client-side, search filters server-side
+  - Store filter chips describe **what is on the list**, not what stores exist: a store earns a chip when it has an item in the current fetch, or when it is currently selected. That second clause prevents a filter that cannot be seen or undone. There is no `All` chip — no selection is the unfiltered state, matching the assignee chips on `/todo`
+  - `Manage stores` sits in the Store toolbar group beside the chips it manages, styled `.filter-clear`. Opening it from the page rather than from the item modal designs the stacked-overlay problem out instead of mitigating it
   - **Two separate memories, deliberately.** `shopping_items` is a 30-day rolling record whose completed rows are *deleted*; `shopping_item_history` is permanent and deduplicated with a use counter. The purge is safe precisely because autocomplete reads history, not items — trimming one never damages the other
   - The purge runs opportunistically from the items listing (the `process_recurring_todos` precedent), gated on the `shopping_last_purge_date` settings row so it executes at most once per local day. The 4 AM container job would be the obvious home but lives in `entrypoint.sh` and only runs under Docker, so a `dev`-served instance would never purge
   - Open items optionally feed the AI daily summary via `shopping_list_in_summary_enabled` (Settings → Shopping List, default off). Completed items never reach the LLM
@@ -655,6 +659,14 @@ rally/
   - Rendered as a dedicated dashboard card; when disabled, the field is omitted from the schema and nothing renders
   - The LLM-as-judge eval exempts `stem_concept` from groundedness/completeness (it is intentionally generative)
   - Used concepts are recorded in the `stem_concept_history` table (one row per `(title, used_on)`). Concepts used within the last 60 days (`STEM_REPEAT_WINDOW_DAYS`) are injected into the generation prompt as a "do not reuse" list, so a specific topic won't repeat within that window; a specific topic older than 60 days drops off the list and may recur. Different sub-topics within the same broader area are always allowed
+- ✅ Sports watchlist - Optional 14-day TV and radio listings for followed teams (toggle in Settings → Sports)
+  - Two blocks: **Tonight** lists every event today, notable or not (the direct replacement for checking a listings site); **Coming up** lists only notable events on days 2-14, each announced **once** via the `sports_event_notices` table
+  - Television and radio are separate fields end to end and never concatenated — broadcast lists mix radio callsigns in with TV channels, and a naive join renders a Rangers game as "Peacock, ERADM"
+  - **Two providers on purpose.** Baseball uses MLB statsapi, the only source that carries radio (measured: 100% of Rangers games vs 2 entries across ESPN's six sources). Everything else uses ESPN
+  - Notability is **per sport**, because a 17-game season and a 162-game season disagree about what "ordinary" means. Every NFL and racing event qualifies; NHL and MLB require an opener, postseason, national TV, a league special day, a first division meeting, or a standings-driven reason. Preseason never qualifies
+  - Standings (`espn.fetch_standings` / `mlb.fetch_standings`) back the record-driven rules. Requested at `level=3` so division membership arrives with the records — the schedule payload carries no team grouping at all. **Reasons may cite a record or a streak, never a game result**; scores remain a non-goal
+  - ESPN gotchas the adapter guards, each of which otherwise produces a silent wrong answer: a bare team-schedule call returns only the season type the calendar is in (so all three are requested and merged), `?dates=` is ignored on team endpoints (so the window is filtered locally), `market: National` is meaningless in the NFL, and **regional entries are dropped entirely because `market` does not identify whose feed it is** — measured across a full Stars season, all 58 regional TV rows are tagged `Home` and every one is the opponent's network
+  - All calls are issued concurrently under one short overall budget and are best-effort: a provider outage degrades to a missing section, never a failed summary
 - ✅ Dinner planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
   - Optional attendees: select which family members are eating (defaults to everyone)
@@ -680,9 +692,10 @@ rally/
 - `/dashboard` - Serves the generated daily summary from cached snapshot (shows error if missing)
 - `/todo` - Todo management page with full CRUD interface
 - `/todo/completed` - Read-only page of todos completed before today (local time); reachable only via the `View completed tasks` link on `/todo`, not from the nav bar
-- `/shopping` - Shopping list page: quick add with history-backed autocomplete, store grouping, store filter chips, a `Show purchased` toggle, and a Manage Stores modal
+- `/shopping` - Shopping list page: an `Add Item` header button opening a dual-mode modal with history-backed autocomplete, store grouping, store filter chips derived from the items on the list, and a `Manage stores` button in the Store toolbar group
+- `/shopping/purchased` - Read-only page of items purchased before today (local time), grouped by store; reachable only via the `View purchased items` link on `/shopping`, not from the nav bar
 - `/dinner-planner` - Dinner planning page with date picker and plan management
-- `/settings` - Settings, family member, and calendar management page
+- `/settings` - Settings, family member, calendar, and followed-team management page
 
 ### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot
@@ -702,6 +715,7 @@ rally/
   - `POST /api/shopping/items` - Create. `201`, or `200` with the existing row when an **open** item with the same trimmed, case-insensitive name already exists in the same store (a merely *completed* match creates a new item). Accepts `store` as a store **name** in place of `store_id` for scripted/voice clients; sending both is `422`, and an unrecognized name falls back to the catch-all rather than erroring or auto-creating a store. A `201` upserts `shopping_item_history`; a `200` does not
   - `PUT /api/shopping/items/{id}` - Partial update of `name`, `note`, `store_id`, `completed` (`note`/`store_id` use the `UNSET` sentinel). Completion stamping matches `PUT /api/todos/{id}` exactly. Does **not** touch history
   - `DELETE /api/shopping/items/{id}` - Delete an item; history is untouched
+  - `GET /api/shopping/purchased?search=` - List items purchased **before** local midnight today — the exact complement of `GET /api/shopping/items`, including completed rows whose `completed_at` is `NULL` so nothing is invisible in both views. Ordered most-recent-first. Optional case-insensitive `search` across name and note. No sort/limit/offset: `PURCHASED_RETENTION_DAYS = 30` bounds the response. Runs the once-per-local-day retention purge
   - `GET /api/shopping/suggestions?q=&limit=8` - Autocomplete over `shopping_item_history`. Substring (wildcard) match with `%`/`_` escaped, ranked prefix-matches-first then by `times_added` DESC, `last_added_at` DESC, `name` ASC. Empty `q` returns the top entries by use count. `limit` defaults to 8 and is clamped to 25
   - `DELETE /api/shopping/suggestions/{id}` - Forget a suggestion (history is permanent, so a typo'd add would otherwise haunt autocomplete forever). Leaves `shopping_items` alone
 - `/api/recurring-todos` - Recurring todo template CRUD endpoints
@@ -723,6 +737,12 @@ rally/
   - `GET /api/family/{id}` - Get specific family member
   - `PUT /api/family/{id}` - Update family member
   - `DELETE /api/family/{id}` - Delete family member
+- `/api/followed-teams` - Sports watchlist subscriptions (teams and racing series)
+  - `GET /api/followed-teams` - List every followed team, active or not, ordered by label
+  - `POST /api/followed-teams` - Follow a team or racing series. `team_key` is `NULL` for a racing series, which is a league-level subscription with no team
+  - `PUT /api/followed-teams/{id}` - Partial update; `team_key` and `radio_station` use the `UNSET` sentinel so `null` clears and omission leaves alone
+  - `DELETE /api/followed-teams/{id}` - Unfollow. Announcement history in `sports_event_notices` is left alone
+  - `POST /api/followed-teams/{id}/test` - Fetch the team's next 14 days and report what came back. An empty window returns `success: true` with an explanatory message, because a wrong `team_key` and an off-season team are indistinguishable from here
 - `/api/settings` - Key-value settings endpoints
   - `GET /api/settings` - Get all settings
   - `PUT /api/settings` - Bulk upsert settings

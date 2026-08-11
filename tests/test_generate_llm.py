@@ -24,6 +24,7 @@ def make_generator(tz: str = "UTC") -> SummaryGenerator:
     gen.calendar_owners = {}
     gen.stem_concept_enabled = False
     gen.shopping_list_in_summary_enabled = False
+    gen.sports_watchlist_enabled = False
     return gen
 
 
@@ -564,3 +565,122 @@ def test_regenerate_endpoint_wires_generator(client, monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
     assert saved["data"] == {"greeting": "Regenerated"}
+
+
+# --- Sports watchlist ----------------------------------------------------------
+
+
+def _sports_gen(response_text='{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'):
+    gen = _summary_gen(response_text)
+    gen.sports_watchlist_enabled = True
+    gen.load_sports_watchlist = lambda: (
+        "Tonight:\n- 7:05 PM — Astros at Rangers\n    TV: Peacock\n    Radio: 105.3 The Fan"
+    )
+    return gen
+
+
+def test_generate_summary_omits_sports_section_when_disabled(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.load_sports_watchlist = lambda: "Tonight:\n- 7:05 PM — Astros at Rangers"
+
+    gen.generate_summary()
+
+    system_prompt, user_prompt = _shopping_prompts(gen)
+    assert "SPORTS" not in user_prompt
+    assert "SPORTS WATCHLIST" not in system_prompt
+
+
+def test_generate_summary_includes_sports_section_when_enabled(frozen_now):
+    frozen_now(FROZEN)
+    gen = _sports_gen()
+
+    gen.generate_summary()
+
+    system_prompt, user_prompt = _shopping_prompts(gen)
+    assert "SPORTS (followed teams — TV and radio):" in user_prompt
+    assert "Astros at Rangers" in user_prompt
+    assert "TV: Peacock" in user_prompt
+    assert "11. SPORTS WATCHLIST" in system_prompt
+
+
+def test_sports_guideline_forbids_inventing_games_and_scores(frozen_now):
+    """Sports schedules are exactly the content the model has strong, confident,
+    wrong priors about."""
+    frozen_now(FROZEN)
+    gen = _sports_gen()
+
+    gen.generate_summary()
+
+    system_prompt, _ = _shopping_prompts(gen)
+    assert "ONLY source of truth" in system_prompt
+    assert "VERBATIM" in system_prompt
+    assert "never guess a network" in system_prompt
+    assert "Never state or imply the outcome of any game" in system_prompt
+
+
+def test_empty_sports_section_adds_neither_prompt_nor_guideline(frozen_now):
+    """An outage returns an empty string; an empty section would burn tokens and
+    invite the model to reference a list that is not there."""
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.sports_watchlist_enabled = True
+    gen.load_sports_watchlist = lambda: ""
+
+    gen.generate_summary()
+
+    system_prompt, user_prompt = _shopping_prompts(gen)
+    assert "SPORTS (followed teams" not in user_prompt
+    assert "SPORTS WATCHLIST" not in system_prompt
+
+
+def test_all_three_optional_guidelines_are_numbered_without_collision(frozen_now):
+    frozen_now(FROZEN)
+    gen = _sports_gen()
+    gen.stem_concept_enabled = True
+    gen.shopping_list_in_summary_enabled = True
+    gen.load_recent_stem_concepts = lambda: []
+    gen.load_shopping_items = lambda: "Anywhere:\n  - Stamps"
+
+    gen.generate_summary()
+
+    system_prompt, _ = _shopping_prompts(gen)
+    assert "11. STEM CONCEPT OF THE DAY" in system_prompt
+    assert "12. SHOPPING LIST FILTERING" in system_prompt
+    assert "13. SPORTS WATCHLIST" in system_prompt
+    assert "14." not in system_prompt
+
+
+def test_load_sports_watchlist_swallows_a_failure_and_returns_empty(monkeypatch):
+    """A third-party outage must degrade to a missing section, never an
+    exception that reaches generate_summary."""
+    import rally.sports.watchlist as watchlist_module
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(watchlist_module, "load_followed_teams", explode)
+
+    gen = make_generator()
+    gen.sports_watchlist_enabled = True
+
+    assert SummaryGenerator.load_sports_watchlist(gen) == ""
+    assert gen._pending_sports_notices == []
+
+
+def test_a_sports_failure_still_produces_a_summary(frozen_now, monkeypatch):
+    frozen_now(FROZEN)
+    import rally.sports.watchlist as watchlist_module
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(watchlist_module, "load_followed_teams", explode)
+
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
+    gen.sports_watchlist_enabled = True
+
+    data = gen.generate_summary()
+
+    assert data["greeting"] == "Hi"
+    assert "error" not in data
