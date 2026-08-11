@@ -25,11 +25,34 @@ def make_generator(tz: str = "UTC") -> SummaryGenerator:
     gen.stem_concept_enabled = False
     gen.shopping_list_in_summary_enabled = False
     gen.sports_watchlist_enabled = False
+    gen.max_tokens = LLM_MAX_TOKENS
     return gen
 
 
+class _FakeStream:
+    """Minimal context-manager stand-in for the SDK's `messages.stream(...)`."""
+
+    def __init__(self, message):
+        self._message = message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get_final_message(self):
+        return self._message
+
+
 class FakeAnthropic:
-    """Stands in for anthropic.Anthropic — records the create() kwargs."""
+    """Stands in for anthropic.Anthropic — records the stream() kwargs.
+
+    _call_llm's Anthropic branch streams (see the "Model maximum" budget
+    change in generate.py) rather than calling create() directly, so this fake
+    mirrors that: stream() returns a context manager whose get_final_message()
+    yields the same Message shape create() used to return.
+    """
 
     def __init__(self, text, blocks=None, stop_reason="end_turn", usage=None):
         self._text = text
@@ -39,10 +62,11 @@ class FakeAnthropic:
         self.messages = self
         self.last_kwargs = None
 
-    def create(self, **kwargs):
+    def stream(self, **kwargs):
         self.last_kwargs = kwargs
         content = self._blocks or [SimpleNamespace(type="text", text=self._text)]
-        return SimpleNamespace(content=content, stop_reason=self._stop_reason, usage=self._usage)
+        message = SimpleNamespace(content=content, stop_reason=self._stop_reason, usage=self._usage)
+        return _FakeStream(message)
 
 
 class FakeOpenAI:
@@ -238,6 +262,32 @@ def test_call_llm_logs_reasoning_tokens_when_reported(capsys):
     out = capsys.readouterr().out
     assert "[eval]" in out
     assert "reasoning=700" in out
+
+
+def test_call_llm_anthropic_sends_configured_max_tokens():
+    """max_tokens comes from the instance, not the module default — this is
+    what makes the per-provider "Model maximum" budget actually take effect."""
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-x"
+    gen.max_tokens = 128000
+    gen.client = FakeAnthropic("hi")
+
+    gen._call_llm("hi")
+
+    assert gen.client.last_kwargs["max_tokens"] == 128000
+
+
+def test_call_llm_local_sends_configured_max_tokens():
+    gen = make_generator()
+    gen.provider = "local"
+    gen.model = "llama"
+    gen.max_tokens = 8000
+    gen.client = FakeOpenAI("hi")
+
+    gen._call_llm("hi")
+
+    assert gen.client.last_kwargs["max_tokens"] == 8000
 
 
 def test_call_llm_logs_when_provider_reports_no_usage(capsys):

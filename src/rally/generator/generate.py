@@ -161,6 +161,10 @@ class SummaryGenerator:
                     api_key=provider_config.get("api_key", "no-key-needed"),
                 )
 
+        # Token budget for this provider. Read after self.provider is set
+        # above, since the resolution depends on which provider is active.
+        self.max_tokens = self._resolve_max_tokens(db_settings)
+
         # Get local timezone: DB setting > config.toml > UTC
         tz_name = db_settings.get("local_timezone", self.config.get("local_timezone", "UTC"))
         self.local_tz_name = tz_name
@@ -188,6 +192,21 @@ class SummaryGenerator:
 
         # Optional: owner emails for accurate declined-event detection (config.toml fallback only)
         self.calendar_owners = self.config.get("calendar_owners", {})
+
+    def _resolve_max_tokens(self, db_settings: dict) -> int:
+        """Resolve this provider's token budget: DB setting > that provider's
+        own config.toml table (e.g. [llm.anthropic]) > the module default.
+
+        Each provider owns its own settings key, so switching providers never
+        carries one provider's budget onto the other.
+        """
+        max_tokens_key = (
+            "llm_anthropic_max_tokens" if self.provider == "anthropic" else "llm_local_max_tokens"
+        )
+        if max_tokens_key in db_settings:
+            return int(db_settings[max_tokens_key])
+        provider_config = self.config.get("llm", {}).get(self.provider, {})
+        return int(provider_config.get("max_tokens", LLM_MAX_TOKENS))
 
     def _is_event_declined(self, component, owner_email: str | None = None) -> bool:
         """Check if a calendar event has been declined.
@@ -899,7 +918,7 @@ class SummaryGenerator:
         if self.provider == "anthropic":
             kwargs: dict = {
                 "model": self.model,
-                "max_tokens": LLM_MAX_TOKENS,
+                "max_tokens": self.max_tokens,
                 "messages": [{"role": "user", "content": user_prompt}],
             }
             if system_prompt:
@@ -910,20 +929,26 @@ class SummaryGenerator:
                         "cache_control": {"type": "ephemeral"},
                     }
                 ]
-            response = self.client.messages.create(**kwargs)
+            # Streaming, rather than a plain create() call: the SDK refuses a
+            # non-streaming request whose max_tokens could exceed its timeout
+            # guard, which a "Model maximum" budget (up to a model's full
+            # output ceiling) can trip. get_final_message() returns the same
+            # Message shape create() did, so nothing below this call changed.
+            with self.client.messages.stream(**kwargs) as stream:
+                response = stream.get_final_message()
 
             usage = getattr(response, "usage", None)
             stop_reason = getattr(response, "stop_reason", None)
             print(
-                f"[{label}] stop_reason={stop_reason} max_tokens={LLM_MAX_TOKENS} "
+                f"[{label}] stop_reason={stop_reason} max_tokens={self.max_tokens} "
                 f"{_describe_usage(usage)}"
             )
             if stop_reason == "max_tokens":
                 raise LLMTruncatedError(
                     f"LLM response truncated: stop_reason=max_tokens, "
                     f"output_tokens={getattr(usage, 'output_tokens', 'unknown')}, "
-                    f"max_tokens={LLM_MAX_TOKENS}. Thinking tokens share this budget — "
-                    f"raise LLM_MAX_TOKENS or shorten the prompt."
+                    f"max_tokens={self.max_tokens}. Thinking tokens share this budget — "
+                    f"raise the configured Max Tokens or shorten the prompt."
                 )
 
             # Newer models may return thinking blocks before the text block,
@@ -936,7 +961,7 @@ class SummaryGenerator:
             messages.append({"role": "user", "content": user_prompt})
             response = self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=LLM_MAX_TOKENS,
+                max_tokens=self.max_tokens,
                 messages=messages,
             )
 
@@ -945,15 +970,15 @@ class SummaryGenerator:
             # OpenAI-compatible servers signal budget exhaustion as "length".
             finish_reason = getattr(choices[0], "finish_reason", None) if choices else None
             print(
-                f"[{label}] finish_reason={finish_reason} max_tokens={LLM_MAX_TOKENS} "
+                f"[{label}] finish_reason={finish_reason} max_tokens={self.max_tokens} "
                 f"{_describe_usage(usage)}"
             )
             if finish_reason == "length":
                 raise LLMTruncatedError(
                     f"LLM response truncated: finish_reason=length, "
                     f"completion_tokens={getattr(usage, 'completion_tokens', 'unknown')}, "
-                    f"max_tokens={LLM_MAX_TOKENS}. Reasoning tokens share this budget — "
-                    f"raise LLM_MAX_TOKENS or shorten the prompt."
+                    f"max_tokens={self.max_tokens}. Reasoning tokens share this budget — "
+                    f"raise the configured Max Tokens or shorten the prompt."
                 )
 
             return choices[0].message.content if choices else ""

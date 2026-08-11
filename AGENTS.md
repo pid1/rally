@@ -376,6 +376,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `016_add_stem_concept_history` - Add `stem_concept_history` table (records used STEM "concept of the day" topics so the generator avoids repeating a specific topic within 60 days)
 - `017_add_shopping_lists` - Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables, plus the case-insensitive unique index on store names and the unique index on `shopping_item_history.name_key`
 - `018_add_sports_watchlist` - Add `followed_teams` and `sports_event_notices` tables, plus the unique index on `sports_event_notices.event_key` (records which notable upcoming events have already been announced, so one is mentioned once rather than every morning for two weeks)
+- `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 
 ### Running Migrations
 
@@ -563,6 +564,8 @@ rally/
 │   ├── migrate_012_add_ai_settings_history.py # Migration 012: add ai_settings_history table
 │   ├── migrate_015_add_llm_settings_history.py # Migration 015: add llm_settings_history table
 │   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
+│   ├── migrate_018_add_sports_watchlist.py # Migration 018: add followed_teams, sports_event_notices tables
+│   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
@@ -608,6 +611,7 @@ rally/
   - `shopping_list_in_summary_enabled` ("true"/"false", default "false") folds open shopping items into the daily summary (Shopping List section)
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
   - `sports_watchlist_enabled` ("true"/"false", default "false") folds tonight's games and notable upcoming events for followed teams into the daily summary (Sports section)
+  - `llm_anthropic_max_tokens` / `llm_local_max_tokens` (default `"4000"` each) are the per-provider token budgets `_call_llm` sends — each provider owns its own key, so switching `Provider` never carries one provider's budget onto the other. `llm_anthropic_max_tokens_mode` (`"model_max"` or `"custom"`, default `"custom"`) is Anthropic-only; in `"model_max"` mode the value is resolved from the Anthropic Models API at save time (not on every generation run) and stored, not re-resolved later — rollback restores the stored number verbatim rather than re-resolving it
   - Connection verification on save: LLM, Weather, Calendar, and Followed Team settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
 - ✅ AI settings snapshotting with version history and rollback
   - `agent_voice` and `family_context` each have their own Save button and Version History link on the settings page
@@ -615,9 +619,10 @@ rally/
   - Version History modal lists snapshots newest first with a `Current` badge and in-place expandable value previews; **Change Version** rolls the field back (bumps `last_used_at`, repoints the setting, no new row) and updates the field without a page reload
   - Fields roll back independently; all snapshots are retained indefinitely
 - ✅ LLM settings snapshotting with version history and rollback
-  - The LLM section's `Provider` and `Model` are versioned as a **single coupled snapshot** (`llm_config`) — saving the LLM form records one `llm_settings_history` row whose JSON `value` captures the provider and its active model together; the active snapshot is referenced by the `current_llm_config_history_id` settings key
-  - The LLM section has one `Save` button and one `Version History` link; the shared Version History modal shows each snapshot's `Provider` / `Model` pair, and **Change Version** restores both together (select flips, provider fields toggle, model input updates — no page reload, no new row)
-  - The plain `llm_provider` / `llm_local_model` / `llm_anthropic_model` settings keys remain the source of truth read by the generator; save and rollback keep them in sync
+  - The LLM section's `Provider`, `Model`, and per-provider `Max Tokens` (plus, for Anthropic, the budget `Mode`) are versioned as a **single coupled snapshot** (`llm_config`) — saving the LLM form records one `llm_settings_history` row whose JSON `value` captures all of them together; the active snapshot is referenced by the `current_llm_config_history_id` settings key
+  - The LLM section has one `Save` button and one `Version History` link; the shared Version History modal shows each snapshot's `Provider` / `Model` / `Max Tokens` (plus `(model maximum)` when that snapshot used auto mode), and **Change Version** restores all of it together (select flips, provider fields toggle, model and max-tokens inputs update, budget radio flips — no page reload, no new row). Rollback restores the snapshot's stored `max_tokens` verbatim; it never re-resolves against the provider
+  - The plain `llm_provider` / `llm_local_model` / `llm_anthropic_model` / `llm_anthropic_max_tokens` / `llm_local_max_tokens` / `llm_anthropic_max_tokens_mode` settings keys remain the source of truth read by the generator; save and rollback keep them in sync
+  - **Budget** (Anthropic only): `Model maximum` resolves the model's real output cap via `client.models.retrieve(model)` at save time and stores the returned integer — the 4 AM job never makes this call itself. An unresolvable model name (typo, missing API key) rejects the save with the error shown in the verify modal, and writes no snapshot. `Custom` accepts any positive integer with no upper bound — model ceilings differ by provider and rise over time, so Rally does not hardcode one. The local provider has no `Budget` control; it is always a plain `Custom` value
 - ✅ Todo management - Full CRUD API and UI
   - Create, read, update, delete todos
   - Optional due dates with native HTML5 date picker
@@ -751,13 +756,13 @@ rally/
   - `PUT /api/settings/ai/{field_name}` - Explicit save: inserts a new `ai_settings_history` snapshot (`created_at` = `last_used_at` = now, UTC) and points the field's `current_<field>_history_id` setting at it
   - `GET /api/settings/ai/{field_name}/history` - List all snapshots for a field, newest first (by `created_at` descending), plus the current history ID
   - `POST /api/settings/ai/{field_name}/rollback` - Make an existing snapshot active: bumps its `last_used_at` and repoints the setting — no new row inserted. Body: `{history_id}`
-- `/api/settings/llm/config` - Versioned LLM configuration endpoints (coupled `provider` + `model` snapshot)
-  - `GET /api/settings/llm/config` - Get the currently active provider + model and history ID
-  - `PUT /api/settings/llm/config` - Explicit save: inserts a new `llm_settings_history` snapshot capturing the provider + model pair, points `current_llm_config_history_id` at it, and syncs the plain `llm_provider` / model settings keys. Body: `{provider, model}`
+- `/api/settings/llm/config` - Versioned LLM configuration endpoints (coupled `provider` + `model` + `max_tokens` + `max_tokens_mode` snapshot)
+  - `GET /api/settings/llm/config` - Get the currently active config and history ID. `max_tokens`/`max_tokens_mode` are `null` when no snapshot exists yet
+  - `PUT /api/settings/llm/config` - Explicit save: inserts a new `llm_settings_history` snapshot, points `current_llm_config_history_id` at it, and syncs the plain `llm_provider` / model / max-tokens settings keys. Body: `{provider, model, max_tokens, max_tokens_mode}` (`max_tokens` defaults to `4000` and must be `> 0`; `max_tokens_mode` defaults to `"custom"`, forced to `"custom"` server-side for any provider other than `"anthropic"`). In `max_tokens_mode: "model_max"`, the submitted `max_tokens` is ignored and re-resolved from the Anthropic Models API — `400` with a `detail` message if the model can't be resolved (unrecognized name, missing/invalid API key), and no snapshot is written on that path
   - `GET /api/settings/llm/config/history` - List all snapshots, newest first, plus the current history ID
-  - `POST /api/settings/llm/config/rollback` - Make an existing snapshot active: restores provider and model together, bumps `last_used_at`, repoints the setting, and syncs the plain settings keys — no new row inserted. Body: `{history_id}`
+  - `POST /api/settings/llm/config/rollback` - Make an existing snapshot active: restores the whole config together (including the stored `max_tokens`, verbatim — never re-resolved), bumps `last_used_at`, repoints the setting, and syncs the plain settings keys — no new row inserted. Body: `{history_id}`
 - `/api/settings/test-llm` - LLM connectivity test
-  - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`.
+  - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`. On Anthropic success, `message` appends the configured max-tokens value (e.g. `"Connected to claude-sonnet-4-6 (max tokens: 128000)"`) — the one place a freshly resolved "Model maximum" budget is confirmed to the operator, since the verify modal auto-closes on success and the field's helper text is the durable surface afterward
 - `/api/settings/test-weather` - Weather connectivity test
   - `POST /api/settings/test-weather` - Fetch the configured NWS forecast URL and confirm it returns DWML weather data (10-second timeout). Returns `{success, message}` or `{success, error}`.
 - `/api/calendars` - Calendar feed CRUD endpoints

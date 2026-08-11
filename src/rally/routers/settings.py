@@ -9,6 +9,7 @@ from rally.database import get_db
 from rally.models import AISettingsHistory, Calendar, FollowedTeam, LLMSettingsHistory, Setting
 from rally.schemas import (
     AI_SETTINGS_FIELDS,
+    DEFAULT_LLM_MAX_TOKENS,
     LLM_CONFIG_FIELD,
     UNSET,
     AISettingHistoryEntry,
@@ -167,16 +168,66 @@ def _get_current_llm_snapshot(db: Session) -> LLMSettingsHistory | None:
 
 
 def _llm_config_from_row(row: LLMSettingsHistory) -> dict:
-    """Unpack a snapshot row's coupled JSON value into provider/model."""
+    """Unpack a snapshot row's coupled JSON value into its fields.
+
+    The ``.get()`` defaults are a safety net for a row written between deploy
+    and migration (or if the migration is ever skipped) — every row the
+    migration touches already carries both keys.
+    """
     config = json.loads(row.value)
-    return {"provider": config.get("provider", ""), "model": config.get("model", "")}
+    return {
+        "provider": config.get("provider", ""),
+        "model": config.get("model", ""),
+        "max_tokens": config.get("max_tokens", DEFAULT_LLM_MAX_TOKENS),
+        "max_tokens_mode": config.get("max_tokens_mode", "custom"),
+    }
 
 
-def _apply_llm_config(db: Session, provider: str, model: str) -> None:
-    """Write the provider + model into the plain settings keys read by the generator."""
+def _apply_llm_config(
+    db: Session, provider: str, model: str, max_tokens: int, max_tokens_mode: str
+) -> None:
+    """Write the resolved config into the plain settings keys read by the generator.
+
+    Each provider owns its own max-tokens key, so switching providers never
+    lets one provider's budget leak onto the other.
+    """
     _upsert_setting(db, "llm_provider", provider)
     model_key = "llm_anthropic_model" if provider == "anthropic" else "llm_local_model"
     _upsert_setting(db, model_key, model)
+    max_tokens_key = (
+        "llm_anthropic_max_tokens" if provider == "anthropic" else "llm_local_max_tokens"
+    )
+    _upsert_setting(db, max_tokens_key, str(max_tokens))
+    if provider == "anthropic":
+        _upsert_setting(db, "llm_anthropic_max_tokens_mode", max_tokens_mode)
+
+
+def _resolve_model_max_tokens(model: str, api_key: str) -> int:
+    """Resolve a model's maximum output tokens via the Anthropic Models API.
+
+    Raises HTTPException(400) with a message safe to show the operator inline
+    on any failure — an unrecognized model name, a missing key, or any other
+    provider-side error. Only Anthropic publishes this endpoint, so this is
+    never called for the local provider.
+    """
+    if not model:
+        raise HTTPException(status_code=400, detail="Set a model before resolving its maximum.")
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Set an Anthropic API key before resolving the model's maximum.",
+        )
+
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        info = client.models.retrieve(model)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Couldn't look up {model}'s maximum: {e}"
+        ) from None
+    return info.max_tokens
 
 
 @router.get("/api/settings/llm/config", response_model=LLMConfigState)
@@ -184,26 +235,57 @@ def get_llm_config(db: Session = Depends(get_db)):
     """Get the currently active LLM provider + model configuration."""
     row = _get_current_llm_snapshot(db)
     if not row:
-        return LLMConfigState(provider="", model="", history_id=None)
+        return LLMConfigState(provider="", model="", max_tokens=None, max_tokens_mode=None)
     return LLMConfigState(**_llm_config_from_row(row), history_id=row.id)
 
 
 @router.put("/api/settings/llm/config", response_model=LLMConfigState)
 def save_llm_config(payload: LLMConfigUpdate, db: Session = Depends(get_db)):
-    """Explicitly save the LLM provider + model pair — inserts a new history snapshot."""
+    """Explicitly save the LLM config — inserts a new history snapshot.
+
+    In ``model_max`` mode, ``max_tokens`` is resolved from the Anthropic Models
+    API here, at save time — the generator later reads the stored number rather
+    than re-resolving on every run. The mode only applies to Anthropic; a local
+    save always writes ``custom`` regardless of what the client sends.
+    """
+    mode = payload.max_tokens_mode if payload.provider == "anthropic" else "custom"
+    max_tokens = payload.max_tokens
+    if mode == "model_max":
+        api_key_row = db.query(Setting).filter(Setting.key == "llm_anthropic_api_key").first()
+        api_key = api_key_row.value if api_key_row else ""
+        max_tokens = _resolve_model_max_tokens(payload.model, api_key)
+    elif max_tokens <= 0:
+        # Only validated in custom mode — model_max ignores the submitted
+        # value entirely (the browser sends a blank/0 placeholder while it's
+        # unresolved, and that must not fail the request before it gets here).
+        raise HTTPException(status_code=422, detail="max_tokens must be a positive integer.")
+
     now = now_utc()  # Single timestamp so created_at == last_used_at on insert
     row = LLMSettingsHistory(
         field_name=LLM_CONFIG_FIELD,
-        value=json.dumps({"provider": payload.provider, "model": payload.model}),
+        value=json.dumps(
+            {
+                "provider": payload.provider,
+                "model": payload.model,
+                "max_tokens": max_tokens,
+                "max_tokens_mode": mode,
+            }
+        ),
         created_at=now,
         last_used_at=now,
     )
     db.add(row)
     db.flush()  # Assign row.id before pointing the setting at it
     _upsert_setting(db, LLM_CONFIG_POINTER_KEY, str(row.id))
-    _apply_llm_config(db, payload.provider, payload.model)
+    _apply_llm_config(db, payload.provider, payload.model, max_tokens, mode)
     db.commit()
-    return LLMConfigState(provider=payload.provider, model=payload.model, history_id=row.id)
+    return LLMConfigState(
+        provider=payload.provider,
+        model=payload.model,
+        max_tokens=max_tokens,
+        max_tokens_mode=mode,
+        history_id=row.id,
+    )
 
 
 @router.get("/api/settings/llm/config/history", response_model=LLMConfigHistoryResponse)
@@ -232,7 +314,12 @@ def get_llm_config_history(db: Session = Depends(get_db)):
 
 @router.post("/api/settings/llm/config/rollback", response_model=LLMConfigState)
 def rollback_llm_config(payload: AISettingRollback, db: Session = Depends(get_db)):
-    """Make an existing snapshot the active version — restores provider and model together."""
+    """Make an existing snapshot the active version — restores the whole config together.
+
+    Restores the stored max_tokens verbatim rather than re-resolving it — a
+    snapshot is a historical record of what actually ran, and re-resolving on
+    rollback would silently change an old configuration.
+    """
     row = db.get(LLMSettingsHistory, payload.history_id)
     if not row or row.field_name != LLM_CONFIG_FIELD:
         raise HTTPException(status_code=404, detail="History entry not found")
@@ -240,7 +327,9 @@ def rollback_llm_config(payload: AISettingRollback, db: Session = Depends(get_db
     row.last_used_at = now_utc()
     _upsert_setting(db, LLM_CONFIG_POINTER_KEY, str(row.id))
     config = _llm_config_from_row(row)
-    _apply_llm_config(db, config["provider"], config["model"])
+    _apply_llm_config(
+        db, config["provider"], config["model"], config["max_tokens"], config["max_tokens_mode"]
+    )
     db.commit()
     db.refresh(row)
     return LLMConfigState(**config, history_id=row.id)
@@ -269,7 +358,13 @@ def test_llm_connection(db: Session = Depends(get_db)):
                 max_tokens=1,
                 messages=[{"role": "user", "content": "hi"}],
             )
-            return {"success": True, "message": f"Connected to {model}"}
+            # The verify modal auto-closes on success, so this is the one
+            # place a just-resolved "Model maximum" budget is confirmed back
+            # to the operator — the helper text under the field is the
+            # durable surface for it afterward.
+            max_tokens = settings.get("llm_anthropic_max_tokens")
+            budget_note = f" (max tokens: {max_tokens})" if max_tokens else ""
+            return {"success": True, "message": f"Connected to {model}{budget_note}"}
         else:
             from openai import OpenAI
 

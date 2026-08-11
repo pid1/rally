@@ -386,10 +386,16 @@ def mock_llm(monkeypatch):
             calls.append(("anthropic", kwargs))
             return SimpleNamespace(content=[SimpleNamespace(text="ok")])
 
+    class FakeModels:
+        def retrieve(self, model_id):
+            calls.append(("models.retrieve", model_id))
+            return SimpleNamespace(id=model_id, max_tokens=200000)
+
     class FakeAnthropic:
         def __init__(self, **kwargs):
             self.init_kwargs = kwargs
             self.messages = FakeMessages()
+            self.models = FakeModels()
 
     class FakeCompletions:
         def create(self, **kwargs):
