@@ -33,34 +33,18 @@
         <div class="header-container">
             <h2>Shopping List</h2>
             <div class="header-actions">
-                <button class="btn-add" id="btn-manage-stores">Manage Stores</button>
+                <button class="btn-add" id="btn-add-item">Add Item</button>
             </div>
         </div>
 
-        <!-- Quick add: type, Enter, keep typing. Grocery lists are built in bursts. -->
-        <form class="shopping-quick-add" id="quick-add-form" autocomplete="off">
-            <div class="autocomplete-wrap">
-                <input type="text" id="quick-add-name" placeholder="Add an item…" aria-label="Item name"
-                       role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="suggestion-menu" required>
-                <div class="autocomplete-menu" id="suggestion-menu" role="listbox"></div>
-            </div>
-            <select id="quick-add-store" aria-label="Store">
-                <option value="">Anywhere</option>
-            </select>
-            <button type="submit" class="btn-add">Add</button>
-        </form>
+        <a class="view-switch" href="/shopping/purchased">View purchased items</a>
 
         <div class="filter-toolbar">
             <div class="toolbar-group">
                 <label>Store</label>
                 <div class="filter-chips" id="filter-store-chips"></div>
                 <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
-            </div>
-            <div class="toolbar-group">
-                <label class="shopping-toggle">
-                    <input type="checkbox" id="show-purchased">
-                    <span>Show purchased</span>
-                </label>
+                <button type="button" class="filter-clear" id="btn-manage-stores">Manage stores</button>
             </div>
         </div>
 
@@ -69,16 +53,23 @@
         </div>
     </div>
 
-    <!-- Modal for editing an item -->
+    <!-- Modal for adding and editing an item — one modal, two modes, exactly as
+         todo.html does it. The Item field stays first so the autocomplete menu
+         has the whole form beneath it to drop over. -->
     <div class="modal-overlay" id="item-modal-overlay">
         <div class="modal-content">
-            <h3>Edit Item</h3>
+            <h3 id="item-modal-title">Add Item</h3>
             <div class="modal-scroll">
             <div class="modal-body">
-                <form id="item-form">
+                <form id="item-form" autocomplete="off">
                     <div class="form-group">
                         <label>Item</label>
-                        <input type="text" id="item-name" placeholder="Item name" required>
+                        <div class="autocomplete-wrap">
+                            <input type="text" id="item-name" placeholder="Item name"
+                                   role="combobox" aria-expanded="false" aria-autocomplete="list"
+                                   aria-controls="suggestion-menu" required>
+                            <div class="autocomplete-menu" id="suggestion-menu" role="listbox"></div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Note (optional)</label>
@@ -94,7 +85,7 @@
                 <div class="modal-actions">
                     <button type="submit" form="item-form" class="btn-primary">Save</button>
                     <button type="button" class="btn-cancel" id="btn-cancel-item">Cancel</button>
-                    <button type="button" class="btn-delete modal-delete" id="btn-delete-item">Delete</button>
+                    <button type="button" class="btn-delete modal-delete" id="btn-delete-item" style="display:none">Delete</button>
                 </div>
             </div>
             </div>
@@ -133,9 +124,10 @@
         const ANYWHERE = 'anywhere';
         const REFRESH_MS = 60000;   // multi-device sync + the local-midnight rollover
 
-        const nameInput = document.getElementById('quick-add-name');
-        const storeSelect = document.getElementById('quick-add-store');
+        const nameInput = document.getElementById('item-name');
+        const storeSelect = document.getElementById('item-store');
         const suggestionMenu = document.getElementById('suggestion-menu');
+        const modalBody = document.querySelector('#item-modal-overlay .modal-body');
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -160,12 +152,10 @@
             const response = await fetch('/api/shopping/stores');
             stores = await response.json();
             renderStoreOptions();
-            renderStoreChips();
         }
 
         async function fetchItems() {
-            const includeHidden = document.getElementById('show-purchased').checked;
-            const response = await fetch(`/api/shopping/items?include_hidden=${includeHidden}`);
+            const response = await fetch('/api/shopping/items');
             items = await response.json();
             renderItems();
         }
@@ -196,54 +186,58 @@
         }
 
         // ── Store select + filter chips ──
+        //
+        // The select lists every store — chips describe what is on the list, the
+        // select describes where an item can go, and filing the first item at a
+        // store you just created has to work.
         function renderStoreOptions() {
-            [storeSelect, document.getElementById('item-store')].forEach(select => {
-                const previous = select.value;
-                select.innerHTML = '<option value="">Anywhere</option>' + stores.map(s =>
-                    `<option value="${s.id}">${escapeHtml(s.name)}</option>`
-                ).join('');
-                // Keep a selection alive across a store list refresh.
-                if (previous && select.querySelector(`option[value="${previous}"]`)) {
-                    select.value = previous;
-                }
-            });
+            const previous = storeSelect.value;
+            storeSelect.innerHTML = '<option value="">Anywhere</option>' + stores.map(s =>
+                `<option value="${s.id}">${escapeHtml(s.name)}</option>`
+            ).join('');
+            // Keep a selection alive across a store list refresh.
+            if (previous && storeSelect.querySelector(`option[value="${previous}"]`)) {
+                storeSelect.value = previous;
+            }
         }
 
+        // Chips describe the list, not the store table: a store earns a chip when
+        // it has an item on screen, or when it is currently selected. The second
+        // clause is load-bearing — tick off the last Costco item while filtered
+        // to Costco and without it the chip vanishes with the filter still on.
         function renderStoreChips() {
             const chips = document.getElementById('filter-store-chips');
-            const parts = [`<button type="button" class="filter-chip" data-value="all">All</button>`];
+            const present = new Set(items.map(chipValueForItem));
+            const parts = [];
             stores.forEach(s => {
-                parts.push(`<button type="button" class="filter-chip" data-value="${s.id}">${escapeHtml(s.name)}</button>`);
+                const value = String(s.id);
+                if (present.has(value) || selectedStores.has(value)) {
+                    parts.push(`<button type="button" class="filter-chip" data-value="${value}">${escapeHtml(s.name)}</button>`);
+                }
             });
-            parts.push(`<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`);
+            if (present.has(ANYWHERE) || selectedStores.has(ANYWHERE)) {
+                parts.push(`<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`);
+            }
+
+            // First-run discovery, without a pop-in or a second overlay: the
+            // "Manage stores" button is already sitting right beside this hint.
+            if (stores.length === 0 && selectedStores.size === 0) {
+                chips.innerHTML = '<span class="filter-hint">No stores yet — everything lands under "Anywhere".</span>';
+                return;
+            }
+
             chips.innerHTML = parts.join('');
             syncChipState();
         }
 
         function syncChipState() {
             document.querySelectorAll('#filter-store-chips .filter-chip').forEach(chip => {
-                const isAll = chip.dataset.value === 'all';
-                const active = isAll ? selectedStores.size === 0 : selectedStores.has(chip.dataset.value);
-                chip.classList.toggle('active', active);
+                chip.classList.toggle('active', selectedStores.has(chip.dataset.value));
             });
-        }
-
-        // The quick-add store defaults to the filtered store when exactly one is
-        // filtered — but never overrides a choice the user made themselves.
-        function syncQuickAddStoreDefault() {
-            if (storeSelect.dataset.touched === 'true') return;
-            const only = selectedStores.size === 1 ? [...selectedStores][0] : null;
-            if (only && only !== ANYWHERE && storeSelect.querySelector(`option[value="${only}"]`)) {
-                storeSelect.value = only;
-            } else {
-                storeSelect.value = '';
-            }
         }
 
         function clearFilters() {
             selectedStores.clear();
-            syncChipState();
-            syncQuickAddStoreDefault();
             renderItems();
         }
 
@@ -264,6 +258,9 @@
 
         function renderItems() {
             const container = document.getElementById('groups-container');
+            // The chip set derives from the items, so it is rebuilt here — the
+            // one function on every path that can change what is on the list.
+            renderStoreChips();
             const visible = visibleItems();
 
             const groups = new Map();
@@ -290,7 +287,7 @@
             // always contributes its own (possibly empty) group above.
             if (keys.length === 0) {
                 container.innerHTML =
-                    '<div class="container-empty-state">Nothing on the list yet. Type an item above to get started.</div>';
+                    '<div class="container-empty-state">Nothing on the list yet. Click "Add Item" to get started.</div>';
                 return;
             }
 
@@ -405,6 +402,10 @@
                 closeSuggestions();
                 return;
             }
+            // .modal-body is a scroll box, so the menu cannot spill outside it the
+            // way it spilled down the page. Scrolling the name field near the top
+            // gives the (height-capped) menu room to open below it.
+            modalBody.scrollTop = 0;
             suggestionMenu.innerHTML = suggestions.map((s, index) => {
                 const store = s.store_id ? storeName(s.store_id) : null;
                 return `
@@ -459,7 +460,13 @@
             }
         }
 
-        nameInput.addEventListener('input', scheduleSuggestions);
+        // Autocomplete is wired only in add mode: editing an existing item is a
+        // correction, not a lookup, and a dropdown covering the fields you are
+        // trying to fix is noise.
+        nameInput.addEventListener('input', () => {
+            if (editingItemId) return;
+            scheduleSuggestions();
+        });
 
         nameInput.addEventListener('keydown', (e) => {
             const open = suggestionMenu.classList.contains('open');
@@ -500,34 +507,6 @@
             if (option) acceptSuggestion(parseInt(option.dataset.index, 10));
         });
 
-        // ── Quick add ──
-        storeSelect.addEventListener('change', () => {
-            storeSelect.dataset.touched = 'true';
-        });
-
-        document.getElementById('quick-add-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = nameInput.value.trim();
-            if (!name) return;
-
-            const storeValue = storeSelect.value;
-            closeSuggestions();
-            try {
-                await createItem({
-                    name,
-                    store_id: storeValue ? parseInt(storeValue, 10) : null
-                });
-                nameInput.value = '';
-                storeSelect.dataset.touched = 'false';
-                syncQuickAddStoreDefault();
-                nameInput.focus();   // straight back into the burst
-                await fetchItems();
-            } catch (error) {
-                console.error('Error adding item:', error);
-                alert('Failed to add item');
-            }
-        });
-
         // ── Item actions ──
         async function toggleComplete(id, completed) {
             try {
@@ -540,31 +519,55 @@
             }
         }
 
+        // Store reads "Anywhere" on every open, whatever the chips say — matching
+        // openAddModal() on /todo, which resets the assignee and ignores the
+        // active filter. Preselecting the filtered store was genuinely useful;
+        // operating exactly like Tasks is worth more.
+        function openAddModal() {
+            editingItemId = null;
+            document.getElementById('item-modal-title').textContent = 'Add Item';
+            document.getElementById('item-form').reset();
+            storeSelect.value = '';
+            document.getElementById('btn-delete-item').style.display = 'none';
+            closeSuggestions();
+            showModalOverlay('item-modal-overlay');
+            nameInput.focus();
+        }
+
         function openEditModal(id) {
             const item = items.find(i => i.id === id);
             if (!item) return;
             editingItemId = id;
-            document.getElementById('item-name').value = item.name;
+            document.getElementById('item-modal-title').textContent = 'Edit Item';
+            nameInput.value = item.name;
             document.getElementById('item-note').value = item.note || '';
-            document.getElementById('item-store').value = item.store_id ? String(item.store_id) : '';
+            storeSelect.value = item.store_id ? String(item.store_id) : '';
+            document.getElementById('btn-delete-item').style.display = '';
+            closeSuggestions();
             showModalOverlay('item-modal-overlay');
         }
 
         function closeItemModal() {
             document.getElementById('item-modal-overlay').style.display = 'none';
+            closeSuggestions();
             editingItemId = null;
         }
 
+        // Save closes the modal in both modes. Adding a second item means opening
+        // it again — the same trade every other add button in Rally makes.
         document.getElementById('item-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!editingItemId) return;
-            const storeValue = document.getElementById('item-store').value;
+            const name = nameInput.value.trim();
+            if (!name) return;
+            const storeValue = storeSelect.value;
+            const storeId = storeValue ? parseInt(storeValue, 10) : null;
+            const note = document.getElementById('item-note').value || null;
             try {
-                await updateItem(editingItemId, {
-                    name: document.getElementById('item-name').value,
-                    note: document.getElementById('item-note').value || null,
-                    store_id: storeValue ? parseInt(storeValue, 10) : null
-                });
+                if (editingItemId) {
+                    await updateItem(editingItemId, { name, note, store_id: storeId });
+                } else {
+                    await createItem({ name, note, store_id: storeId });
+                }
                 closeItemModal();
                 await fetchItems();
             } catch (error) {
@@ -572,6 +575,8 @@
                 alert('Failed to save item');
             }
         });
+
+        document.getElementById('btn-add-item').addEventListener('click', openAddModal);
 
         document.getElementById('btn-delete-item').addEventListener('click', async () => {
             if (!editingItemId) return;
@@ -680,20 +685,15 @@
             const chip = e.target.closest('.filter-chip');
             if (!chip) return;
             const value = chip.dataset.value;
-            if (value === 'all') {
-                selectedStores.clear();
-            } else if (selectedStores.has(value)) {
+            if (selectedStores.has(value)) {
                 selectedStores.delete(value);
             } else {
                 selectedStores.add(value);
             }
-            syncChipState();
-            syncQuickAddStoreDefault();
             renderItems();
         });
 
         document.getElementById('filter-clear').addEventListener('click', clearFilters);
-        document.getElementById('show-purchased').addEventListener('change', fetchItems);
 
         // Show a modal and compute its fade state once it's laid out.
         function showModalOverlay(overlayId) {
