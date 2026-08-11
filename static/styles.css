@@ -1,271 +1,783 @@
-/** Global Styles **/
+/* Rally stylesheet.
+
+   Organised in layers, not by page: tokens, base, layout primitives,
+   components, then the handful of genuinely page-specific rules. A rule's
+   position tells you its blast radius. See docs/visual-design-system.md.
+
+   Two rules hold everywhere:
+   - Values come from the token scale. A literal px or rem in a component is a
+     bug unless it is a hairline or an optical nudge, and says so.
+   - Text colours are --ink, --ink-muted or --ink-subtle. --rule and
+     --rule-subtle are hairlines and never carry text: they fail WCAG AA.
+*/
+
+/** ============================================================
+    1. Tokens
+    ============================================================ */
 :root {
-    --black: #000000;
-    --charcoal: #1a1a1a;
-    --dark-gray: #333333;
-    --medium-gray: #666666;
-    --light-gray: #999999;
-    --pale-gray: #cccccc;
-    --silver: #e5e5e5;
-    --off-white: #f5f5f5;
-    --white: #ffffff;
-    --header-font: 'Playfair Display', 'Georgia', serif;
-    --body-font: 'Crimson Text', 'Georgia', serif;
+    /* Space — one 4px-based scale. */
+    --space-1: 0.25rem;  /*  4px */
+    --space-2: 0.5rem;   /*  8px */
+    --space-3: 0.75rem;  /* 12px */
+    --space-4: 1rem;     /* 16px */
+    --space-5: 1.5rem;   /* 24px */
+    --space-6: 2rem;     /* 32px */
+    --space-7: 3rem;     /* 48px */
+    --space-8: 4rem;     /* 64px */
+
+    /* Type — six steps. 1 / 1.25 / 1.5 carry the three heading levels. */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.25rem;
+    --text-xl: 1.5rem;
+    --text-display: 3rem;
+
+    --tracking-normal: 0.02em;
+    --tracking-wide: 0.05em;
+    --tracking-wider: 0.1em;
+    --tracking-widest: 0.15em;
+
+    --leading-tight: 1.3;
+    --leading-normal: 1.7;
+
+    /* Colour by role. Greys stay private primitives below. */
+    --ink: #1a1a1a;          /* primary text, strong rules          */
+    --ink-muted: #666666;    /* secondary text — 5.74:1 on surface  */
+    --ink-subtle: #767676;   /* tertiary text — 4.54:1 on surface   */
+    --ink-strong: #000000;   /* emphasis inside body copy           */
+    --rule: #cccccc;         /* hairlines — never text              */
+    --rule-subtle: #e5e5e5;
+    --surface: #ffffff;
+    --surface-sunken: #f5f5f5;
+    --inverse: #ffffff;      /* text on --ink                       */
+
+    --font-display: 'Playfair Display', 'Georgia', serif;
+    --font-body: 'Crimson Text', 'Georgia', serif;
+
+    /* Comfortable pointer default. Coarse pointers get 44px below. */
+    --target-min: 2.25rem;
+
+    --page-max: 900px;
+    --page-pad-x: var(--space-6);
+    --page-pad-y: var(--space-7);
 }
 
-* {
+/* Every token override lives here, in the tokens layer, so the scales have one
+   home and later layers only ever read them.
+
+   44px targets apply on anything likely to be touched, via two triggers: a
+   wall tablet is a coarse pointer at desktop width, and a phone is a narrow
+   viewport whether or not the browser reports its pointer honestly. */
+@media (pointer: coarse) {
+    :root { --target-min: 2.75rem; }
+}
+
+@media screen and (max-width: 767px) {
+    :root {
+        --target-min: 2.75rem;
+        --page-pad-x: var(--space-4);
+        --page-pad-y: var(--space-5);
+    }
+}
+
+@media screen and (min-width: 1024px) {
+    :root {
+        --page-pad-x: var(--space-7);
+        --page-pad-y: var(--space-8);
+    }
+}
+
+/** ============================================================
+    2. Base
+    ============================================================ */
+*,
+*::before,
+*::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
 body {
-    font-family: var(--body-font);
-    background: var(--white);
-    color: var(--charcoal);
-    line-height: 1.7;
-    padding: 40px 32px;
-    max-width: 800px;
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    background: var(--surface);
+    color: var(--ink);
+    line-height: var(--leading-normal);
+    padding: var(--page-pad-y) var(--page-pad-x);
+    max-width: var(--page-max);
     margin: 0 auto;
-    overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
+    overflow-y: scroll; /* Always show the scrollbar to prevent layout shift. */
 }
-/** End Global Styles **/
 
-/** Header Styles**/
-h2 {
-    font-size: 1.5rem;
-    font-family: var(--header-font);
+h1, h2, h3 {
+    font-family: var(--font-display);
     font-weight: 600;
+    line-height: var(--leading-tight);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--tracking-wider);
+    text-wrap: balance;
 }
 
+h1 { font-size: var(--text-display); font-weight: 400; }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); }
+
+/* One visible focus treatment for everything. Individual components must not
+   set `outline: none` — an invisible focus state is the bug this replaces. */
+:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/** ============================================================
+    3. Layout primitives
+    ============================================================ */
+
+/* The single content column. Width is owned by `body` alone — a second
+   max-width here is what put every desktop page 2px out of line with its own
+   header and footer. */
+.page {
+    width: 100%;
+}
+
+.page + .page {
+    margin-top: var(--space-8);
+}
+
+/* Vertical rhythm for a column of blocks, so spacing lives in one place
+   instead of in each component's margin. */
+.stack > * + * {
+    margin-top: var(--space-6);
+}
+
+/* Page title, its actions, and any secondary links, as one block with defined
+   internal spacing. These used to be loose siblings, so the gap between the
+   title rule and the toolbar came out at 32, 61 or 92px by accident. The block
+   carries no bottom margin: `.stack` owns the space between blocks, so the
+   distance from the title rule to whatever follows is one value in one place. */
+.page-header-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--ink);
+}
+
+.page-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+/* Secondary links and notes below the rule — the archive switch, retention
+   notes, store management. Always the same distance from the rule. */
+.page-header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-4);
+}
+
+.page-note {
+    flex-basis: 100%;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-style: italic;
+}
+
+/* Header block above the nav: wordmark and page subtitle. */
 .header {
     text-align: center;
-    border-bottom: 1px solid var(--charcoal);
-    padding-bottom: 24px;
-    margin-bottom: 32px;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: var(--space-5);
+    margin-bottom: var(--space-5);
 }
 
 .header h1 {
-    font-size: 3rem;
-    font-weight: 400;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--charcoal);
-    margin-bottom: 8px;
-    font-family: var(--header-font);
+    letter-spacing: var(--tracking-widest);
+    color: var(--ink);
+    margin-bottom: var(--space-1);
 }
 
 .header .subtitle {
-    font-size: 0.95rem;
-    color: var(--medium-gray);
-    font-weight: 400;
-    letter-spacing: 0.05em;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    letter-spacing: var(--tracking-wide);
     font-style: italic;
 }
 
-.header-container {
-    display: flex;
-    justify-content: space-between;
+footer {
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: var(--text-xs);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--rule);
+    margin-top: var(--space-6);
+    letter-spacing: var(--tracking-wide);
+    font-style: italic;
+}
+
+footer a {
+    display: inline-flex;
     align-items: center;
-    margin-bottom: 32px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--charcoal);
-}
-/** End Header Styles**/
-
-/** Footer Styles **/
-footer {
-    text-align: center;
-    color: var(--medium-gray);
-    font-size: 0.75rem;
-    padding: 24px 0 0 0;
-    border-top: 1px solid var(--pale-gray);
-    margin-top: 32px;
-    letter-spacing: 0.05em;
-    font-style: italic;
-}
-
-footer a {
-    color: var(--medium-gray);
+    justify-content: center;
+    min-height: var(--target-min);
+    padding: 0 var(--space-2);
+    color: var(--ink-muted);
     text-decoration: none;
     transition: color 0.2s;
 }
 
 footer a:hover {
-    color: var(--charcoal);
+    color: var(--ink);
 }
-/** End Footer Styles **/
 
-/** Navigation Styles**/
+/** ============================================================
+    4. Components
+    ============================================================ */
+
+/* ---- Navigation ---- */
 nav {
-    text-align: center;
-    margin-bottom: 32px;
-    padding-bottom: 24px;
-    border-bottom: 1px solid var(--pale-gray);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+    padding-bottom: var(--space-5);
+    border-bottom: 1px solid var(--rule);
 }
 
-nav a {
-    color: var(--charcoal);
+nav a,
+.nav-dropdown-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--target-min);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--ink);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-wide);
     text-decoration: none;
-    padding: 8px 16px;
-    border: 1px solid var(--charcoal);
-    margin: 0 8px;
-    display: inline-block;
-    transition: background 0.2s;
-    font-size: 0.9rem;
-    letter-spacing: 0.05em;
-}
-
-nav a:hover {
-    background: var(--off-white);
-}
-
-nav a.active {
-    background: var(--charcoal);
-    color: var(--white);
-}
-/** End Navigation Styles**/
-
-/** Footer Styles **/
-footer {
-    text-align: center;
-    color: var(--medium-gray);
-    font-size: 0.75rem;
-    padding: 24px 0 0 0;
-    border-top: 1px solid var(--pale-gray);
-    margin-top: 32px;
-    letter-spacing: 0.05em;
-    font-style: italic;
-}
-
-footer a {
-    color: var(--medium-gray);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-footer a:hover {
-    color: var(--charcoal);
-}
-/** End Footer Styles **/
-
-/** All Button Styles **/
-.btn-add, .btn-primary, .btn-cancel, .btn-edit, .btn-delete, .btn-save {
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-    color: var(--charcoal);
-    font-family: var(--body-font);
     cursor: pointer;
     transition: background 0.2s, color 0.2s;
-    letter-spacing: 0.02em;
 }
 
-.btn-add, .btn-primary, .btn-cancel {
-    padding: 8px 16px;
-    font-size: 0.9rem;
+nav a:hover,
+.nav-dropdown-btn:hover {
+    background: var(--surface-sunken);
 }
 
-.btn-edit, .btn-delete {
-    padding: 6px 12px;
-    font-size: 0.85rem;
+nav a.active,
+.nav-dropdown-btn.active {
+    background: var(--ink);
+    color: var(--inverse);
 }
 
-.btn-save {
-    padding: 10px 24px;
-    font-size: 1rem;
+.nav-dropdown {
+    position: relative;
+    display: inline-flex;
 }
 
-.btn-add:hover, .btn-primary:hover, .btn-edit:hover, .btn-save:hover {
-    background: var(--charcoal);
-    color: var(--white);
+.nav-dropdown-btn::after {
+    content: "";
+    display: inline-block;
+    margin-left: var(--space-1);
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
 }
 
-.btn-cancel:hover, .btn-delete:hover {
-    background: var(--off-white);
+.nav-dropdown-content {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 100%;
+    width: max-content;
+    max-width: 90vw;
+    background: var(--surface);
+    border: 1px solid var(--ink);
+    border-top: none;
+    z-index: 100;
 }
-/** End All Button Styles **/
 
-/** Container Styling **/
-.section-container {
-    max-width: 800px;
-    margin: 0 auto;
+.nav-dropdown-content a {
+    display: flex;
+    justify-content: flex-start;
+    border: none;
+    width: 100%;
 }
 
-.section-container + .section-container {
-    margin-top: 64px;
+.nav-dropdown.open .nav-dropdown-content {
+    display: block;
 }
+
+@media (hover: hover) and (min-width: 768px) {
+    .nav-dropdown:hover .nav-dropdown-content {
+        display: block;
+    }
+}
+
+/* ---- Buttons ----
+   One family, four roles. `.btn` is the outlined default that inverts on
+   hover; `--secondary` is the quieter partner for Cancel and Delete;
+   `--quiet` is borderless for resets and inline links. Size is a modifier,
+   never a new role: Save is the same control everywhere it appears. */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--target-min);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--ink);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-normal);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.btn:hover:not(:disabled) {
+    background: var(--ink);
+    color: var(--inverse);
+}
+
+.btn--secondary:hover:not(:disabled) {
+    background: var(--surface-sunken);
+    color: var(--ink);
+}
+
+/* Reads as text, so it aligns like text: no horizontal padding, or its
+   underline would start inset from the column edge it sits against. Spacing
+   from its neighbours comes from the parent's gap. */
+.btn--quiet {
+    border-color: transparent;
+    background: none;
+    color: var(--ink-muted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.btn--quiet:hover:not(:disabled) {
+    background: none;
+    color: var(--ink);
+}
+
+/* Compact only where a row would otherwise grow — still 44px on touch. */
+.btn--sm {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
+}
+
+.btn:disabled {
+    color: var(--ink-subtle);
+    border-color: var(--rule);
+    cursor: default;
+}
+
+/* A quiet link that behaves like `.btn--quiet` but is genuinely a link:
+   the archive switches at the top of paired pages. */
+.link-quiet {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--target-min);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.link-quiet:hover {
+    color: var(--ink);
+}
+
+/* ---- Toolbar ----
+   Label placement is explicit: stacked below 768px, inline above. It used to
+   be emergent — a wrapping flex row where the chip block dropped to its own
+   line once it stopped fitting, so three chips sat inline and four did not. */
+.toolbar {
+    display: grid;
+    gap: var(--space-4) var(--space-3);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--rule);
+}
+
+.toolbar-group,
+.toolbar-search {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.toolbar-search-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.toolbar-label {
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 400;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+/* The reset slot. Rendered last by the toolbar itself rather than placed
+   inside whichever filter group a template happened to pick, which is why the
+   control used to land in five different positions across five pages. */
+.toolbar-reset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-self: start;
+}
+
+/* One grid for the whole toolbar, not one per group: `display: contents`
+   promotes each group's label and control into the toolbar's own grid, so
+   every label shares a column and every control starts at the same x. Nested
+   grids sized their `max-content` column independently and left the controls
+   ragged. */
+@media (min-width: 768px) {
+    .toolbar {
+        grid-template-columns: max-content minmax(0, 1fr);
+        align-items: center;
+    }
+
+    .toolbar-group,
+    .toolbar-search {
+        display: contents;
+    }
+
+    .toolbar-label {
+        grid-column: 1;
+    }
+
+    .filter-chips,
+    .toolbar-control,
+    .toolbar-search-controls {
+        grid-column: 2;
+    }
+
+    .search-results-count,
+    .toolbar-reset {
+        grid-column: 1 / -1;
+    }
+
+    .toolbar-reset {
+        justify-self: end;
+    }
+}
+
+.toolbar-control {
+    justify-self: start;
+}
+
+.filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--target-min);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    padding: var(--space-1) var(--space-4);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.filter-chip:hover {
+    border-color: var(--ink-muted);
+}
+
+.filter-chip.active {
+    background: var(--ink);
+    color: var(--inverse);
+    border-color: var(--ink);
+}
+
+.filter-hint {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-style: italic;
+}
+
+/* Grows to a comfortable measure and stops, so the Search and Clear buttons
+   stay on the same row as the field instead of being pushed beneath it. */
+.search-input {
+    flex: 0 1 20rem;
+    min-width: 0;
+    min-height: var(--target-min);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--rule);
+    border-radius: 0;
+    background: var(--surface);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    color: var(--ink);
+}
+
+.search-input:focus {
+    border-color: var(--ink-muted);
+}
+
+.search-results-count {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-style: italic;
+}
+
+/* ---- Selects ---- */
+.select {
+    appearance: none;
+    min-height: var(--target-min);
+    color: var(--ink);
+    padding: var(--space-1) var(--space-6) var(--space-1) var(--space-3);
+    border: 1px solid var(--rule);
+    border-radius: 0;
+    background-color: var(--surface);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--space-2) center;
+}
+
+/* ---- Containers ---- */
+/* Settings' section chassis. It sits inside a `.stack`, so the space between
+   sections comes from the stack rather than a margin of its own. */
 .border-container {
-    margin-bottom: 48px;
-    padding: 32px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
+    padding: var(--space-6);
+    border: 1px solid var(--ink);
+    background: var(--surface);
 }
 
 .list-container {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
-.container-empty-state {
-    text-align: center;
-    padding: 64px 32px;
-    color: var(--medium-gray);
-    font-style: italic;
-    border: 1px solid var(--pale-gray);
-}
-
+.container-empty-state,
 .container-loading-state {
     text-align: center;
-    padding: 64px 32px;
-    color: var(--medium-gray);
+    padding: var(--space-7) var(--space-6);
+    color: var(--ink-muted);
     font-style: italic;
-    border: 1px solid var(--pale-gray);
+    border: 1px solid var(--rule);
 }
-/** End Container Styling **/
 
-/** Modal Styles **/
+.load-more-container {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--space-5);
+}
+
+/* ---- Forms ---- */
+.form-group {
+    margin-bottom: var(--space-5);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    letter-spacing: var(--tracking-normal);
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="date"],
+.form-group textarea,
+.form-group select,
+.remind-days-input {
+    appearance: none;
+    min-height: 2.75rem;
+    color: var(--ink);
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--ink);
+    border-radius: 0;
+    background: var(--surface);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+}
+
+.form-group select {
+    cursor: pointer;
+    padding-right: var(--space-6);
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--space-3) center;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 6rem;
+}
+
+.form-group small {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--ink-muted);
+    font-size: var(--text-xs);
+    font-style: italic;
+}
+
+.form-group small a {
+    color: var(--ink);
+    text-underline-offset: 2px;
+}
+
+.remind-days-input {
+    width: 5em;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* One checkbox appearance. Native controls ignore `border`, so size and
+   accent-color are the whole styling surface. */
+input[type="checkbox"],
+input[type="radio"] {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--ink);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin: 0;
+    /* Native controls otherwise keep the browser's 13.33px default, which
+       shows up in a type audit as a size nobody chose. */
+    font-size: var(--text-base);
+}
+
+@media (pointer: coarse) {
+    input[type="checkbox"],
+    input[type="radio"] {
+        width: 1.4rem;
+        height: 1.4rem;
+    }
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+}
+
+.checkbox-label,
+.weekday-label,
+.radio-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--target-min);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+}
+
+.weekday-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+}
+
+.weekday-label {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--rule);
+    background: var(--surface);
+}
+
+.radio-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+}
+
+.custom-recurrence-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+/* ---- Modal ----
+   Every modal uses the same chassis: .modal-content > h3 + .modal-scroll >
+   .modal-body. The scroll wrapper's ::before/::after paint the fade that
+   signals more content, and only appear when content is actually hidden. */
 .modal-overlay {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: rgba(0, 0, 0, 0.5);
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    padding: var(--space-4);
 }
 
 .modal-content {
-    background: var(--white);
-    border: 1px solid var(--charcoal);
-    padding: 32px;
-    width: 90%;
+    background: var(--surface);
+    border: 1px solid var(--ink);
+    padding: var(--space-6);
+    width: 100%;
     max-width: 500px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
-    /* Fallback scroll for modals without a .modal-body wrapper. Modals that
-       use .modal-body never trigger this — their body flexes to fit. */
-    overflow: auto;
+}
+
+.modal-content--narrow {
+    max-width: 360px;
 }
 
 .modal-content h3 {
-    font-size: 1.3rem;
-    font-family: var(--header-font);
-    margin-bottom: 24px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    margin-bottom: var(--space-5);
     flex-shrink: 0;
 }
 
-/* Wrapper positioned over the scroll viewport. Its ::before/::after paint a
-   fade in the modal's background colour over the top/bottom edges — a plain
-   overlay rather than a CSS mask.*/
 .modal-scroll {
     position: relative;
     flex: 1;
@@ -274,13 +786,11 @@ footer a:hover {
     flex-direction: column;
 }
 
-/* Scrollable inner area — the form and actions scroll together. */
 .modal-body {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-    /* Padding so content isn't clipped under the scrollbar. */
-    padding: 0 4px 0 0;
+    padding-right: var(--space-1);
 }
 
 .modal-scroll::before,
@@ -289,7 +799,7 @@ footer a:hover {
     position: absolute;
     left: 0;
     right: 0;
-    height: 32px;
+    height: var(--space-6);
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s ease;
@@ -298,121 +808,41 @@ footer a:hover {
 
 .modal-scroll::before {
     top: 0;
-    background: linear-gradient(to bottom, var(--white), transparent);
+    background: linear-gradient(to bottom, var(--surface), transparent);
 }
 
 .modal-scroll::after {
     bottom: 0;
-    background: linear-gradient(to top, var(--white), transparent);
+    background: linear-gradient(to top, var(--surface), transparent);
 }
 
-/* Fade an edge only when content is actually hidden in that direction, so the
-   Save/Cancel buttons render crisp once you scroll to the bottom. */
 .modal-scroll[data-overflow-top]::before { opacity: 1; }
 .modal-scroll[data-overflow-bottom]::after { opacity: 1; }
 
 .modal-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 24px;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
 }
 
 .modal-delete {
     margin-left: auto;
 }
-/** End Modal Styles **/
 
-/** Form Styles **/
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-}
-
-.form-group input[type="text"], .form-group input[type="password"], .form-group input[type="date"], .form-group textarea {
-    appearance: none;
-    box-sizing: border-box;
-    min-height: 2.75rem;
-    color: var(--charcoal);
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-    font-family: var(--body-font);
-    font-size: 1rem;
-}
-
-.form-group small {
-    display: block;
-    margin-top: 4px;
-    color: var(--medium-gray);
-    font-size: 0.8rem;
-    font-style: italic;
-}
-
-.form-group textarea {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.form-group label input[type="checkbox"] {
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-.remind-days-input {
-    appearance: none;
-    box-sizing: border-box;
-    min-height: 2.75rem;
-    color: var(--charcoal);
-    width: 5em;
-    padding: 10px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-    font-family: var(--body-font);
-    font-size: 1rem;
-    display: inline-block;
-    vertical-align: middle;
-}
-
-.form-group select {
-    appearance: none;
-    box-sizing: border-box;
-    min-height: 2.75rem;
-    color: var(--charcoal);
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-    font-family: var(--body-font);
-    font-size: 1rem;
-    cursor: pointer;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 32px;
-}
-/** End Form Styles **/
-
-/** Editable Item Styles **/
+/* ---- List rows ---- */
 .editable-item {
     display: flex;
-    gap: 16px;
-    padding: 16px;
-    border: 1px solid var(--pale-gray);
-    background: var(--white);
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--rule);
+    background: var(--surface);
     align-items: flex-start;
     transition: background 0.2s;
 }
 
 .editable-item:hover {
-    background: var(--off-white);
+    background: var(--surface-sunken);
 }
 
 .editable-item.completed {
@@ -420,7 +850,7 @@ footer a:hover {
 }
 
 .editable-item.completed .editable-item-title {
-    color: var(--medium-gray);
+    color: var(--ink-muted);
 }
 
 .editable-item-content {
@@ -429,198 +859,167 @@ footer a:hover {
 }
 
 .editable-item-title {
-    font-size: 1rem;
+    font-size: var(--text-base);
     font-weight: 500;
-    margin-bottom: 4px;
-    word-wrap: break-word;
+    margin-bottom: var(--space-1);
+    overflow-wrap: break-word;
 }
 
 .editable-item-actions {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     flex-shrink: 0;
 }
 
 .editable-item-description {
-    font-size: 0.9rem;
-    color: var(--medium-gray);
-    margin-bottom: 6px;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    margin-bottom: var(--space-1);
     font-style: italic;
-    word-wrap: break-word;
-}
-/** End Editable Item Styles **/
-
-/** Assignee Badge Styles **/
-.assignee-badge {
-    display: inline-block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--white);
-    padding: 2px 8px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    vertical-align: middle;
-    margin-left: 8px;
+    overflow-wrap: break-word;
 }
 
 .assignee-label {
-    font-family: var(--body-font);
     font-style: italic;
-    font-size: 0.9rem;
-    color: var(--medium-gray);
-    margin-left: 6px;
-    vertical-align: baseline;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    margin-left: var(--space-1);
 }
-/** End Assignee Badge Styles **/
 
-/** Dashboard Page Styles **/
-/* Greeting */
+/* ---- Cards ---- */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--ink);
+    padding: var(--space-5);
+    break-inside: avoid;
+}
+
+.card-header {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.card-content {
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+}
+
+.card-content p,
+.card-content ul,
+.card-content ol {
+    margin-bottom: var(--space-3);
+}
+
+.card-content ul,
+.card-content ol {
+    padding-left: var(--space-5);
+}
+
+.card-content p:last-child,
+.card-content ul:last-child,
+.card-content ol:last-child,
+.card-content li:last-child {
+    margin-bottom: 0;
+}
+
+.card-content li {
+    margin-bottom: var(--space-2);
+}
+
+.card-content strong {
+    font-weight: 600;
+    color: var(--ink-strong);
+}
+
+/** ============================================================
+    5. Page-specific
+    ============================================================ */
+
+/* ---- Dashboard ---- */
 .greeting {
-    font-size: 1.05rem;
+    font-size: var(--text-base);
     text-align: center;
-    margin-bottom: 24px;
-    color: var(--dark-gray);
+    margin-bottom: var(--space-5);
+    color: var(--ink-muted);
     font-style: italic;
 }
 
-/* Briefing Section */
 .briefing {
-    background: var(--charcoal);
-    color: var(--white);
-    padding: 20px 32px;
+    background: var(--ink);
+    color: var(--inverse);
+    padding: var(--space-5) var(--space-6);
     text-align: center;
-    font-size: 1rem;
-    font-weight: 400;
-    margin-bottom: 32px;
-    border: 1px solid var(--charcoal);
-    letter-spacing: 0.02em;
+    font-size: var(--text-base);
+    margin-bottom: var(--space-6);
+    border: 1px solid var(--ink);
+    letter-spacing: var(--tracking-normal);
 }
 
 .briefing-title {
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 8px;
-    font-size: 0.9rem;
+    letter-spacing: var(--tracking-wider);
+    margin-bottom: var(--space-2);
+    font-size: var(--text-sm);
 }
 
-/* Content Container and Cards */
 .dashboard-grid {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--space-5);
 }
 
-.card {
-    background: var(--white);
-    border: 1px solid var(--charcoal);
-    padding: 24px;
-    break-inside: avoid;
-}
-
-.card-header {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--charcoal);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    border-bottom: 1px solid var(--charcoal);
-    padding-bottom: 8px;
-    margin-bottom: 16px;
-    font-family: var(--header-font);
-}
-
-.card-content {
-    font-size: 0.95rem;
-    line-height: 1.7;
-}
-
-.card-content p {
-    margin-bottom: 12px;
-    text-align: justify;
-}
-
-.card-content p:last-child {
-    margin-bottom: 0;
-}
-
-.card-content ul, .card-content ol {
-    padding-left: 24px;
-    margin-bottom: 12px;
-}
-
-.card-content ul:last-child, .card-content ol:last-child {
-    margin-bottom: 0;
-}
-
-.card-content li {
-    margin-bottom: 8px;
-}
-
-.card-content li:last-child {
-    margin-bottom: 0;
-}
-
-.card-content strong {
-    font-weight: 600;
-    color: var(--black);
-}
-
-.card-content em {
-    font-style: italic;
-}
-
-/* Schedule items */
 .schedule-item {
-    padding: 16px 0;
-    border-bottom: 1px solid var(--pale-gray);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--rule);
 }
 
 .schedule-item:last-child {
     border-bottom: none;
+    padding-bottom: 0;
 }
 
 .schedule-time {
     font-weight: 600;
-    color: var(--medium-gray);
-    font-size: 0.9rem;
-    margin-bottom: 6px;
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-1);
 }
 
 .schedule-title {
     font-weight: 500;
-    font-size: 1rem;
-    margin-bottom: 6px;
+    font-size: var(--text-base);
+    margin-bottom: var(--space-1);
 }
 
 .schedule-notes {
-    color: var(--medium-gray);
-    font-size: 0.9rem;
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
     font-style: italic;
-    line-height: 1.5;
 }
 
-/* Featured schedule card */
-.card--featured {
-    border: 1px solid var(--charcoal);
-}
-
-/* STEM Concept of the Day card */
 .stem-field {
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-size: 0.75rem;
+    letter-spacing: var(--tracking-wider);
+    font-size: var(--text-xs);
     font-weight: 600;
-    color: var(--medium-gray);
-    margin-bottom: 4px;
+    color: var(--ink-muted);
+    margin-bottom: var(--space-1);
 }
 
 .stem-title {
-    font-family: var(--header-font);
-    font-size: 1.2rem;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
     font-weight: 600;
-    color: var(--black);
-    margin-bottom: 10px;
+    color: var(--ink-strong);
+    margin-bottom: var(--space-2);
 }
 
 .stem-activities {
@@ -630,8 +1029,8 @@ footer a:hover {
 }
 
 .stem-activities li {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--pale-gray);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
 }
 
 .stem-activities li:last-child {
@@ -642,288 +1041,57 @@ footer a:hover {
 .stem-audience {
     display: inline-block;
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: var(--text-xs);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--medium-gray);
-    margin-right: 6px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--ink-muted);
+    margin-right: var(--space-1);
 }
-/** End Dashboard Page Styles **/
 
-/**Todo Page Styles**/
+/* ---- Tasks ---- */
+/* Checking a task off is the primary gesture on this page, so the hit area is
+   a full target square even though the control itself stays small. */
 .todo-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--target-min);
+    min-height: var(--target-min);
     flex-shrink: 0;
-    padding-top: 2px;
-}
-
-.todo-checkbox input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    border: 1px solid var(--charcoal);
-}
-
-.todo-meta {
-    font-size: 0.8rem;
-    color: var(--light-gray);
-    letter-spacing: 0.05em;
 }
 
 .todo-due-date {
-    font-size: 0.85rem;
-    color: var(--medium-gray);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
     font-weight: 500;
-    letter-spacing: 0.02em;
-    margin-top: 4px;
+    letter-spacing: var(--tracking-normal);
+    margin-top: var(--space-1);
 }
 
 .todo-due-date.overdue {
-    color: var(--charcoal);
+    color: var(--ink);
     font-weight: 600;
 }
 
-.todo-completed-date {
-    font-size: 0.85rem;
-    color: var(--light-gray);
-    letter-spacing: 0.02em;
+.todo-completed-date,
+.shopping-completed-at {
+    font-size: var(--text-sm);
+    color: var(--ink-subtle);
+    letter-spacing: var(--tracking-normal);
     font-style: italic;
-    margin-top: 4px;
-}
-
-/* Toggle between a page and its archive — current tasks and completed tasks,
-   the shopping list and purchased items. Sits directly above the toolbar, in
-   the same spot on both pages of a pair. */
-.view-switch {
-    display: inline-block;
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    color: var(--medium-gray);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    margin-top: 4px;
-}
-
-.view-switch:hover {
-    color: var(--charcoal);
-}
-
-/* A quiet, one-line explanation under a view-switch link — used where a page
-   would otherwise silently withhold something, e.g. the 30-day retention on
-   the purchased items archive. */
-.page-note {
-    font-family: var(--body-font);
-    font-size: 0.85rem;
-    color: var(--medium-gray);
-    font-style: italic;
-    margin-top: 8px;
-}
-
-.load-more-container {
-    display: flex;
-    justify-content: center;
-    margin-top: 24px;
-}
-
-.btn-load-more {
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    padding: 8px 24px;
-    border: 1px solid var(--pale-gray);
-    background: var(--white);
-    color: var(--charcoal);
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: border-color 0.15s, background 0.15s;
-}
-
-.btn-load-more:hover:not(:disabled) {
-    border-color: var(--medium-gray);
-    background: var(--off-white);
-}
-
-.btn-load-more:disabled {
-    color: var(--light-gray);
-    cursor: default;
-}
-
-
-.filter-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 32px;
-    margin-bottom: 32px;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--pale-gray);
-}
-
-.toolbar-group {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.toolbar-group label {
-    font-family: var(--header-font);
-    font-size: 1.05rem;
-    font-weight: 400;
-    color: var(--charcoal);
-    white-space: nowrap;
-}
-
-.toolbar-group select {
-    -webkit-appearance: none;
-    appearance: none;
-    box-sizing: border-box;
-    min-height: 2.25rem;
-    color: var(--charcoal);
-    padding: 4px 28px 4px 10px;
-    border: 1px solid var(--pale-gray);
-    border-radius: 0;
-    background: var(--white);
-    font-family: var(--body-font);
-    font-size: 1rem;
-    cursor: pointer;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-}
-.filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 8px;
-}
-
-.filter-chip {
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    padding: 4px 14px;
-    border: 1px solid var(--pale-gray);
-    border-radius: 20px;
-    background: var(--white);
-    color: var(--charcoal);
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-    white-space: nowrap;
-}
-
-.filter-chip:hover {
-    border-color: var(--medium-gray);
-}
-
-.filter-chip:focus {
-    outline: none;
-    border-color: var(--pale-gray);
-}
-
-.filter-chip.active {
-    background: var(--charcoal);
-    color: var(--white);
-    border-color: var(--charcoal);
-}
-
-.filter-chip.active:focus {
-    outline: none;
-    border-color: var(--charcoal);
-}
-
-.filter-clear {
-    font-family: var(--body-font);
-    font-size: 0.85rem;
-    padding: 4px 10px;
-    border: none;
-    background: none;
-    color: var(--medium-gray);
-    cursor: pointer;
-    white-space: nowrap;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.filter-clear:hover {
-    color: var(--charcoal);
-}
-
-.filter-clear:focus {
-    outline: none;
-    color: var(--medium-gray);
-}
-
-/* Keyword search: its own full-width row at the bottom of the toolbar, below
-   both the assignee filters and the sort control. */
-.toolbar-search {
-    flex-basis: 100%;
-}
-
-.search-input {
-    box-sizing: border-box;
-    min-height: 2.25rem;
-    min-width: 240px;
-    padding: 4px 10px;
-    border: 1px solid var(--pale-gray);
-    border-radius: 0;
-    background: var(--white);
-    font-family: var(--body-font);
-    font-size: 1rem;
-    color: var(--charcoal);
-}
-
-.search-input:focus {
-    outline: none;
-    border-color: var(--medium-gray);
-}
-
-.search-btn {
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    padding: 8px 24px;
-    border: 1px solid var(--pale-gray);
-    background: var(--white);
-    color: var(--charcoal);
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: border-color 0.15s, background 0.15s;
-}
-
-.search-btn:hover:not(:disabled) {
-    border-color: var(--medium-gray);
-}
-
-.search-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Deemphasized match count, shown only while a search is active. Sits on its
-   own row below the search bar and above the toolbar's bottom divider. */
-.search-results-count {
-    flex-basis: 100%;
-    font-family: var(--body-font);
-    font-size: 0.85rem;
-    color: var(--medium-gray);
-    font-style: italic;
-}
-
-.header-actions {
-    display: flex;
-    gap: 12px;
+    margin-top: var(--space-1);
 }
 
 .todo-recurring-icon {
     flex-shrink: 0;
-    font-size: 1.1rem;
-    color: var(--medium-gray);
-    padding-top: 2px;
+    font-size: var(--text-base);
+    color: var(--ink-muted);
 }
 
 .recurring-indicator {
-    font-size: 0.85rem;
-    color: var(--light-gray);
-    margin-left: 4px;
+    font-size: var(--text-sm);
+    color: var(--ink-subtle);
+    margin-left: var(--space-1);
 }
 
 .recurring-template {
@@ -931,43 +1099,33 @@ footer a:hover {
 }
 
 .recurring-schedule {
-    font-size: 0.85rem;
-    color: var(--medium-gray);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
     font-style: italic;
-    margin-top: 2px;
 }
 
 .recurring-meta {
-    font-size: 0.8rem;
-    color: var(--light-gray);
-    margin-left: 6px;
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    margin-left: var(--space-1);
 }
 
 .recurring-paused {
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--light-gray);
-    margin-left: 8px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--ink-subtle);
+    margin-left: var(--space-2);
 }
-/**End Todo Page Styles**/
 
-/** Shopping List Styles **/
-/* Anchor for the autocomplete dropdown, which is absolutely positioned against
-   it. Lives in the item modal, so it must not establish any clipping of its own. */
+/* ---- Shopping ---- */
 .autocomplete-wrap {
     position: relative;
 }
 
-/* Autocomplete dropdown. A native <datalist> is nearly free but cannot render
-   the two-part name/store row or the per-row dismiss affordance, and store
-   affinity is the main thing that makes this worth building.
-
-   The height cap is load-bearing: .modal-body is a scroll box, so the menu is
-   clipped by it rather than spilling down the page. 240px leaves the menu room
-   to open fully inside the modal body, and highlightSuggestion()'s
-   scrollIntoView({ block: 'nearest' }) handles keyboard nav within it. */
+/* The height cap is load-bearing: .modal-body is a scroll box, so the menu is
+   clipped by it rather than spilling down the page. */
 .autocomplete-menu {
     position: absolute;
     top: 100%;
@@ -975,10 +1133,10 @@ footer a:hover {
     right: 0;
     z-index: 20;
     margin-top: -1px;
-    max-height: 240px;
+    max-height: 15rem;
     overflow-y: auto;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
+    border: 1px solid var(--ink);
+    background: var(--surface);
     display: none;
 }
 
@@ -988,11 +1146,12 @@ footer a:hover {
 
 .autocomplete-option {
     display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 8px 10px;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--target-min);
+    padding: var(--space-2) var(--space-3);
     cursor: pointer;
-    border-bottom: 1px solid var(--silver);
+    border-bottom: 1px solid var(--rule-subtle);
 }
 
 .autocomplete-option:last-child {
@@ -1001,20 +1160,19 @@ footer a:hover {
 
 .autocomplete-option.active,
 .autocomplete-option:hover {
-    background: var(--off-white);
+    background: var(--surface-sunken);
 }
 
 .autocomplete-name {
     flex: 1;
     min-width: 0;
-    font-size: 1rem;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .autocomplete-store {
     font-style: italic;
-    font-size: 0.85rem;
-    color: var(--medium-gray);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
     white-space: nowrap;
 }
 
@@ -1022,16 +1180,16 @@ footer a:hover {
     flex-shrink: 0;
     border: none;
     background: none;
-    color: var(--light-gray);
-    font-family: var(--body-font);
-    font-size: 1rem;
+    color: var(--ink-subtle);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
     line-height: 1;
-    padding: 2px 4px;
+    padding: var(--space-1) var(--space-2);
     cursor: pointer;
 }
 
 .autocomplete-dismiss:hover {
-    color: var(--charcoal);
+    color: var(--ink);
 }
 
 /* Store group heading: the identity carrier, since stores have no colour —
@@ -1039,8 +1197,8 @@ footer a:hover {
 .shopping-group-header {
     display: flex;
     align-items: baseline;
-    gap: 12px;
-    margin: 32px 0 12px;
+    gap: var(--space-3);
+    margin: var(--space-6) 0 var(--space-3);
 }
 
 .shopping-group-header:first-child {
@@ -1048,471 +1206,173 @@ footer a:hover {
 }
 
 .shopping-group-name {
-    font-family: var(--header-font);
-    font-size: 1rem;
+    font-family: var(--font-display);
+    font-size: var(--text-base);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--tracking-wider);
     white-space: nowrap;
 }
 
 .shopping-group-rule {
     flex: 1;
-    border-bottom: 1px solid var(--pale-gray);
+    border-bottom: 1px solid var(--rule);
 }
 
 .shopping-group-count {
-    font-size: 0.8rem;
-    letter-spacing: 0.05em;
-    color: var(--light-gray);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    color: var(--ink-subtle);
     white-space: nowrap;
-}
-
-.shopping-completed-at {
-    font-size: 0.85rem;
-    color: var(--light-gray);
-    letter-spacing: 0.02em;
-    font-style: italic;
-    margin-top: 4px;
-}
-
-/* Stands in for the chip row on a fresh database, so store management
-   introduces itself from the toolbar it already lives in. */
-.filter-hint {
-    font-family: var(--body-font);
-    font-size: 0.85rem;
-    color: var(--medium-gray);
-    font-style: italic;
 }
 
 .store-manage-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--silver);
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule-subtle);
 }
 
 .store-manage-row input[type="text"] {
     appearance: none;
-    box-sizing: border-box;
     flex: 1;
     min-width: 0;
-    min-height: 2.5rem;
-    padding: 8px 10px;
-    border: 1px solid var(--pale-gray);
-    background: var(--white);
-    color: var(--charcoal);
-    font-family: var(--body-font);
-    font-size: 1rem;
-}
-/** End Shopping List Styles **/
-
-/** Dinner Planner Styles **/
-.plan-card {
-    padding: 20px;
-    border: 1px solid var(--pale-gray);
-    background: var(--white);
-    transition: background 0.2s;
+    min-height: var(--target-min);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
 }
 
-.plan-card:hover {
-    background: var(--off-white);
-}
-
-.plan-date {
-    font-size: 0.85rem;
-    color: var(--medium-gray);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-}
-
-.plan-content {
-    font-size: 1rem;
-    margin-bottom: 12px;
-    line-height: 1.6;
-}
-
-.plan-actions {
-    display: flex;
-    gap: 12px;
-}
-
-.plan-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 10px;
-}
-
-.plan-meta {
-    font-size: 0.85rem;
-    color: var(--medium-gray);
-    font-style: italic;
-}
-
-.checkbox-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 4px;
-}
-
-.checkbox-label {
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    cursor: pointer;
-    color: var(--charcoal);
-}
-
-.checkbox-label input[type="checkbox"] {
-    accent-color: var(--charcoal);
-}
-
-.form-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-/** End Dinner Planner Styles **/
-
-/** Nav Dropdown Styles **/
-.nav-dropdown {
-    display: inline-block;
-    position: relative;
-    margin: 0 8px;
-}
-
-.nav-dropdown-btn {
-    color: var(--charcoal);
-    text-decoration: none;
-    padding: 8px 16px;
-    border: 1px solid var(--charcoal);
-    display: inline-block;
-    transition: background 0.2s;
-    font-size: 0.9rem;
-    letter-spacing: 0.05em;
-    font-family: var(--body-font);
-    cursor: pointer;
-    background: var(--white);
-    line-height: inherit;
-}
-
-.nav-dropdown-btn::after {
-    content: "";
-    display: inline-block;
-    margin-left: 6px;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid var(--charcoal);
-    vertical-align: middle;
-}
-
-.nav-dropdown-btn:hover,
-.nav-dropdown-btn.active {
-    background: var(--off-white);
-}
-
-.nav-dropdown-btn.active {
-    background: var(--charcoal);
-    color: var(--white);
-}
-
-.nav-dropdown-content {
-    display: none;
-    position: absolute;
-    left: 0;
-    top: 100%;
-    background: var(--white);
-    border: 1px solid var(--charcoal);
-    border-top: none;
-    min-width: 180px;
-    z-index: 100;
-}
-
-.nav-dropdown-content a {
-    display: block;
-    padding: 8px 16px;
-    color: var(--charcoal);
-    text-decoration: none;
-    font-size: 0.9rem;
-    letter-spacing: 0.05em;
-    border: none;
-    margin: 0;
-    transition: background 0.15s;
-}
-
-.nav-dropdown-content a:hover {
-    background: var(--off-white);
-}
-
-.nav-dropdown-content a.active {
-    background: var(--charcoal);
-    color: var(--white);
-}
-
-/* Click toggle (mobile) */
-.nav-dropdown.open .nav-dropdown-content {
-    display: block;
-}
-
-/* Desktop: show on hover */
-@media (min-width: 768px) {
-    .nav-dropdown:hover .nav-dropdown-content {
-        display: block;
-    }
-}
-
-/* Mobile layout: stack nav vertically */
-@media screen and (max-width: 767px) {
-    nav {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        align-items: stretch;
-    }
-
-    nav > a {
-        margin: 0;
-    }
-
-    .nav-dropdown {
-        margin: 0;
-        width: 100%;
-        text-align: center;
-    }
-
-    .nav-dropdown-btn {
-        width: 100%;
-    }
-
-    .nav-dropdown-content {
-        position: static;
-        border: 1px solid var(--charcoal);
-        border-top: none;
-        margin-top: -1px;
-    }
-}
-/** End Nav Dropdown Styles **/
-
-/** Star Rating Styles **/
-.star-rating {
+/* ---- Meal history ---- */
+.star-rating,
+.star-rating-input {
     display: inline-flex;
-    gap: 2px;
+    gap: var(--space-1);
+    user-select: none;
+}
+
+.star-rating {
     cursor: default;
 }
 
-.star-rating .star {
-    font-size: 1.1rem;
-    color: var(--pale-gray);
-    user-select: none;
-}
-
-.star-rating .star.filled {
-    color: var(--charcoal);
-}
-
-/* Interactive star rating (for review modal) */
 .star-rating-input {
-    display: inline-flex;
-    gap: 4px;
     cursor: pointer;
 }
 
+.star-rating .star,
 .star-rating-input .star {
-    font-size: 1.4rem;
-    color: var(--pale-gray);
+    color: var(--rule);
     transition: color 0.1s;
-    user-select: none;
 }
 
+.star-rating .star { font-size: var(--text-base); }
+.star-rating-input .star { font-size: var(--text-lg); }
+
+.star-rating .star.filled,
 .star-rating-input .star.filled {
-    color: var(--charcoal);
+    color: var(--ink);
 }
 
 .star-rating-input .star.hover {
-    color: var(--medium-gray);
+    color: var(--ink-muted);
 }
-/** End Star Rating Styles **/
 
-/** Meal History Styles **/
 .history-card {
-    padding: 16px;
-    border: 1px solid var(--pale-gray);
-    background: var(--white);
+    padding: var(--space-4);
+    border: 1px solid var(--rule);
+    background: var(--surface);
     transition: background 0.2s;
 }
 
 .history-card:hover {
-    background: var(--off-white);
+    background: var(--surface-sunken);
 }
 
 .history-card-header {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 8px;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-4);
+    margin-bottom: var(--space-2);
 }
 
 .history-card-title {
-    font-size: 1rem;
+    font-size: var(--text-base);
     font-weight: 500;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
-.history-card-date {
-    font-size: 0.85rem;
-    color: var(--medium-gray);
-    letter-spacing: 0.05em;
+/* The date label on a list row. Shared by Meal Planner and Meal History:
+   they had two class names for one idea, and the planner's went unstyled the
+   moment its page-specific block was retired. */
+.meta-date {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    letter-spacing: var(--tracking-wide);
     text-transform: uppercase;
     flex-shrink: 0;
 }
 
-.history-card-meta {
-    font-size: 0.9rem;
-    color: var(--medium-gray);
-    font-style: italic;
-    margin-bottom: 8px;
-}
-
 .history-card-review {
-    font-size: 0.95rem;
-    color: var(--dark-gray);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
     font-style: italic;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--silver);
-    line-height: 1.6;
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--rule-subtle);
 }
 
 .history-card-rating-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    margin-top: 6px;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
 }
 
 .no-review-text {
-    font-size: 0.85rem;
-    color: var(--light-gray);
+    font-size: var(--text-sm);
+    color: var(--ink-subtle);
     font-style: italic;
 }
-/** End Meal History Styles **/
 
-/** Custom Recurrence Styles **/
-.custom-recurrence-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.weekday-checkboxes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 4px;
-}
-
-.weekday-label {
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    color: var(--charcoal);
-    padding: 4px 8px;
-    border: 1px solid var(--light-gray);
-    background: var(--white);
-    user-select: none;
-}
-
-.weekday-label input[type="checkbox"],
-.weekday-label input[type="radio"] {
-    accent-color: var(--charcoal);
-    margin: 0;
-}
-
-/* A vertical list of plain (borderless) radio options — used for the custom
-   recurrence anchor and the monthly "day vs. weekday" mode selectors. */
-.radio-options {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 6px;
-}
-
-.radio-options label {
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    color: var(--charcoal);
-    user-select: none;
-}
-
-.radio-options input[type="radio"] {
-    accent-color: var(--charcoal);
-    margin: 0;
-}
-/** End Custom Recurrence Styles **/
-
-/** Settings Page Styles **/
-.settings-actions {
-    margin-top: 24px;
-}
-
-.settings-status {
-    display: inline-block;
-    margin-left: 12px;
-    font-size: 0.85rem;
-    font-style: italic;
-    color: var(--medium-gray);
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.settings-status.visible {
-    opacity: 1;
-}
-
-.llm-fields-local, .llm-fields-anthropic {
+/* ---- Settings ---- */
+.llm-fields-local,
+.llm-fields-anthropic {
     display: none;
 }
 
-.llm-fields-local.active, .llm-fields-anthropic.active {
+.llm-fields-local.active,
+.llm-fields-anthropic.active {
     display: block;
 }
 
-/* Family Member Badge */
-.member-badge {
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-    margin-top: 2px;
+.ai-field-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
 }
 
-/* Verification Modal */
 .verify-status {
     text-align: center;
-    padding: 32px 0 8px;
+    padding: var(--space-6) 0 var(--space-2);
 }
 
 .verify-spinner {
-    width: 28px;
-    height: 28px;
-    border: 2px solid var(--silver);
-    border-top-color: var(--charcoal);
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 2px solid var(--rule-subtle);
+    border-top-color: var(--ink);
     border-radius: 50%;
     animation: verify-spin 0.8s linear infinite;
-    margin: 0 auto 20px;
+    margin: 0 auto var(--space-5);
 }
 
 @keyframes verify-spin {
@@ -1520,204 +1380,179 @@ footer a:hover {
 }
 
 .verify-icon {
-    font-size: 1.6rem;
-    margin-bottom: 12px;
-    color: var(--charcoal);
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-3);
+    color: var(--ink);
     font-weight: 600;
 }
 
 .verify-message {
-    font-family: var(--body-font);
-    font-size: 1rem;
-    color: var(--dark-gray);
+    font-size: var(--text-base);
+    color: var(--ink-muted);
     font-style: italic;
 }
 
 .verify-detail {
-    font-family: var(--body-font);
-    font-size: 0.85rem;
-    color: var(--medium-gray);
-    margin-top: 12px;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    margin-top: var(--space-3);
     word-break: break-word;
-    max-height: 120px;
+    max-height: 7.5rem;
     overflow-y: auto;
 }
 
-/* AI Settings Version History */
-.ai-field-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 10px;
-}
-
-.btn-ghost {
-    border: none;
-    background: transparent;
-    color: var(--medium-gray);
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    letter-spacing: 0.02em;
-    text-decoration: underline;
-    cursor: pointer;
-    padding: 10px 8px;
-    transition: color 0.2s;
-}
-
-.btn-ghost:hover {
-    color: var(--charcoal);
-}
-
+/* No max-height or overflow of its own: .modal-body is the scroll box now, and
+   a second one nested inside it would trap the wheel. */
 .history-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    max-height: 55vh;
-    overflow-y: auto;
+    gap: var(--space-3);
 }
 
 .history-item {
-    border: 1px solid var(--pale-gray);
-    padding: 12px 16px;
+    border: 1px solid var(--rule);
+    padding: var(--space-3) var(--space-4);
     cursor: pointer;
     transition: border-color 0.2s;
 }
 
 .history-item.selected {
-    border-color: var(--charcoal);
+    border-color: var(--ink);
 }
 
 .history-item-header {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-2);
 }
 
 .history-radio {
-    color: var(--charcoal);
+    color: var(--ink);
     flex-shrink: 0;
 }
 
 .history-timestamp {
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    color: var(--charcoal);
+    font-size: var(--text-sm);
+    color: var(--ink);
 }
 
 .history-current-badge {
-    border: 1px solid var(--charcoal);
-    padding: 2px 8px;
-    font-family: var(--body-font);
-    font-size: 0.7rem;
+    border: 1px solid var(--ink);
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--charcoal);
+    letter-spacing: var(--tracking-wider);
+    color: var(--ink);
 }
 
 .history-value-toggle {
     border: none;
     background: transparent;
-    color: var(--medium-gray);
-    font-family: var(--body-font);
-    font-size: 0.85rem;
+    color: var(--ink-muted);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
     cursor: pointer;
-    padding: 6px 0 0 26px;
-    transition: color 0.2s;
+    padding: var(--space-1) 0 0 var(--space-6);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 .history-value-toggle:hover {
-    color: var(--charcoal);
+    color: var(--ink);
 }
 
 .history-value {
-    margin: 8px 0 0 26px;
-    padding: 12px;
-    border: 1px solid var(--pale-gray);
-    background: var(--off-white);
-    font-family: var(--body-font);
-    font-size: 0.9rem;
-    color: var(--charcoal);
+    margin: var(--space-2) 0 0 var(--space-6);
+    padding: var(--space-3);
+    border: 1px solid var(--rule);
+    background: var(--surface-sunken);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--ink);
     white-space: pre-wrap;
     word-break: break-word;
 }
 
-/** End Settings Page Styles **/
-
-/** Responsive Design **/
-/* Desktop */
-@media screen and (min-width: 1024px) {
-    body {
-        padding: 64px 48px;
-        max-width: 900px;
-    }
-
-    .header h1 {
-        font-size: 3.5rem;
-    }
+/* Inline literals in help text. Without this they fall back to the browser's
+   monospace default, a third font family the design never chose. */
+code {
+    font-family: var(--font-body);
+    font-style: normal;
+    background: var(--surface-sunken);
+    padding: 0 var(--space-1);
+    border: 1px solid var(--rule-subtle);
 }
 
-/* Tablet */
-@media screen and (min-width: 768px) and (max-width: 1023px) {
-    body {
-        padding: 48px 40px;
-        max-width: 750px;
-    }
-
-    .header h1 {
-        font-size: 2.5rem;
-    }
-}
-
-/* Mobile */
+/** ============================================================
+    6. Responsive and print
+    ============================================================ */
 @media screen and (max-width: 767px) {
-    body {
-        padding: 24px 16px;
-    }
-
+    /* Density: the wordmark and a four-item stacked nav used to consume the
+       whole first screen, so no page showed content above the fold. */
     .header h1 {
-        font-size: 3rem;
-        letter-spacing: 0.1em;
+        font-size: var(--text-xl);
+        letter-spacing: var(--tracking-wider);
     }
 
-    .greeting {
-        font-size: 1rem;
+    .header {
+        padding-bottom: var(--space-4);
+        margin-bottom: var(--space-4);
+    }
+
+    nav {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        margin-bottom: var(--space-4);
+        padding-bottom: var(--space-4);
+    }
+
+    .nav-dropdown {
+        display: flex;
+    }
+
+    .nav-dropdown-btn {
+        width: 100%;
+    }
+
+    /* Tighter block rhythm on a phone. The generous desktop spacing is what
+       pushed the first row of every list below the fold. */
+    .stack > * + * {
+        margin-top: var(--space-5);
+    }
+
+    .toolbar {
+        gap: var(--space-3);
     }
 
     .briefing {
-        font-size: 0.95rem;
-        padding: 16px 20px;
+        padding: var(--space-4) var(--space-5);
     }
 
     .card {
-        padding: 20px;
+        padding: var(--space-4);
     }
 
-    .card-content {
-        text-align: left;
-    }
-
-    .card-content p {
-        text-align: left;
-    }
-
-    .header-actions {
-        gap: 8px;
+    .container-empty-state,
+    .container-loading-state {
+        padding: var(--space-6) var(--space-4);
     }
 }
 
-/* Print styles */
 @media print {
     body {
-        background: white;
+        background: var(--surface);
         padding: 0;
+        max-width: none;
     }
 
-    .header h1 {
-        font-size: 2.5rem;
+    nav,
+    .page-header-actions,
+    .toolbar,
+    footer {
+        display: none;
     }
 
     .card {
         page-break-inside: avoid;
     }
 }
-/** End Responsive Design **/

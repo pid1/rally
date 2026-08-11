@@ -26,6 +26,11 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
 ]
+# Design-system regression tests. Kept out of `dev` so the ordinary test run
+# needs no browser download; tests/visual skips itself when this is absent.
+visual = [
+    "playwright>=1.48",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

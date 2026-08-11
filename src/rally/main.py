@@ -119,3 +119,16 @@ def meal_planner_redirect():
 def settings_page(request: Request):
     """Serve the settings page."""
     return templates.TemplateResponse("settings.html", {"request": request})
+
+
+@app.get("/styleguide", response_class=HTMLResponse)
+def styleguide_page(request: Request):
+    """Serve the design system reference.
+
+    Renders every component and state from the real stylesheet, so the
+    documentation cannot drift from the code the way a written spec would. It
+    is unlinked from the nav — a reference for whoever is changing the CSS, not
+    a page the family visits — but it ships, because a styleguide that only
+    exists in development stops matching what production actually looks like.
+    """
+    return templates.TemplateResponse("styleguide.html", {"request": request})

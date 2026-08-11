@@ -29,25 +29,29 @@
         </div>
     </nav>
 
-    <div class="section-container">
-        <div class="header-container">
-            <h2>Meal Planner</h2>
-            <div class="header-actions">
-                <button class="btn-add" id="btn-add-meal">Add Meal</button>
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Meal Planner</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-meal">Add Meal</button>
+                </div>
             </div>
-        </div>
+        </header>
 
         <!-- Filter toolbar (filters first; this page has no sort control) -->
-        <div class="filter-toolbar">
+        <div class="toolbar">
             <div class="toolbar-group">
-                <label>Meal Type</label>
-                <div class="filter-chips" id="meal-type-filters">
+                <span class="toolbar-label" id="meal-type-label">Meal Type</span>
+                <div class="filter-chips" id="meal-type-filters" role="group" aria-labelledby="meal-type-label">
                     <button type="button" class="filter-chip" data-meal="Breakfast">Breakfast</button>
                     <button type="button" class="filter-chip" data-meal="Lunch">Lunch</button>
                     <button type="button" class="filter-chip" data-meal="Dinner">Dinner</button>
                     <button type="button" class="filter-chip" data-meal="Snacks">Snacks</button>
                 </div>
-                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
+            </div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
             </div>
         </div>
 
@@ -59,6 +63,7 @@
     <!-- Shared meal add/edit modal (see templates/_meal_edit_modal.html) -->
     {% include "_meal_edit_modal.html" %}
 
+    <script src="/static/modal.js?v={{ css_version }}"></script>
     <script src="/static/meal_edit_modal.js?v={{ css_version }}"></script>
     <script>
         // State
@@ -181,10 +186,10 @@
                         <div class="editable-item-content">
                             <div class="editable-item-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
                             ${metaHtml}
-                            <div class="plan-date">${escapeHtml(formatDate(plan.date))}</div>
+                            <div class="meta-date">${escapeHtml(formatDate(plan.date))}</div>
                         </div>
                         <div class="editable-item-actions">
-                            <button class="btn-edit" onclick="openEditModal(${plan.id})">Edit</button>
+                            <button class="btn btn--sm" onclick="openEditModal(${plan.id})">Edit</button>
                         </div>
                     </div>
                 `;

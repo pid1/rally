@@ -1,10 +1,12 @@
-# Visual design system: audit and remediation plan
+# Visual design system: audit and implementation
 
-**Status:** proposed. Nothing in this document is implemented yet.
+**Status:** implemented. The audit below is what was found; the sections after
+it are the system that was built in response, and the tests that hold it in
+place.
 
 Rally's look is deliberate — an editorial, monochrome, serif command center that
 reads well on a wall tablet and prints cleanly. That identity is not in
-question here and this plan does not change it.
+question here and this work did not change it.
 
 What is in question is *consistency*. Every page was built by hand against a
 single 1,723-line stylesheet with no shared vocabulary, so the same idea is
@@ -12,8 +14,8 @@ expressed a slightly different way on each page. Individually the differences
 are small. Together they are why the app feels assembled rather than designed,
 and why every new page costs more than the last one.
 
-This document is the audit, the design system proposed to fix it, and the
-staged plan to get there.
+This document is the audit, the design system built to fix it, and the
+enforcement that keeps it from drifting back.
 
 ## How this was measured
 
@@ -33,7 +35,10 @@ the audit becomes a regression test rather than a one-time cleanup.
 
 ## Findings
 
-Grouped by cause, not by page. Each finding names the evidence.
+Grouped by cause, not by page. This is the state before the rebuild; each
+finding names the evidence, and each is closed by the system described after
+it. The measurements are quoted throughout so the fixes can be checked against
+something specific.
 
 ### A. Page frame and vertical rhythm
 
@@ -245,143 +250,182 @@ Meal Planner now renders `.editable-item`. Also unused: `.assignee-badge`,
 global rule and a shopping-only rule sit at the same level, so there is no
 signal about blast radius when editing.
 
-## The proposed system
+## The system, as built
 
-Five layers, smallest first. Each is independently useful.
+Five layers, smallest first. `static/styles.css` is now organised in exactly
+this order, so a rule's position tells you its blast radius.
 
-### 1. Tokens — `static/tokens.css`
+### 1. Tokens
 
-Raw greys stay as private primitives; everything else references roles.
+Raw greys stay as private primitives; everything else references a role. Every
+token override — the responsive page padding, the touch target — lives in this
+layer too, so the scales have one home.
 
-```
+```css
 /* space — one 4px-based scale, replacing 18 ad hoc values */
---space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
---space-5: 24px;  --space-6: 32px;  --space-7: 48px;  --space-8: 64px;
+--space-1: 0.25rem;  --space-2: 0.5rem;   --space-3: 0.75rem;  --space-4: 1rem;
+--space-5: 1.5rem;   --space-6: 2rem;     --space-7: 3rem;     --space-8: 4rem;
 
-/* type — six steps, replacing 17 sizes */
---text-xs: 0.75rem;  --text-sm: 0.875rem;  --text-base: 1rem;
---text-lg: 1.125rem; --text-xl: 1.5rem;    --text-display: 3rem;
+/* type — six steps, replacing 17 declared sizes */
+--text-xs: 0.75rem;  --text-sm: 0.875rem; --text-base: 1rem;
+--text-lg: 1.25rem;  --text-xl: 1.5rem;   --text-display: 3rem;
 
 /* colour by role, not appearance */
 --ink: #1a1a1a;          /* primary text, strong rules   */
 --ink-muted: #666666;    /* secondary text — 5.74:1      */
 --ink-subtle: #767676;   /* tertiary text — 4.54:1       */
+--ink-strong: #000000;   /* emphasis inside body copy    */
 --rule: #cccccc;         /* hairlines — never text       */
 --rule-subtle: #e5e5e5;
 --surface: #ffffff;
 --surface-sunken: #f5f5f5;
 --inverse: #ffffff;      /* text on --ink                */
+
+--target-min: 2.25rem;   /* 2.75rem under (pointer: coarse) and below 768px */
 ```
 
-The one substantive colour change: `--ink-subtle` (#767676) replaces
-`--light-gray` (#999999) wherever it carries text, clearing WCAG AA at 4.54:1.
-#999 survives only as a non-text hairline/disabled affordance.
+The one substantive colour change: `--ink-subtle` (#767676) replaced
+`--light-gray` (#999999) everywhere it carried text, clearing WCAG AA at
+4.54:1. #999 no longer exists.
 
-Rule to enforce: **no token used for text may fall below 4.5:1 on `--surface`.**
+Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated
+uppercase sizes collapsed to three related ones (C6): `.shopping-group-name`
+at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
 
 ### 2. Layout primitives
 
-- `.page` — the single content column. One max-width in the whole app, ending
-  the A1 jog by construction.
-- `.page-header` — title, actions, optional view-switch and note as *one*
-  block with defined internal spacing. Collapses A2, A3 and A5 into one rule
-  and makes Dashboard and Settings conform.
-- `.stack` — vertical rhythm via `> * + *`, so block spacing comes from one
-  place instead of per-component margins (A6).
-- `.toolbar` — see below.
+- **`.page`** — the content column. Width is owned by `body` alone; the second
+  `max-width` that put every desktop page 2px out of line with its own header
+  is gone (A1).
+- **`.page-header`** — title, actions, and any secondary links as *one* block
+  with defined internal spacing. The archive switch and retention note are now
+  inside it instead of being loose siblings with their own margins (A2, A3).
+  Dashboard and Settings use the same primitives; Settings gained a page-level
+  `h2` and its section headings became `h3` (A5).
+- **`.stack`** — vertical rhythm via `> * + *`. The space between blocks comes
+  from one declaration, tightened one step on mobile (A6).
 
-### 3. Component contracts
+### 3. Components
 
-Every component documents its states — default, hover, `:focus-visible`,
-active, disabled — and its minimum target size. The button family collapses
-from nine ad hoc classes (`.btn-add`, `.btn-primary`, `.btn-save`,
-`.btn-cancel`, `.btn-edit`, `.btn-delete`, `.btn-ghost`, `.btn-load-more`,
-`.filter-clear`) to four roles: **primary**, **secondary**, **quiet**,
-**destructive**, each in one size plus a `--sm` modifier. `.view-switch`
-becomes quiet-with-icon rather than its own thing.
+The button family collapsed from nine ad hoc classes (`.btn-add`,
+`.btn-primary`, `.btn-save`, `.btn-cancel`, `.btn-edit`, `.btn-delete`,
+`.btn-ghost`, `.btn-load-more`, `.filter-clear`) to `.btn` plus three
+modifiers: `--secondary`, `--quiet`, `--sm`. Save is now the same control
+everywhere it appears, including on Settings, where it used to be two different
+sizes on one page (D1).
 
-Also specified: chip, field, card, modal, list row, section header.
+Everything focusable shows a ring: one `:focus-visible` rule in the base layer,
+and no component may switch it off (E1). Hit areas are ≥44px wherever a finger
+is likely — keyed off `(pointer: coarse)` as well as width, because the wall
+tablet is a coarse pointer at desktop size (E2).
 
-### 4. Toolbar — the one deliberate shape change
+### 4. The toolbar
 
-- Label placement becomes explicit rather than emergent: **stacked above the
-  chips below 768px, inline at and above it**, using a grid rather than flex
-  wrapping. Chip count stops affecting layout (B1).
-- **"Clear Filters" gets a fixed slot** — the end of the toolbar, right-aligned
-  on desktop, full-width row on mobile — identical on every page (B2). It is
-  rendered by the toolbar itself, not placed by each template.
-- **"Manage stores" moves out of the filter bar** to a secondary action beside
-  the page title, where its consequence matches its position (B3).
+The one deliberate shape change.
+
+- Label placement is explicit — **stacked below 768px, inline at and above it**
+  — rather than emergent from flex wrapping. Chip count no longer affects
+  layout (B1).
+- The toolbar is **one grid**, not one grid per group: `display: contents`
+  promotes each group's label and control into it, so every label shares a
+  column and every control starts at the same x.
+- **"Clear Filters" has a fixed slot**, rendered by the toolbar as its last
+  block. It sits at an identical position on all six pages at every width (B2).
+- **"Manage stores" moved out of the filter bar** to the page header, where its
+  consequence matches its position (B3).
 
 ### 5. Documentation
 
-- `docs/design-system.md` — the tokens, the primitives, the component
-  contracts, and the rules ("text is never `--rule`", "targets are ≥44px",
-  "spacing comes from the scale").
-- A `/styleguide` route rendering every component and every state from the real
-  stylesheet, so the documentation cannot drift from the code.
+- This file — the tokens, the primitives, the rules.
+- **`/styleguide`** — every component and state, rendered from the real
+  stylesheet, reading its scales back out of the cascade so it cannot describe
+  a scale the CSS no longer has.
 
 ## Enforcement
 
-Playwright, in `tests/visual/`, run in CI as its own job (it needs
-`playwright install chromium`). Three layers, cheapest first:
+Two suites, cheapest first.
 
-1. **Geometry assertions** — the audit script generalised into tests. These
-   catch the class of bug this document is about, and unlike screenshots they
-   say *why* they failed:
-   - every top-level block shares a left edge, at every width;
-   - the label/chip relationship is identical across all pages at a given width;
-   - "Clear Filters" occupies the same slot on every page that has one;
-   - no interactive target under 44×44 at mobile width;
-   - no horizontal overflow at any width;
-   - the first content row is above the fold at 390×844.
-2. **Token linting** — walk the rendered DOM and fail on any computed
-   font-size, colour or spacing outside the token set. This is what stops the
-   17-font-size problem from growing back.
-3. **Screenshot baselines** — per page × {mobile, desktop}, small pixel
-   tolerance, refreshed deliberately in the PR that changes them. These are the
-   backstop for what geometry cannot express.
+**`tests/test_stylesheet.py`** — static, no browser, runs in the ordinary test
+job. Asserts that no selector is declared twice in the same context, that no
+rule suppresses the focus ring, and that colours, type sizes and spacing are
+taken from tokens rather than typed. It earned its place immediately: it caught
+a stale duplicate `.toolbar-search` rule that was silently overriding the new
+grid, and a second `:root` block in the same media query.
 
-## Delivery
+**`tests/visual/`** — the audit's measuring code turned into assertions, run in
+its own CI job against a real browser and a seeded database. Every test names
+the finding it protects against:
 
-Staged so each step is independently reviewable and shippable, and so the
-safety net exists before anything moves.
+| Test | Guards |
+|---|---|
+| page blocks share a left edge | A1 |
+| header is the same distance from the next block everywhere | A2, A3 |
+| content starts above the fold on a phone | A4 |
+| filter labels are placed by rule, not chip count | B1 |
+| Clear Filters occupies one fixed slot on every page | B2 |
+| type sizes come from the scale | C1 |
+| colours come from the palette | C4 |
+| text meets WCAG AA contrast | C5 |
+| every modal uses the shared chassis | D2 |
+| every control shows a focus ring | E1 |
+| touch targets meet 44px on a phone | E2 |
+| no horizontal overflow | — |
 
-| Step | Scope | Fixes |
+They are geometric rather than pixel-based on purpose: when one fails it says
+which rule broke and by how much, which a screenshot diff cannot. The suite
+skips itself when Playwright is absent, so `uv run pytest` stays fast and
+browser-free for anyone not working on the design system.
+
+To run it locally:
+
+```bash
+uv sync --group visual
+uv run playwright install chromium
+uv run pytest tests/visual -v
+```
+
+## What changed, measured
+
+| | Before | After |
 |---|---|---|
-| 0 | This document. No code. | — |
-| 1 | Playwright harness, CI job, geometry assertions and baselines of the **current** state | — |
-| 2 | Tokens + `/styleguide`; mechanical substitution. **No intended visual change** — baselines prove it | C1–C4, C6 |
-| 3 | Layout primitives: `.page`, `.page-header`, `.stack` | A1, A2, A3, A5, A6 |
-| 4 | Toolbar rebuild | B1–B5 |
-| 5 | Button/control consolidation, `:focus-visible`, 44px targets, contrast fix | C5, D1, E1–E4 |
-| 6 | Modal chassis unification | D2, D3 |
-| 7 | Density pass to reclaim the mobile fold | A4 |
-| 8 | Stylesheet split into layers, dead-rule removal | D4, F1–F3 |
-
-Step 1 lands before step 2 on purpose: the mechanical token substitution is
-exactly the kind of change that is safe *if* something is watching, and
-unreviewable if nothing is.
+| Distinct rendered font sizes | 11 | 6, all tokens |
+| Declared `font-size` values | 17 | 6 tokens |
+| Declared spacing values | 18 | 8 tokens |
+| Positions of "Clear Filters" across pages | 5 | 1 |
+| Label/chip placement rules | emergent, chip-count dependent | 1 per breakpoint |
+| Pages with content below the mobile fold | 4 of 8 | 0 of 8 |
+| Text below WCAG AA | 10 rules | 0 |
+| Controls with no focus ring | 4 | 0 |
+| Modals missing the scroll chassis | 6 of 11 | 0 |
+| Duplicate rule blocks | 4 | 0, enforced |
 
 ## Non-goals
 
 - **No redesign.** The serif, monochrome, editorial identity is the point of
-  Rally and does not change. Every finding here is about applying it
-  consistently.
+  Rally and did not change. Every change here applies it consistently.
 - **No CSS framework, no build step, no JS framework.** Plain CSS with custom
-  properties, matching how the app is written today.
-- **No dark mode now.** Role-based tokens make it possible later; shipping it
-  is not part of this.
-- **No behaviour changes** beyond the two deliberate ones called out in the
-  toolbar section.
+  properties, matching how the app is written.
+- **No dark mode.** Role-based tokens make it possible later; shipping it was
+  not part of this.
 
-## Open questions
+## Decisions taken
 
-1. **Density target for A4.** How aggressive should the mobile fold reclamation
-   be — tighten spacing only, or also shrink the wordmark and collapse the nav
-   into a compact row on small screens? The second reclaims far more but
-   touches the most recognisable part of the identity.
-2. **Should `/styleguide` ship in production**, or be gated to development?
-3. **Screenshot baselines in-repo?** They add roughly 2–4MB and some churn, but
-   they are the only check that catches purely visual regressions. Geometry
-   assertions and token linting alone would keep the repo lean.
+- **The density pass tightened spacing and the nav; it did not touch the
+  wordmark's identity.** On mobile the four stacked full-width nav buttons
+  became a 2×2 grid and the wordmark stepped down one size on the type scale.
+  That was enough to bring every page's first content row above the fold, so
+  nothing more aggressive was needed.
+- **`/styleguide` ships in production.** It is unlinked from the nav, and a
+  styleguide that only exists in development stops matching what production
+  looks like.
+- **No screenshot baselines in the repo.** The geometry assertions and the
+  stylesheet lint cover the failures worth catching, and they explain
+  themselves when they break. Baselines would add churn and a binary diff for
+  every intentional change.
+- **The verification dialog keeps a variant.** `.modal-content--narrow` with no
+  scroll wrapper: it has no title and no form, just a centred status block. The
+  test exempts titleless modals rather than pretending the variant does not
+  exist.
+- **`/dashboard` still has no `h2`.** The wordmark and today's date above it
+  are already the page title. It uses the same `.page`/`.stack` primitives as
+  everywhere else; only the redundant heading is omitted.

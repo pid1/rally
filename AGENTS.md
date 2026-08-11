@@ -292,6 +292,20 @@ uv run pytest
 test-generate
 ```
 
+The design-system regression suite needs a browser and is **not** part of the
+default run — `tests/visual/` skips itself when Playwright is absent, and CI
+runs it as a separate job. To run it locally:
+
+```bash
+uv sync --group visual
+uv run playwright install chromium
+uv run pytest tests/visual -v
+```
+
+Note that `uv sync --group visual` drops the editable `rally` install. Tests
+still work (pytest puts `src/` on the path), but a bare `uvicorn rally.main:app`
+will then need `PYTHONPATH=src`. Re-run plain `uv sync` to restore it.
+
 ### Starting Development Server
 
 **Interactive (for humans):**
@@ -537,7 +551,9 @@ rally/
 │       ├── family.py        # Family member CRUD API
 │       └── settings.py      # Settings and calendar management API
 ├── static/
-│   └── styles.css           # Application stylesheet
+│   ├── styles.css           # Application stylesheet (see the Design System section)
+│   ├── modal.js             # Shared modal chassis: scroll fade, show/hide
+│   └── meal_edit_modal.js   # Shared meal add/edit modal behaviour
 ├── templates/
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── todo.html            # Todo management page
@@ -682,8 +698,40 @@ rally/
   - Robust against server timezone settings
 - ✅ Environment mode detection (dev/production)
 - ✅ Elegant grayscale design with serif typography
-- ✅ Static CSS stylesheet (`static/styles.css`)
+- ✅ Static CSS stylesheet (`static/styles.css`), organised in token/base/primitive/component layers
+- ✅ Design system: tokens, layout primitives, one button family, one modal chassis (`docs/visual-design-system.md`, `/styleguide`)
+- ✅ Design-system regression tests: static stylesheet lint plus a Playwright suite (`tests/test_stylesheet.py`, `tests/visual/`)
 - ✅ uv-based dependency management
+
+## Design System
+
+`static/styles.css` is organised in layers — tokens, base, layout primitives,
+components, page-specific, responsive — in that order. A rule's position tells
+you its blast radius. Full rationale and the audit that produced it:
+`docs/visual-design-system.md`. Live reference: `/styleguide`.
+
+When touching the UI:
+
+- **Use tokens, never literals.** `var(--space-4)`, `var(--text-sm)`,
+  `var(--ink-muted)`. A raw px or hex in a component is a bug unless it is a
+  1px hairline. `tests/test_stylesheet.py` fails the build otherwise.
+- **Text is `--ink`, `--ink-muted` or `--ink-subtle`.** `--rule` and
+  `--rule-subtle` are hairlines and fail WCAG AA as text.
+- **Buttons are `.btn` plus `--secondary`, `--quiet`, `--sm`.** Do not add a
+  new button class; Save must look the same everywhere it appears.
+- **Never write `outline: none`.** One `:focus-visible` rule in the base layer
+  covers everything.
+- **Page structure is `.page.stack` > `.page-header` + `.toolbar` + content.**
+  Spacing between blocks comes from `.stack`, not from component margins.
+- **Toolbars own their reset slot.** `Clear Filters` goes in `.toolbar-reset`
+  as the toolbar's last child, never inside a `.toolbar-group`.
+- **Modals are `.modal-content > h3 + .modal-scroll > .modal-body`**, and the
+  page loads `/static/modal.js`.
+- **Hit areas are `var(--target-min)`**, which is 44px on coarse pointers and
+  narrow viewports.
+
+Run `uv run pytest tests/test_stylesheet.py` for the static checks, and the
+visual suite (above) before shipping a layout change.
 
 ## Application Routes
 
@@ -696,6 +744,7 @@ rally/
 - `/shopping/purchased` - Read-only page of items purchased before today (local time), grouped by store; reachable only via the `View purchased items` link on `/shopping`, not from the nav bar
 - `/dinner-planner` - Dinner planning page with date picker and plan management
 - `/settings` - Settings, family member, calendar, and followed-team management page
+- `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
 
 ### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot

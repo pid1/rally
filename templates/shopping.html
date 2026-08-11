@@ -29,22 +29,29 @@
         </div>
     </nav>
 
-    <div class="section-container">
-        <div class="header-container">
-            <h2>Shopping List</h2>
-            <div class="header-actions">
-                <button class="btn-add" id="btn-add-item">Add Item</button>
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Shopping List</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-item">Add Item</button>
+                </div>
             </div>
-        </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/shopping/purchased">View purchased items</a>
+                <!-- Store management is navigation, not a filter. It sat in the
+                     filter bar looking identical to Clear Filters, which resets. -->
+                <button type="button" class="btn btn--quiet" id="btn-manage-stores">Manage stores</button>
+            </div>
+        </header>
 
-        <a class="view-switch" href="/shopping/purchased">View purchased items</a>
-
-        <div class="filter-toolbar">
+        <div class="toolbar">
             <div class="toolbar-group">
-                <label>Store</label>
-                <div class="filter-chips" id="filter-store-chips"></div>
-                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
-                <button type="button" class="filter-clear" id="btn-manage-stores">Manage stores</button>
+                <span class="toolbar-label" id="store-label">Store</span>
+                <div class="filter-chips" id="filter-store-chips" role="group" aria-labelledby="store-label"></div>
+            </div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
             </div>
         </div>
 
@@ -83,9 +90,9 @@
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="item-form" class="btn-primary">Save</button>
-                    <button type="button" class="btn-cancel" id="btn-cancel-item">Cancel</button>
-                    <button type="button" class="btn-delete modal-delete" id="btn-delete-item" style="display:none">Delete</button>
+                    <button type="submit" form="item-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
+                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
                 </div>
             </div>
             </div>
@@ -102,12 +109,12 @@
                     <label>Add a store</label>
                     <div class="store-manage-row">
                         <input type="text" id="store-add-name" placeholder="Store name" required>
-                        <button type="submit" class="btn-edit">Add</button>
+                        <button type="submit" class="btn btn--sm">Add</button>
                     </div>
                 </form>
                 <div id="store-manage-list"></div>
                 <div class="modal-actions">
-                    <button type="button" class="btn-cancel" id="btn-close-stores">Done</button>
+                    <button type="button" class="btn btn--secondary" id="btn-close-stores">Done</button>
                 </div>
             </div>
             </div>
@@ -332,7 +339,7 @@
                         ${completedHtml}
                     </div>
                     <div class="editable-item-actions">
-                        <button class="btn-edit" onclick="openEditModal(${item.id})">Edit</button>
+                        <button class="btn btn--sm" onclick="openEditModal(${item.id})">Edit</button>
                     </div>
                 </div>
             `;
@@ -606,8 +613,8 @@
             list.innerHTML = stores.map(s => `
                 <div class="store-manage-row" data-id="${s.id}">
                     <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
-                    <button type="button" class="btn-edit" data-action="rename">Rename</button>
-                    <button type="button" class="btn-delete" data-action="delete">Delete</button>
+                    <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
+                    <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
                 </div>
             `).join('');
         }
@@ -695,25 +702,6 @@
 
         document.getElementById('filter-clear').addEventListener('click', clearFilters);
 
-        // Show a modal and compute its fade state once it's laid out.
-        function showModalOverlay(overlayId) {
-            const overlay = document.getElementById(overlayId);
-            overlay.style.display = 'flex';
-            const scroll = overlay.querySelector('.modal-scroll');
-            if (scroll) requestAnimationFrame(() => updateModalFade(scroll));
-        }
-
-        function updateModalFade(scroll) {
-            const body = scroll.querySelector('.modal-body');
-            const maxScroll = body.scrollHeight - body.clientHeight;
-            scroll.toggleAttribute('data-overflow-top', body.scrollTop > 1);
-            scroll.toggleAttribute('data-overflow-bottom', body.scrollTop < maxScroll - 1);
-        }
-        document.querySelectorAll('.modal-scroll').forEach(scroll => {
-            const body = scroll.querySelector('.modal-body');
-            body.addEventListener('scroll', () => updateModalFade(scroll));
-        });
-
         // ── Initialize ──
         fetchStores().then(fetchItems);
 
@@ -736,5 +724,6 @@
     <footer>
         <a href="/settings">Settings</a>
     </footer>
+    <script src="/static/modal.js?v={{ css_version }}"></script>
 </body>
 </html>
