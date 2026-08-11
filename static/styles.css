@@ -690,9 +690,10 @@ footer a:hover {
     margin-top: 4px;
 }
 
-/* Toggle between the current tasks page and the completed tasks page.
-   Sits directly above the toolbar, in the same spot on both pages. */
-.todo-view-switch {
+/* Toggle between a page and its archive — current tasks and completed tasks,
+   the shopping list and purchased items. Sits directly above the toolbar, in
+   the same spot on both pages of a pair. */
+.view-switch {
     display: inline-block;
     font-family: var(--body-font);
     font-size: 0.9rem;
@@ -702,8 +703,19 @@ footer a:hover {
     margin-top: 4px;
 }
 
-.todo-view-switch:hover {
+.view-switch:hover {
     color: var(--charcoal);
+}
+
+/* A quiet, one-line explanation under a view-switch link — used where a page
+   would otherwise silently withhold something, e.g. the 30-day retention on
+   the purchased items archive. */
+.page-note {
+    font-family: var(--body-font);
+    font-size: 0.85rem;
+    color: var(--medium-gray);
+    font-style: italic;
+    margin-top: 8px;
 }
 
 .load-more-container {
@@ -942,55 +954,20 @@ footer a:hover {
 /**End Todo Page Styles**/
 
 /** Shopping List Styles **/
-/* Quick add: a persistent inline row, not a modal — a modal per item is too
-   much friction for the burst-entry flow a grocery list is built in. */
-.shopping-quick-add {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
-.shopping-quick-add .autocomplete-wrap {
+/* Anchor for the autocomplete dropdown, which is absolutely positioned against
+   it. Lives in the item modal, so it must not establish any clipping of its own. */
+.autocomplete-wrap {
     position: relative;
-    flex: 1 1 240px;
-    min-width: 0;
-}
-
-.shopping-quick-add input[type="text"] {
-    appearance: none;
-    box-sizing: border-box;
-    width: 100%;
-    min-height: 2.75rem;
-    padding: 10px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-    color: var(--charcoal);
-    font-family: var(--body-font);
-    font-size: 1rem;
-}
-
-.shopping-quick-add select {
-    appearance: none;
-    box-sizing: border-box;
-    min-height: 2.75rem;
-    flex: 0 1 180px;
-    padding: 10px 32px 10px 10px;
-    border: 1px solid var(--charcoal);
-    background: var(--white);
-    color: var(--charcoal);
-    font-family: var(--body-font);
-    font-size: 1rem;
-    cursor: pointer;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
 }
 
 /* Autocomplete dropdown. A native <datalist> is nearly free but cannot render
    the two-part name/store row or the per-row dismiss affordance, and store
-   affinity is the main thing that makes this worth building. */
+   affinity is the main thing that makes this worth building.
+
+   The height cap is load-bearing: .modal-body is a scroll box, so the menu is
+   clipped by it rather than spilling down the page. 240px leaves the menu room
+   to open fully inside the modal body, and highlightSuggestion()'s
+   scrollIntoView({ block: 'nearest' }) handles keyboard nav within it. */
 .autocomplete-menu {
     position: absolute;
     top: 100%;
@@ -998,7 +975,7 @@ footer a:hover {
     right: 0;
     z-index: 20;
     margin-top: -1px;
-    max-height: 280px;
+    max-height: 240px;
     overflow-y: auto;
     border: 1px solid var(--charcoal);
     background: var(--white);
@@ -1099,23 +1076,13 @@ footer a:hover {
     margin-top: 4px;
 }
 
-/* Inline "Show purchased" toggle. Unlike Tasks there is no separate archive
-   page: the 30-day purge keeps the set small enough to need no sorting,
-   searching or pagination, which is exactly what /todo/completed exists for. */
-.shopping-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9rem;
+/* Stands in for the chip row on a fresh database, so store management
+   introduces itself from the toolbar it already lives in. */
+.filter-hint {
+    font-family: var(--body-font);
+    font-size: 0.85rem;
     color: var(--medium-gray);
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.shopping-toggle input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
+    font-style: italic;
 }
 
 .store-manage-row {

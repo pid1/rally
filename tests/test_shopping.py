@@ -450,3 +450,102 @@ def test_deleting_a_suggestion_leaves_shopping_items_alone(
 
 def test_deleting_a_missing_suggestion_is_404(client):
     assert client.delete("/api/shopping/suggestions/999").status_code == 404
+
+
+# --- Purchased archive ---------------------------------------------------------
+#
+# The exact complement of the default `/api/shopping/items` listing: what that
+# endpoint hides, this one shows, with nothing falling through the gap.
+
+
+def test_purchased_lists_items_bought_before_today(
+    client, make_shopping_item, frozen_now, local_timezone
+):
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item("Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+
+    assert item_names(client.get("/api/shopping/purchased").json()) == ["Coffee beans"]
+
+
+def test_purchased_excludes_items_bought_today(
+    client, make_shopping_item, frozen_now, local_timezone
+):
+    """Bought today, so it is still on the shopping list — not yet in the archive."""
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item("Coffee beans", completed=True, completed_at=AFTER_LOCAL_MIDNIGHT)
+
+    assert client.get("/api/shopping/purchased").json() == []
+
+
+def test_purchased_includes_completed_rows_with_no_timestamp(
+    client, make_shopping_item, frozen_now, local_timezone
+):
+    """The complement guarantee: `/items` hides these, so `/purchased` must show
+    them or they are invisible in the entire application."""
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item("Ancient milk", completed=True, completed_at=None)
+
+    assert client.get("/api/shopping/items").json() == []
+    assert item_names(client.get("/api/shopping/purchased").json()) == ["Ancient milk"]
+
+
+def test_purchased_excludes_open_items(client, make_shopping_item, frozen_now, local_timezone):
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item("Milk")
+    make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+
+    assert item_names(client.get("/api/shopping/purchased").json()) == ["Eggs"]
+
+
+def test_purchased_orders_most_recent_first(client, make_shopping_item, frozen_now, local_timezone):
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item(
+        "Older", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT - timedelta(days=2)
+    )
+    make_shopping_item("Newer", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+
+    assert item_names(client.get("/api/shopping/purchased").json()) == ["Newer", "Older"]
+
+
+def test_purchased_search_matches_name_and_note(
+    client, make_shopping_item, frozen_now, local_timezone
+):
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Bread", note="the good EGGY loaf", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
+    make_shopping_item("Milk", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+
+    matches = client.get("/api/shopping/purchased", params={"search": "egg"}).json()
+    assert sorted(item_names(matches)) == ["Bread", "Eggs"]
+
+
+def test_purchased_search_with_no_match_is_empty(
+    client, make_shopping_item, frozen_now, local_timezone
+):
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+
+    assert client.get("/api/shopping/purchased", params={"search": "zzz"}).json() == []
+
+
+def test_purchased_is_independent_of_include_hidden(
+    client, make_shopping_item, frozen_now, local_timezone
+):
+    """The two endpoints answer different questions; neither changes the other."""
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item("Milk")
+    make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+
+    client.get("/api/shopping/items", params={"include_hidden": "true"})
+    assert item_names(client.get("/api/shopping/purchased").json()) == ["Eggs"]
+    assert item_names(client.get("/api/shopping/items").json()) == ["Milk"]

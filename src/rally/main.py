@@ -91,6 +91,12 @@ def shopping_page(request: Request):
     return templates.TemplateResponse("shopping.html", {"request": request})
 
 
+@app.get("/shopping/purchased", response_class=HTMLResponse)
+def shopping_purchased_page(request: Request):
+    """Serve the read-only page of previously purchased shopping items."""
+    return templates.TemplateResponse("shopping_purchased.html", {"request": request})
+
+
 @app.get("/dinner-planner", response_class=HTMLResponse)
 def dinner_planner_page(request: Request):
     """Serve the meal planner page."""

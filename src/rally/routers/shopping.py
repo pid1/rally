@@ -4,7 +4,8 @@ Three tables back this feature, and the split between them is deliberate:
 
 * ``shopping_items`` is the live list. Completed items stay visible until local
   midnight (identical to Tasks) and are deleted outright once they are more than
-  ``PURCHASED_RETENTION_DAYS`` old, so "Show purchased" never grows unbounded.
+  ``PURCHASED_RETENTION_DAYS`` old, so ``/shopping/purchased`` never grows
+  unbounded.
 * ``shopping_item_history`` is a permanent, deduplicated vocabulary with a use
   counter. It powers autocomplete and deliberately outlives the purge — which is
   precisely what makes deleting purchased rows safe.
@@ -14,7 +15,7 @@ Three tables back this feature, and the split between them is deliberate:
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import case, func
+from sqlalchemy import case, func, nullslast, or_
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
@@ -224,8 +225,12 @@ def list_items(
 ):
     """List shopping items, hiding items completed before today by default.
 
-    ``include_hidden=true`` is the "Show purchased" view, bounded by the
-    retention purge that runs (at most once per local day) from here.
+    ``include_hidden=true`` returns open and purchased items mixed in one list —
+    a "show me everything" escape hatch for scripted clients, with no caller in
+    the UI. The archive view is `GET /api/shopping/purchased`, which is the
+    exact complement of the default listing rather than a superset of it.
+
+    Bounded by the retention purge that runs (at most once per local day) here.
     """
     purge_old_purchased_items(db)
 
@@ -237,6 +242,42 @@ def list_items(
         )
 
     return query.order_by(ShoppingItem.completed.asc(), ShoppingItem.created_at.desc()).all()
+
+
+@router.get("/purchased", response_model=list[ShoppingItemResponse])
+def list_purchased_items(
+    search: str | None = Query(
+        None, description="Case-insensitive keyword matched against name and note."
+    ),
+    db: Session = Depends(get_db),
+):
+    """List items purchased before today (local time), most recent first.
+
+    An item purchased *today* stays on the shopping list and appears here only
+    once the local date rolls over — the same split `/api/todos/completed`
+    makes. Read-only: nothing here can be edited, restored or deleted.
+
+    No sort, limit or offset: ``PURCHASED_RETENTION_DAYS`` bounds the window, so
+    the whole archive fits in one response. Pagination is the right first
+    addition if that retention ever lengthens.
+    """
+    purge_old_purchased_items(db)
+
+    cutoff = today_start_utc(db)
+    query = db.query(ShoppingItem).filter(
+        ShoppingItem.completed == True,  # noqa: E712
+        # A purchased item with no completed_at is already hidden from the
+        # shopping list, so it belongs here rather than falling through the gap
+        # between the two views — the same guarantee `list_completed_todos`
+        # makes. The complement has to actually be the complement.
+        (ShoppingItem.completed_at < cutoff) | (ShoppingItem.completed_at.is_(None)),
+    )
+
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.filter(or_(ShoppingItem.name.ilike(term), ShoppingItem.note.ilike(term)))
+
+    return query.order_by(nullslast(ShoppingItem.completed_at.desc()), ShoppingItem.id.desc()).all()
 
 
 @router.post("/items", response_model=ShoppingItemResponse, status_code=201)

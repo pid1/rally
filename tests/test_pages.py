@@ -5,7 +5,15 @@ import pytest
 
 @pytest.mark.parametrize(
     "path",
-    ["/todo", "/todo/completed", "/shopping", "/dinner-planner", "/meal-history", "/settings"],
+    [
+        "/todo",
+        "/todo/completed",
+        "/shopping",
+        "/shopping/purchased",
+        "/dinner-planner",
+        "/meal-history",
+        "/settings",
+    ],
 )
 def test_page_renders_html(client, path):
     resp = client.get(path)
@@ -20,6 +28,7 @@ def test_page_renders_html(client, path):
         "/todo",
         "/todo/completed",
         "/shopping",
+        "/shopping/purchased",
         "/dinner-planner",
         "/meal-history",
         "/settings",
