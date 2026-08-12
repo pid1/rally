@@ -622,9 +622,11 @@ nav a.active,
     letter-spacing: var(--tracking-normal);
 }
 
-.form-group input[type="text"],
-.form-group input[type="password"],
-.form-group input[type="date"],
+/* Every text-like field in a form group, by exclusion rather than by listing
+   the types that exist today. Enumerating them meant a field of a type nobody
+   had used yet — the first `type="number"` — rendered at the browser default,
+   unstyled and 19px tall, until the visual suite caught it. */
+.form-group input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .form-group textarea,
 .form-group select,
 .remind-days-input {
