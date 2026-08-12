@@ -29,16 +29,18 @@
         </div>
     </nav>
 
-    <div class="section-container">
-        <div class="header-container">
-            <h2>Meal History</h2>
-        </div>
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Meal History</h2>
+            </div>
+        </header>
 
-        <!-- Filter/sort toolbar (filters first, sort last) -->
-        <div class="filter-toolbar">
+        <!-- Filter/sort toolbar (filters first, sort last, reset in its own slot) -->
+        <div class="toolbar">
             <div class="toolbar-group">
-                <label>Meal Type</label>
-                <div class="filter-chips" id="meal-type-filters">
+                <span class="toolbar-label" id="meal-type-label">Meal Type</span>
+                <div class="filter-chips" id="meal-type-filters" role="group" aria-labelledby="meal-type-label">
                     <button type="button" class="filter-chip" data-meal="Breakfast">Breakfast</button>
                     <button type="button" class="filter-chip" data-meal="Lunch">Lunch</button>
                     <button type="button" class="filter-chip" data-meal="Dinner">Dinner</button>
@@ -46,21 +48,23 @@
                 </div>
             </div>
             <div class="toolbar-group">
-                <label>Rating</label>
-                <div class="filter-chips" id="rating-filters">
+                <span class="toolbar-label" id="rating-label">Rating</span>
+                <div class="filter-chips" id="rating-filters" role="group" aria-labelledby="rating-label">
                     <button type="button" class="filter-chip" data-min="5">5 Stars</button>
                     <button type="button" class="filter-chip" data-min="4">4+ Stars</button>
                     <button type="button" class="filter-chip" data-min="3">3+ Stars</button>
                 </div>
-                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
             </div>
             <div class="toolbar-group">
-                <label>Sort</label>
-                <select id="sort-select">
+                <label class="toolbar-label" for="sort-select">Sort</label>
+                <select id="sort-select" class="select toolbar-control">
                     <option value="rating_desc">Highest Rated</option>
                     <option value="date_desc">Most Recent</option>
                     <option value="date_asc">Oldest First</option>
                 </select>
+            </div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
             </div>
         </div>
 
@@ -73,6 +77,8 @@
     <div class="modal-overlay" id="review-modal-overlay">
         <div class="modal-content">
             <h3 id="review-modal-title">Add Review</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
             <form id="review-form">
                 <input type="hidden" id="review-plan-id">
                 <div class="form-group">
@@ -90,16 +96,19 @@
                     <textarea id="review-text" placeholder="How was this meal?" rows="4"></textarea>
                 </div>
                 <div class="modal-actions">
-                    <button type="submit" class="btn-primary">Save Review</button>
-                    <button type="button" class="btn-cancel" id="btn-cancel-review">Cancel</button>
+                    <button type="submit" class="btn">Save Review</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-review">Cancel</button>
                 </div>
             </form>
+            </div>
+            </div>
         </div>
     </div>
 
     <!-- Shared meal add/edit modal (see templates/_meal_edit_modal.html) -->
     {% include "_meal_edit_modal.html" %}
 
+    <script src="/static/modal.js?v={{ css_version }}"></script>
     <script src="/static/meal_edit_modal.js?v={{ css_version }}"></script>
     <script>
         // State
@@ -213,15 +222,15 @@
 
                 const ratingRow = `<div class="history-card-rating-row">
                     ${renderStars(plan.rating)}
-                    <button class="btn-edit" onclick="openReviewModal(${plan.id})">${plan.rating ? 'Edit Review' : 'Add Review'}</button>
-                    <button class="btn-edit" onclick="openEditModal(${plan.id})">Edit</button>
+                    <button class="btn btn--sm" onclick="openReviewModal(${plan.id})">${plan.rating ? 'Edit Review' : 'Add Review'}</button>
+                    <button class="btn btn--sm" onclick="openEditModal(${plan.id})">Edit</button>
                 </div>`;
 
                 return `
                     <div class="history-card" data-id="${plan.id}">
                         <div class="history-card-header">
                             <div class="history-card-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
-                            <div class="history-card-date">${escapeHtml(formatDate(plan.date))}</div>
+                            <div class="meta-date">${escapeHtml(formatDate(plan.date))}</div>
                         </div>
                         ${ratingRow}
                         ${reviewHtml}
@@ -351,7 +360,7 @@
             currentMinRating = '';
             currentSort = 'rating_desc';
             document.getElementById('sort-select').value = currentSort;
-            document.querySelectorAll('.filter-toolbar .filter-chip').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.toolbar .filter-chip').forEach(c => c.classList.remove('active'));
             fetchHistory();
         });
 

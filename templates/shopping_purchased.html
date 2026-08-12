@@ -29,31 +29,37 @@
         </div>
     </nav>
 
-    <div class="section-container">
-        <div class="header-container">
-            <h2>Shopping List</h2>
-        </div>
-
-        <a class="view-switch" href="/shopping">Back to shopping list</a>
-
-        <!-- Required, not decorative: without it the page silently loses history
-             and reads as broken next to the tasks archive, which keeps everything. -->
-        <div class="page-note">Purchased items are kept for 30 days.</div>
-
-        <div class="filter-toolbar">
-            <div class="toolbar-group">
-                <label>Store</label>
-                <div class="filter-chips" id="filter-store-chips"></div>
-                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Shopping List</h2>
             </div>
-            <div class="toolbar-group toolbar-search">
-                <label for="search-input">Search</label>
-                <input type="text" id="search-input" class="search-input"
-                       placeholder="Search purchased items" autocomplete="off">
-                <button type="button" class="search-btn" id="search-btn" disabled>Search</button>
-                <button type="button" class="filter-clear" id="search-clear">Clear Search</button>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/shopping">Back to shopping list</a>
+                <!-- Required, not decorative: without it the page silently loses
+                     history and reads as broken next to the tasks archive. -->
+                <p class="page-note">Purchased items are kept for 30 days.</p>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="store-label">Store</span>
+                <div class="filter-chips" id="filter-store-chips" role="group" aria-labelledby="store-label"></div>
+            </div>
+            <div class="toolbar-search">
+                <label class="toolbar-label" for="search-input">Search</label>
+                <div class="toolbar-search-controls">
+                    <input type="text" id="search-input" class="search-input"
+                           placeholder="Search purchased items" autocomplete="off">
+                    <button type="button" class="btn btn--secondary" id="search-btn" disabled>Search</button>
+                    <button type="button" class="btn btn--quiet" id="search-clear">Clear Search</button>
+                </div>
             </div>
             <div class="search-results-count" id="search-results-count" hidden></div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
+            </div>
         </div>
 
         <div id="groups-container">

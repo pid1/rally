@@ -28,3 +28,26 @@ jobs:
 
       - name: Check formatting
         run: uv run ruff format --check .
+
+  # The design-system regression suite drives a real browser, so it needs a
+  # Chromium download and runs on its own. tests/visual skips itself in the job
+  # above, where Playwright is deliberately not installed.
+  visual:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --group visual
+
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run visual regression tests
+        run: uv run pytest tests/visual -v

@@ -29,33 +29,38 @@
         </div>
     </nav>
 
-    <div class="section-container">
-        <div class="header-container">
-            <h2>Tasks</h2>
-            <div class="header-actions">
-                <button class="btn-add" id="btn-add-task">Add Task</button>
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Tasks</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-task">Add Task</button>
+                </div>
             </div>
-        </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/todo/completed">View completed tasks</a>
+            </div>
+        </header>
 
-        <a class="view-switch" href="/todo/completed">View completed tasks</a>
-
-        <div class="filter-toolbar">
+        <div class="toolbar">
             <div class="toolbar-group">
-                <label>Assignee</label>
-                <div class="filter-chips" id="filter-assignee-chips">
+                <span class="toolbar-label" id="assignee-label">Assignee</span>
+                <div class="filter-chips" id="filter-assignee-chips" role="group" aria-labelledby="assignee-label">
                     <button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>
                 </div>
-                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
             </div>
             <div class="toolbar-group">
-                <label for="sort-by">Sort</label>
-                <select id="sort-by">
+                <label class="toolbar-label" for="sort-by">Sort</label>
+                <select id="sort-by" class="select toolbar-control">
                     <option value="due-soonest">Due Date (Soonest)</option>
                     <option value="due-furthest">Due Date (Furthest Out)</option>
                     <option value="assignee">Assignee</option>
                     <option value="newest">Newest First</option>
                     <option value="oldest">Oldest First</option>
                 </select>
+            </div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
             </div>
         </div>
 
@@ -64,13 +69,15 @@
         </div>
     </div>
 
-    <div class="section-container">
-        <div class="header-container">
-            <h2>Recurring Tasks</h2>
-            <div class="header-actions">
-                <button class="btn-add" id="btn-add-recurring">Add Recurring</button>
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Recurring Tasks</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-recurring">Add Recurring</button>
+                </div>
             </div>
-        </div>
+        </header>
 
         <div class="list-container" id="recurring-list-container">
             <div class="container-loading-state">Loading recurring tasks...</div>
@@ -199,9 +206,9 @@
                 </div>
             </form>
                 <div class="modal-actions">
-                    <button type="submit" form="recurring-form" class="btn-primary">Save</button>
-                    <button type="button" class="btn-cancel" id="btn-cancel-recurring">Cancel</button>
-                    <button type="button" class="btn-delete modal-delete" id="btn-delete-recurring" style="display:none" onclick="confirmDeleteRecurringFromModal()">Delete</button>
+                    <button type="submit" form="recurring-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-recurring">Cancel</button>
+                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-recurring" style="display:none" onclick="confirmDeleteRecurringFromModal()">Delete</button>
                 </div>
             </div>
             </div>
@@ -241,9 +248,9 @@
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="todo-form" class="btn-primary">Save</button>
-                    <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
-                    <button type="button" class="btn-delete modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
+                    <button type="submit" form="todo-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel">Cancel</button>
+                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
                 </div>
             </div>
             </div>
@@ -435,7 +442,7 @@
                                 ${dueDateHtml}
                             </div>
                             <div class="editable-item-actions">
-                                <button class="btn-edit" onclick="openEditModal(${todo.id})">Edit</button>
+                                <button class="btn btn--sm" onclick="openEditModal(${todo.id})">Edit</button>
                             </div>
                         </div>
                     `;
@@ -462,8 +469,8 @@
                                 <div class="recurring-schedule">Last completed: ${formatLastCompleted(rt.last_completed_at || rt.last_completed_date)}</div>
                             </div>
                             <div class="editable-item-actions">
-                                <button class="btn-edit" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
-                                <button class="btn-edit" onclick="openEditRecurringModal(${rt.id})">Edit</button>
+                                <button class="btn btn--sm" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
+                                <button class="btn btn--sm" onclick="openEditRecurringModal(${rt.id})">Edit</button>
                             </div>
                         </div>
                     `;
@@ -968,36 +975,6 @@
             }
         });
 
-        // Fade the top/bottom edges of a scrollable modal only when content is
-        // hidden in that direction, so the scrolled-to actions stay crisp.
-        function updateModalFade(scroll) {
-            const body = scroll.querySelector('.modal-body');
-            const maxScroll = body.scrollHeight - body.clientHeight;
-            scroll.toggleAttribute('data-overflow-top', body.scrollTop > 1);
-            scroll.toggleAttribute('data-overflow-bottom', body.scrollTop < maxScroll - 1);
-        }
-        document.querySelectorAll('.modal-scroll').forEach(scroll => {
-            const body = scroll.querySelector('.modal-body');
-            const refresh = () => updateModalFade(scroll);
-            body.addEventListener('scroll', refresh);
-            // Recompute when fields toggle the body's height (e.g. switching
-            // to custom recurrence). Field handlers run before this bubbles.
-            body.addEventListener('change', refresh);
-            // Backstop for size changes not driven by a change event.
-            if (window.ResizeObserver) {
-                const ro = new ResizeObserver(refresh);
-                Array.from(body.children).forEach(child => ro.observe(child));
-            }
-        });
-
-        // Show a modal and compute its fade state once it's laid out.
-        function showModalOverlay(overlayId) {
-            const overlay = document.getElementById(overlayId);
-            overlay.style.display = 'flex';
-            const scroll = overlay.querySelector('.modal-scroll');
-            if (scroll) requestAnimationFrame(() => updateModalFade(scroll));
-        }
-
         // Initialize
         fetchFamilyMembers().then(() => {
             fetchTodos();
@@ -1017,5 +994,6 @@
     <footer>
         <a href="/settings">Settings</a>
     </footer>
+    <script src="/static/modal.js?v={{ css_version }}"></script>
 </body>
 </html>

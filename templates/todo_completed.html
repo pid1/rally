@@ -29,24 +29,26 @@
         </div>
     </nav>
 
-    <div class="section-container">
-        <div class="header-container">
-            <h2>Tasks</h2>
-        </div>
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Tasks</h2>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/todo">Back to current tasks</a>
+            </div>
+        </header>
 
-        <a class="view-switch" href="/todo">Back to current tasks</a>
-
-        <div class="filter-toolbar">
+        <div class="toolbar">
             <div class="toolbar-group">
-                <label>Assignee</label>
-                <div class="filter-chips" id="filter-assignee-chips">
+                <span class="toolbar-label" id="assignee-label">Assignee</span>
+                <div class="filter-chips" id="filter-assignee-chips" role="group" aria-labelledby="assignee-label">
                     <button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>
                 </div>
-                <button type="button" class="filter-clear" id="filter-clear">Clear Filters</button>
             </div>
             <div class="toolbar-group">
-                <label for="sort-by">Sort</label>
-                <select id="sort-by">
+                <label class="toolbar-label" for="sort-by">Sort</label>
+                <select id="sort-by" class="select toolbar-control">
                     <option value="completed-newest">Completion Date (Most Recent)</option>
                     <option value="completed-oldest">Completion Date (Oldest)</option>
                     <option value="due-soonest">Due Date (Soonest)</option>
@@ -56,14 +58,19 @@
                     <option value="oldest">Oldest First</option>
                 </select>
             </div>
-            <div class="toolbar-group toolbar-search">
-                <label for="search-input">Search</label>
-                <input type="text" id="search-input" class="search-input"
-                       placeholder="Search completed tasks" autocomplete="off">
-                <button type="button" class="search-btn" id="search-btn" disabled>Search</button>
-                <button type="button" class="filter-clear" id="search-clear">Clear Search</button>
+            <div class="toolbar-search">
+                <label class="toolbar-label" for="search-input">Search</label>
+                <div class="toolbar-search-controls">
+                    <input type="text" id="search-input" class="search-input"
+                           placeholder="Search completed tasks" autocomplete="off">
+                    <button type="button" class="btn btn--secondary" id="search-btn" disabled>Search</button>
+                    <button type="button" class="btn btn--quiet" id="search-clear">Clear Search</button>
+                </div>
             </div>
             <div class="search-results-count" id="search-results-count" hidden></div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
+            </div>
         </div>
 
         <div class="list-container" id="list-container">
@@ -71,7 +78,7 @@
         </div>
 
         <div class="load-more-container" id="load-more-container" style="display:none;">
-            <button type="button" class="btn-load-more" id="btn-load-more">Load more</button>
+            <button type="button" class="btn btn--secondary" id="btn-load-more">Load more</button>
         </div>
     </div>
 

@@ -29,6 +29,10 @@
         </div>
     </nav>
 
+    <!-- The dashboard is the one page with no <h2>: the wordmark and today's
+         date above are already its title, so a second one would only repeat
+         them. It uses the same .page/.stack primitives as everywhere else. -->
+    <div class="page stack">
     <!-- Greeting -->
     <div class="greeting">{{greeting}}</div>
 
@@ -48,6 +52,7 @@
         </section>
 
         {{stem_section}}
+    </div>
     </div>
 
     <footer>

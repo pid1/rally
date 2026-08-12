@@ -110,7 +110,7 @@
             document.querySelectorAll('.attendee-cb').forEach(cb => cb.checked = false);
             document.getElementById('plan-cook').value = '';
             document.getElementById('btn-delete-plan').style.display = 'none';
-            this.overlay.style.display = 'flex';
+            showModalOverlay('modal-overlay');
         }
 
         openEdit(plan) {
@@ -129,7 +129,7 @@
             });
             document.getElementById('plan-cook').value = plan.cook_id || '';
             document.getElementById('btn-delete-plan').style.display = '';
-            this.overlay.style.display = 'flex';
+            showModalOverlay('modal-overlay');
         }
 
         close() {

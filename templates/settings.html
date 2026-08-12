@@ -29,11 +29,18 @@
         </div>
     </nav>
 
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Settings</h2>
+            </div>
+        </header>
+
     <!-- Family Members Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>Family Members</h2>
-            <button class="btn-add" id="btn-add-member">Add Member</button>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Family Members</h3>
+            <button class="btn" id="btn-add-member">Add Member</button>
         </div>
 
         <div class="list-container" id="family-list">
@@ -42,10 +49,10 @@
     </div>
 
     <!-- Calendars Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>Calendars</h2>
-            <button class="btn-add" id="btn-add-calendar">Add Calendar</button>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Calendars</h3>
+            <button class="btn" id="btn-add-calendar">Add Calendar</button>
         </div>
 
         <div class="list-container" id="calendar-list">
@@ -54,9 +61,9 @@
     </div>
 
     <!-- Weather Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>Weather</h2>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Weather</h3>
         </div>
         <form id="weather-form">
             <div class="form-group">
@@ -64,14 +71,14 @@
                 <input type="text" id="weather-nws-url" placeholder="https://forecast.weather.gov/MapClick.php?lat=33.085&lon=-97.0542&FcstType=dwml">
                 <small>Search your location at <a href="https://forecast.weather.gov" target="_blank">forecast.weather.gov</a>, then copy the page URL and append <code>&FcstType=dwml</code>.</small>
             </div>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="submit" class="btn">Save</button>
         </form>
     </div>
 
     <!-- LLM Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>LLM</h2>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>LLM</h3>
         </div>
         <form id="llm-form">
             <div class="form-group">
@@ -123,41 +130,41 @@
                 </div>
             </div>
             <div class="ai-field-actions">
-                <button type="submit" class="btn-save">Save</button>
-                <button type="button" class="btn-ghost" onclick="openHistoryModal('llm_config')">Version History</button>
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn btn--quiet" onclick="openHistoryModal('llm_config')">Version History</button>
             </div>
         </form>
     </div>
 
     <!-- AI Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>AI</h2>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>AI</h3>
         </div>
         <div id="ai-form">
             <div class="form-group">
                 <label>Family Context</label>
                 <textarea id="ai-family-context" rows="12" placeholder="Describe your family, routines, values, and scheduling preferences..."></textarea>
                 <div class="ai-field-actions">
-                    <button type="button" class="btn-save" onclick="saveAiField('family_context')">Save</button>
-                    <button type="button" class="btn-ghost" onclick="openHistoryModal('family_context')">Version History</button>
+                    <button type="button" class="btn" onclick="saveAiField('family_context')">Save</button>
+                    <button type="button" class="btn btn--quiet" onclick="openHistoryModal('family_context')">Version History</button>
                 </div>
             </div>
             <div class="form-group">
                 <label>Agent Voice</label>
                 <textarea id="ai-agent-voice" rows="8" placeholder="Describe the tone and personality for Rally's summaries..."></textarea>
                 <div class="ai-field-actions">
-                    <button type="button" class="btn-save" onclick="saveAiField('agent_voice')">Save</button>
-                    <button type="button" class="btn-ghost" onclick="openHistoryModal('agent_voice')">Version History</button>
+                    <button type="button" class="btn" onclick="saveAiField('agent_voice')">Save</button>
+                    <button type="button" class="btn btn--quiet" onclick="openHistoryModal('agent_voice')">Version History</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Meal Planner Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>Meal Planner</h2>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Meal Planner</h3>
         </div>
         <form id="meal-planner-form">
             <div class="form-group">
@@ -169,14 +176,14 @@
                     <option value="Snacks">Snacks</option>
                 </select>
             </div>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="submit" class="btn">Save</button>
         </form>
     </div>
 
     <!-- Learning Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>Learning</h2>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Learning</h3>
         </div>
         <form id="learning-form">
             <div class="form-group">
@@ -186,14 +193,14 @@
                 </label>
                 <small>Add a family-friendly STEM concept to the daily summary, with super-easy, age-appropriate ways to explore it during your day.</small>
             </div>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="submit" class="btn">Save</button>
         </form>
     </div>
 
     <!-- Shopping List Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>Shopping List</h2>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Shopping List</h3>
         </div>
         <form id="shopping-form">
             <div class="form-group">
@@ -203,15 +210,15 @@
                 </label>
                 <small>Adds your open shopping items, grouped by store, to The Briefing. Purchased items are never included.</small>
             </div>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="submit" class="btn">Save</button>
         </form>
     </div>
 
     <!-- Sports Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>Sports</h2>
-            <button class="btn-add" id="btn-add-team">Add Team</button>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Sports</h3>
+            <button class="btn" id="btn-add-team">Add Team</button>
         </div>
         <form id="sports-form">
             <div class="form-group">
@@ -221,7 +228,7 @@
                 </label>
                 <small>Adds tonight's games and races with their TV channel and radio station, plus notable events in the next two weeks. Notable events are announced once, not every morning.</small>
             </div>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="submit" class="btn">Save</button>
         </form>
 
         <div class="list-container" id="followed-team-list">
@@ -230,9 +237,9 @@
     </div>
 
     <!-- General Section -->
-    <div class="border-container">
-        <div class="header-container">
-            <h2>General</h2>
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>General</h3>
         </div>
         <form id="general-form">
             <div class="form-group">
@@ -241,14 +248,17 @@
                     <option value="">Select a timezone</option>
                 </select>
             </div>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="submit" class="btn">Save</button>
         </form>
+    </div>
     </div>
 
     <!-- Family Member Modal -->
     <div class="modal-overlay" id="member-modal-overlay">
         <div class="modal-content">
             <h3 id="member-modal-title">Add Family Member</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
             <form id="member-form">
                 <input type="hidden" id="member-id">
                 <div class="form-group">
@@ -257,9 +267,11 @@
                 </div>
 
                 <div class="modal-actions">
-                    <button type="submit" class="btn-primary">Save</button>
-                    <button type="button" class="btn-cancel" id="btn-cancel-member">Cancel</button>
-                </div>
+                    <button type="submit" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-member">Cancel</button>
+            </div>
+            </div>
+        </div>
             </form>
         </div>
     </div>
@@ -268,6 +280,8 @@
     <div class="modal-overlay" id="calendar-modal-overlay">
         <div class="modal-content">
             <h3 id="calendar-modal-title">Add Calendar</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
             <form id="calendar-form">
                 <input type="hidden" id="calendar-id">
                 <div class="form-group">
@@ -310,9 +324,11 @@
                     </div>
                 </div>
                 <div class="modal-actions">
-                    <button type="submit" class="btn-primary">Save</button>
-                    <button type="button" class="btn-cancel" id="btn-cancel-calendar">Cancel</button>
-                </div>
+                    <button type="submit" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-calendar">Cancel</button>
+            </div>
+            </div>
+        </div>
             </form>
         </div>
     </div>
@@ -321,6 +337,8 @@
     <div class="modal-overlay" id="team-modal-overlay">
         <div class="modal-content">
             <h3 id="team-modal-title">Add Team</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
             <form id="team-form">
                 <input type="hidden" id="team-id">
                 <div class="form-group">
@@ -357,9 +375,11 @@
                     </label>
                 </div>
                 <div class="modal-actions">
-                    <button type="submit" class="btn-primary">Save</button>
-                    <button type="button" class="btn-cancel" id="btn-cancel-team">Cancel</button>
-                </div>
+                    <button type="submit" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-team">Cancel</button>
+            </div>
+            </div>
+        </div>
             </form>
         </div>
     </div>
@@ -368,17 +388,24 @@
     <div class="modal-overlay" id="history-modal-overlay">
         <div class="modal-content">
             <h3 id="history-modal-title">Version History</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
             <div class="history-list" id="history-list"></div>
             <div class="modal-actions">
-                <button type="button" class="btn-primary" id="btn-change-version">Change Version</button>
-                <button type="button" class="btn-cancel" id="btn-cancel-history">Cancel</button>
+                <button type="button" class="btn" id="btn-change-version">Change Version</button>
+                <button type="button" class="btn btn--secondary" id="btn-cancel-history">Cancel</button>
             </div>
+            </div>
+        </div>
         </div>
     </div>
 
     <!-- Verification Modal -->
     <div class="modal-overlay" id="verify-modal-overlay">
-        <div class="modal-content" style="max-width: 360px;">
+        <!-- The one modal with no title and no form: a transient status dialog.
+             It keeps the chassis but not the scroll wrapper, because its whole
+             content is a single centred status block. -->
+        <div class="modal-content modal-content--narrow">
             <div id="verify-modal-body"></div>
         </div>
     </div>
@@ -468,8 +495,8 @@
                         <div class="editable-item-title">${escapeHtml(member.name)}</div>
                     </div>
                     <div class="editable-item-actions">
-                        <button class="btn-edit" onclick="openEditMemberModal(${member.id})">Edit</button>
-                        <button class="btn-delete" onclick="confirmDeleteMember(${member.id})">Delete</button>
+                        <button class="btn btn--sm" onclick="openEditMemberModal(${member.id})">Edit</button>
+                        <button class="btn btn--secondary btn--sm" onclick="confirmDeleteMember(${member.id})">Delete</button>
                     </div>
                 </div>
             `).join('');
@@ -594,8 +621,8 @@
                             ${descHtml}
                         </div>
                         <div class="editable-item-actions">
-                            <button class="btn-edit" onclick="openEditCalendarModal(${cal.id})">Edit</button>
-                            <button class="btn-delete" onclick="confirmDeleteCalendar(${cal.id})">Delete</button>
+                            <button class="btn btn--sm" onclick="openEditCalendarModal(${cal.id})">Edit</button>
+                            <button class="btn btn--secondary btn--sm" onclick="confirmDeleteCalendar(${cal.id})">Delete</button>
                         </div>
                     </div>
                 `;
@@ -987,7 +1014,7 @@
                 + '<div class="verify-detail">' + escapeHtml(errorMessage) + '</div>'
                 + '</div>'
                 + '<div class="modal-actions" style="justify-content: center; margin-top: 20px;">'
-                + '<button class="btn-cancel" onclick="closeVerifyModal()">Close</button>'
+                + '<button class="btn btn--secondary" onclick="closeVerifyModal()">Close</button>'
                 + '</div>';
         }
 
@@ -1045,9 +1072,9 @@
                             ${radio}
                         </div>
                         <div class="editable-item-actions">
-                            <button class="btn-edit" onclick="testFollowedTeam(${team.id})">Test</button>
-                            <button class="btn-edit" onclick="openEditTeamModal(${team.id})">Edit</button>
-                            <button class="btn-delete" onclick="confirmDeleteTeam(${team.id})">Delete</button>
+                            <button class="btn btn--sm" onclick="testFollowedTeam(${team.id})">Test</button>
+                            <button class="btn btn--sm" onclick="openEditTeamModal(${team.id})">Edit</button>
+                            <button class="btn btn--secondary btn--sm" onclick="confirmDeleteTeam(${team.id})">Delete</button>
                         </div>
                     </div>
                 `;
@@ -1450,5 +1477,6 @@
     <footer>
         <a href="/settings">Settings</a>
     </footer>
+    <script src="/static/modal.js?v={{ css_version }}"></script>
 </body>
 </html>
