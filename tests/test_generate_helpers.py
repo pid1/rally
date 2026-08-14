@@ -410,11 +410,11 @@ def test_fetch_calendars_ics(gen_db, frozen_now, mock_requests):
     _seed_calendar(gen_db, cal_type="ics")
     mock_requests.set_response(text=_ics("Soccer"), status_code=200)
 
-    cals = make_generator().fetch_calendars()
+    occurrences = make_generator().fetch_calendars()
 
-    assert len(cals) == 1
-    assert cals[0]["member"] == "Dad"
-    assert any(e["summary"] == "Soccer" for e in cals[0]["events"])
+    assert len(occurrences) == 1
+    assert occurrences[0].member == "Dad"
+    assert occurrences[0].title == "Soccer"
 
 
 def test_fetch_calendars_ics_skips_declined(gen_db, frozen_now, mock_requests):
@@ -439,10 +439,9 @@ def test_fetch_calendars_caldav_google(gen_db, frozen_now, mock_caldav):
     _seed_calendar(gen_db, cal_type="caldav_google", url="https://dav", username="u", password="p")
     mock_caldav.set_events([SimpleNamespace(data=_ics("Standup", dtstart="20260316T090000Z"))])
 
-    cals = make_generator().fetch_calendars()
+    occurrences = make_generator().fetch_calendars()
 
-    assert len(cals) == 1
-    assert any(e["summary"] == "Standup" for e in cals[0]["events"])
+    assert [o.title for o in occurrences] == ["Standup"]
 
 
 def test_fetch_calendars_caldav_apple(gen_db, frozen_now, mock_caldav):
@@ -450,10 +449,9 @@ def test_fetch_calendars_caldav_apple(gen_db, frozen_now, mock_caldav):
     _seed_calendar(gen_db, cal_type="caldav_apple", url="https://dav", username="u", password="p")
     mock_caldav.set_events([SimpleNamespace(data=_ics("Recital", dtstart="20260317T180000Z"))])
 
-    cals = make_generator().fetch_calendars()
+    occurrences = make_generator().fetch_calendars()
 
-    assert len(cals) == 1
-    assert any(e["summary"] == "Recital" for e in cals[0]["events"])
+    assert [o.title for o in occurrences] == ["Recital"]
 
 
 def test_fetch_calendars_empty_returns_empty(gen_db):
@@ -467,8 +465,8 @@ def test_fetch_calendars_config_fallback(gen_db, frozen_now, mock_requests):
     gen = make_generator()
     gen.config = {"calendars": {"Family": "https://cal.example/c.ics"}}
 
-    cals = gen.fetch_calendars()
+    occurrences = gen.fetch_calendars()
 
-    assert len(cals) == 1
-    assert cals[0]["name"] == "Family"
-    assert any(e["summary"] == "Cleanup" for e in cals[0]["events"])
+    assert len(occurrences) == 1
+    assert occurrences[0].calendar_label == "Family"
+    assert occurrences[0].title == "Cleanup"

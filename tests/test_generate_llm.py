@@ -6,13 +6,45 @@ provider branching in _call_llm and the prompt-assembly / JSON-parsing logic in
 generate_summary and evaluate_summary.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from rally.calendars import Occurrence
 from rally.generator.generate import LLM_MAX_TOKENS, LLMTruncatedError, SummaryGenerator
+
+
+def _occurrence(
+    title,
+    start,
+    *,
+    member=None,
+    attendees=None,
+    location="",
+    description="",
+    all_day=False,
+    hours=1,
+):
+    """A minimal ``Occurrence``, as the merge layer would hand one over."""
+    end = start + timedelta(hours=hours)
+    local = ZoneInfo("America/Chicago")
+    return Occurrence(
+        uid=f"uid-{title}",
+        source="ics",
+        title=title,
+        start=start,
+        end=end,
+        start_local_date=start.astimezone(local).date().isoformat(),
+        end_local_date=end.astimezone(local).date().isoformat(),
+        all_day=all_day,
+        member=member,
+        attendees=tuple(attendees) if attendees is not None else ((member,) if member else ()),
+        location=location,
+        description=description,
+    )
+
 
 
 def make_generator(tz: str = "UTC") -> SummaryGenerator:
@@ -394,43 +426,32 @@ def test_generate_summary_formats_calendar_events_into_prompt(frozen_now):
     frozen_now(FROZEN)
     gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.fetch_calendars = lambda: [
-        {
-            "name": "Dad Cal",
-            "member": "Dad",
-            "events": [
-                {
-                    "date": "2026-03-15",
-                    "time": "10:00 AM",
-                    "summary": "Soccer",
-                    "location": "Field",
-                    "description": "bring cleats",
-                }
-            ],
-        }
+        _occurrence(
+            "Soccer",
+            datetime(2026, 3, 15, 15, 0, tzinfo=UTC),
+            member="Dad",
+            location="Field",
+            description="bring cleats",
+        )
     ]
 
     gen.generate_summary()
 
     user_prompt = gen.client.last_kwargs["messages"][0]["content"]
-    assert "Dad Cal" in user_prompt
+    assert "Sunday, March 15" in user_prompt
     assert "Soccer" in user_prompt
     assert "at Field" in user_prompt
+    assert "[Dad]" in user_prompt
 
 
 def test_generate_summary_dedupes_and_annotates_shared_events(frozen_now):
     frozen_now(FROZEN)
     gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
-    shared = {
-        "date": "2026-03-15",
-        "time": "10:00 AM",
-        "summary": "Recital",
-        "location": "",
-        "description": "",
-    }
+    start = datetime(2026, 3, 15, 15, 0, tzinfo=UTC)
+    # The merge layer has already collapsed the three feeds into one
+    # occurrence carrying both named attendees.
     gen.fetch_calendars = lambda: [
-        {"name": "Mom Cal", "member": "Mom", "events": [dict(shared)]},
-        {"name": "Dad Cal", "member": "Dad", "events": [dict(shared)]},
-        {"name": "Nameless", "member": None, "events": [dict(shared)]},  # skipped in attendance
+        _occurrence("Recital", start, member="Mom", attendees=("Mom", "Dad"))
     ]
 
     gen.generate_summary()

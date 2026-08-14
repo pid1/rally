@@ -384,6 +384,49 @@ def test_llm_connection(db: Session = Depends(get_db)):
         return {"success": False, "error": str(e)}
 
 
+@router.post("/api/settings/test-pushover")
+def test_pushover_connection(db: Session = Depends(get_db)):
+    """Validate the install's Pushover application token.
+
+    Pushover has a dedicated validation endpoint, but it needs a user key as
+    well as a token, so the check sends a real message to the first family
+    member who has one. Without any configured key there is nothing to validate
+    against, and saying so is more useful than a green tick that proves
+    nothing.
+    """
+    from rally.models import FamilyMember
+    from rally.notifications import PushoverError, app_token, send_pushover
+
+    token = app_token(db)
+    if not token:
+        return {"success": False, "error": "Missing Pushover application token"}
+
+    member = (
+        db.query(FamilyMember)
+        .filter(FamilyMember.pushover_user_key.isnot(None))
+        .filter(FamilyMember.pushover_user_key != "")
+        .order_by(FamilyMember.name.asc())
+        .first()
+    )
+    if not member:
+        return {
+            "success": False,
+            "error": "No family member has a Pushover user key yet — add one to test delivery",
+        }
+
+    try:
+        send_pushover(
+            token,
+            member.pushover_user_key.strip(),
+            "Rally is connected. Event reminders will arrive here.",
+            title="Rally",
+            device=(member.pushover_device or "").strip() or None,
+        )
+    except PushoverError as exc:
+        return {"success": False, "error": str(exc)}
+    return {"success": True, "message": f"Test notification sent to {member.name}"}
+
+
 @router.post("/api/settings/test-weather")
 def test_weather_connection(db: Session = Depends(get_db)):
     """Test NWS forecast URL connectivity using current DB settings."""
@@ -506,10 +549,28 @@ def update_calendar(
 
 @router.delete("/api/calendars/{cal_id}", status_code=204)
 def delete_calendar(cal_id: int, db: Session = Depends(get_db)):
-    """Delete a calendar feed."""
+    """Delete a calendar feed, or a native calendar and everything in it.
+
+    SQLite does not enforce foreign keys here, so deleting a native calendar
+    cascades explicitly: leaving events behind would make them invisible
+    everywhere and undeletable from the UI.
+    """
     db_cal = db.query(Calendar).filter(Calendar.id == cal_id).first()
     if not db_cal:
         raise HTTPException(status_code=404, detail="Calendar not found")
+
+    if (db_cal.cal_type or "ics") == "native":
+        from rally.models import Event, EventAttendee, EventNotification, EventOverride
+
+        event_ids = [
+            row.id for row in db.query(Event).filter(Event.calendar_id == db_cal.id).all()
+        ]
+        if event_ids:
+            for model in (EventAttendee, EventOverride, EventNotification):
+                db.query(model).filter(model.event_id.in_(event_ids)).delete(
+                    synchronize_session=False
+                )
+            db.query(Event).filter(Event.id.in_(event_ids)).delete(synchronize_session=False)
 
     db.delete(db_cal)
     db.commit()
@@ -554,6 +615,15 @@ def test_calendar_connection(cal_id: int, db: Session = Depends(get_db)):
             server_cals = principal.calendars()
             count = len(server_cals)
             return {"success": True, "message": f"Connected: {count} calendar(s) found"}
+
+        elif cal_type == "native":
+            # Nothing to connect to. The useful answer for a Rally-owned
+            # calendar is how much is in it, so the button still means
+            # something in the same place on the same screen.
+            from rally.models import Event
+
+            count = db.query(Event).filter(Event.calendar_id == cal.id).count()
+            return {"success": True, "message": f"Rally calendar with {count} event(s)"}
 
         else:
             return {"success": False, "error": f"Unknown calendar type: {cal_type}"}

@@ -1,6 +1,6 @@
 """Tests for the LLM-independent helpers in rally.generator.generate.
 
-The parsing helpers (format_weather, _extract_json_object, _is_event_declined)
+The parsing helpers (format_weather, _extract_json_object, is_event_declined)
 are self-independent, so they're called on a bare instance built with
 __new__ (bypassing the network/DB/client work in __init__).
 
@@ -18,6 +18,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from rally.calendars.declined import is_event_declined
 from rally.database import Base
 from rally.generator.generate import STEM_REPEAT_WINDOW_DAYS, SummaryGenerator
 from rally.models import DashboardSnapshot, StemConceptHistory, Todo
@@ -121,7 +122,7 @@ def test_extract_json_returns_none_for_empty():
     assert make_generator()._extract_json_object("") is None
 
 
-# --- _is_event_declined --------------------------------------------------------
+# --- is_event_declined --------------------------------------------------------
 
 
 def _attendee(email: str, partstat: str | None = None) -> vCalAddress:
@@ -134,38 +135,38 @@ def _attendee(email: str, partstat: str | None = None) -> vCalAddress:
 def test_declined_when_status_cancelled():
     ev = Event()
     ev.add("status", "CANCELLED")
-    assert make_generator()._is_event_declined(ev) is True
+    assert is_event_declined(ev) is True
 
 
 def test_not_declined_without_attendees():
-    assert make_generator()._is_event_declined(Event()) is False
+    assert is_event_declined(Event()) is False
 
 
 def test_owner_email_declined_partstat():
     ev = Event()
     ev.add("attendee", _attendee("me@example.com", "DECLINED"))
     ev.add("attendee", _attendee("other@example.com", "ACCEPTED"))
-    assert make_generator()._is_event_declined(ev, owner_email="me@example.com") is True
+    assert is_event_declined(ev, owner_email="me@example.com") is True
 
 
 def test_owner_email_accepted_partstat():
     ev = Event()
     ev.add("attendee", _attendee("me@example.com", "ACCEPTED"))
-    assert make_generator()._is_event_declined(ev, owner_email="me@example.com") is False
+    assert is_event_declined(ev, owner_email="me@example.com") is False
 
 
 def test_all_attendees_declined_heuristic():
     ev = Event()
     ev.add("attendee", _attendee("a@example.com", "DECLINED"))
     ev.add("attendee", _attendee("b@example.com", "DECLINED"))
-    assert make_generator()._is_event_declined(ev) is True
+    assert is_event_declined(ev) is True
 
 
 def test_not_all_declined_is_not_declined():
     ev = Event()
     ev.add("attendee", _attendee("a@example.com", "DECLINED"))
     ev.add("attendee", _attendee("b@example.com", "ACCEPTED"))
-    assert make_generator()._is_event_declined(ev) is False
+    assert is_event_declined(ev) is False
 
 
 def test_outlook_busystatus_free_with_declined():
@@ -173,7 +174,7 @@ def test_outlook_busystatus_free_with_declined():
     ev.add("X-MICROSOFT-CDO-BUSYSTATUS", "FREE")
     ev.add("attendee", _attendee("a@example.com", "DECLINED"))
     ev.add("attendee", _attendee("b@example.com", "ACCEPTED"))
-    assert make_generator()._is_event_declined(ev) is True
+    assert is_event_declined(ev) is True
 
 
 # --- load_todos reminder window ------------------------------------------------

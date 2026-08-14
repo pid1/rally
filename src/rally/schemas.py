@@ -14,6 +14,10 @@ UNSET = object()
 class FamilyMemberBase(BaseModel):
     name: str
     color: str = "#333333"
+    # Pushover profile. A member without a key is simply never notified — that
+    # is the default, not an error state.
+    pushover_user_key: str | None = None
+    pushover_device: str | None = None
 
 
 class FamilyMemberCreate(FamilyMemberBase):
@@ -23,6 +27,8 @@ class FamilyMemberCreate(FamilyMemberBase):
 class FamilyMemberUpdate(BaseModel):
     name: str | None = None
     color: str | None = None
+    pushover_user_key: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    pushover_device: str | None = UNSET
 
 
 class FamilyMemberResponse(FamilyMemberBase):
@@ -38,10 +44,10 @@ class FamilyMemberResponse(FamilyMemberBase):
 
 class CalendarBase(BaseModel):
     label: str
-    url: str
+    url: str = ""  # Empty for a native calendar, which has nothing to fetch
     family_member_id: int
     owner_email: str | None = None
-    cal_type: str = "ics"  # ics, caldav_google, caldav_apple
+    cal_type: str = "ics"  # native, ics, caldav_google, caldav_apple
     username: str | None = None  # Email for CalDAV auth
     password: str | None = None  # App-specific password for CalDAV
 
@@ -432,3 +438,143 @@ class FollowedTeamResponse(FollowedTeamBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Calendar events
+
+
+class EventBase(BaseModel):
+    """The shape a form submits.
+
+    Times are **local wall times plus a zone name**, never UTC instants: the
+    browser should not be doing timezone arithmetic, and a client that guesses
+    wrong produces an event that is quietly an hour out. ``start``/``end`` are
+    ``YYYY-MM-DD`` for an all-day event and ``YYYY-MM-DDTHH:MM`` otherwise, and
+    an all-day ``end`` is the **inclusive** last day, matching what the field
+    is labelled.
+    """
+
+    title: str
+    description: str | None = None
+    location: str | None = None
+    all_day: bool = False
+    start: str
+    end: str | None = None
+    tzid: str | None = None  # Defaults to the family's configured zone
+    rrule: str | None = None  # RFC 5545 RRULE body; None means a single event
+    notify_minutes_before: int | None = None
+    attendee_ids: list[int] = []
+    calendar_id: int | None = None  # Defaults to the family's first native calendar
+
+
+class EventCreate(EventBase):
+    pass
+
+
+class EventUpdate(BaseModel):
+    """Partial update. ``UNSET`` distinguishes "leave alone" from "clear"."""
+
+    title: str | None = None
+    description: str | None = UNSET
+    location: str | None = UNSET
+    all_day: bool | None = None
+    start: str | None = None
+    end: str | None = UNSET
+    tzid: str | None = None
+    rrule: str | None = UNSET  # None clears the recurrence, making it a single event
+    notify_minutes_before: int | None = UNSET
+    attendee_ids: list[int] | None = None
+    calendar_id: int | None = None
+
+
+class EventOverrideResponse(BaseModel):
+    occurrence_date: str
+    cancelled: bool
+    title: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EventResponse(BaseModel):
+    """The stored series row, which is what the edit form reads.
+
+    Deliberately *not* the same shape as an occurrence: one is the rule, the
+    other is a dated instance of it, and collapsing them is how an edit ends up
+    applied to the wrong thing.
+    """
+
+    id: int
+    calendar_id: int
+    uid: str
+    title: str
+    description: str | None = None
+    location: str | None = None
+    all_day: bool
+    start: str  # Local, in the event's own zone
+    end: str
+    start_date: str
+    end_date: str
+    tzid: str
+    rrule: str | None = None
+    series_end_date: str | None = None
+    notify_minutes_before: int | None = None
+    attendee_ids: list[int] = []
+    overrides: list[EventOverrideResponse] = []
+    created_at: datetime
+    updated_at: datetime
+
+
+class OccurrenceResponse(BaseModel):
+    """One dated instance, which is what every view renders."""
+
+    uid: str
+    source: str
+    title: str
+    description: str = ""
+    location: str = ""
+    all_day: bool
+    start: datetime  # UTC instant
+    end: datetime  # UTC instant, exclusive
+    start_date: str  # Local, inclusive
+    end_date: str  # Local, inclusive
+    time_label: str
+    end_time_label: str
+    dates: list[str]  # Every local date this occurrence covers
+    calendar_id: int | None = None
+    calendar_label: str = ""
+    member: str | None = None
+    member_color: str | None = None
+    attendees: list[str] = []
+    event_id: int | None = None
+    occurrence_date: str | None = None
+    recurring: bool = False
+    editable: bool = False
+    notify_minutes_before: int | None = None
+
+
+class OccurrencePage(BaseModel):
+    """Occurrences plus the sources that failed, so a view can say so."""
+
+    occurrences: list[OccurrenceResponse]
+    failures: list[str] = []
+
+
+class EventNotifyRequest(BaseModel):
+    occurrence_date: str | None = None  # Defaults to the next upcoming occurrence
+    message: str | None = None
+
+
+class EventNotifyResponse(BaseModel):
+    """Per-recipient outcome.
+
+    "It worked" and "four phones buzzed" are different claims, and only this
+    shape can tell them apart — an attendee with no Pushover key is reported as
+    skipped rather than silently dropped.
+    """
+
+    sent: list[str] = []
+    skipped: list[str] = []
+    failed: list[str] = []
+    error: str | None = None
