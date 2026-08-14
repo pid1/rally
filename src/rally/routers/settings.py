@@ -562,9 +562,7 @@ def delete_calendar(cal_id: int, db: Session = Depends(get_db)):
     if (db_cal.cal_type or "ics") == "native":
         from rally.models import Event, EventAttendee, EventNotification, EventOverride
 
-        event_ids = [
-            row.id for row in db.query(Event).filter(Event.calendar_id == db_cal.id).all()
-        ]
+        event_ids = [row.id for row in db.query(Event).filter(Event.calendar_id == db_cal.id).all()]
         if event_ids:
             for model in (EventAttendee, EventOverride, EventNotification):
                 db.query(model).filter(model.event_id.in_(event_ids)).delete(

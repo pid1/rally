@@ -327,8 +327,10 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
 def purge_old_notifications(db: Session, today_local: str) -> int:
     """Drop notification records older than the retention window."""
     cutoff = (
-        datetime.fromisoformat(today_local) - timedelta(days=NOTIFICATION_RETENTION_DAYS)
-    ).date().isoformat()
+        (datetime.fromisoformat(today_local) - timedelta(days=NOTIFICATION_RETENTION_DAYS))
+        .date()
+        .isoformat()
+    )
     deleted = (
         db.query(EventNotification)
         .filter(EventNotification.occurrence_date < cutoff)
@@ -365,3 +367,26 @@ def run_due_reminders_once_per_minute(db: Session, now: datetime | None = None) 
     except Exception as exc:  # pragma: no cover - defensive
         print(f"Reminder check failed: {exc}")
         return 0
+
+
+def main() -> int:
+    """Run one reminder pass. Entry point for the container's minute loop."""
+    from rally.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        sent = check_due_reminders(db)
+    except Exception as exc:  # pragma: no cover - the loop must not die
+        print(f"Reminder check failed: {exc}")
+        return 1
+    finally:
+        db.close()
+    if sent:
+        print(f"Sent {sent} reminder(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())

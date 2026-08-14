@@ -18,6 +18,7 @@
 
     <nav>
         <a href="/dashboard">Dashboard</a>
+        <a href="/calendar">Calendar</a>
         <a href="/todo">Tasks</a>
         <a href="/shopping">Shopping</a>
         <div class="nav-dropdown" id="meal-dropdown">
@@ -180,6 +181,21 @@
         </form>
     </div>
 
+    <!-- Notifications Section -->
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Notifications</h3>
+        </div>
+        <form id="pushover-form">
+            <div class="form-group">
+                <label>Pushover Application Token</label>
+                <input type="password" id="pushover-app-token" placeholder="Application token">
+                <small>Create an application at <code>pushover.net/apps/build</code>. This token identifies Rally; each person's own key goes on their family member below.</small>
+            </div>
+            <button type="submit" class="btn">Save</button>
+        </form>
+    </div>
+
     <!-- Learning Section -->
     <div class="border-container stack">
         <div class="page-header-row">
@@ -265,10 +281,20 @@
                     <label>Name</label>
                     <input type="text" id="member-name" placeholder="Name" required>
                 </div>
+                <div class="form-group">
+                    <label>Pushover User Key (optional)</label>
+                    <input type="text" id="member-pushover-key" placeholder="e.g. uQiRzpo4DXghDmr9QzzfQu27cmVRsG">
+                    <small>Found on the Pushover dashboard. Leave blank and this person is simply never notified.</small>
+                </div>
+                <div class="form-group">
+                    <label>Pushover Device (optional)</label>
+                    <input type="text" id="member-pushover-device" placeholder="Leave blank for all devices">
+                </div>
 
                 <div class="modal-actions">
                     <button type="submit" class="btn">Save</button>
                     <button type="button" class="btn btn--secondary" id="btn-cancel-member">Cancel</button>
+                    <button type="button" class="btn btn--secondary" id="btn-test-member-pushover" style="display:none;">Send test push</button>
             </div>
             </div>
         </div>
@@ -287,6 +313,7 @@
                 <div class="form-group">
                     <label>Type</label>
                     <select id="calendar-type">
+                        <option value="native">Rally (events created here)</option>
                         <option value="ics">ICS Feed (Public URL)</option>
                         <option value="caldav_google">Google CalDAV</option>
                         <option value="caldav_apple">Apple iCloud CalDAV</option>
@@ -306,7 +333,7 @@
                         <option value="">Select a family member</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group cal-field-owner">
                     <label>Owner Email (optional)</label>
                     <input type="text" id="calendar-owner-email" placeholder="e.g. user@gmail.com">
                     <small>Used for declined event detection</small>
@@ -493,6 +520,7 @@
                 <div class="editable-item" data-id="${member.id}">
                     <div class="editable-item-content">
                         <div class="editable-item-title">${escapeHtml(member.name)}</div>
+                        <div class="assignee-label">${member.pushover_user_key ? 'Push notifications on' : 'No Pushover key'}</div>
                     </div>
                     <div class="editable-item-actions">
                         <button class="btn btn--sm" onclick="openEditMemberModal(${member.id})">Edit</button>
@@ -507,6 +535,8 @@
             document.getElementById('member-modal-title').textContent = 'Add Family Member';
             document.getElementById('member-form').reset();
             document.getElementById('member-id').value = '';
+            // Testing a key that has not been saved yet would test nothing.
+            document.getElementById('btn-test-member-pushover').style.display = 'none';
             document.getElementById('member-modal-overlay').style.display = 'flex';
         }
 
@@ -518,6 +548,10 @@
             document.getElementById('member-modal-title').textContent = 'Edit Family Member';
             document.getElementById('member-id').value = id;
             document.getElementById('member-name').value = member.name;
+            document.getElementById('member-pushover-key').value = member.pushover_user_key || '';
+            document.getElementById('member-pushover-device').value = member.pushover_device || '';
+            document.getElementById('btn-test-member-pushover').style.display =
+                member.pushover_user_key ? '' : 'none';
             document.getElementById('member-modal-overlay').style.display = 'flex';
         }
 
@@ -631,6 +665,10 @@
 
         function toggleCalendarTypeFields(type) {
             const isCaldav = type === 'caldav_google' || type === 'caldav_apple';
+            // A native calendar has no URL, no credentials and nothing to
+            // connect to — the owner-email field only exists for declined-event
+            // detection on feeds Rally does not own.
+            document.querySelectorAll('.cal-field-owner').forEach(el => el.style.display = type === 'native' ? 'none' : '');
             document.querySelectorAll('.cal-field-ics').forEach(el => el.style.display = type === 'ics' ? '' : 'none');
             document.querySelectorAll('.cal-field-caldav').forEach(el => el.style.display = isCaldav ? '' : 'none');
             document.querySelectorAll('.cal-help-google').forEach(el => el.style.display = type === 'caldav_google' ? '' : 'none');
@@ -720,6 +758,9 @@
 
             // Meal Planner
             document.getElementById('meal-default-type').value = s.meal_default_type || 'Dinner';
+
+            // Notifications
+            document.getElementById('pushover-app-token').value = s.pushover_app_token || '';
 
             // Learning
             document.getElementById('stem-concept-enabled').checked = s.stem_concept_enabled === 'true';
@@ -1169,7 +1210,9 @@
             e.preventDefault();
 
             const data = {
-                name: document.getElementById('member-name').value
+                name: document.getElementById('member-name').value,
+                pushover_user_key: document.getElementById('member-pushover-key').value.trim() || null,
+                pushover_device: document.getElementById('member-pushover-device').value.trim() || null
             };
 
             try {
@@ -1215,7 +1258,9 @@
             };
 
             // Set URL based on type
-            if (calType === 'ics') {
+            if (calType === 'native') {
+                data.url = '';
+            } else if (calType === 'ics') {
                 data.url = document.getElementById('calendar-url').value;
             } else if (calType === 'caldav_google') {
                 data.url = 'https://apidata.googleusercontent.com/caldav/v2/';
@@ -1417,6 +1462,27 @@
                 console.error('Error saving meal planner settings:', error);
                 alert('Failed to save meal planner settings');
             }
+        });
+
+        // Notifications form. Verified like every other integration: the modal
+        // spins, ticks, and auto-closes on success.
+        document.getElementById('pushover-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    pushover_app_token: document.getElementById('pushover-app-token').value.trim()
+                });
+                await verifyConnection('/api/settings/test-pushover', 'Pushover');
+            } catch (error) {
+                console.error('Error saving Pushover settings:', error);
+                alert('Failed to save notification settings');
+            }
+        });
+
+        document.getElementById('btn-test-member-pushover').addEventListener('click', async () => {
+            const id = document.getElementById('member-id').value;
+            if (!id) return;
+            await verifyConnection('/api/family/' + id + '/test-pushover', 'Pushover');
         });
 
         // Learning form

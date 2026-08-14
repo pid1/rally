@@ -6,7 +6,16 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 
 ## Features
 
-- 📅 **Unified Calendar** - Pulls from Google Calendar and iCloud, filters to the next 7 days, deduplicates automatically
+- 📅 **Native Calendar** - Rally holds the family's own events, and shows them
+  - Month and agenda views at `/calendar`, colour-coded by family member
+  - Create, edit and delete events, with recurrence and per-occurrence changes ("just this Tuesday" vs "every Tuesday from now on")
+  - All-day and multi-day events, correct across daylight saving transitions
+  - External calendars appear alongside Rally's own and are read-only
+- 🔔 **Push Reminders** - Notify the people an event actually concerns
+  - A per-family-member Pushover profile; a member without one is simply never notified
+  - Set a reminder lead time on any event, or send one now with **Notify attendees**
+  - Reports per recipient, so "sent to Emma; Jon has no Pushover key" is visible rather than silent
+- 🔗 **Unified Calendar** - Pulls from Google Calendar and iCloud, merges with Rally's own events, filters to the next 7 days, deduplicates automatically
 - 🌤️ **Smart Weather Guidance** - Clothing recommendations and activity adjustments
 - ✅ **Todo Management** - Full CRUD interface for family tasks
   - Create, edit, complete, and delete todos
@@ -38,8 +47,8 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - View next 7 days of planned dinners
   - AI checks tonight's dinner and suggests prep in "The Briefing" section
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
-- 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (ICS feeds, Google CalDAV, Apple iCloud CalDAV)
-- ⚙️ **Settings** - Configure API keys, LLM provider, timezone, and calendars through a web UI, with automatic connection verification on save
+- 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (Rally-owned calendars, ICS feeds, Google CalDAV, Apple iCloud CalDAV)
+- ⚙️ **Settings** - Configure API keys, LLM provider, timezone, calendars, and Pushover through a web UI, with automatic connection verification on save
 - 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider. GLM 4.7 Flash works well for local inference.) The LLM is instructed to only reference tasks explicitly present in its prompt, preventing hallucinated or premature task mentions.
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
 - 📱 **Smart Display Ready** - Elegant grayscale design perfect for e-ink or any display
@@ -56,6 +65,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - **Uvicorn** - High-performance ASGI server
 - **Anthropic / OpenAI** - Configurable LLM provider for summary generation (Anthropic Claude or any OpenAI-compatible API)
 - **caldav** - CalDAV protocol support for Google and Apple calendar access
+- **Pushover** - Per-family-member push notifications for event reminders
 - **icalendar + recurring-ical-events** - ICS calendar parsing with full recurring event support
 - **Python 3.14** - Latest Python with modern syntax
 - **uv** - Fast Python dependency management
@@ -75,7 +85,8 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - Docker
 - A National Weather Service forecast URL for your location (free — see the Weather section of the Settings UI)
 - LLM API key (Anthropic or an OpenAI-compatible provider)
-- Calendar access — ICS feed URLs, or Google/Apple CalDAV with app-specific passwords (configured via the Settings UI)
+- Calendar access (optional) — ICS feed URLs, or Google/Apple CalDAV with app-specific passwords (configured via the Settings UI). Rally-owned calendars need none of this
+- A Pushover application token, if you want event reminders (free to create; each person also needs their own user key)
 - Your local timezone (IANA format, e.g. "America/Chicago")
 
 ## Development Setup

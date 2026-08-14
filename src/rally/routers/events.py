@@ -85,10 +85,7 @@ def _default_native_calendar(db: Session) -> Calendar:
     that has not added anybody yet still needs somewhere to put an event.
     """
     calendar = (
-        db.query(Calendar)
-        .filter(Calendar.cal_type == "native")
-        .order_by(Calendar.id.asc())
-        .first()
+        db.query(Calendar).filter(Calendar.cal_type == "native").order_by(Calendar.id.asc()).first()
     )
     if calendar:
         return calendar
@@ -282,9 +279,7 @@ def list_occurrences(
     if end_day <= start_day:
         end_day = start_day + timedelta(days=1)
     if (end_day - start_day).days > MAX_WINDOW_DAYS:
-        raise HTTPException(
-            status_code=422, detail=f"Window may not exceed {MAX_WINDOW_DAYS} days"
-        )
+        raise HTTPException(status_code=422, detail=f"Window may not exceed {MAX_WINDOW_DAYS} days")
 
     run_due_reminders_once_per_minute(db)
 
@@ -299,12 +294,16 @@ def list_occurrences(
 
     occurrences = result.occurrences
     if member:
+        # Match on attendees alone. ``attendees`` already falls back to the
+        # calendar's owner when an occurrence has no explicit list, so ORing the
+        # owner in as well would make every event on a shared native calendar
+        # match its owner — including the ones explicitly assigned to somebody
+        # else.
         wanted = {name.strip().lower() for name in member if name.strip()}
         occurrences = [
             occurrence
             for occurrence in occurrences
             if {name.lower() for name in occurrence.attendees} & wanted
-            or (occurrence.member or "").lower() in wanted
         ]
 
     return OccurrencePage(
@@ -531,9 +530,7 @@ def _split_series(
 
     # The new series starts at the split occurrence unless the edit moves it.
     if payload.start is not None:
-        new_start, new_end = payload.start, (
-            payload.end if payload.end is not UNSET else None
-        )
+        new_start, new_end = payload.start, (payload.end if payload.end is not UNSET else None)
     elif event.all_day:
         new_start, new_end = (
             split_day.isoformat(),

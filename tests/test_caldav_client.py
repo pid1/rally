@@ -28,6 +28,7 @@ def _parse(client, tz=ZoneInfo("UTC"), **kwargs):
 def _fetch(fn, record, tz=ZoneInfo("UTC")):
     return fn(record, tz, window_start=_WINDOW_START, window_end=_WINDOW_END)
 
+
 _ICS = (
     b"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"
     b"SUMMARY:Meeting\r\nDTSTART:20260315T100000Z\r\n"

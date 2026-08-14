@@ -11,6 +11,8 @@ from rally.models import (
     Calendar,
     DashboardSnapshot,
     DinnerPlan,
+    Event,
+    EventAttendee,
     FamilyMember,
     Setting,
     ShoppingItem,
@@ -22,7 +24,10 @@ from rally.utils.timezone import today_utc
 
 EXPECTED_COUNTS = {
     "family": 4,
-    "calendars": 3,
+    # Three sample feeds plus one Rally-owned calendar per family member.
+    "calendars": 7,
+    "events": 5,
+    "event_attendees": 11,
     "settings": 5,
     "todos": 6,
     "dinner": 16,  # 6 upcoming + 10 past
@@ -56,6 +61,8 @@ def _counts(session):
     return {
         "family": session.query(FamilyMember).count(),
         "calendars": session.query(Calendar).count(),
+        "events": session.query(Event).count(),
+        "event_attendees": session.query(EventAttendee).count(),
         "settings": session.query(Setting).count(),
         "todos": session.query(Todo).count(),
         "dinner": session.query(DinnerPlan).count(),

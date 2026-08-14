@@ -46,7 +46,6 @@ def _occurrence(
     )
 
 
-
 def make_generator(tz: str = "UTC") -> SummaryGenerator:
     gen = SummaryGenerator.__new__(SummaryGenerator)
     gen.local_tz = ZoneInfo(tz)

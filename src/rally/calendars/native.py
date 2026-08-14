@@ -141,9 +141,7 @@ def _apply_override(
         changes["all_day"] = all_day
         changes["start"] = start
         changes["end"] = end
-        changes["start_local_date"] = (
-            override.start_date or start.astimezone(tz).date().isoformat()
-        )
+        changes["start_local_date"] = override.start_date or start.astimezone(tz).date().isoformat()
         changes["end_local_date"] = override.end_date or changes["start_local_date"]
 
     return occurrence if not changes else _replace(occurrence, changes)

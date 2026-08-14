@@ -40,9 +40,7 @@ def merge_occurrences(groups: Iterable[Iterable[Occurrence]]) -> list[Occurrence
                     names.append(name)
 
             incumbent = chosen.get(key)
-            if incumbent is None or source_rank(occurrence.source) < source_rank(
-                incumbent.source
-            ):
+            if incumbent is None or source_rank(occurrence.source) < source_rank(incumbent.source):
                 chosen[key] = occurrence
 
     merged = [
