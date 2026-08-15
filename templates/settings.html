@@ -272,6 +272,13 @@
             </div>
             <div class="form-group">
                 <label class="checkbox-label">
+                    <input type="checkbox" id="prep-overdue-in-summary">
+                    <span>Mention overdue stock in the daily summary</span>
+                </label>
+                <small>Anything past its refresh date is added to The Briefing every morning until you deal with it. Only genuinely overdue items — upcoming refreshes are the notification's job, not the summary's. Nothing is added on days when nothing is overdue.</small>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
                     <input type="checkbox" id="prep-review-enabled">
                     <span>AI inventory review</span>
                 </label>
@@ -817,6 +824,7 @@
             document.getElementById('pushover-app-token').value = s.pushover_app_token || '';
             document.getElementById('prep-notify-enabled').checked = s.prep_notify_enabled !== 'false';
             document.getElementById('prep-review-enabled').checked = s.prep_review_enabled === 'true';
+            document.getElementById('prep-overdue-in-summary').checked = s.prep_overdue_in_summary_enabled !== 'false';
             document.getElementById('prep-notify-time').value = s.prep_notify_time || '08:00';
             document.getElementById('prep-default-remind-days').value = s.prep_default_remind_days || '14';
 
@@ -1565,7 +1573,8 @@
                     prep_notify_enabled: document.getElementById('prep-notify-enabled').checked ? 'true' : 'false',
                     prep_notify_time: document.getElementById('prep-notify-time').value || '08:00',
                     prep_default_remind_days: document.getElementById('prep-default-remind-days').value || '14',
-                    prep_review_enabled: document.getElementById('prep-review-enabled').checked ? 'true' : 'false'
+                    prep_review_enabled: document.getElementById('prep-review-enabled').checked ? 'true' : 'false',
+                    prep_overdue_in_summary_enabled: document.getElementById('prep-overdue-in-summary').checked ? 'true' : 'false'
                 });
                 alert('Preparedness settings saved.');
             } catch (error) {

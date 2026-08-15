@@ -3,7 +3,7 @@
 import json
 import os
 import tomllib
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -177,6 +177,16 @@ class SummaryGenerator:
         # Optional: fold the open shopping list into the briefing (toggle in Settings)
         self.shopping_list_in_summary_enabled = (
             db_settings.get("shopping_list_in_summary_enabled", "false") == "true"
+        )
+
+        # Optional: overdue preparedness stock in the briefing (toggle in Settings).
+        #
+        # Defaults ON, unlike the shopping and sports toggles. Those add a
+        # standing block that costs tokens every single day; this one is
+        # normally empty and omits itself entirely when nothing is overdue, so
+        # the only days it costs anything are the days it matters.
+        self.prep_overdue_in_summary_enabled = (
+            db_settings.get("prep_overdue_in_summary_enabled", "true") == "true"
         )
 
         # Optional: 14-day TV and radio listings for followed teams (toggle in Settings)
@@ -495,6 +505,48 @@ class SummaryGenerator:
 
                 lines.append(line)
 
+            return "\n".join(lines)
+        finally:
+            db.close()
+
+    def load_overdue_prep_items(self) -> str:
+        """Preparedness stock whose refresh date has already passed.
+
+        Only genuinely overdue items — not "due soon". The Pushover digest
+        already handles the approach, once per refresh date; this is the
+        standing nag for the ones nobody dealt with, and a briefing that
+        repeated every upcoming refresh would be noise rather than a prompt.
+
+        Read-only with respect to ``prep_refresh_notices``. The digest's
+        announce-once guarantee is a separate mechanism and must not be
+        disturbed by a summary run.
+        """
+        db = SessionLocal()
+        try:
+            from rally import preparedness
+            from rally.models import PrepItem, PrepLocation
+
+            items = (
+                db.query(PrepItem)
+                .filter(PrepItem.next_refresh_date.isnot(None))
+                .order_by(PrepItem.next_refresh_date.asc())
+                .all()
+            )
+            today = preparedness.today_for(db)
+            overdue = [i for i in items if preparedness.status_of(i, today) == "overdue"]
+            if not overdue:
+                return ""
+
+            locations = {loc.id: loc.name for loc in db.query(PrepLocation).all()}
+            lines = []
+            for item in overdue:
+                where = locations.get(item.location_id, "Unassigned")
+                days = (today - date.fromisoformat(item.next_refresh_date)).days
+                entry = f"- {item.name} ({where}) — refresh was due {item.next_refresh_date}"
+                entry += f", {days} day{'s' if days != 1 else ''} ago"
+                if item.quantity:
+                    entry += f" [{item.quantity}]"
+                lines.append(entry)
             return "\n".join(lines)
         finally:
             db.close()
@@ -928,6 +980,9 @@ class SummaryGenerator:
         # tokens and invite the model to reference a list that isn't there.
         shopping_items = self.load_shopping_items() if self.shopping_list_in_summary_enabled else ""
         sports_watchlist = self.load_sports_watchlist() if self.sports_watchlist_enabled else ""
+        overdue_prep = (
+            self.load_overdue_prep_items() if self.prep_overdue_in_summary_enabled else ""
+        )
 
         cal_text = self.format_calendar_section(calendars)
 
@@ -941,6 +996,7 @@ class SummaryGenerator:
             "todos": todos,
             "dinner_plans": dinner_plans,
             "shopping_items": shopping_items,
+            "overdue_prep": overdue_prep,
             "home_location": home,
             "family_members": ", ".join(family_members.values())
             if family_members
@@ -995,6 +1051,18 @@ class SummaryGenerator:
                 "items. Only mention shopping items that explicitly appear in that section. Do not "
                 'infer, recall, or invent items. If it says "No shopping items currently active," '
                 "do not suggest any specific items."
+            )
+
+        # Optional preparedness nag — guideline only when something is actually overdue
+        if overdue_prep:
+            optional_guidelines.append(
+                "PREPAREDNESS: The PREPAREDNESS section below lists emergency stock whose "
+                "refresh date has already passed. Mention it in the briefing — this is a "
+                "standing reminder that repeats daily until the family deals with it, which "
+                "is the point. Only reference items that appear in that section; it is the "
+                "complete list of what is overdue. Keep it brief and practical (what to swap, "
+                "and where it is), and do not let it dominate the briefing: it is one line of "
+                "housekeeping, not the theme of the day."
             )
 
         # Optional sports watchlist — guideline only when the section is present
@@ -1084,6 +1152,15 @@ Do NOT include any HTML in your response. Plain text only for all values."""
         if self.shopping_list_in_summary_enabled:
             shopping_section = f"\n\nSHOPPING LIST (open items):\n{shopping_items}"
 
+        # Omitted entirely when nothing is overdue. An empty labelled section
+        # would invite the model to comment on it anyway.
+        prep_section = ""
+        if overdue_prep:
+            prep_section = (
+                "\n\nPREPAREDNESS (stock past its refresh date — these are the only "
+                "overdue items; do not infer others):\n" + overdue_prep
+            )
+
         sports_section = ""
         if self.sports_watchlist_enabled and sports_watchlist:
             sports_section = f"\n\nSPORTS (followed teams — TV and radio):\n{sports_watchlist}"
@@ -1104,7 +1181,7 @@ TODOS:
 {todos}
 
 DINNER PLANS (next 7 days):
-{dinner_plans}{shopping_section}{sports_section}{stem_avoid_block}"""
+{dinner_plans}{shopping_section}{prep_section}{sports_section}{stem_avoid_block}"""
 
         try:
             response_text = self._call_llm(

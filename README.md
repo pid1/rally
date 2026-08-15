@@ -51,6 +51,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - Give any item a refresh schedule — a fixed date ("this case is stamped 2027-01-01") or a repeating interval ("rotate the water every 6 months")
   - One Pushover digest a day covering everything due, to everyone with a key. Each item is announced **once** per refresh date, not every morning until you deal with it
   - `Refreshed` re-anchors the next date on the day you actually swapped it, because a case rotated three weeks late expires three weeks later
+  - Anything past its refresh date is mentioned in the daily summary every morning until you deal with it — the push tells you once, the briefing keeps asking
   - **AI review** (optional, off by default) - asks your LLM what the kit is missing, using your family context, ages and home location. It sees the whole inventory and is told to say what it assumed rather than guess
   - **Go list** - a printable packing list of everything, grouped by location in the order you walk it, exportable as Markdown, CSV or PDF
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members

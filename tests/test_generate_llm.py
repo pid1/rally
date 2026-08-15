@@ -56,6 +56,7 @@ def make_generator(tz: str = "UTC") -> SummaryGenerator:
     gen.stem_concept_enabled = False
     gen.shopping_list_in_summary_enabled = False
     gen.sports_watchlist_enabled = False
+    gen.prep_overdue_in_summary_enabled = False
     gen.max_tokens = LLM_MAX_TOKENS
     return gen
 
@@ -812,3 +813,79 @@ def test_home_location_is_recorded_for_eval_ground_truth(frozen_now):
     gen.generate_summary()
 
     assert gen._generation_context["home_location"] == "Highland Village, TX"
+
+
+# --- overdue preparedness stock in the briefing ------------------------------------
+
+
+def _prep_gen(overdue: str):
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+    gen.prep_overdue_in_summary_enabled = True
+    gen.load_overdue_prep_items = lambda: overdue
+    return gen
+
+
+def _user_prompt(gen) -> str:
+    return gen.client.last_kwargs["messages"][0]["content"]
+
+
+def test_overdue_prep_reaches_the_user_prompt(frozen_now):
+    frozen_now(FROZEN)
+    gen = _prep_gen("- Water drums (Garage) — refresh was due 2026-07-01, 45 days ago")
+
+    gen.generate_summary()
+
+    prompt = _user_prompt(gen)
+    assert "PREPAREDNESS" in prompt
+    assert "Water drums" in prompt
+
+
+def test_the_section_is_omitted_when_nothing_is_overdue(frozen_now):
+    """An empty labelled section invites the model to comment on it anyway."""
+    frozen_now(FROZEN)
+    gen = _prep_gen("")
+
+    gen.generate_summary()
+
+    assert "PREPAREDNESS" not in _user_prompt(gen)
+
+
+def test_the_section_is_omitted_when_the_toggle_is_off(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+    gen.prep_overdue_in_summary_enabled = False
+    gen.load_overdue_prep_items = lambda: "- Water drums (Garage) — overdue"
+
+    gen.generate_summary()
+
+    assert "PREPAREDNESS" not in _user_prompt(gen)
+
+
+def test_a_grounding_guideline_accompanies_the_section(frozen_now):
+    """The model must not invent overdue items alongside the real ones."""
+    frozen_now(FROZEN)
+    gen = _prep_gen("- Water drums (Garage) — refresh was due 2026-07-01, 45 days ago")
+
+    gen.generate_summary()
+
+    system = _prompt_from(gen)
+    assert "PREPAREDNESS:" in system
+    assert "complete list of what is overdue" in system
+
+
+def test_no_guideline_when_nothing_is_overdue(frozen_now):
+    frozen_now(FROZEN)
+    gen = _prep_gen("")
+
+    gen.generate_summary()
+
+    assert "PREPAREDNESS:" not in _prompt_from(gen)
+
+
+def test_overdue_prep_is_recorded_for_eval_ground_truth(frozen_now):
+    frozen_now(FROZEN)
+    gen = _prep_gen("- Water drums (Garage) — overdue")
+
+    gen.generate_summary()
+
+    assert gen._generation_context["overdue_prep"] == "- Water drums (Garage) — overdue"
