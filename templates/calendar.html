@@ -162,6 +162,18 @@
                     </div>
                 </div>
 
+                <div id="event-delete-scope-group" style="display:none;">
+                    <div class="form-group">
+                        <label>This event repeats. Delete:</label>
+                        <div class="event-scope-prompt">
+                            <button type="button" class="btn btn--sm" data-delete-scope="this">This occurrence</button>
+                            <button type="button" class="btn btn--sm" data-delete-scope="following">This and following</button>
+                            <button type="button" class="btn btn--sm" data-delete-scope="all">All events</button>
+                        </div>
+                        <small id="event-delete-scope-help"></small>
+                    </div>
+                </div>
+
                 <div class="modal-actions" id="event-modal-actions">
                     <button type="submit" form="event-form" class="btn" id="btn-save-event">Save</button>
                     <button type="button" class="btn btn--secondary" id="btn-cancel-event">Cancel</button>
@@ -472,6 +484,81 @@
             document.getElementById('event-allday-group').style.display = allDay ? '' : 'none';
         }
 
+        /* Moving an event to another day means moving it, not restating how
+           long it lasts. The end follows the start by whatever gap the two
+           already had, so 9–10 AM on the 16th becomes 9–10 AM on the 17th.
+           This needs the start the field held *before* the edit, which the
+           change event no longer carries — hence remembering it. */
+        let previousStart = { timed: '', allDay: '' };
+
+        function rememberStartValues() {
+            previousStart = {
+                timed: document.getElementById('event-start-time').value,
+                allDay: document.getElementById('event-start-date').value
+            };
+        }
+
+        function shiftTimedEnd() {
+            const startField = document.getElementById('event-start-time');
+            const endField = document.getElementById('event-end-time');
+            const oldStart = previousStart.timed;
+            previousStart.timed = startField.value;
+            if (!startField.value) return;
+
+            const newStart = new Date(startField.value);
+            const priorStart = oldStart ? new Date(oldStart) : null;
+            const priorEnd = endField.value ? new Date(endField.value) : null;
+            // An hour is the default the Add dialog offers; fall back to it
+            // when there is no sane prior span to preserve.
+            let duration = 60 * 60 * 1000;
+            if (priorStart && priorEnd && priorEnd >= priorStart) {
+                duration = priorEnd - priorStart;
+            }
+            endField.value = localDateTimeValue(new Date(newStart.getTime() + duration));
+        }
+
+        function shiftAllDayEnd() {
+            const startField = document.getElementById('event-start-date');
+            const endField = document.getElementById('event-end-date');
+            const oldStart = previousStart.allDay;
+            previousStart.allDay = startField.value;
+            if (!startField.value) return;
+
+            let span = 0;
+            if (oldStart && endField.value) {
+                const days = Math.round((parseIso(endField.value) - parseIso(oldStart)) / 86400000);
+                if (days >= 0) span = days;
+            }
+            endField.value = isoDate(addDays(parseIso(startField.value), span));
+        }
+
+        function localDateTimeValue(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${isoDate(date)}T${hours}:${minutes}`;
+        }
+
+        function hideDeleteScopePrompt() {
+            document.getElementById('event-delete-scope-group').style.display = 'none';
+        }
+
+        /* Two visible three-button rows — one that saves, one that deletes —
+           is how somebody deletes a series they meant to edit. While the
+           delete prompt is up it is the only scope prompt on screen; Cancel
+           is the way back out. */
+        function showDeleteScopePrompt() {
+            const occurrenceDate = document.getElementById('event-occurrence-date').value;
+            document.getElementById('event-delete-scope-help').textContent = occurrenceDate
+                ? `"This occurrence" and "This and following" are measured from ${occurrenceDate}. Deleting cannot be undone.`
+                : 'Deleting cannot be undone.';
+            document.getElementById('event-scope-group').style.display = 'none';
+            const group = document.getElementById('event-delete-scope-group');
+            group.style.display = '';
+            // The prompt opens below the fold of a long form, where clicking
+            // Delete looks like it did nothing at all.
+            group.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+
         function openAddEventModal(dateIso) {
             editingEvent = null;
             editingOccurrence = null;
@@ -488,6 +575,9 @@
 
             document.getElementById('btn-delete-event').style.display = 'none';
             document.getElementById('event-scope-group').style.display = 'none';
+            document.getElementById('btn-save-event').style.display = '';
+            hideDeleteScopePrompt();
+            rememberStartValues();
             toggleAllDayFields();
             updateNotifyHelp();
             showModalOverlay('event-modal-overlay');
@@ -515,6 +605,7 @@
                 document.getElementById('event-start-time').value = editingEvent.start;
                 document.getElementById('event-end-time').value = editingEvent.end;
             }
+            rememberStartValues();
 
             document.getElementById('event-repeat').value = repeatFromRrule(editingEvent.rrule);
             document.querySelectorAll('#event-attendees input').forEach(input => {
@@ -524,7 +615,11 @@
             document.getElementById('btn-delete-event').style.display = '';
             const recurring = Boolean(editingEvent.rrule);
             document.getElementById('event-scope-group').style.display = recurring ? '' : 'none';
-            document.getElementById('event-modal-actions').style.display = recurring ? 'none' : '';
+            /* The scope buttons stand in for Save on a series, but Cancel and
+               Delete still have to be reachable — hide the one button, not the
+               row that carries all three. */
+            document.getElementById('btn-save-event').style.display = recurring ? 'none' : '';
+            hideDeleteScopePrompt();
             if (recurring) {
                 const moved = editingEvent.overrides.filter(o => !o.cancelled).length;
                 document.getElementById('event-scope-help').textContent = moved
@@ -628,7 +723,8 @@
 
         function closeEventModal() {
             hideModalOverlay('event-modal-overlay');
-            document.getElementById('event-modal-actions').style.display = '';
+            document.getElementById('btn-save-event').style.display = '';
+            hideDeleteScopePrompt();
             editingEvent = null;
             editingOccurrence = null;
         }
@@ -742,6 +838,9 @@
         document.getElementById('event-all-day').addEventListener('change', toggleAllDayFields);
         document.getElementById('event-notify').addEventListener('change', updateNotifyHelp);
 
+        document.getElementById('event-start-time').addEventListener('change', shiftTimedEnd);
+        document.getElementById('event-start-date').addEventListener('change', shiftAllDayEnd);
+
         document.getElementById('event-form').addEventListener('submit', (event) => {
             event.preventDefault();
             saveEvent('all');
@@ -753,17 +852,20 @@
             button.addEventListener('click', () => saveEvent(button.dataset.scope));
         });
 
+        // A series is deleted by the same three-button prompt that saves one.
+        // Typing a scope into a window.prompt() is how the wrong one gets
+        // picked, and there is no undo behind this.
         document.getElementById('btn-delete-event').addEventListener('click', () => {
             if (!editingEvent) return;
             if (editingEvent.rrule) {
-                const answer = prompt('Delete "this", "following", or "all" occurrences?', 'this');
-                if (!answer) return;
-                const scope = answer.trim().toLowerCase();
-                if (!['this', 'following', 'all'].includes(scope)) return;
-                deleteEvent(scope);
+                showDeleteScopePrompt();
                 return;
             }
             if (confirm('Delete this event?')) deleteEvent('all');
+        });
+
+        document.querySelectorAll('#event-delete-scope-group [data-delete-scope]').forEach(button => {
+            button.addEventListener('click', () => deleteEvent(button.dataset.deleteScope));
         });
 
         document.getElementById('btn-prev').addEventListener('click', () => shift(-1));
