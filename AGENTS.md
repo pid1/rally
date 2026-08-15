@@ -391,6 +391,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `017_add_shopping_lists` - Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables, plus the case-insensitive unique index on store names and the unique index on `shopping_item_history.name_key`
 - `018_add_sports_watchlist` - Add `followed_teams` and `sports_event_notices` tables, plus the unique index on `sports_event_notices.event_key` (records which notable upcoming events have already been announced, so one is mentioned once rather than every morning for two weeks)
 - `020_add_native_calendaring` - Add the `events`, `event_attendees`, `event_overrides` and `event_notifications` tables plus their indexes (the unique index on `event_notifications` *is* the reminder send-once guarantee), add `pushover_user_key` / `pushover_device` to `family_members`, and seed one `cal_type='native'` calendar per existing family member. Purely additive
+- `021_add_preparedness` - Add the `prep_locations`, `prep_items` and `prep_refresh_notices` tables plus their indexes (the unique index on `prep_refresh_notices.notice_key` *is* the refresh announce-once guarantee), and seed the `prep_notify_enabled` / `prep_notify_time` / `prep_default_remind_days` settings rows. Purely additive
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 
 ### Running Migrations
@@ -536,6 +537,8 @@ rally/
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
 │   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan
+│   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
+│   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── calendars/        # One normalized event shape for every calendar source
 │   │   ├── occurrence.py # The Occurrence dataclass + timezone/DST helpers
 │   │   ├── declined.py   # Declined/cancelled detection (one copy, was two)
@@ -595,6 +598,7 @@ rally/
 │   ├── migrate_018_add_sports_watchlist.py # Migration 018: add followed_teams, sports_event_notices tables
 │   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
 │   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
+│   ├── migrate_021_add_preparedness.py # Migration 021: preparedness stock, locations, refresh notices
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
@@ -658,6 +662,7 @@ rally/
   - `stem_concept_enabled` ("true"/"false") toggles the STEM Concept of the Day feature (Learning section)
   - `shopping_list_in_summary_enabled` ("true"/"false", default "false") folds open shopping items into the daily summary (Shopping List section)
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
+  - `prep_notify_enabled` ("true"/"false", default "true"), `prep_notify_time` (local HH:MM, default "08:00") and `prep_default_remind_days` (default "14") drive the preparedness refresh digest. `prep_last_digest_date` is internal bookkeeping written by the once-per-local-day gate — never surfaced in the UI, exactly like `shopping_last_purge_date`
   - `sports_watchlist_enabled` ("true"/"false", default "false") folds tonight's games and notable upcoming events for followed teams into the daily summary (Sports section)
   - `llm_anthropic_max_tokens` / `llm_local_max_tokens` (default `"4000"` each) are the per-provider token budgets `_call_llm` sends — each provider owns its own key, so switching `Provider` never carries one provider's budget onto the other. `llm_anthropic_max_tokens_mode` (`"model_max"` or `"custom"`, default `"custom"`) is Anthropic-only; in `"model_max"` mode the value is resolved from the Anthropic Models API at save time (not on every generation run) and stored, not re-resolved later — rollback restores the stored number verbatim rather than re-resolving it
   - Connection verification on save: LLM, Weather, Calendar, and Followed Team settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
@@ -727,6 +732,13 @@ rally/
   - Next 7 days display with smart date formatting
   - LLM generator annotates plans with attendee/cook names for smarter reminders
   - Luxury UI matching Rally aesthetic
+- ✅ Preparedness (`/preparedness`, `/go-list`) - Emergency stock with refresh schedules, a daily Pushover digest, and a printable go list
+  - Items carry a name, free-text quantity, location and notes. Quantity is deliberately *not* parsed: with no par levels or low-stock alerts in scope, an integer would be structure bought for features that are not being built and paid for on every entry
+  - Refresh is one of three modes — none, a fixed date, or every N months. Month arithmetic clamps (31 Aug + 6 months is 28 Feb), reusing `recurrence.py`'s helper
+  - `Refreshed` re-anchors an interval on the **actual** refresh date, because for physical stock the clock starts when you swap it. A spent one-shot date becomes unscheduled rather than inventing a date Rally cannot know
+  - One **digest** per day covering everything due, to every family member with a Pushover key — the household, not an event's attendees, because the water drums belong to the house. Each item is announced once per refresh date via `prep_refresh_notices`; a failed send records nothing so the next pass retries
+  - The digest rides the existing minute loop (`python -m rally.notifications`) and the opportunistic API hook, rather than growing a second scheduler
+  - The go list groups every item by location in walking order, prints cleanly, and exports as Markdown, CSV or PDF
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
 - ✅ Scheduled generation at 4:00 AM in configured timezone (in Docker)
@@ -786,6 +798,8 @@ visual suite (above) before shipping a layout change.
 - `/dinner-planner` - Dinner planning page with date picker and plan management
 - `/settings` - Settings, family member, calendar, and followed-team management page
 - `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
+- `/preparedness` - Preparedness stock, grouped by location. Location and status chips, search, and an `Add Item` modal carrying the refresh schedule. Each scheduled row has a `Refreshed` button — the one action performed while standing in the garage holding the thing
+- `/go-list` - The printable packing list: every item grouped by location, in walking order, with the unassigned group last. Print stylesheet plus Markdown / CSV / PDF export
 
 ### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot
@@ -869,7 +883,25 @@ visual suite (above) before shipping a layout change.
   - `DELETE /api/calendars/{id}` - Delete calendar feed
   - `POST /api/calendars/{id}/test` - Test calendar feed connectivity. For ICS feeds, fetches the URL and validates calendar data. For CalDAV, connects and counts available calendars. For a **native** calendar there is nothing to connect to, so it reports how many events it holds — the button still means something in the same place. Returns `{success, message}` or `{success, error}`.
 
+- `/api/preparedness` - Preparedness stock, locations, the go list and the refresh digest
+  - `GET /api/preparedness/locations` - List locations, ordered `sort_order ASC, name ASC` — physical walking order, not alphabetical, because that is the order a go list is packed in
+  - `POST|PUT|DELETE /api/preparedness/locations[/{id}]` - CRUD. `409` on a case-insensitive name conflict. **`DELETE` reassigns the location's items to `location_id = NULL` first** — SQLite FKs aren't enforced, so an orphan would vanish from every rendered group *and from the go list*, which is the failure that matters
+  - `GET /api/preparedness/items` - List stock. Query: repeatable `location` (ids and/or `unassigned`), `status` (`ok|due|overdue`, derived from today so it is filtered in Python), `search` (name + notes), `sort` (`location` default, `name`, `refresh-soonest`, `newest`). Runs the daily refresh digest opportunistically, the same arrangement `list_events` uses
+  - `POST /api/preparedness/items` - Create. On `interval` mode with no date, the first refresh is seeded as today + interval — a new item is assumed fresh today
+  - `PUT /api/preparedness/items/{id}` - Partial update via the `UNSET` sentinel. The mode/field triangle is re-validated against the **merged** state, so a patch that only flips the mode still has to leave a coherent item behind
+  - `POST /api/preparedness/items/{id}/refresh` - Mark refreshed. An `interval` item re-anchors on the *actual* refresh date; a spent `date` item becomes unscheduled rather than inventing a date Rally cannot know
+  - `GET /api/preparedness/go-list` - Grouped JSON, honours `?location=`
+  - `GET /api/preparedness/go-list/export?format=md|csv|pdf` - Download as an attachment
+  - `POST /api/preparedness/digest/run?dry_run=true` - Run the digest now. Defaults to a dry run — the honest way to answer "is this working" without waiting until morning or burning the notice rows that suppress a real send
+  - `GET /api/preparedness/digest/log` - Recent announcements, newest first
+
 ### Navigation
+Top level is the four pages a family touches daily — **Dashboard, Tasks, Shopping, Calendar** — plus a single **Other** dropdown holding everything visited occasionally: Meal Planner, Previous Meals, Preparedness, Go List.
+
+The split is by *frequency*, not by feature size. A meal plan is edited weekly and a go list is opened when something has gone wrong; neither earns a permanent slot next to Tasks. Collapsing the old Meal Planner dropdown into Other also keeps the top level at five items, so the three-column mobile nav from #144 still lands as two clean rows and nothing was pushed below the fold.
+
+The outside-click handler is generic over `.nav-dropdown` rather than naming an id, so adding a second dropdown later needs no JS change.
+
 All pages include a navigation bar allowing users to switch between Dashboard, Calendar, Todos, Shopping, Dinner Planner, and Settings. The nav markup is duplicated across every page template, so a nav change must be applied to each. On a phone the nav is a **three**-column grid: five items in two columns is three rows, which pushes the first row of content below the fold.
 
 ## Configuration
@@ -933,6 +965,9 @@ The database is automatically created when the app starts. Migrations run automa
 - `ShoppingStore` - User-defined store items are grouped under (Costco, Trader Joe's, …). Names are unique case-insensitively; there is no seeded "Anywhere" row — the catch-all is `store_id IS NULL`
 - `ShoppingItem` - Shopping list item with name, optional note, optional store_id, completion status, completed_at, and timestamps. Uses the same `completed`/`completed_at` columns and semantics as `Todo`, so a completed item stays visible until local midnight; completed rows are deleted 30 days after completion
 - `ShoppingItemHistory` - Permanent, deduplicated record of every name ever added (name_key = trimmed + casefolded), with the display casing, the most recently used store_id, a `times_added` counter and `last_added_at`. Powers autocomplete and deliberately survives the purchased-item purge
+- `PrepLocation` - A place preparedness stock lives (Garage shelf, Truck, Bug-out bag). Names unique case-insensitively; the catch-all is `location_id IS NULL`, never a seeded row. `sort_order` is physical walking order — a go list is packed in the order you walk it, and alphabetical is the wrong order for that
+- `PrepItem` - Preparedness stock with a free-text `quantity`, optional location and notes, and an optional refresh schedule (`refresh_mode` none/date/interval, `refresh_interval_months`, `next_refresh_date`, `remind_days_before`, `last_refreshed_on`). `next_refresh_date` is stored and indexed rather than derived — it is the only column the digest reads
+- `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimisation
 - `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues

@@ -52,6 +52,14 @@
     --surface-sunken: #f5f5f5;
     --inverse: #ffffff;      /* text on --ink                       */
 
+    /* Semantic state, used only by Preparedness. This is the one place the
+       palette leaves greyscale, because the meaning *is* the message: an
+       expired water filter has to read as different in kind, not merely in
+       wording. Both pass WCAG AA on --surface. Do not spend these on
+       decoration. */
+    --state-due: #8a5a06;
+    --state-overdue: #9b3222;
+
     --font-display: 'Playfair Display', 'Georgia', serif;
     --font-body: 'Crimson Text', 'Georgia', serif;
 
@@ -344,6 +352,11 @@ nav a.active,
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
+    /* Both dimensions, not just height. A short label ("CSV") produced a 28px
+       wide target on a phone while still passing the height rule — a hit area
+       is a square minimum, not a bar. No existing button changes: they are all
+       wider than this already. */
+    min-width: var(--target-min);
     min-height: var(--target-min);
     padding: var(--space-2) var(--space-4);
     border: 1px solid var(--ink);
@@ -938,6 +951,33 @@ input[type="radio"] {
 .card-content strong {
     font-weight: 600;
     color: var(--ink-strong);
+}
+
+/* State pill — Preparedness. A chip that reports rather than filters, so it
+   is deliberately not .filter-chip: it is not interactive and must not look
+   it. */
+.pill {
+    display: inline-block;
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    padding: 0 var(--space-2);
+    border: 1px solid currentColor;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.pill--ok {
+    color: var(--ink-subtle);
+}
+
+.pill--due {
+    color: var(--state-due);
+}
+
+.pill--overdue {
+    color: var(--state-overdue);
 }
 
 /** ============================================================
@@ -1713,6 +1753,99 @@ code {
     border: 1px solid var(--rule-subtle);
 }
 
+/* Preparedness: inventory and go list.
+   Both pages render the same location-grouped list, so the rows are shared and
+   only the leading checkbox differs. */
+.prep-group {
+    margin-bottom: var(--space-6);
+}
+
+.prep-group-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.prep-group-header h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
+.prep-group-count {
+    font-size: var(--text-sm);
+    color: var(--ink-subtle);
+    white-space: nowrap;
+}
+
+.prep-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule-subtle);
+}
+
+.prep-row:last-child {
+    border-bottom: none;
+}
+
+.prep-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.prep-name {
+    line-height: var(--leading-tight);
+}
+
+.prep-qty {
+    color: var(--ink-muted);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+}
+
+.prep-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+}
+
+.prep-notes {
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--ink-subtle);
+}
+
+.prep-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.prep-row--overdue .prep-name {
+    color: var(--state-overdue);
+}
+
+/* The go list's tick box. An empty square that exists to be filled in with a
+   pen, which is why it is a plain box and not a disabled checkbox. */
+.golist-checkbox {
+    flex-shrink: 0;
+    width: var(--space-4);
+    height: var(--space-4);
+    border: 1px solid var(--ink);
+    margin-top: var(--space-1);
+}
+
 /** ============================================================
     6. Responsive and print
     ============================================================ */
@@ -1806,5 +1939,17 @@ code {
 
     .card {
         page-break-inside: avoid;
+    }
+
+    /* The go list is a print-first artifact: the copy that matters is the one
+       taped inside a cabinet door, which has to work with no power and no
+       Tailscale. A location must not split across a page break. */
+    .prep-group {
+        page-break-inside: avoid;
+    }
+
+    .page-header-meta,
+    .prep-actions {
+        display: none;
     }
 }

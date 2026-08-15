@@ -18,14 +18,16 @@
 
     <nav>
         <a href="/dashboard">Dashboard</a>
-        <a href="/calendar">Calendar</a>
         <a href="/todo">Tasks</a>
         <a href="/shopping">Shopping</a>
-        <div class="nav-dropdown" id="meal-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleMealDropdown(event)">Meal Planner</button>
+        <a href="/calendar">Calendar</a>
+        <div class="nav-dropdown" id="other-dropdown">
+            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
             <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Current &amp; Upcoming</a>
+                <a href="/dinner-planner">Meal Planner</a>
                 <a href="/meal-history">Previous Meals</a>
+                <a href="/preparedness">Preparedness</a>
+                <a href="/go-list">Go List</a>
             </div>
         </div>
     </nav>
@@ -277,6 +279,61 @@
         </section>
 
         <section>
+            <div class="card-header">Preparedness state and rows</div>
+            <p class="page-note">
+                The one place the palette leaves greyscale. State is encoded in colour
+                <em>and</em> in words, because the meaning is the message: an expired water filter
+                has to read as different in kind, not merely in wording. These pills report — they
+                do not filter — so they are deliberately not <code>.filter-chip</code>.
+            </p>
+            <p>
+                <span class="pill pill--ok">OK</span>
+                <span class="pill pill--due">Due soon</span>
+                <span class="pill pill--overdue">Overdue</span>
+            </p>
+
+            <div class="prep-group">
+                <div class="prep-group-header">
+                    <h3>Water</h3>
+                    <span class="prep-group-count">3 items · 1 needs attention</span>
+                </div>
+                <div class="prep-row">
+                    <div class="prep-main">
+                        <div class="prep-name">Sawyer filters<span class="prep-qty"> — 2</span></div>
+                        <div class="prep-meta">
+                            <span class="pill pill--due">Due soon</span>
+                            <span>Refresh 2027-02-15 · 14 days</span>
+                        </div>
+                        <div class="prep-notes">Backflush and dry-store — freeze damage risk if stored wet.</div>
+                    </div>
+                    <div class="prep-actions">
+                        <button class="btn btn--quiet btn--sm">Refreshed</button>
+                        <button class="btn btn--quiet btn--sm">Edit</button>
+                    </div>
+                </div>
+                <div class="prep-row prep-row--overdue">
+                    <div class="prep-main">
+                        <div class="prep-name">Water drums<span class="prep-qty"> — 4 x 55gal</span></div>
+                        <div class="prep-meta">
+                            <span class="pill pill--overdue">Overdue</span>
+                            <span>Overdue since 2026-07-01</span>
+                        </div>
+                    </div>
+                    <div class="prep-actions">
+                        <button class="btn btn--quiet btn--sm">Refreshed</button>
+                    </div>
+                </div>
+                <div class="prep-row">
+                    <div class="golist-checkbox" aria-hidden="true"></div>
+                    <div class="prep-main">
+                        <div class="prep-name">Nalgene 32 oz<span class="prep-qty"> — 1</span></div>
+                        <div class="prep-notes">Go-list variant, with the tick box you fill in with a pen.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section>
             <div class="card-header">Modal</div>
             <p class="page-note">
                 Every modal uses one chassis, so each one signals a scrollable body the same way.
@@ -359,12 +416,14 @@
                 </div>`;
             });
 
-        function toggleMealDropdown(e) {
+        function toggleOtherDropdown(e) {
             e.stopPropagation();
-            document.getElementById('meal-dropdown').classList.toggle('open');
+            document.getElementById('other-dropdown').classList.toggle('open');
         }
-        document.addEventListener('click', () => {
-            document.getElementById('meal-dropdown').classList.remove('open');
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
+                d.classList.remove('open');
+            });
         });
     </script>
 </body>

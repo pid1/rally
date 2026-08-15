@@ -18,14 +18,16 @@
 
     <nav>
         <a href="/dashboard">Dashboard</a>
-        <a href="/calendar">Calendar</a>
         <a href="/todo">Tasks</a>
         <a href="/shopping">Shopping</a>
-        <div class="nav-dropdown" id="meal-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleMealDropdown(event)">Meal Planner</button>
+        <a href="/calendar">Calendar</a>
+        <div class="nav-dropdown" id="other-dropdown">
+            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
             <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Current &amp; Upcoming</a>
+                <a href="/dinner-planner">Meal Planner</a>
                 <a href="/meal-history">Previous Meals</a>
+                <a href="/preparedness">Preparedness</a>
+                <a href="/go-list">Go List</a>
             </div>
         </div>
     </nav>
@@ -228,6 +230,35 @@
             </div>
             <button type="submit" class="btn">Save</button>
         </form>
+    </div>
+
+    <!-- Preparedness Section -->
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Preparedness</h3>
+        </div>
+        <form id="preparedness-form">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="prep-notify-enabled">
+                    <span>Send refresh notifications</span>
+                </label>
+                <small>One daily digest covering everything due, pushed to every family member who has a Pushover key. Each item is announced once per refresh date, not every morning until you deal with it.</small>
+            </div>
+            <div class="form-group">
+                <label>Send at</label>
+                <input type="time" id="prep-notify-time">
+                <small>Local time, using the timezone configured above.</small>
+            </div>
+            <div class="form-group">
+                <label>Default reminder lead (days)</label>
+                <input type="number" id="prep-default-remind-days" min="0" step="1" placeholder="14">
+                <small>Prefilled on new items so you hear about a refresh early enough to act on it. A per-item value always wins.</small>
+            </div>
+            <button type="submit" class="btn">Save</button>
+            <button type="button" class="btn btn--secondary" id="btn-prep-preview">Preview what's due</button>
+        </form>
+        <div id="prep-preview"></div>
     </div>
 
     <!-- Sports Section -->
@@ -761,6 +792,9 @@
 
             // Notifications
             document.getElementById('pushover-app-token').value = s.pushover_app_token || '';
+            document.getElementById('prep-notify-enabled').checked = s.prep_notify_enabled !== 'false';
+            document.getElementById('prep-notify-time').value = s.prep_notify_time || '08:00';
+            document.getElementById('prep-default-remind-days').value = s.prep_default_remind_days || '14';
 
             // Learning
             document.getElementById('stem-concept-enabled').checked = s.stem_concept_enabled === 'true';
@@ -1485,6 +1519,52 @@
             await verifyConnection('/api/family/' + id + '/test-pushover', 'Pushover');
         });
 
+        // Preparedness form
+        document.getElementById('preparedness-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    prep_notify_enabled: document.getElementById('prep-notify-enabled').checked ? 'true' : 'false',
+                    prep_notify_time: document.getElementById('prep-notify-time').value || '08:00',
+                    prep_default_remind_days: document.getElementById('prep-default-remind-days').value || '14'
+                });
+                alert('Preparedness settings saved.');
+            } catch (error) {
+                console.error('Error saving preparedness settings:', error);
+                alert('Failed to save preparedness settings');
+            }
+        });
+
+        // Dry run. Answers "is this working" without waiting until morning and
+        // without burning the notice rows that suppress a real send.
+        document.getElementById('btn-prep-preview').addEventListener('click', async () => {
+            const target = document.getElementById('prep-preview');
+            target.innerHTML = '<div class="container-loading-state">Checking…</div>';
+            try {
+                const response = await fetch('/api/preparedness/digest/run?dry_run=true', { method: 'POST' });
+                const body = await response.json();
+                if (!body.count) {
+                    const why = body.skipped_reason ? ' (' + body.skipped_reason + ')' : '';
+                    target.innerHTML = '<div class="container-empty-state">Nothing is due today' + why + '.</div>';
+                    return;
+                }
+                const rows = body.items.map(function (i) {
+                    const tone = i.status === 'overdue' ? 'overdue' : 'due';
+                    return '<div class="prep-row"><div class="prep-main">' +
+                        '<div class="prep-name">' + escapeHtml(i.name) + '</div>' +
+                        '<div class="prep-meta"><span class="pill pill--' + tone + '">' + i.status + '</span>' +
+                        '<span>' + escapeHtml(i.location_name) + ' · ' + escapeHtml(i.next_refresh_date || '') + '</span>' +
+                        '</div></div></div>';
+                }).join('');
+                target.innerHTML = '<div class="prep-group"><div class="prep-group-header">' +
+                    '<h3>Would notify</h3><span class="prep-group-count">' + body.count +
+                    ' item' + (body.count === 1 ? '' : 's') + '</span></div>' + rows + '</div>';
+            } catch (error) {
+                console.error('Preparedness preview failed:', error);
+                target.innerHTML = '<div class="container-empty-state">Could not check right now.</div>';
+            }
+        });
+
         // Learning form
         document.getElementById('learning-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1531,12 +1611,14 @@
         Promise.all([fetchMembers(), fetchCalendars(), fetchFollowedTeams(), fetchSettings(), fetchAiSettings()]);
 
         // Nav dropdown toggle (for touch devices)
-        function toggleMealDropdown(e) {
+        function toggleOtherDropdown(e) {
             e.stopPropagation();
-            document.getElementById('meal-dropdown').classList.toggle('open');
+            document.getElementById('other-dropdown').classList.toggle('open');
         }
-        document.addEventListener('click', function() {
-            document.getElementById('meal-dropdown').classList.remove('open');
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
+                d.classList.remove('open');
+            });
         });
     </script>
 

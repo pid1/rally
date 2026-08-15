@@ -16,6 +16,7 @@ dependencies = [
     "icalendar>=7.0.0",
     "recurring-ical-events>=2.0.2",
     "caldav>=1.4.0",
+    "fpdf2>=2.8.5",
 ]
 
 [project.scripts]

@@ -578,3 +578,160 @@ class EventNotifyResponse(BaseModel):
     skipped: list[str] = []
     failed: list[str] = []
     error: str | None = None
+
+
+# Preparedness — locations
+
+
+class PrepLocationBase(BaseModel):
+    name: str
+    sort_order: int = 0
+
+
+class PrepLocationCreate(PrepLocationBase):
+    pass
+
+
+class PrepLocationUpdate(BaseModel):
+    name: str | None = None
+    sort_order: int | None = None
+
+
+class PrepLocationResponse(PrepLocationBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Preparedness — items
+
+PrepRefreshMode = Literal["none", "date", "interval"]
+
+
+def validate_prep_schedule(mode: str | None, interval: int | None, next_date: str | None) -> None:
+    """Enforce the refresh mode/field triangle.
+
+    These are the combinations that would otherwise produce an item which
+    silently never notifies — the one failure this feature cannot have.
+    """
+    if mode is None:
+        return
+    if mode == "none":
+        if next_date or interval:
+            raise ValueError(
+                "refresh_mode 'none' cannot carry next_refresh_date or refresh_interval_months"
+            )
+    elif mode == "date":
+        if not next_date:
+            raise ValueError("refresh_mode 'date' requires next_refresh_date")
+        if interval:
+            raise ValueError("refresh_mode 'date' cannot carry refresh_interval_months")
+    elif mode == "interval":
+        if not interval or interval < 1:
+            raise ValueError("refresh_mode 'interval' requires refresh_interval_months >= 1")
+
+
+class PrepItemBase(BaseModel):
+    name: str
+    quantity: str | None = None
+    location_id: int | None = None
+    notes: str | None = None
+    refresh_mode: PrepRefreshMode = "none"
+    refresh_interval_months: int | None = None
+    next_refresh_date: str | None = None  # YYYY-MM-DD
+    remind_days_before: int | None = None
+
+
+class PrepItemCreate(PrepItemBase):
+    @model_validator(mode="after")
+    def check_schedule(self):
+        validate_prep_schedule(
+            self.refresh_mode, self.refresh_interval_months, self.next_refresh_date
+        )
+        return self
+
+
+class PrepItemUpdate(BaseModel):
+    """Partial update. Nullable fields use the UNSET sentinel, so an explicit
+    ``null`` clears the value while omission leaves it alone."""
+
+    name: str | None = None
+    quantity: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    location_id: int | None = UNSET  # None means "Unassigned"
+    notes: str | None = UNSET
+    refresh_mode: PrepRefreshMode | None = None
+    refresh_interval_months: int | None = UNSET
+    next_refresh_date: str | None = UNSET  # YYYY-MM-DD
+    remind_days_before: int | None = UNSET
+
+
+class PrepItemResponse(PrepItemBase):
+    id: int
+    last_refreshed_on: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    # Derived at render time from today's date; never stored.
+    status: str = "ok"
+    days_until: int | None = None
+    location_name: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PrepItemRefresh(BaseModel):
+    """Mark an item refreshed. Defaults to today in the family's timezone."""
+
+    on: str | None = None  # YYYY-MM-DD
+
+
+# Preparedness — go list
+
+
+class GoListGroup(BaseModel):
+    location_id: int | None
+    location_name: str
+    items: list[PrepItemResponse]
+
+
+class GoListResponse(BaseModel):
+    generated_on: str
+    total_items: int
+    groups: list[GoListGroup]
+
+
+# Preparedness — digest
+
+
+class PrepDigestItem(BaseModel):
+    id: int
+    name: str
+    location_name: str
+    next_refresh_date: str | None
+    status: str
+
+
+class PrepDigestResponse(BaseModel):
+    ran_on: str
+    dry_run: bool
+    sent: bool
+    count: int
+    items: list[PrepDigestItem]
+    sent_to: list[str] = []
+    skipped: list[str] = []
+    failed: list[str] = []
+    skipped_reason: str | None = None
+
+
+class PrepNoticeResponse(BaseModel):
+    id: int
+    item_id: int
+    item_name: str | None = None
+    refresh_date: str
+    sent_on: str
+    recipients: str | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
