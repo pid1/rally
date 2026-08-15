@@ -278,10 +278,21 @@
                 </div>`;
         }
 
+        function filtersActive() {
+            return selectedLocations.size > 0 || selectedStatus !== null || searchTerm !== '';
+        }
+
         function renderGroups() {
             const container = document.getElementById('groups-container');
             if (!items.length) {
-                container.innerHTML = '<div class="container-empty-state">Nothing matches these filters.</div>';
+                // An empty inventory and an over-filtered one are different
+                // problems with different fixes. Telling somebody on a fresh
+                // install that nothing matches their filters — when they have
+                // set none — sends them looking for a filter to clear.
+                const message = filtersActive()
+                    ? 'Nothing matches these filters.'
+                    : 'No items yet. Add your first one to start tracking what you have.';
+                container.innerHTML = `<div class="container-empty-state">${message}</div>`;
                 return;
             }
 

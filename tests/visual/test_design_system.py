@@ -200,3 +200,45 @@ def test_every_modal_uses_the_shared_chassis(measure, page):
         assert modal["hasScroll"] and modal["hasBody"], (
             f"{page}: modal #{modal['id']} is missing the .modal-scroll/.modal-body chassis"
         )
+
+
+def _open(browser, live_server, path: str):
+    """A real page at desktop width, for assertions the probe cache cannot make."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    page.goto(live_server + path, wait_until="networkidle")
+    return context, page
+
+
+def test_empty_inventory_does_not_blame_the_filters(browser, live_server):
+    """A fresh install has no items and no filters set.
+
+    Telling somebody "nothing matches these filters" when they have set none
+    sends them hunting for a filter to clear, which is the one thing that
+    cannot help. The two empty states are different problems with different
+    fixes, so they say different things.
+    """
+    context, page = _open(browser, live_server, "/preparedness")
+    try:
+        page.wait_for_selector("#groups-container .container-empty-state")
+        empty = page.locator("#groups-container .container-empty-state").inner_text()
+        assert "No items yet" in empty
+        assert "filter" not in empty.lower()
+    finally:
+        context.close()
+
+
+def test_over_filtered_inventory_does_blame_the_filters(browser, live_server):
+    """With a filter actually applied, the filter message is the right one."""
+    context, page = _open(browser, live_server, "/preparedness")
+    try:
+        page.wait_for_selector("#groups-container .container-empty-state")
+        page.click('#filter-status-chips [data-status="overdue"]')
+        page.wait_for_function(
+            "() => document.querySelector('#groups-container .container-empty-state')"
+            "?.innerText.includes('filters')"
+        )
+        empty = page.locator("#groups-container .container-empty-state").inner_text()
+        assert "Nothing matches these filters" in empty
+    finally:
+        context.close()
