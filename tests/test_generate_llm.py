@@ -754,3 +754,61 @@ def test_a_sports_failure_still_produces_a_summary(frozen_now, monkeypatch):
 
     assert data["greeting"] == "Hi"
     assert "error" not in data
+
+
+# --- home location ---------------------------------------------------------------
+
+
+def _prompt_from(gen) -> str:
+    """The system prompt the generator actually sent.
+
+    Anthropic receives it as a list of cache-control blocks rather than a bare
+    string, so flatten it back to text before asserting on the content.
+    """
+    system = gen.client.last_kwargs["system"]
+    if isinstance(system, str):
+        return system
+    return "\n".join(block["text"] for block in system)
+
+
+def test_home_location_reaches_the_system_prompt(frozen_now):
+    """It is sent alongside FAMILY CONTEXT, not buried inside it."""
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+    gen._db_settings["home_location"] = "Highland Village, TX"
+
+    gen.generate_summary()
+
+    prompt = _prompt_from(gen)
+    assert "HOME:" in prompt
+    assert "Highland Village, TX" in prompt
+
+
+def test_home_block_is_omitted_when_unset(frozen_now):
+    """An empty labelled section invites the model to invent a value."""
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+
+    gen.generate_summary()
+
+    assert "HOME:" not in _prompt_from(gen)
+
+
+def test_whitespace_only_home_is_treated_as_unset(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+    gen._db_settings["home_location"] = "   "
+
+    gen.generate_summary()
+
+    assert "HOME:" not in _prompt_from(gen)
+
+
+def test_home_location_is_recorded_for_eval_ground_truth(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+    gen._db_settings["home_location"] = "Highland Village, TX"
+
+    gen.generate_summary()
+
+    assert gen._generation_context["home_location"] == "Highland Village, TX"

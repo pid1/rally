@@ -466,3 +466,29 @@ def test_calendar_delete_and_404(client, db_session, make_member):
     assert db_session.get(Calendar, cal["id"]) is None
 
     assert client.delete("/api/calendars/9999").status_code == 404
+
+
+class TestHomeLocation:
+    """Home location is first-party config, not prose buried in family context."""
+
+    def test_defaults_to_empty(self, db_session):
+        from rally.utils.settings import home_location
+
+        assert home_location(db_session) == ""
+
+    def test_reads_the_setting(self, db_session, make_setting):
+        from rally.utils.settings import home_location
+
+        make_setting("home_location", "Highland Village, TX")
+        assert home_location(db_session) == "Highland Village, TX"
+
+    def test_whitespace_only_reads_as_unset(self, db_session, make_setting):
+        from rally.utils.settings import home_location
+
+        make_setting("home_location", "   ")
+        assert home_location(db_session) == ""
+
+    def test_round_trips_through_the_api(self, client):
+        client.put("/api/settings", json={"settings": {"home_location": "Highland Village, TX"}})
+        body = client.get("/api/settings").json()
+        assert body["settings"]["home_location"] == "Highland Village, TX"

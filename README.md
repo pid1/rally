@@ -54,6 +54,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - **Go list** - a printable packing list of everything, grouped by location in the order you walk it, exportable as Markdown, CSV or PDF
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
 - 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (Rally-owned calendars, ICS feeds, Google CalDAV, Apple iCloud CalDAV)
+- 🏡 **Home Location** - Tell Rally where you live once, on the Settings page. It is sent to the AI alongside your family context, so the daily summary can reason about local conditions
 - ⚙️ **Settings** - Configure API keys, LLM provider, timezone, calendars, and Pushover through a web UI, with automatic connection verification on save
 - 🤖 **AI-Powered Summaries** - Configurable LLM generates encouraging, action-oriented daily plans (Anthropic Claude or any OpenAI-compatible provider. GLM 4.7 Flash works well for local inference.) The LLM is instructed to only reference tasks explicitly present in its prompt, preventing hallucinated or premature task mentions.
 - 🏠 **Family-Centered** - Understands your routines, roles, and how you work together
@@ -219,6 +220,7 @@ Rally uses a **file-based migration system** that runs automatically on containe
 || `017_add_shopping_lists` | Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables |
 || `020_add_native_calendaring` | Add the event tables, Pushover columns on family members, and native calendars |
 || `021_add_preparedness` | Add `prep_locations`, `prep_items`, and `prep_refresh_notices` |
+|| `022_add_home_location` | Seed the `home_location` setting |
 
 ### Running Migrations Manually
 

@@ -699,6 +699,10 @@ class SummaryGenerator:
         # Pre-migration fallback: value stored directly in the settings table
         return self._db_settings.get(field_name)
 
+    def load_home_location(self) -> str:
+        """The family's home location, or an empty string when unset."""
+        return (self._db_settings.get("home_location") or "").strip()
+
     def load_context(self) -> str:
         """Load family context from DB settings, falling back to file."""
         value = self._load_ai_setting("family_context")
@@ -919,6 +923,7 @@ class SummaryGenerator:
         dinner_plans = self.load_dinner_plans()
         context = self.load_context()
         voice = self.load_voice()
+        home = self.load_home_location()
         # Only queried when the feature is on — an empty section would burn
         # tokens and invite the model to reference a list that isn't there.
         shopping_items = self.load_shopping_items() if self.shopping_list_in_summary_enabled else ""
@@ -936,6 +941,7 @@ class SummaryGenerator:
             "todos": todos,
             "dinner_plans": dinner_plans,
             "shopping_items": shopping_items,
+            "home_location": home,
             "family_members": ", ".join(family_members.values())
             if family_members
             else "No family members configured.",
@@ -1010,6 +1016,11 @@ class SummaryGenerator:
             f"\n{number}. {body}" for number, body in enumerate(optional_guidelines, start=11)
         )
 
+        # An unset home location omits the whole block rather than sending an
+        # empty one: a labelled section with nothing after it invites the model
+        # to fill it in.
+        home_block = f"\nHOME:\nThe family lives in {home}.\n" if home else ""
+
         # Static content → system prompt (cached by Anthropic, system role for local models)
         system_prompt = f"""You are creating content for a daily family summary.
 
@@ -1018,7 +1029,7 @@ AGENT VOICE:
 
 FAMILY CONTEXT:
 {context}
-
+{home_block}
 TIMEZONE:
 The family's local timezone is {tz_label}. Every time written in FAMILY CONTEXT
 (and anywhere else without an explicit zone) is ALREADY in this local timezone.
