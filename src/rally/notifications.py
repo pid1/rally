@@ -370,20 +370,43 @@ def run_due_reminders_once_per_minute(db: Session, now: datetime | None = None) 
 
 
 def main() -> int:
-    """Run one reminder pass. Entry point for the container's minute loop."""
+    """Run one notification pass. Entry point for the container's minute loop.
+
+    Two jobs share this loop rather than each growing a scheduler:
+
+    - Event reminders, which need minute resolution.
+    - The preparedness refresh digest, which needs day resolution but has to be
+      checked often enough to catch its configured send time. It gates itself
+      on a settings row, so calling it every minute costs one indexed read.
+
+    A failure in either is logged and does not stop the other.
+    """
     from rally.database import SessionLocal
+    from rally.preparedness import run_daily_digest
 
     db = SessionLocal()
+    sent = 0
+    failed = False
     try:
-        sent = check_due_reminders(db)
-    except Exception as exc:  # pragma: no cover - the loop must not die
-        print(f"Reminder check failed: {exc}")
-        return 1
+        try:
+            sent = check_due_reminders(db)
+        except Exception as exc:  # pragma: no cover - the loop must not die
+            print(f"Reminder check failed: {exc}")
+            failed = True
+
+        try:
+            digest = run_daily_digest(db)
+            if digest.sent:
+                print(f"Sent preparedness digest for {digest.count} item(s)")
+        except Exception as exc:  # pragma: no cover - the loop must not die
+            print(f"Preparedness digest failed: {exc}")
+            failed = True
     finally:
         db.close()
+
     if sent:
         print(f"Sent {sent} reminder(s)")
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

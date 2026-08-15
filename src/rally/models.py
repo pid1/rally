@@ -514,3 +514,111 @@ class DinnerPlan(Base):
             "rating IS NULL OR (rating >= 1 AND rating <= 5)", name="ck_dinner_plan_rating"
         ),
     )
+
+
+class PrepLocation(Base):
+    """A place preparedness stock lives: Garage shelf, Truck, Bug-out bag.
+
+    Mirrors ``ShoppingStore`` exactly, including the case-insensitive unique
+    index and the absence of a seeded catch-all row: an item with no place has
+    ``location_id IS NULL``, the same convention as ``ShoppingItem.store_id``
+    and ``Todo.assigned_to``.
+
+    ``sort_order`` is the one addition the shopping stores do not have. A go
+    list is *walked* in physical order — truck, then garage, then basement —
+    and alphabetical is the wrong order to pack in. Ties break alphabetically.
+    """
+
+    __tablename__ = "prep_locations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_prep_locations_name_nocase", text("name COLLATE NOCASE"), unique=True),
+    )
+
+
+class PrepItem(Base):
+    """An item of preparedness stock.
+
+    ``quantity`` is free text, stored and displayed verbatim ("3 cases",
+    "~10 pr", "8-10"). With no par levels or low-stock alerts in scope, a
+    parsed integer would be structure bought for features that are not being
+    built and paid for on every entry. The tradeoff is accepted: quantity
+    cannot be sorted, summed or compared.
+
+    ``next_refresh_date`` is *stored* rather than derived from
+    ``last_refreshed_on`` plus the interval. It is the single value the
+    refresh sweep reads and it is indexed, the same call ``RecurringTodo``
+    makes with ``last_generated_date``. Every write path that can move it
+    recomputes it (see ``rally.preparedness``).
+
+    Dates are ``String(10)`` YYYY-MM-DD like ``Todo.due_date``: they are days
+    on a wall calendar, not instants, and must never have a timezone applied
+    twice.
+    """
+
+    __tablename__ = "prep_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    quantity: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    location_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK to prep_locations.id; NULL is the "Unassigned" catch-all
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- refresh schedule ---
+    refresh_mode: Mapped[str] = mapped_column(String(10), default="none")  # none | date | interval
+    refresh_interval_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    next_refresh_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True, index=True
+    )  # YYYY-MM-DD; the only column the sweep reads
+    remind_days_before: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Lead time, same name and semantics as Todo.remind_days_before
+    last_refreshed_on: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
+
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        CheckConstraint(
+            "refresh_mode IN ('none','date','interval')", name="ck_prep_item_refresh_mode"
+        ),
+    )
+
+
+class PrepRefreshNotice(Base):
+    """Record that an item's refresh for a given date has been announced.
+
+    Mirrors ``SportsEventNotice`` and ``EventNotification``: written once,
+    never rewritten, and the reason the sweep is safe to run every minute
+    forever, across restarts and clock changes. Without it the family would be
+    told about the same canned food every single morning until they dealt with
+    it.
+
+    The key is a *string*, ``f"{item_id}:{refresh_date}"``. Keying on the pair
+    rather than on the item is what re-arms an item for free when its date
+    moves: new date, new key, no row, announce normally. No cleanup code and no
+    flag to reset. It is also what would make overdue escalation cheap later —
+    a cycle number folds into the same key with no schema change.
+    """
+
+    __tablename__ = "prep_refresh_notices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    notice_key: Mapped[str] = mapped_column(
+        String(80), unique=True, index=True
+    )  # f"{item_id}:{refresh_date}"
+    item_id: Mapped[int] = mapped_column(Integer, index=True)
+    refresh_date: Mapped[str] = mapped_column(String(10))  # the date announced
+    sent_on: Mapped[str] = mapped_column(String(10))  # local date the push went out
+    recipients: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Comma-separated member names, for the "did it send?" view
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)

@@ -46,6 +46,12 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - Date-based meal planning with simple text field
   - View next 7 days of planned dinners
   - AI checks tonight's dinner and suggests prep in "The Briefing" section
+- 🎒 **Preparedness** - Emergency stock you can actually rely on
+  - Track survival items with a name, free-text quantity, location, and notes
+  - Give any item a refresh schedule — a fixed date ("this case is stamped 2027-01-01") or a repeating interval ("rotate the water every 6 months")
+  - One Pushover digest a day covering everything due, to everyone with a key. Each item is announced **once** per refresh date, not every morning until you deal with it
+  - `Refreshed` re-anchors the next date on the day you actually swapped it, because a case rotated three weeks late expires three weeks later
+  - **Go list** - a printable packing list of everything, grouped by location in the order you walk it, exportable as Markdown, CSV or PDF
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
 - 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (Rally-owned calendars, ICS feeds, Google CalDAV, Apple iCloud CalDAV)
 - ⚙️ **Settings** - Configure API keys, LLM provider, timezone, calendars, and Pushover through a web UI, with automatic connection verification on save
@@ -65,7 +71,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - **Uvicorn** - High-performance ASGI server
 - **Anthropic / OpenAI** - Configurable LLM provider for summary generation (Anthropic Claude or any OpenAI-compatible API)
 - **caldav** - CalDAV protocol support for Google and Apple calendar access
-- **Pushover** - Per-family-member push notifications for event reminders
+- **Pushover** - Per-family-member push notifications for event reminders and the daily preparedness refresh digest
 - **icalendar + recurring-ical-events** - ICS calendar parsing with full recurring event support
 - **Python 3.14** - Latest Python with modern syntax
 - **uv** - Fast Python dependency management
@@ -211,6 +217,8 @@ Rally uses a **file-based migration system** that runs automatically on containe
 || `007_add_last_generated_date` | Add `last_generated_date` to recurring_todos |
 || `008_add_caldav_support` | Add `cal_type`, `username`, `password` to calendars for CalDAV |
 || `017_add_shopping_lists` | Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables |
+|| `020_add_native_calendaring` | Add the event tables, Pushover columns on family members, and native calendars |
+|| `021_add_preparedness` | Add `prep_locations`, `prep_items`, and `prep_refresh_notices` |
 
 ### Running Migrations Manually
 

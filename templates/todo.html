@@ -28,6 +28,13 @@
                 <a href="/meal-history">Previous Meals</a>
             </div>
         </div>
+        <div class="nav-dropdown" id="prep-dropdown">
+            <button class="nav-dropdown-btn" onclick="togglePrepDropdown(event)">Preparedness</button>
+            <div class="nav-dropdown-content">
+                <a href="/preparedness">Inventory</a>
+                <a href="/go-list">Go List</a>
+            </div>
+        </div>
     </nav>
 
     <div class="page stack">
@@ -986,9 +993,18 @@
         function toggleMealDropdown(e) {
             e.stopPropagation();
             document.getElementById('meal-dropdown').classList.toggle('open');
+            document.getElementById('prep-dropdown')?.classList.remove('open');
+        }
+
+        function togglePrepDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('prep-dropdown').classList.toggle('open');
+            document.getElementById('meal-dropdown')?.classList.remove('open');
         }
         document.addEventListener('click', function() {
-            document.getElementById('meal-dropdown').classList.remove('open');
+            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
+                d.classList.remove('open');
+            });
         });
     </script>
 

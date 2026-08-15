@@ -13,6 +13,7 @@ from rally.routers import (
     dinner_planner,
     events,
     family,
+    preparedness,
     recurring_todos,
     settings,
     shopping,
@@ -67,6 +68,7 @@ app.include_router(family.router)
 app.include_router(recurring_todos.router)
 app.include_router(settings.router)
 app.include_router(shopping.router)
+app.include_router(preparedness.router)
 
 
 @app.get("/", response_class=RedirectResponse)
@@ -121,6 +123,18 @@ def meal_history_page(request: Request):
 def meal_planner_redirect():
     """Redirect /meal-planner to /dinner-planner for convenience."""
     return RedirectResponse(url="/dinner-planner")
+
+
+@app.get("/preparedness", response_class=HTMLResponse)
+def preparedness_page(request: Request):
+    """Serve the preparedness inventory page."""
+    return templates.TemplateResponse("preparedness.html", {"request": request})
+
+
+@app.get("/go-list", response_class=HTMLResponse)
+def go_list_page(request: Request):
+    """Serve the go list — the printable packing list, grouped by location."""
+    return templates.TemplateResponse("go_list.html", {"request": request})
 
 
 @app.get("/settings", response_class=HTMLResponse)

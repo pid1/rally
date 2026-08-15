@@ -29,6 +29,9 @@ from rally.models import (
     Event,
     EventAttendee,
     FamilyMember,
+    PrepItem,
+    PrepLocation,
+    PrepRefreshNotice,
     RecurringTodo,
     Setting,
     ShoppingItem,
@@ -558,3 +561,79 @@ def mock_caldav(monkeypatch):
     controller = SimpleNamespace(calls=calls)
     controller.set_events = lambda events: holder.__setitem__("events", events)
     return controller
+
+
+# --- Preparedness --------------------------------------------------------------
+
+
+@pytest.fixture
+def make_prep_location(db_session: Session):
+    def _make(name: str = "Garage", *, sort_order: int = 0, **kwargs) -> PrepLocation:
+        loc = PrepLocation(name=name, sort_order=sort_order, **kwargs)
+        db_session.add(loc)
+        db_session.commit()
+        db_session.refresh(loc)
+        return loc
+
+    return _make
+
+
+@pytest.fixture
+def make_prep_item(db_session: Session):
+    def _make(
+        name: str = "Canned chili",
+        *,
+        quantity: str | None = None,
+        location_id: int | None = None,
+        notes: str | None = None,
+        refresh_mode: str = "none",
+        refresh_interval_months: int | None = None,
+        next_refresh_date: str | None = None,
+        remind_days_before: int | None = None,
+        **kwargs,
+    ) -> PrepItem:
+        item = PrepItem(
+            name=name,
+            quantity=quantity,
+            location_id=location_id,
+            notes=notes,
+            refresh_mode=refresh_mode,
+            refresh_interval_months=refresh_interval_months,
+            next_refresh_date=next_refresh_date,
+            remind_days_before=remind_days_before,
+            **kwargs,
+        )
+        db_session.add(item)
+        db_session.commit()
+        db_session.refresh(item)
+        return item
+
+    return _make
+
+
+@pytest.fixture
+def make_prep_notice(db_session: Session):
+    def _make(item_id: int, refresh_date: str, *, sent_on: str = "2026-08-15") -> PrepRefreshNotice:
+        row = PrepRefreshNotice(
+            notice_key=f"{item_id}:{refresh_date}",
+            item_id=item_id,
+            refresh_date=refresh_date,
+            sent_on=sent_on,
+        )
+        db_session.add(row)
+        db_session.commit()
+        db_session.refresh(row)
+        return row
+
+    return _make
+
+
+@pytest.fixture
+def prep_pushover(make_setting, db_session: Session):
+    """An install token plus one family member who can actually be reached."""
+    make_setting("pushover_app_token", "test-app-token")
+    member = FamilyMember(name="Jon", pushover_user_key="test-user-key")
+    db_session.add(member)
+    db_session.commit()
+    db_session.refresh(member)
+    return member

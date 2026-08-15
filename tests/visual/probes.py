@@ -35,7 +35,8 @@ MEASURE_JS = r"""
     text: ['xs','sm','base','lg','xl','display'].map(n => token(`--text-${n}`)),
     textPx: ['xs','sm','base','lg','xl','display'].map(n => toPx(token(`--text-${n}`))),
     colours: ['ink','ink-strong','ink-muted','ink-subtle','rule','rule-subtle',
-              'surface','surface-sunken','inverse'].map(n => token(`--${n}`)),
+              'surface','surface-sunken','inverse',
+              'state-due','state-overdue'].map(n => token(`--${n}`)),
     targetMin: toPx(token('--target-min')),
   };
 

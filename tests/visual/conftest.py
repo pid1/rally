@@ -42,6 +42,8 @@ PAGES = {
     "shopping-purchased": "/shopping/purchased",
     "dinner-planner": "/dinner-planner",
     "meal-history": "/meal-history",
+    "preparedness": "/preparedness",
+    "go-list": "/go-list",
     "settings": "/settings",
     "styleguide": "/styleguide",
 }
@@ -56,6 +58,7 @@ TOOLBAR_PAGES = [
     "shopping-purchased",
     "dinner-planner",
     "meal-history",
+    "preparedness",
 ]
 
 
