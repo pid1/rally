@@ -16,9 +16,9 @@ from fastapi.responses import Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from rally import golist, preparedness
+from rally import golist, prep_review, preparedness
 from rally.database import get_db
-from rally.models import PrepItem, PrepLocation, PrepRefreshNotice
+from rally.models import PrepItem, PrepLocation, PrepRefreshNotice, PrepReview
 from rally.schemas import (
     UNSET,
     GoListGroup,
@@ -33,6 +33,7 @@ from rally.schemas import (
     PrepLocationResponse,
     PrepLocationUpdate,
     PrepNoticeResponse,
+    PrepReviewResponse,
     validate_prep_schedule,
 )
 
@@ -454,3 +455,51 @@ def digest_log(limit: int = Query(50, ge=1, le=200), db: Session = Depends(get_d
         )
         for r in rows
     ]
+
+
+# --- LLM review ----------------------------------------------------------------
+
+
+def _review_response(db: Session, row: PrepReview) -> PrepReviewResponse:
+    """Attach the staleness signal the stored row cannot know on its own."""
+    current = prep_review.current_item_count(db)
+    return PrepReviewResponse(
+        id=row.id,
+        review=row.data,
+        model=row.model,
+        item_count=row.item_count,
+        current_item_count=current,
+        # Cheapest possible staleness signal, and the one that matters after a
+        # restock: a review of 38 items says little about the 44 you have now.
+        stale=current != row.item_count,
+        created_at=row.created_at,
+    )
+
+
+@router.get("/review", response_model=PrepReviewResponse)
+def get_review(db: Session = Depends(get_db)):
+    """The last stored review.
+
+    Reading never triggers a call — a review costs real money and several
+    seconds, so a page load must never spend either. `404` until one has been
+    run, which the UI renders as "not reviewed yet" rather than an error.
+    """
+    row = prep_review.latest_review(db)
+    if not row:
+        raise HTTPException(status_code=404, detail="No review yet")
+    return _review_response(db, row)
+
+
+@router.post("/review", response_model=PrepReviewResponse)
+def run_review(db: Session = Depends(get_db)):
+    """Run a fresh review and store it.
+
+    Every failure path returns a message written for the person who pressed the
+    button, not a stack trace: the feature is off, there is nothing to review,
+    no LLM is configured, or the model did not answer usefully.
+    """
+    try:
+        row = prep_review.run_review(db)
+    except prep_review.PrepReviewError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _review_response(db, row)

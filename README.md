@@ -51,6 +51,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - Give any item a refresh schedule — a fixed date ("this case is stamped 2027-01-01") or a repeating interval ("rotate the water every 6 months")
   - One Pushover digest a day covering everything due, to everyone with a key. Each item is announced **once** per refresh date, not every morning until you deal with it
   - `Refreshed` re-anchors the next date on the day you actually swapped it, because a case rotated three weeks late expires three weeks later
+  - **AI review** (optional, off by default) - asks your LLM what the kit is missing, using your family context, ages and home location. It sees the whole inventory and is told to say what it assumed rather than guess
   - **Go list** - a printable packing list of everything, grouped by location in the order you walk it, exportable as Markdown, CSV or PDF
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
 - 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (Rally-owned calendars, ICS feeds, Google CalDAV, Apple iCloud CalDAV)
@@ -221,6 +222,7 @@ Rally uses a **file-based migration system** that runs automatically on containe
 || `020_add_native_calendaring` | Add the event tables, Pushover columns on family members, and native calendars |
 || `021_add_preparedness` | Add `prep_locations`, `prep_items`, and `prep_refresh_notices` |
 || `022_add_home_location` | Seed the `home_location` setting |
+|| `023_add_prep_reviews` | Add `prep_reviews` for stored LLM inventory reviews |
 
 ### Running Migrations Manually
 

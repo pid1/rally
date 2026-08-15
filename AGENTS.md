@@ -393,6 +393,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `020_add_native_calendaring` - Add the `events`, `event_attendees`, `event_overrides` and `event_notifications` tables plus their indexes (the unique index on `event_notifications` *is* the reminder send-once guarantee), add `pushover_user_key` / `pushover_device` to `family_members`, and seed one `cal_type='native'` calendar per existing family member. Purely additive
 - `021_add_preparedness` - Add the `prep_locations`, `prep_items` and `prep_refresh_notices` tables plus their indexes (the unique index on `prep_refresh_notices.notice_key` *is* the refresh announce-once guarantee), and seed the `prep_notify_enabled` / `prep_notify_time` / `prep_default_remind_days` settings rows. Purely additive
 - `022_add_home_location` - Seed an empty `home_location` settings row. Purely additive; `home_location()` treats a missing row and an empty one identically, so this exists to make the field visible on the settings page from the first load rather than to change behaviour
+- `023_add_prep_reviews` - Add the `prep_reviews` table (stored LLM reviews of the preparedness inventory). Purely additive
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 
 ### Running Migrations
@@ -540,6 +541,7 @@ rally/
 │   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
+│   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalising
 │   ├── calendars/        # One normalized event shape for every calendar source
 │   │   ├── occurrence.py # The Occurrence dataclass + timezone/DST helpers
 │   │   ├── declined.py   # Declined/cancelled detection (one copy, was two)
@@ -664,6 +666,7 @@ rally/
   - `shopping_list_in_summary_enabled` ("true"/"false", default "false") folds open shopping items into the daily summary (Shopping List section)
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
   - `home_location` (free text, e.g. "Highland Village, TX") is the family's home, sent to the LLM as its own `HOME:` block alongside `FAMILY CONTEXT`. First-party rather than prose inside the context so other views can read it structurally. An unset value omits the whole block — a labelled section with nothing after it invites the model to invent one
+  - `prep_review_enabled` ("true"/"false", default **"false"**) adds the `Review` button to `/preparedness`. Off by default because it is a real LLM call and is only useful once a reasonable amount of stock has been entered
   - `prep_notify_enabled` ("true"/"false", default "true"), `prep_notify_time` (local HH:MM, default "08:00") and `prep_default_remind_days` (default "14") drive the preparedness refresh digest. `prep_last_digest_date` is internal bookkeeping written by the once-per-local-day gate — never surfaced in the UI, exactly like `shopping_last_purge_date`
   - `sports_watchlist_enabled` ("true"/"false", default "false") folds tonight's games and notable upcoming events for followed teams into the daily summary (Sports section)
   - `llm_anthropic_max_tokens` / `llm_local_max_tokens` (default `"4000"` each) are the per-provider token budgets `_call_llm` sends — each provider owns its own key, so switching `Provider` never carries one provider's budget onto the other. `llm_anthropic_max_tokens_mode` (`"model_max"` or `"custom"`, default `"custom"`) is Anthropic-only; in `"model_max"` mode the value is resolved from the Anthropic Models API at save time (not on every generation run) and stored, not re-resolved later — rollback restores the stored number verbatim rather than re-resolving it
@@ -741,6 +744,11 @@ rally/
   - One **digest** per day covering everything due, to every family member with a Pushover key — the household, not an event's attendees, because the water drums belong to the house. Each item is announced once per refresh date via `prep_refresh_notices`; a failed send records nothing so the next pass retries
   - The digest rides the existing minute loop (`python -m rally.notifications`) and the opportunistic API hook, rather than growing a second scheduler
   - The go list groups every item by location in walking order, prints cleanly, and exports as Markdown, CSV or PDF
+- ✅ Preparedness AI review (`prep_review.py`, toggle in Settings → Preparedness) - Asks the configured LLM what the kit is missing
+  - Sees the **entire** inventory, family members, the active family context (which is where ages come from — there is no age column) and the home location from #147
+  - **Groundedness is the whole design.** Asking what is *absent* is the prompt shape most likely to produce invention, so the model is told the inventory is the only evidence of what the family owns, warned not to flag a category the list already covers under different words, and required to put anything it does not know — unstated ages, unset home — into an `assumptions` field rather than guessing. Absent inputs are passed as an explicit `(not recorded)` so there is no silent hole to fill
+  - Responses are normalised before storage: unknown priorities coerce to `medium`, gaps without an item are dropped, and the list is capped — a review is read by someone deciding what to buy, so a half-parsed field is worse than a missing one
+  - Snapshotted into `prep_reviews` and read back on view, following `DashboardSnapshot`. The response carries `stale` so a review of 38 items is visibly stale once you hold 44
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
 - ✅ Scheduled generation at 4:00 AM in configured timezone (in Docker)
@@ -896,6 +904,8 @@ visual suite (above) before shipping a layout change.
   - `GET /api/preparedness/go-list/export?format=md|csv|pdf` - Download as an attachment
   - `POST /api/preparedness/digest/run?dry_run=true` - Run the digest now. Defaults to a dry run — the honest way to answer "is this working" without waiting until morning or burning the notice rows that suppress a real send
   - `GET /api/preparedness/digest/log` - Recent announcements, newest first
+  - `POST /api/preparedness/review` - Run an LLM review of the inventory and store it. `400` with a message written for the person who pressed the button when the feature is off, the inventory is empty, no LLM is configured, or the model did not answer usefully
+  - `GET /api/preparedness/review` - The last stored review, plus `stale` (the item count has changed since it ran). Reading **never** calls the model — a review costs real money and several seconds, so a page load must never spend either. `404` until one has been run
 
 ### Navigation
 Top level is the four pages a family touches daily — **Dashboard, Tasks, Shopping, Calendar** — plus a single **Other** dropdown holding everything visited occasionally: Meal Planner, Previous Meals, Preparedness, Go List.
