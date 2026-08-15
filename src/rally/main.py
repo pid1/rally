@@ -11,6 +11,7 @@ from rally.database import init_db
 from rally.routers import (
     dashboard,
     dinner_planner,
+    events,
     family,
     recurring_todos,
     settings,
@@ -59,6 +60,7 @@ templates.env.globals["css_version"] = STATIC_VERSION
 
 # Include routers
 app.include_router(dashboard.router)
+app.include_router(events.router)
 app.include_router(todos.router)
 app.include_router(dinner_planner.router)
 app.include_router(family.router)
@@ -83,6 +85,12 @@ def todo_page(request: Request):
 def todo_completed_page(request: Request):
     """Serve the read-only page of previously completed tasks."""
     return templates.TemplateResponse("todo_completed.html", {"request": request})
+
+
+@app.get("/calendar", response_class=HTMLResponse)
+def calendar_page(request: Request):
+    """Serve the calendar page (month and agenda views)."""
+    return templates.TemplateResponse("calendar.html", {"request": request})
 
 
 @app.get("/shopping", response_class=HTMLResponse)

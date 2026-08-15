@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally - Calendar</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Calendar</div>
+    </header>
+
+    <nav>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/calendar" class="active">Calendar</a>
+        <a href="/todo">Tasks</a>
+        <a href="/shopping">Shopping</a>
+        <div class="nav-dropdown" id="meal-dropdown">
+            <button class="nav-dropdown-btn" onclick="toggleMealDropdown(event)">Meal Planner</button>
+            <div class="nav-dropdown-content">
+                <a href="/dinner-planner">Current &amp; Upcoming</a>
+                <a href="/meal-history">Previous Meals</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2 id="page-title">Calendar</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-event">Add Event</button>
+                </div>
+            </div>
+            <div class="page-header-meta">
+                <span id="range-label"></span>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="view-label">View</span>
+                <select id="view-select" class="select toolbar-control" aria-labelledby="view-label">
+                    <option value="month">Month</option>
+                    <option value="agenda">Agenda</option>
+                </select>
+            </div>
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="period-label">Period</span>
+                <div class="filter-chips" role="group" aria-labelledby="period-label">
+                    <button type="button" class="filter-chip" id="btn-prev">&larr; Prev</button>
+                    <button type="button" class="filter-chip" id="btn-today">Today</button>
+                    <button type="button" class="filter-chip" id="btn-next">Next &rarr;</button>
+                </div>
+            </div>
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="member-label">Who</span>
+                <div class="filter-chips" id="filter-member-chips" role="group" aria-labelledby="member-label"></div>
+            </div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
+            </div>
+        </div>
+
+        <div id="calendar-notice" class="calendar-notice" style="display:none;"></div>
+
+        <!-- `.list-container` is the shared content-container role every other
+             page uses: a column of rows with the standard gap. The agenda is
+             literally that, and the month grid sits inside it as one child. -->
+        <div class="list-container" id="calendar-view">
+            <div class="container-loading-state">Loading calendar...</div>
+        </div>
+
+        <div class="calendar-legend" id="calendar-legend"></div>
+    </div>
+
+    <!-- Modal for add/edit -->
+    <div class="modal-overlay" id="event-modal-overlay">
+        <div class="modal-content">
+            <h3 id="event-modal-title">Add Event</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="event-form">
+                    <input type="hidden" id="event-id">
+                    <input type="hidden" id="event-occurrence-date">
+                    <div class="form-group">
+                        <label>Event</label>
+                        <input type="text" id="event-title" placeholder="Event title" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes (optional)</label>
+                        <textarea id="event-description" placeholder="Additional details" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Location (optional)</label>
+                        <input type="text" id="event-location" placeholder="e.g. Dr. Kim's office">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="event-all-day">
+                            All day
+                        </label>
+                    </div>
+                    <div class="form-group" id="event-timed-group">
+                        <label>Starts</label>
+                        <input type="datetime-local" id="event-start-time">
+                        <label>Ends</label>
+                        <input type="datetime-local" id="event-end-time">
+                    </div>
+                    <div class="form-group" id="event-allday-group" style="display:none;">
+                        <label>First day</label>
+                        <input type="date" id="event-start-date">
+                        <label>Last day</label>
+                        <input type="date" id="event-end-date">
+                        <small>The last day is included — a one-day event has both the same.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Repeats</label>
+                        <select id="event-repeat">
+                            <option value="">Does not repeat</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly on this day</option>
+                            <option value="biweekly">Every 2 weeks on this day</option>
+                            <option value="monthly">Monthly on this date</option>
+                            <option value="yearly">Yearly on this date</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Who's involved</label>
+                        <div class="weekday-checkboxes" id="event-attendees"></div>
+                        <small>Attendees decide who a reminder reaches.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Remind attendees</label>
+                        <select id="event-notify">
+                            <option value="">No reminder</option>
+                            <option value="10">10 minutes before</option>
+                            <option value="30">30 minutes before</option>
+                            <option value="60">1 hour before</option>
+                            <option value="120">2 hours before</option>
+                            <option value="1440">1 day before</option>
+                        </select>
+                        <small id="event-notify-help">Reminders are sent by Pushover.</small>
+                    </div>
+                </form>
+
+                <div id="event-scope-group" style="display:none;">
+                    <div class="form-group">
+                        <label>This event repeats. Apply the change to:</label>
+                        <div class="event-scope-prompt">
+                            <button type="button" class="btn btn--sm" data-scope="this">This occurrence</button>
+                            <button type="button" class="btn btn--sm" data-scope="following">This and following</button>
+                            <button type="button" class="btn btn--sm" data-scope="all">All events</button>
+                        </div>
+                        <small id="event-scope-help"></small>
+                    </div>
+                </div>
+
+                <div id="event-delete-scope-group" style="display:none;">
+                    <div class="form-group">
+                        <label>This event repeats. Delete:</label>
+                        <div class="event-scope-prompt">
+                            <button type="button" class="btn btn--sm" data-delete-scope="this">This occurrence</button>
+                            <button type="button" class="btn btn--sm" data-delete-scope="following">This and following</button>
+                            <button type="button" class="btn btn--sm" data-delete-scope="all">All events</button>
+                        </div>
+                        <small id="event-delete-scope-help"></small>
+                    </div>
+                </div>
+
+                <div class="modal-actions" id="event-modal-actions">
+                    <button type="submit" form="event-form" class="btn" id="btn-save-event">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-event">Cancel</button>
+                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-event" style="display:none">Delete</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Read-only detail, used for external events and for Notify attendees -->
+    <div class="modal-overlay" id="detail-modal-overlay">
+        <div class="modal-content">
+            <h3 id="detail-modal-title">Event</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <div id="detail-body"></div>
+                <div id="detail-notify-result"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn" id="btn-notify-attendees" style="display:none;">Notify attendees</button>
+                    <button type="button" class="btn btn--secondary" id="btn-detail-edit" style="display:none;">Edit</button>
+                    <button type="button" class="btn btn--secondary" id="btn-close-detail">Close</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/modal.js?v={{ css_version }}"></script>
+    <script>
+        // State
+        let familyMembers = [];
+        let occurrences = [];
+        let selectedMembers = new Set();
+        let view = 'month';
+        // The first of the displayed month (month view) or the first displayed
+        // day (agenda). One anchor for both views keeps Prev/Next honest.
+        let anchor = startOfMonth(new Date());
+        let editingEvent = null;      // Full event record while the modal is open
+        let editingOccurrence = null; // The occurrence that was clicked
+        let detailOccurrence = null;
+
+        const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const AGENDA_DAYS = 30;
+
+        // --- Date helpers. Everything is a local YYYY-MM-DD string; the API
+        // speaks the same language, so no timezone maths happens in the browser.
+
+        function startOfMonth(date) {
+            return new Date(date.getFullYear(), date.getMonth(), 1);
+        }
+
+        function isoDate(date) {
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${date.getFullYear()}-${month}-${day}`;
+        }
+
+        function addDays(date, days) {
+            const next = new Date(date);
+            next.setDate(next.getDate() + days);
+            return next;
+        }
+
+        function parseIso(value) {
+            const [y, m, d] = value.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+
+        function todayIso() {
+            return isoDate(new Date());
+        }
+
+        /* The Monday on or before the first of the month, so the grid starts
+           on a full week. getDay() is Sunday-based; the display is not. */
+        function gridStart(monthStart) {
+            const offset = (monthStart.getDay() + 6) % 7;
+            return addDays(monthStart, -offset);
+        }
+
+        function currentRange() {
+            if (view === 'agenda') {
+                return { start: anchor, end: addDays(anchor, AGENDA_DAYS) };
+            }
+            const start = gridStart(anchor);
+            return { start, end: addDays(start, 42) };
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : text;
+            return div.innerHTML;
+        }
+
+        // --- API
+
+        async function fetchFamilyMembers() {
+            const response = await fetch('/api/family');
+            familyMembers = await response.json();
+            renderMemberChips();
+            renderAttendeeCheckboxes();
+            renderLegend();
+        }
+
+        async function fetchOccurrences() {
+            const range = currentRange();
+            const params = new URLSearchParams({ start: isoDate(range.start), end: isoDate(range.end) });
+            selectedMembers.forEach(name => params.append('member', name));
+            const response = await fetch(`/api/events?${params.toString()}`);
+            if (!response.ok) throw new Error('Failed to load events');
+            const data = await response.json();
+            occurrences = data.occurrences;
+            renderNotice(data.failures || []);
+            render();
+        }
+
+        function renderNotice(failures) {
+            const notice = document.getElementById('calendar-notice');
+            if (!failures.length) {
+                notice.style.display = 'none';
+                return;
+            }
+            // A feed being down shortens the list; saying which one is the
+            // difference between "quiet week" and "Google is unreachable".
+            notice.style.display = 'block';
+            notice.textContent = `Could not reach: ${failures.join(', ')}. Everything else is shown.`;
+        }
+
+        // --- Filters
+
+        function renderMemberChips() {
+            const chips = document.getElementById('filter-member-chips');
+            chips.innerHTML = familyMembers
+                .map(m => `<button type="button" class="filter-chip${selectedMembers.has(m.name) ? ' active' : ''}" data-value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`)
+                .join('');
+        }
+
+        function renderLegend() {
+            const legend = document.getElementById('calendar-legend');
+            legend.innerHTML = familyMembers
+                .map(m => `<span class="calendar-legend-item"><span class="calendar-dot" style="background:${escapeHtml(m.color)}"></span>${escapeHtml(m.name)}</span>`)
+                .join('');
+        }
+
+        // --- Rendering
+
+        function render() {
+            document.getElementById('range-label').textContent = rangeLabel();
+            const container = document.getElementById('calendar-view');
+            container.innerHTML = view === 'month' ? monthHtml() : agendaHtml();
+            container.querySelectorAll('[data-occurrence]').forEach(node => {
+                node.addEventListener('click', () => openOccurrence(Number(node.dataset.occurrence)));
+            });
+            container.querySelectorAll('[data-agenda-date]').forEach(node => {
+                node.addEventListener('click', () => {
+                    // Overflow switches to that day's agenda rather than opening
+                    // a popover: there is exactly one modal chassis.
+                    view = 'agenda';
+                    anchor = parseIso(node.dataset.agendaDate);
+                    document.getElementById('view-select').value = 'agenda';
+                    load();
+                });
+            });
+        }
+
+        function rangeLabel() {
+            if (view === 'agenda') {
+                const end = addDays(anchor, AGENDA_DAYS - 1);
+                return `${anchor.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
+            }
+            return anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        }
+
+        function occurrencesOn(dateIso) {
+            return occurrences.filter(o => o.dates.includes(dateIso));
+        }
+
+        /* A month cell is about 110px wide, so "9:30 AM Standup" truncates to
+           "9:30 AM Sta…" — the time survives and the title, which is the part
+           that identifies the event, does not. The compact form buys back the
+           characters that matter. The agenda and the detail view show the full
+           time. */
+        function compactTime(label) {
+            return label
+                .replace(':00', '')
+                .replace(' AM', 'a')
+                .replace(' PM', 'p');
+        }
+
+        function dotFor(occurrence) {
+            const color = occurrence.member_color || '';
+            return `<span class="calendar-dot"${color ? ` style="background:${escapeHtml(color)}"` : ''}></span>`;
+        }
+
+        function monthHtml() {
+            const start = gridStart(anchor);
+            const today = todayIso();
+            const month = anchor.getMonth();
+
+            let html = '<div class="calendar-grid">';
+            WEEKDAYS.forEach(day => { html += `<div class="calendar-weekday">${day}</div>`; });
+
+            for (let i = 0; i < 42; i++) {
+                const day = addDays(start, i);
+                const iso = isoDate(day);
+                const classes = ['calendar-day'];
+                if (day.getMonth() !== month) classes.push('is-outside');
+                if (iso === today) classes.push('is-today');
+
+                const dayEvents = occurrencesOn(iso);
+                const shown = dayEvents.slice(0, 3);
+                const hidden = dayEvents.length - shown.length;
+
+                html += `<div class="${classes.join(' ')}">`;
+                // The day number opens that day's agenda — the same move
+                // "+N more" makes, offered on every day rather than only the
+                // crowded ones.
+                html += `<button type="button" class="calendar-day-open" data-agenda-date="${iso}">`
+                    + `<span class="calendar-day-number">${day.getDate()}</span></button>`;
+                shown.forEach(occurrence => {
+                    const index = occurrences.indexOf(occurrence);
+                    const label = occurrence.all_day ? '' : `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`;
+                    html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}" data-occurrence="${index}" title="${escapeHtml(occurrence.title)}">${dotFor(occurrence)}${label}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
+                });
+                if (hidden > 0) {
+                    html += `<button type="button" class="calendar-more" data-agenda-date="${iso}">+${hidden} more</button>`;
+                }
+                html += '</div>';
+            }
+            return html + '</div>';
+        }
+
+        function agendaHtml() {
+            const rows = [];
+            for (let i = 0; i < AGENDA_DAYS; i++) {
+                const day = addDays(anchor, i);
+                const iso = isoDate(day);
+                const dayEvents = occurrencesOn(iso);
+                if (!dayEvents.length) continue;  // Empty days are omitted.
+
+                const heading = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+                let html = `<div class="agenda-day"><div class="agenda-heading">${escapeHtml(heading)}${iso === todayIso() ? ' · Today' : ''}</div>`;
+                dayEvents.forEach(occurrence => {
+                    const index = occurrences.indexOf(occurrence);
+                    const time = occurrence.all_day
+                        ? 'All day'
+                        : (occurrence.start_date === iso ? occurrence.time_label : 'Continues');
+                    const who = occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || '');
+                    html += `
+                        <div class="editable-item" data-occurrence="${index}" role="button" tabindex="0">
+                            <div class="agenda-time">${escapeHtml(time)}</div>
+                            <div class="editable-item-content">
+                                <div class="editable-item-title">${dotFor(occurrence)} ${escapeHtml(occurrence.title)}</div>
+                                ${occurrence.location ? `<div class="editable-item-description">${escapeHtml(occurrence.location)}</div>` : ''}
+                                ${who ? `<div class="assignee-label">${escapeHtml(who)}</div>` : ''}
+                            </div>
+                        </div>`;
+                });
+                rows.push(html + '</div>');
+            }
+            if (!rows.length) {
+                return '<div class="container-empty-state">Nothing scheduled in this stretch.</div>';
+            }
+            return rows.join('');
+        }
+
+        // --- Add / edit
+
+        function renderAttendeeCheckboxes() {
+            const box = document.getElementById('event-attendees');
+            box.innerHTML = familyMembers
+                .map(m => `<label class="weekday-label"><input type="checkbox" value="${m.id}"> ${escapeHtml(m.name)}</label>`)
+                .join('') || '<small>No family members yet — add one in Settings.</small>';
+            box.querySelectorAll('input').forEach(input => {
+                input.addEventListener('change', updateNotifyHelp);
+            });
+        }
+
+        function checkedAttendeeIds() {
+            return [...document.querySelectorAll('#event-attendees input:checked')].map(i => Number(i.value));
+        }
+
+        /* Naming who a reminder will actually reach, while it is being set. An
+           event with a reminder and nobody reachable should say so now, not
+           fail silently later. */
+        function updateNotifyHelp() {
+            const help = document.getElementById('event-notify-help');
+            const minutes = document.getElementById('event-notify').value;
+            if (!minutes) {
+                help.textContent = 'Reminders are sent by Pushover.';
+                return;
+            }
+            const ids = checkedAttendeeIds();
+            const chosen = familyMembers.filter(m => ids.includes(m.id));
+            const reachable = chosen.filter(m => m.pushover_user_key);
+            if (!chosen.length) {
+                help.textContent = 'Nobody is on this event yet, so nobody will be reminded.';
+            } else if (!reachable.length) {
+                help.textContent = `No Pushover key for ${chosen.map(m => m.name).join(', ')} — add one in Settings or nobody will be reminded.`;
+            } else {
+                help.textContent = `Will notify ${reachable.map(m => m.name).join(', ')}.`;
+            }
+        }
+
+        function toggleAllDayFields() {
+            const allDay = document.getElementById('event-all-day').checked;
+            document.getElementById('event-timed-group').style.display = allDay ? 'none' : '';
+            document.getElementById('event-allday-group').style.display = allDay ? '' : 'none';
+        }
+
+        /* Moving an event to another day means moving it, not restating how
+           long it lasts. The end follows the start by whatever gap the two
+           already had, so 9–10 AM on the 16th becomes 9–10 AM on the 17th.
+           This needs the start the field held *before* the edit, which the
+           change event no longer carries — hence remembering it. */
+        let previousStart = { timed: '', allDay: '' };
+
+        function rememberStartValues() {
+            previousStart = {
+                timed: document.getElementById('event-start-time').value,
+                allDay: document.getElementById('event-start-date').value
+            };
+        }
+
+        function shiftTimedEnd() {
+            const startField = document.getElementById('event-start-time');
+            const endField = document.getElementById('event-end-time');
+            const oldStart = previousStart.timed;
+            previousStart.timed = startField.value;
+            if (!startField.value) return;
+
+            const newStart = new Date(startField.value);
+            const priorStart = oldStart ? new Date(oldStart) : null;
+            const priorEnd = endField.value ? new Date(endField.value) : null;
+            // An hour is the default the Add dialog offers; fall back to it
+            // when there is no sane prior span to preserve.
+            let duration = 60 * 60 * 1000;
+            if (priorStart && priorEnd && priorEnd >= priorStart) {
+                duration = priorEnd - priorStart;
+            }
+            endField.value = localDateTimeValue(new Date(newStart.getTime() + duration));
+        }
+
+        function shiftAllDayEnd() {
+            const startField = document.getElementById('event-start-date');
+            const endField = document.getElementById('event-end-date');
+            const oldStart = previousStart.allDay;
+            previousStart.allDay = startField.value;
+            if (!startField.value) return;
+
+            let span = 0;
+            if (oldStart && endField.value) {
+                const days = Math.round((parseIso(endField.value) - parseIso(oldStart)) / 86400000);
+                if (days >= 0) span = days;
+            }
+            endField.value = isoDate(addDays(parseIso(startField.value), span));
+        }
+
+        function localDateTimeValue(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${isoDate(date)}T${hours}:${minutes}`;
+        }
+
+        function hideDeleteScopePrompt() {
+            document.getElementById('event-delete-scope-group').style.display = 'none';
+        }
+
+        /* Two visible three-button rows — one that saves, one that deletes —
+           is how somebody deletes a series they meant to edit. While the
+           delete prompt is up it is the only scope prompt on screen; Cancel
+           is the way back out. */
+        function showDeleteScopePrompt() {
+            const occurrenceDate = document.getElementById('event-occurrence-date').value;
+            document.getElementById('event-delete-scope-help').textContent = occurrenceDate
+                ? `"This occurrence" and "This and following" are measured from ${occurrenceDate}. Deleting cannot be undone.`
+                : 'Deleting cannot be undone.';
+            document.getElementById('event-scope-group').style.display = 'none';
+            const group = document.getElementById('event-delete-scope-group');
+            group.style.display = '';
+            // The prompt opens below the fold of a long form, where clicking
+            // Delete looks like it did nothing at all.
+            group.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+
+        function openAddEventModal(dateIso) {
+            editingEvent = null;
+            editingOccurrence = null;
+            document.getElementById('event-modal-title').textContent = 'Add Event';
+            document.getElementById('event-form').reset();
+            document.getElementById('event-id').value = '';
+            document.getElementById('event-occurrence-date').value = '';
+
+            const day = dateIso || todayIso();
+            document.getElementById('event-start-time').value = `${day}T09:00`;
+            document.getElementById('event-end-time').value = `${day}T10:00`;
+            document.getElementById('event-start-date').value = day;
+            document.getElementById('event-end-date').value = day;
+
+            document.getElementById('btn-delete-event').style.display = 'none';
+            document.getElementById('event-scope-group').style.display = 'none';
+            document.getElementById('btn-save-event').style.display = '';
+            hideDeleteScopePrompt();
+            rememberStartValues();
+            toggleAllDayFields();
+            updateNotifyHelp();
+            showModalOverlay('event-modal-overlay');
+        }
+
+        async function openEditEventModal(occurrence) {
+            const response = await fetch(`/api/events/${occurrence.event_id}`);
+            if (!response.ok) { alert('Could not load that event'); return; }
+            editingEvent = await response.json();
+            editingOccurrence = occurrence;
+
+            document.getElementById('event-modal-title').textContent = 'Edit Event';
+            document.getElementById('event-id').value = editingEvent.id;
+            document.getElementById('event-occurrence-date').value = occurrence.occurrence_date || '';
+            document.getElementById('event-title').value = editingEvent.title;
+            document.getElementById('event-description').value = editingEvent.description || '';
+            document.getElementById('event-location').value = editingEvent.location || '';
+            document.getElementById('event-all-day').checked = editingEvent.all_day;
+            document.getElementById('event-notify').value = editingEvent.notify_minutes_before ?? '';
+
+            if (editingEvent.all_day) {
+                document.getElementById('event-start-date').value = editingEvent.start;
+                document.getElementById('event-end-date').value = editingEvent.end;
+            } else {
+                document.getElementById('event-start-time').value = editingEvent.start;
+                document.getElementById('event-end-time').value = editingEvent.end;
+            }
+            rememberStartValues();
+
+            document.getElementById('event-repeat').value = repeatFromRrule(editingEvent.rrule);
+            document.querySelectorAll('#event-attendees input').forEach(input => {
+                input.checked = editingEvent.attendee_ids.includes(Number(input.value));
+            });
+
+            document.getElementById('btn-delete-event').style.display = '';
+            const recurring = Boolean(editingEvent.rrule);
+            document.getElementById('event-scope-group').style.display = recurring ? '' : 'none';
+            /* The scope buttons stand in for Save on a series, but Cancel and
+               Delete still have to be reachable — hide the one button, not the
+               row that carries all three. */
+            document.getElementById('btn-save-event').style.display = recurring ? 'none' : '';
+            hideDeleteScopePrompt();
+            if (recurring) {
+                const moved = editingEvent.overrides.filter(o => !o.cancelled).length;
+                document.getElementById('event-scope-help').textContent = moved
+                    ? `${moved} occurrence(s) have their own changes. "All events" keeps them.`
+                    : '';
+            }
+
+            toggleAllDayFields();
+            updateNotifyHelp();
+            showModalOverlay('event-modal-overlay');
+        }
+
+        /* The UI speaks Rally's dialect; the API stores RFC 5545. The mapping
+           is deliberately small — anything more expressive should be typed as
+           an RRULE, not grown into a second recurrence vocabulary. */
+        function rruleFor(choice, startIso) {
+            const day = parseIso(startIso.slice(0, 10));
+            const byday = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][day.getDay()];
+            switch (choice) {
+                case 'daily': return 'FREQ=DAILY';
+                case 'weekly': return `FREQ=WEEKLY;BYDAY=${byday}`;
+                case 'biweekly': return `FREQ=WEEKLY;INTERVAL=2;BYDAY=${byday}`;
+                case 'monthly': return `FREQ=MONTHLY;BYMONTHDAY=${day.getDate()}`;
+                case 'yearly': return 'FREQ=YEARLY';
+                default: return null;
+            }
+        }
+
+        function repeatFromRrule(rrule) {
+            if (!rrule) return '';
+            const upper = rrule.toUpperCase();
+            if (upper.startsWith('FREQ=DAILY')) return 'daily';
+            if (upper.startsWith('FREQ=YEARLY')) return 'yearly';
+            if (upper.startsWith('FREQ=MONTHLY')) return 'monthly';
+            if (upper.includes('INTERVAL=2')) return 'biweekly';
+            if (upper.startsWith('FREQ=WEEKLY')) return 'weekly';
+            return '';
+        }
+
+        function formPayload() {
+            const allDay = document.getElementById('event-all-day').checked;
+            const start = allDay
+                ? document.getElementById('event-start-date').value
+                : document.getElementById('event-start-time').value;
+            const end = allDay
+                ? document.getElementById('event-end-date').value
+                : document.getElementById('event-end-time').value;
+            const notify = document.getElementById('event-notify').value;
+            return {
+                title: document.getElementById('event-title').value.trim(),
+                description: document.getElementById('event-description').value.trim() || null,
+                location: document.getElementById('event-location').value.trim() || null,
+                all_day: allDay,
+                start,
+                end,
+                rrule: rruleFor(document.getElementById('event-repeat').value, start),
+                notify_minutes_before: notify ? Number(notify) : null,
+                attendee_ids: checkedAttendeeIds()
+            };
+        }
+
+        async function saveEvent(scope) {
+            const payload = formPayload();
+            if (!payload.title) return;
+            if (!payload.start) { alert('A start date is required'); return; }
+
+            let url = '/api/events';
+            let method = 'POST';
+            if (editingEvent) {
+                const params = new URLSearchParams({ scope: scope || 'all' });
+                const occurrenceDate = document.getElementById('event-occurrence-date').value;
+                if (scope && scope !== 'all' && occurrenceDate) params.set('occurrence_date', occurrenceDate);
+                url = `/api/events/${editingEvent.id}?${params.toString()}`;
+                method = 'PUT';
+            }
+
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const detail = await response.json().catch(() => ({}));
+                alert(detail.detail || 'Failed to save the event');
+                return;
+            }
+            closeEventModal();
+            load();
+        }
+
+        async function deleteEvent(scope) {
+            if (!editingEvent) return;
+            const params = new URLSearchParams({ scope });
+            const occurrenceDate = document.getElementById('event-occurrence-date').value;
+            if (scope !== 'all' && occurrenceDate) params.set('occurrence_date', occurrenceDate);
+            const response = await fetch(`/api/events/${editingEvent.id}?${params.toString()}`, { method: 'DELETE' });
+            if (!response.ok) { alert('Failed to delete the event'); return; }
+            closeEventModal();
+            load();
+        }
+
+        function closeEventModal() {
+            hideModalOverlay('event-modal-overlay');
+            document.getElementById('btn-save-event').style.display = '';
+            hideDeleteScopePrompt();
+            editingEvent = null;
+            editingOccurrence = null;
+        }
+
+        // --- Detail (external events, and Notify attendees)
+
+        function openOccurrence(index) {
+            const occurrence = occurrences[index];
+            if (!occurrence) return;
+            openDetail(occurrence);
+        }
+
+        function openDetail(occurrence) {
+            detailOccurrence = occurrence;
+            document.getElementById('detail-modal-title').textContent = occurrence.title;
+            document.getElementById('detail-notify-result').innerHTML = '';
+
+            const when = occurrence.all_day
+                ? (occurrence.start_date === occurrence.end_date ? 'All day' : `All day, ${occurrence.start_date} – ${occurrence.end_date}`)
+                : `${occurrence.time_label} – ${occurrence.end_time_label}`;
+
+            const rows = [
+                ['When', `${occurrence.start_date} · ${when}`],
+                ['Where', occurrence.location || '—'],
+                ['Who', occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || 'Nobody in particular')],
+                ['Calendar', occurrence.calendar_label || occurrence.source],
+                ['Notes', occurrence.description || '—']
+            ];
+            if (occurrence.notify_minutes_before) {
+                rows.push(['Reminder', `${occurrence.notify_minutes_before} minutes before`]);
+            }
+            if (!occurrence.editable) {
+                // Answering "why can't I change this?" on the screen where it
+                // is asked, rather than by disabling a control silently.
+                rows.push(['Read-only', 'This event lives on an external calendar Rally can only read.']);
+            }
+
+            document.getElementById('detail-body').innerHTML = rows
+                .map(([label, value]) => `<div class="event-detail-row"><span class="event-detail-label">${label}</span><span>${escapeHtml(value)}</span></div>`)
+                .join('');
+
+            document.getElementById('btn-detail-edit').style.display = occurrence.editable ? '' : 'none';
+            document.getElementById('btn-notify-attendees').style.display =
+                occurrence.editable && occurrence.attendees.length ? '' : 'none';
+            showModalOverlay('detail-modal-overlay');
+        }
+
+        async function notifyAttendees() {
+            if (!detailOccurrence || !detailOccurrence.event_id) return;
+            const button = document.getElementById('btn-notify-attendees');
+            button.disabled = true;
+            try {
+                const response = await fetch(`/api/events/${detailOccurrence.event_id}/notify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ occurrence_date: detailOccurrence.occurrence_date })
+                });
+                const data = await response.json();
+                const parts = [];
+                if (data.sent && data.sent.length) parts.push(`Sent to ${data.sent.join(', ')}.`);
+                if (data.skipped && data.skipped.length) parts.push(`No Pushover key for ${data.skipped.join(', ')}.`);
+                if (data.failed && data.failed.length) parts.push(`Failed for ${data.failed.join(', ')}.`);
+                if (data.error) parts.push(data.error);
+                document.getElementById('detail-notify-result').innerHTML =
+                    `<div class="notify-result">${escapeHtml(parts.join(' ') || 'Nothing to send.')}</div>`;
+            } catch (error) {
+                document.getElementById('detail-notify-result').innerHTML =
+                    '<div class="notify-result">Could not reach Rally to send that.</div>';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        // --- Wiring
+
+        async function load() {
+            try {
+                await fetchOccurrences();
+            } catch (error) {
+                document.getElementById('calendar-view').innerHTML =
+                    '<div class="container-empty-state">Could not load the calendar.</div>';
+            }
+        }
+
+        function shift(direction) {
+            if (view === 'agenda') {
+                anchor = addDays(anchor, direction * AGENDA_DAYS);
+            } else {
+                anchor = new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1);
+            }
+            load();
+        }
+
+        function toggleMealDropdown(event) {
+            event.stopPropagation();
+            document.getElementById('meal-dropdown').classList.toggle('open');
+        }
+        document.addEventListener('click', () => {
+            document.getElementById('meal-dropdown').classList.remove('open');
+        });
+
+        document.getElementById('btn-add-event').addEventListener('click', () => openAddEventModal());
+        document.getElementById('btn-cancel-event').addEventListener('click', closeEventModal);
+        document.getElementById('btn-close-detail').addEventListener('click', () => hideModalOverlay('detail-modal-overlay'));
+        document.getElementById('btn-notify-attendees').addEventListener('click', notifyAttendees);
+        document.getElementById('btn-detail-edit').addEventListener('click', () => {
+            hideModalOverlay('detail-modal-overlay');
+            if (detailOccurrence) openEditEventModal(detailOccurrence);
+        });
+
+        document.getElementById('event-all-day').addEventListener('change', toggleAllDayFields);
+        document.getElementById('event-notify').addEventListener('change', updateNotifyHelp);
+
+        document.getElementById('event-start-time').addEventListener('change', shiftTimedEnd);
+        document.getElementById('event-start-date').addEventListener('change', shiftAllDayEnd);
+
+        document.getElementById('event-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            saveEvent('all');
+        });
+
+        // Three buttons rather than a select: a destructive-by-default select
+        // is how the wrong scope gets picked.
+        document.querySelectorAll('#event-scope-group [data-scope]').forEach(button => {
+            button.addEventListener('click', () => saveEvent(button.dataset.scope));
+        });
+
+        // A series is deleted by the same three-button prompt that saves one.
+        // Typing a scope into a window.prompt() is how the wrong one gets
+        // picked, and there is no undo behind this.
+        document.getElementById('btn-delete-event').addEventListener('click', () => {
+            if (!editingEvent) return;
+            if (editingEvent.rrule) {
+                showDeleteScopePrompt();
+                return;
+            }
+            if (confirm('Delete this event?')) deleteEvent('all');
+        });
+
+        document.querySelectorAll('#event-delete-scope-group [data-delete-scope]').forEach(button => {
+            button.addEventListener('click', () => deleteEvent(button.dataset.deleteScope));
+        });
+
+        document.getElementById('btn-prev').addEventListener('click', () => shift(-1));
+        document.getElementById('btn-next').addEventListener('click', () => shift(1));
+        document.getElementById('btn-today').addEventListener('click', () => {
+            anchor = view === 'agenda' ? new Date() : startOfMonth(new Date());
+            load();
+        });
+
+        document.getElementById('view-select').addEventListener('change', (event) => {
+            view = event.target.value;
+            anchor = view === 'agenda' ? new Date() : startOfMonth(anchor);
+            load();
+        });
+
+        document.getElementById('filter-member-chips').addEventListener('click', (event) => {
+            const chip = event.target.closest('.filter-chip');
+            if (!chip) return;
+            const name = chip.dataset.value;
+            if (selectedMembers.has(name)) selectedMembers.delete(name); else selectedMembers.add(name);
+            chip.classList.toggle('active');
+            load();
+        });
+
+        document.getElementById('filter-clear').addEventListener('click', () => {
+            selectedMembers.clear();
+            renderMemberChips();
+            load();
+        });
+
+        /* The month grid is hidden below 768px — seven columns cannot carry a
+           44px tap target at that width — so the page must not start in a view
+           that would render nothing. */
+        const NARROW = '(max-width: 767px)';
+
+        function applyViewportView() {
+            const narrow = window.matchMedia(NARROW).matches;
+            const select = document.getElementById('view-select');
+            select.closest('.toolbar-group').style.display = narrow ? 'none' : '';
+            if (narrow && view !== 'agenda') {
+                view = 'agenda';
+                anchor = new Date();
+                select.value = 'agenda';
+                return true;
+            }
+            return false;
+        }
+
+        window.matchMedia(NARROW).addEventListener('change', () => {
+            if (applyViewportView()) load();
+        });
+
+        (async function init() {
+            applyViewportView();
+            await fetchFamilyMembers();
+            await load();
+        })();
+    </script>
+</body>
+</html>

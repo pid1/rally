@@ -1,86 +1,57 @@
 """CalDAV client for Rally — Google and Apple CalDAV via app-specific passwords.
 
 Both Google and Apple expose CalDAV endpoints that accept basic auth with
-app-specific passwords (requires 2FA on the account). This module provides a
-unified interface that returns events in the same format as the legacy ICS path,
-so the generator can consume them identically.
+app-specific passwords (requires 2FA on the account). This module returns
+``Occurrence`` objects, the same shape the ICS and native adapters produce, so
+the merge layer cannot tell which transport an event arrived over.
 """
 
-from datetime import timedelta
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import caldav
 from icalendar import Calendar as ICalCalendar
 
-from rally.utils.timezone import ensure_utc, today_utc
+from rally.calendars.ics import occurrences_from_components
+from rally.calendars.occurrence import (
+    SOURCE_CALDAV_APPLE,
+    SOURCE_CALDAV_GOOGLE,
+    Occurrence,
+)
 
 # Default CalDAV server URLs
 GOOGLE_CALDAV_URL = "https://apidata.googleusercontent.com/caldav/v2/"
 APPLE_CALDAV_URL = "https://caldav.icloud.com/"
 
 
-def _is_event_declined(component, owner_email: str | None = None) -> bool:
-    """Check if a calendar event has been declined.
+def _parse_caldav_events(
+    caldav_client: caldav.DAVClient,
+    local_tz: ZoneInfo,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+    owner_email: str | None = None,
+    source: str = SOURCE_CALDAV_GOOGLE,
+    calendar_id: int | None = None,
+    label: str = "",
+    member: str | None = None,
+    member_color: str | None = None,
+) -> list[Occurrence]:
+    """Fetch occurrences from every calendar under a CalDAV principal.
 
-    Mirrors the logic in SummaryGenerator._is_event_declined but as a
-    standalone function to avoid circular imports.
+    The server expands recurrences (``expand=True``); the window is re-applied
+    locally because a server answers a date range on its own terms.
     """
-    status = component.get("status")
-    if status and str(status).upper() == "CANCELLED":
-        return True
-
-    attendees = component.get("attendee")
-    if not attendees:
-        return False
-
-    if not isinstance(attendees, list):
-        attendees = [attendees]
-
-    if owner_email:
-        owner_email_lower = owner_email.strip().lower()
-        for att in attendees:
-            att_email = str(att).replace("mailto:", "").strip().lower()
-            if att_email == owner_email_lower:
-                partstat = ""
-                if hasattr(att, "params"):
-                    partstat = str(att.params.get("PARTSTAT", ""))
-                return partstat.upper() == "DECLINED"
-        return False
-
-    # No owner email: conservative heuristics
-    busystatus = component.get("X-MICROSOFT-CDO-BUSYSTATUS")
-    if busystatus and str(busystatus).upper() == "FREE":
-        has_declined = any(
-            hasattr(att, "params") and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
-            for att in attendees
-        )
-        if has_declined:
-            return True
-
-    all_declined = all(
-        hasattr(att, "params") and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
-        for att in attendees
-    )
-    return all_declined
-
-
-def _parse_caldav_events(caldav_client: caldav.DAVClient, local_tz, owner_email=None):
-    """Fetch events from a CalDAV principal, returning a list of event dicts.
-
-    Each calendar discovered under the principal produces events.
-    Events are expanded (recurring instances resolved by the server) and filtered
-    to the next 7 days.
-    """
-    today = today_utc()
-    end_date = today + timedelta(days=7)
-
     principal = caldav_client.principal()
     server_calendars = principal.calendars()
 
-    all_events = []
+    occurrences: list[Occurrence] = []
     for server_cal in server_calendars:
         cal_name = getattr(server_cal, "name", None) or "Calendar"
         try:
-            search_results = server_cal.search(start=today, end=end_date, event=True, expand=True)
+            search_results = server_cal.search(
+                start=window_start, end=window_end, event=True, expand=True
+            )
         except Exception as exc:
             print(f"  Warning: failed to search CalDAV calendar '{cal_name}': {exc}")
             continue
@@ -91,98 +62,120 @@ def _parse_caldav_events(caldav_client: caldav.DAVClient, local_tz, owner_email=
             except Exception:
                 continue
 
-            for component in ical.walk():
-                if component.name != "VEVENT":
-                    continue
-
-                dtstart = component.get("dtstart")
-                if not dtstart:
-                    continue
-
-                # Skip declined / cancelled events
-                if _is_event_declined(component, owner_email):
-                    continue
-
-                event_date = dtstart.dt
-                if hasattr(event_date, "date"):
-                    event_date = event_date.date()
-
-                summary = str(component.get("summary", "Untitled Event"))
-                description = str(component.get("description", ""))
-                location = str(component.get("location", ""))
-
-                time_str = ""
-                if hasattr(dtstart.dt, "strftime"):
-                    dt = dtstart.dt
-                    if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
-                        dt = ensure_utc(dt).astimezone(local_tz)
-                    time_str = dt.strftime("%I:%M %p %Z").lstrip("0")
-
-                all_events.append(
-                    {
-                        "summary": summary,
-                        "time": time_str,
-                        "date": event_date.strftime("%Y-%m-%d"),
-                        "description": description,
-                        "location": location,
-                    }
+            components = [c for c in ical.walk() if c.name == "VEVENT"]
+            occurrences.extend(
+                occurrences_from_components(
+                    components,
+                    window_start=window_start,
+                    window_end=window_end,
+                    local_tz=local_tz,
+                    owner_email=owner_email,
+                    source=source,
+                    calendar_id=calendar_id,
+                    calendar_label=label or cal_name,
+                    member=member,
+                    member_color=member_color,
                 )
+            )
 
-    all_events.sort(key=lambda e: (e["date"], e["time"]))
-    return all_events
+    return occurrences
 
 
-def fetch_google_caldav(calendar_record, local_tz):
-    """Fetch events from Google CalDAV using username + app-specific password.
+def _fetch_caldav(
+    calendar_record,
+    local_tz,
+    *,
+    window_start,
+    window_end,
+    default_url: str,
+    source: str,
+    provider: str,
+    label: str = "",
+    member: str | None = None,
+    member_color: str | None = None,
+) -> list[Occurrence]:
+    if not calendar_record.username or not calendar_record.password:
+        print(f"  Skipping {calendar_record.label}: missing {provider} CalDAV credentials")
+        return []
+
+    client = caldav.DAVClient(
+        url=calendar_record.url or default_url,
+        username=calendar_record.username,
+        password=calendar_record.password,
+    )
+    owner_email = calendar_record.owner_email or calendar_record.username
+
+    try:
+        return _parse_caldav_events(
+            client,
+            local_tz,
+            window_start=window_start,
+            window_end=window_end,
+            owner_email=owner_email,
+            source=source,
+            calendar_id=calendar_record.id,
+            label=label or calendar_record.label,
+            member=member,
+            member_color=member_color,
+        )
+    except Exception as exc:
+        print(f"  Error fetching {provider} CalDAV for {calendar_record.label}: {exc}")
+        return []
+
+
+def fetch_google_caldav(
+    calendar_record,
+    local_tz,
+    *,
+    window_start,
+    window_end,
+    label: str = "",
+    member: str | None = None,
+    member_color: str | None = None,
+) -> list[Occurrence]:
+    """Fetch occurrences from Google CalDAV using username + app password.
 
     Requires 2FA enabled on the Google account. Generate an app-specific
     password at https://myaccount.google.com/apppasswords.
-
-    Returns list of event dicts, or empty list on failure.
     """
-    if not calendar_record.username or not calendar_record.password:
-        print(f"  Skipping {calendar_record.label}: missing Google CalDAV credentials")
-        return []
-
-    url = calendar_record.url or GOOGLE_CALDAV_URL
-    client = caldav.DAVClient(
-        url=url,
-        username=calendar_record.username,
-        password=calendar_record.password,
+    return _fetch_caldav(
+        calendar_record,
+        local_tz,
+        window_start=window_start,
+        window_end=window_end,
+        default_url=GOOGLE_CALDAV_URL,
+        source=SOURCE_CALDAV_GOOGLE,
+        provider="Google",
+        label=label,
+        member=member,
+        member_color=member_color,
     )
 
-    owner_email = calendar_record.owner_email or calendar_record.username
 
-    try:
-        return _parse_caldav_events(client, local_tz, owner_email)
-    except Exception as exc:
-        print(f"  Error fetching Google CalDAV for {calendar_record.label}: {exc}")
-        return []
-
-
-def fetch_apple_caldav(calendar_record, local_tz):
-    """Fetch events from Apple iCloud CalDAV using username + app-specific password.
+def fetch_apple_caldav(
+    calendar_record,
+    local_tz,
+    *,
+    window_start,
+    window_end,
+    label: str = "",
+    member: str | None = None,
+    member_color: str | None = None,
+) -> list[Occurrence]:
+    """Fetch occurrences from Apple iCloud CalDAV using username + app password.
 
     Requires 2FA enabled on the Apple account. Generate an app-specific
     password at https://appleid.apple.com/account/manage.
-
-    Returns list of event dicts, or empty list on failure.
     """
-    if not calendar_record.username or not calendar_record.password:
-        print(f"  Skipping {calendar_record.label}: missing Apple CalDAV credentials")
-        return []
-
-    url = calendar_record.url or APPLE_CALDAV_URL
-    client = caldav.DAVClient(
-        url=url,
-        username=calendar_record.username,
-        password=calendar_record.password,
+    return _fetch_caldav(
+        calendar_record,
+        local_tz,
+        window_start=window_start,
+        window_end=window_end,
+        default_url=APPLE_CALDAV_URL,
+        source=SOURCE_CALDAV_APPLE,
+        provider="Apple",
+        label=label,
+        member=member,
+        member_color=member_color,
     )
-
-    owner_email = calendar_record.owner_email or calendar_record.username
-
-    try:
-        return _parse_caldav_events(client, local_tz, owner_email)
-    except Exception as exc:
-        print(f"  Error fetching Apple CalDAV for {calendar_record.label}: {exc}")
-        return []

@@ -2,11 +2,15 @@
 
 from datetime import timedelta
 
+from rally.calendars import series_end_date
+from rally.calendars.inputs import resolve_event_times
 from rally.database import SessionLocal, init_db
 from rally.models import (
     Calendar,
     DashboardSnapshot,
     DinnerPlan,
+    Event,
+    EventAttendee,
     FamilyMember,
     Setting,
     ShoppingItem,
@@ -25,6 +29,8 @@ def seed():
     try:
         # Clear existing data
         db.query(DinnerPlan).delete()
+        db.query(EventAttendee).delete()
+        db.query(Event).delete()
         db.query(Calendar).delete()
         db.query(Setting).delete()
         db.query(DashboardSnapshot).delete()
@@ -117,6 +123,80 @@ def seed():
         ]
         for cal in calendars:
             db.add(cal)
+
+        # Every family member gets a Rally-owned calendar to put events on.
+        native_calendars = {
+            member.id: Calendar(
+                label=f"{member.name}'s Calendar",
+                url="",
+                family_member_id=member.id,
+                cal_type="native",
+            )
+            for member in (mom, dad, emma, jake)
+        }
+        for cal in native_calendars.values():
+            db.add(cal)
+        db.commit()
+
+        # Create sample events, including a recurring one, an all-day one and a
+        # multi-day span, so /calendar has something honest to render.
+        seed_tz = "America/Chicago"
+        monday = today_utc() - timedelta(days=today_utc().weekday())
+        event_specs = [
+            (mom, "Scouts", 1, "19:00", 1, "FREQ=WEEKLY;BYDAY=TU", "Church hall", [mom, jake], 60),
+            (dad, "Dentist — Emma", 2, "09:00", 1, None, "Dr. Kim", [dad, emma], 30),
+            (emma, "Piano lesson", 3, "16:00", 1, None, "Studio B", [emma], None),
+            (jake, "Soccer practice", 4, "17:30", 2, None, "Field 4", [jake, dad], None),
+            (dad, "Camping trip", 5, None, 3, None, "Beavers Bend", [mom, dad, emma, jake], None),
+        ]
+
+        events = []
+        for (
+            owner,
+            title,
+            offset,
+            start_time,
+            span,
+            rrule,
+            location,
+            attendees,
+            notify,
+        ) in event_specs:
+            day = monday + timedelta(days=offset)
+            if start_time is None:
+                times = resolve_event_times(
+                    start=day.isoformat(),
+                    end=(day + timedelta(days=span - 1)).isoformat(),
+                    all_day=True,
+                    tzid=seed_tz,
+                )
+            else:
+                start = f"{day.isoformat()}T{start_time}"
+                hour, minute = (int(part) for part in start_time.split(":"))
+                end_hour = hour + span
+                times = resolve_event_times(
+                    start=start,
+                    end=f"{day.isoformat()}T{end_hour:02d}:{minute:02d}",
+                    all_day=False,
+                    tzid=seed_tz,
+                )
+            event = Event(
+                calendar_id=native_calendars[owner.id].id,
+                uid=f"rally-seed-{title.lower().replace(' ', '-')}@rally.local",
+                title=title,
+                location=location,
+                rrule=rrule,
+                series_end_date=series_end_date(rrule),
+                notify_minutes_before=notify,
+                **times,
+            )
+            db.add(event)
+            events.append((event, attendees))
+        db.commit()
+
+        for event, attendees in events:
+            for member in attendees:
+                db.add(EventAttendee(event_id=event.id, family_member_id=member.id))
 
         # Create sample settings
         sample_settings = [
@@ -346,6 +426,7 @@ def seed():
         print(f"   - 1 dashboard snapshot for {today}")
         print("   - 4 family members")
         print(f"   - {len(calendars)} calendars")
+        print(f"   - {len(native_calendars)} Rally calendars with {len(events)} events")
         print(f"   - {len(sample_settings)} settings")
         print(f"   - {len(todos)} sample todos")
         print(f"   - {len(shopping_items)} shopping items across 2 stores")

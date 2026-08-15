@@ -24,7 +24,10 @@ from sqlalchemy.pool import StaticPool
 from rally.database import Base, get_db
 from rally.main import app
 from rally.models import (
+    Calendar,
     DinnerPlan,
+    Event,
+    EventAttendee,
     FamilyMember,
     RecurringTodo,
     Setting,
@@ -242,6 +245,113 @@ def make_item_history(db_session: Session):
 
 
 @pytest.fixture
+def make_native_calendar(db_session: Session, make_member):
+    """A Rally-owned calendar, plus the member who owns it if none is given."""
+
+    def _make(owner=None, label: str | None = None) -> Calendar:
+        owner = owner or make_member("Alex")
+        calendar = Calendar(
+            label=label or f"{owner.name}'s Calendar",
+            url="",
+            family_member_id=owner.id,
+            cal_type="native",
+        )
+        db_session.add(calendar)
+        db_session.commit()
+        db_session.refresh(calendar)
+        return calendar
+
+    return _make
+
+
+@pytest.fixture
+def make_event(db_session: Session, make_native_calendar):
+    """A native event, with times given as local wall clock in ``tzid``.
+
+    Times go through the same ``resolve_event_times`` the API uses, so a test
+    never hand-computes a UTC instant — hand-computed instants are how a test
+    ends up asserting the bug rather than the behaviour.
+    """
+    from rally.calendars.inputs import resolve_event_times
+
+    def _make(
+        title: str = "An event",
+        *,
+        start: str = "2026-08-11T09:00",
+        end: str | None = None,
+        all_day: bool = False,
+        tzid: str = "America/Chicago",
+        rrule: str | None = None,
+        notify_minutes_before: int | None = None,
+        attendees: list | None = None,
+        calendar=None,
+        location: str | None = None,
+        description: str | None = None,
+    ) -> Event:
+        calendar = calendar or make_native_calendar()
+        times = resolve_event_times(start=start, end=end, all_day=all_day, tzid=tzid)
+        event = Event(
+            calendar_id=calendar.id,
+            uid=f"rally-test-{title.lower().replace(' ', '-')}-{start}@rally.local",
+            title=title,
+            location=location,
+            description=description,
+            rrule=rrule,
+            notify_minutes_before=notify_minutes_before,
+            **times,
+        )
+        db_session.add(event)
+        db_session.commit()
+        db_session.refresh(event)
+
+        for member in attendees or []:
+            db_session.add(EventAttendee(event_id=event.id, family_member_id=member.id))
+        if attendees:
+            db_session.commit()
+        return event
+
+    return _make
+
+
+@pytest.fixture
+def mock_pushover(monkeypatch):
+    """Stub the Pushover transport. No test may reach the real API.
+
+    Records every delivery in ``.sent``; ``.fail_with(message)`` makes the next
+    and subsequent sends raise until ``.succeed()``.
+    """
+    import rally.notifications as notifications
+
+    class Recorder:
+        def __init__(self):
+            self.sent: list[dict] = []
+            self._error: str | None = None
+
+        def fail_with(self, message: str) -> None:
+            self._error = message
+
+        def succeed(self) -> None:
+            self._error = None
+
+        def __call__(self, token, user_key, message, *, title="Rally", device=None):
+            if self._error:
+                raise notifications.PushoverError(self._error)
+            self.sent.append(
+                {
+                    "token": token,
+                    "user": user_key,
+                    "message": message,
+                    "title": title,
+                    "device": device,
+                }
+            )
+
+    recorder = Recorder()
+    monkeypatch.setattr(notifications, "send_pushover", recorder)
+    return recorder
+
+
+@pytest.fixture
 def make_setting(db_session: Session):
     def _make(key: str, value: str) -> Setting:
         row = db_session.get(Setting, key)
@@ -269,8 +379,10 @@ _NOW_UTC_IMPORTERS = (
     "rally.routers.todos",
     "rally.routers.shopping",
     "rally.routers.dashboard",
+    "rally.routers.events",
     "rally.routers.settings",
     "rally.generator.generate",
+    "rally.notifications",
 )
 
 

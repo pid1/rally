@@ -7,14 +7,12 @@ from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-import recurring_ical_events
 import requests
-from icalendar import Calendar
 
+from rally.calendars import collect_occurrences, default_window
 from rally.database import SessionLocal, init_db
 from rally.models import AISettingsHistory, DashboardSnapshot, FamilyMember, Setting
-from rally.models import Calendar as CalendarModel
-from rally.utils.timezone import ensure_utc, now_utc, today_utc
+from rally.utils.timezone import now_utc, today_utc
 
 # A specific STEM concept should not repeat within this many days. Different
 # sub-topics within the same broader area are still allowed inside the window.
@@ -208,213 +206,38 @@ class SummaryGenerator:
         provider_config = self.config.get("llm", {}).get(self.provider, {})
         return int(provider_config.get("max_tokens", LLM_MAX_TOKENS))
 
-    def _is_event_declined(self, component, owner_email: str | None = None) -> bool:
-        """Check if a calendar event has been declined.
+    def fetch_calendars(self):
+        """Every calendar occurrence in the next 7 days, from every source.
 
-        Uses multiple signals to detect declined events across providers:
-        - Google Calendar: PARTSTAT on attendees
-        - Apple iCloud: PARTSTAT on attendees
-        - Outlook/Exchange: X-MICROSOFT-CDO-BUSYSTATUS property
+        The work lives in ``rally.calendars`` now: Rally-owned events, ICS
+        feeds and CalDAV accounts all normalise to the same ``Occurrence``
+        shape, and merging, deduplicating and ordering happen once, there.
+        Four bugs used to live in the code this replaced — string-sorted times,
+        all-day events rendered as midnight, a dedupe key that dropped the
+        second same-named event of a day, and a window measured in UTC dates.
 
-        When owner_email is provided (via [calendar_owners] in config.toml),
-        only that attendee's PARTSTAT is checked—this is the most accurate
-        approach. Without it, the method falls back to conservative heuristics.
+        The window is measured in **local** dates, so "the next seven days"
+        means what the family means by it.
         """
-        # STATUS=CANCELLED means the organizer cancelled the event
-        status = component.get("status")
-        if status and str(status).upper() == "CANCELLED":
-            return True
-
-        attendees = component.get("attendee")
-        if not attendees:
-            return False
-
-        if not isinstance(attendees, list):
-            attendees = [attendees]
-
-        if owner_email:
-            # Best path: check the specific calendar owner's PARTSTAT
-            owner_email_lower = owner_email.strip().lower()
-            for att in attendees:
-                att_email = str(att).replace("mailto:", "").strip().lower()
-                if att_email == owner_email_lower:
-                    partstat = ""
-                    if hasattr(att, "params"):
-                        partstat = str(att.params.get("PARTSTAT", ""))
-                    return partstat.upper() == "DECLINED"
-            # Owner not found in attendees — they may be the organizer; not declined
-            return False
-
-        # --- No owner email: use conservative heuristics ---
-
-        # Microsoft Outlook: X-MICROSOFT-CDO-BUSYSTATUS=FREE with declined attendees
-        busystatus = component.get("X-MICROSOFT-CDO-BUSYSTATUS")
-        if busystatus and str(busystatus).upper() == "FREE":
-            has_declined = any(
-                hasattr(att, "params") and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
-                for att in attendees
+        db = SessionLocal()
+        try:
+            start_day, end_day = default_window(self.local_tz, days=7)
+            result = collect_occurrences(
+                db,
+                start_day=start_day,
+                end_day_exclusive=end_day,
+                local_tz=self.local_tz,
+                config=self.config,
             )
-            if has_declined:
-                return True
+        except Exception as exc:
+            print(f"Error loading calendars: {exc}")
+            return []
+        finally:
+            db.close()
 
-        # If ALL attendees have declined, the event is effectively dead
-        all_declined = all(
-            hasattr(att, "params") and str(att.params.get("PARTSTAT", "")).upper() == "DECLINED"
-            for att in attendees
-        )
-        if all_declined:
-            return True
-
-        return False
-
-    def fetch_calendars(self) -> list[dict[str, list[dict]]]:
-        """Fetch calendar events from all configured sources.
-
-        Supports three calendar types:
-        - ics: Public ICS feed URL (uses recurring_ical_events for RRULE expansion)
-        - caldav_google: Google CalDAV via app-specific password
-        - caldav_apple: Apple iCloud CalDAV via app-specific password
-
-        Falls back to config.toml for legacy ICS-only setups.
-        """
-        today = today_utc()
-        end_date = today + timedelta(days=7)
-
-        # Try loading calendars from DB first
-        db_calendars = []
-        try:
-            db = SessionLocal()
-            try:
-                db_calendars = (
-                    db.query(CalendarModel, FamilyMember.name)
-                    .join(FamilyMember, CalendarModel.family_member_id == FamilyMember.id)
-                    .all()
-                )
-            finally:
-                db.close()
-        except Exception:
-            pass
-
-        calendars = []
-
-        if db_calendars:
-            for cal, member_name in db_calendars:
-                cal_type = cal.cal_type or "ics"
-
-                if cal_type == "caldav_google":
-                    from rally.caldav_client import fetch_google_caldav
-
-                    events = fetch_google_caldav(cal, self.local_tz)
-                    if events:
-                        calendars.append(
-                            {
-                                "name": f"{cal.label} ({member_name})",
-                                "events": events,
-                                "member": member_name,
-                            }
-                        )
-
-                elif cal_type == "caldav_apple":
-                    from rally.caldav_client import fetch_apple_caldav
-
-                    events = fetch_apple_caldav(cal, self.local_tz)
-                    if events:
-                        calendars.append(
-                            {
-                                "name": f"{cal.label} ({member_name})",
-                                "events": events,
-                                "member": member_name,
-                            }
-                        )
-
-                else:
-                    # Legacy ICS feed
-                    fetched = self._fetch_ics_calendar(
-                        name=f"{cal.label} ({member_name})",
-                        url=cal.url,
-                        owner_email=cal.owner_email,
-                        member_name=member_name,
-                        today=today,
-                        end_date=end_date,
-                    )
-                    if fetched:
-                        calendars.append(fetched)
-
-        elif "calendars" in self.config:
-            # Fall back to config.toml (ICS only)
-            for key, url in self.config["calendars"].items():
-                fetched = self._fetch_ics_calendar(
-                    name=key,
-                    url=url,
-                    owner_email=self.calendar_owners.get(key),
-                    member_name=None,
-                    today=today,
-                    end_date=end_date,
-                )
-                if fetched:
-                    calendars.append(fetched)
-
-        return calendars
-
-    def _fetch_ics_calendar(self, name, url, owner_email, member_name, today, end_date):
-        """Fetch and parse a single ICS feed, returning a calendar dict or None."""
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-
-            # Parse ICS data and expand recurring events
-            cal = Calendar.from_ical(response.text)
-            recurring_events = recurring_ical_events.of(cal).between(today, end_date)
-
-            events = []
-            for component in recurring_events:
-                dtstart = component.get("dtstart")
-                if not dtstart:
-                    continue
-
-                # Skip declined / cancelled events
-                if self._is_event_declined(component, owner_email):
-                    continue
-
-                # Get event date (handle both date and datetime objects)
-                event_date = dtstart.dt
-                if hasattr(event_date, "date"):
-                    event_date = event_date.date()
-
-                summary = str(component.get("summary", "Untitled Event"))
-                description = str(component.get("description", ""))
-                location = str(component.get("location", ""))
-
-                # Format time if datetime available
-                time_str = ""
-                if hasattr(dtstart.dt, "strftime"):
-                    # Convert to local timezone for display
-                    dt = dtstart.dt
-                    if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
-                        # Ensure it's timezone-aware in UTC first, then convert to local
-                        dt = ensure_utc(dt).astimezone(self.local_tz)
-                    time_str = dt.strftime("%I:%M %p %Z").lstrip("0")
-
-                events.append(
-                    {
-                        "summary": summary,
-                        "time": time_str,
-                        "date": event_date.strftime("%Y-%m-%d"),
-                        "description": description,
-                        "location": location,
-                    }
-                )
-
-            # Sort events by date and time
-            events.sort(key=lambda e: (e["date"], e["time"]))
-
-            if events:
-                return {"name": name, "events": events, "member": member_name}
-
-        except Exception as e:
-            print(f"Error fetching/parsing {name}: {e}")
-
-        return None
+        for failure in result.failures:
+            print(f"  Warning: calendar source unavailable: {failure}")
+        return result.occurrences
 
     def _weather_url(self) -> str | None:
         """Resolve the configured NWS forecast URL (DB settings, then config.toml)."""
@@ -528,8 +351,6 @@ class SummaryGenerator:
         """Load family members from database, returning id -> name mapping."""
         db = SessionLocal()
         try:
-            from rally.models import FamilyMember
-
             members = db.query(FamilyMember).all()
             return {m.id: m.name for m in members}
         finally:
@@ -1040,6 +861,55 @@ class SummaryGenerator:
         except Exception:
             return None
 
+    def format_calendar_section(self, occurrences) -> str:
+        """Render merged occurrences as the CALENDAR block of the prompt.
+
+        Grouped by local date rather than by feed. The old format led with
+        "CALENDAR: Jon's Google" headings, which is an implementation detail of
+        where an event was stored — the family thinks in days, and so does the
+        model when it plans one.
+
+        End times and an explicit "all day" marker are new here, and both were
+        previously impossible: the shape that reached this function had one
+        preformatted clock string and nothing else.
+        """
+        if not occurrences:
+            return "No calendar events for the next 7 days."
+
+        from datetime import datetime
+
+        by_date: dict[str, list] = {}
+        for occurrence in occurrences:
+            by_date.setdefault(occurrence.start_local_date, []).append(occurrence)
+
+        lines: list[str] = []
+        for day in sorted(by_date):
+            heading = datetime.strptime(day, "%Y-%m-%d").strftime("%A, %B %d")
+            lines.append(f"\n  {heading}:")
+            for occurrence in by_date[day]:
+                if occurrence.all_day:
+                    when = "All day"
+                else:
+                    when = occurrence.time_label(self.local_tz)
+                    end_label = occurrence.local_end(self.local_tz).strftime("%I:%M %p").lstrip("0")
+                    if end_label != when:
+                        when = f"{when}-{end_label}"
+
+                row = f"    - {when} {occurrence.title}"
+                if occurrence.location:
+                    row += f" at {occurrence.location}"
+                if occurrence.description:
+                    row += f" ({occurrence.description})"
+                if occurrence.spans_days():
+                    row += f" [Through {occurrence.end_local_date}]"
+                if len(occurrence.attendees) > 1:
+                    row += f" [Attending: {', '.join(occurrence.attendees)}]"
+                elif occurrence.attendees:
+                    row += f" [{occurrence.attendees[0]}]"
+                lines.append(row)
+
+        return "\n".join(lines)
+
     def generate_summary(self) -> dict:
         """Generate the daily summary JSON data using Claude."""
         calendars = self.fetch_calendars()
@@ -1054,58 +924,7 @@ class SummaryGenerator:
         shopping_items = self.load_shopping_items() if self.shopping_list_in_summary_enabled else ""
         sports_watchlist = self.load_sports_watchlist() if self.sports_watchlist_enabled else ""
 
-        # Format calendars for prompt
-        cal_text = ""
-        if calendars:
-            from datetime import datetime
-
-            # Build attendance map: (date, summary_normalized) -> list of member names
-            # This detects shared events (same event on multiple family members' calendars)
-            attendance: dict[tuple[str, str], list[str]] = {}
-            for cal in calendars:
-                member = cal.get("member")
-                if not member:
-                    continue
-                for event in cal["events"]:
-                    key = (event["date"], event["summary"].strip().lower())
-                    if key not in attendance:
-                        attendance[key] = []
-                    if member not in attendance[key]:
-                        attendance[key].append(member)
-
-            # Track events already output to avoid cross-calendar duplicates
-            seen_events: set[tuple[str, str]] = set()
-
-            for cal in calendars:
-                cal_text += f"\nCALENDAR: {cal['name']}\n"
-                current_date = None
-                for event in cal["events"]:
-                    event_key = (event["date"], event["summary"].strip().lower())
-
-                    # Skip if already output from another family member's calendar
-                    if event_key in seen_events:
-                        continue
-                    seen_events.add(event_key)
-
-                    # Group events by date for readability
-                    if event["date"] != current_date:
-                        current_date = event["date"]
-                        cal_text += f"\n  {datetime.strptime(event['date'], '%Y-%m-%d').strftime('%A, %B %d')}:\n"
-
-                    cal_text += f"    - {event['time']} {event['summary']}"
-                    if event["location"]:
-                        cal_text += f" at {event['location']}"
-                    if event["description"]:
-                        cal_text += f" ({event['description']})"
-
-                    # Annotate shared events with all attendees
-                    members = attendance.get(event_key, [])
-                    if len(members) > 1:
-                        cal_text += f" [Attending: {', '.join(members)}]"
-
-                    cal_text += "\n"
-        else:
-            cal_text = "No calendar events for the next 7 days."
+        cal_text = self.format_calendar_section(calendars)
 
         # Format weather into clean local-time text
         weather_text = self.format_weather(weather)

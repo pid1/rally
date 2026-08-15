@@ -18,6 +18,7 @@
 
     <nav>
         <a href="/dashboard">Dashboard</a>
+        <a href="/calendar">Calendar</a>
         <a href="/todo">Tasks</a>
         <a href="/shopping">Shopping</a>
         <div class="nav-dropdown" id="meal-dropdown">
@@ -227,6 +228,50 @@
                 <div class="card-content">
                     <p>Partly cloudy with highs around 68&deg;F. Light jacket recommended for
                     morning activities. <strong>No rain expected today.</strong></p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="card-header">Calendar month grid</div>
+            <p class="page-note">
+                Today is marked with a rule, never a fill: the palette is greyscale, so the
+                only colour on the page is the family-member dots and a filled cell would
+                shout over them. A day that overflows offers &ldquo;+N more&rdquo; and switches
+                to that day&rsquo;s agenda &mdash; a popover would be a second modal chassis. Below 768px the grid does not
+                render at all: seven columns leave 42px per day, and no styling makes that
+                carry a 44px target, so the calendar page shows the agenda instead.
+            </p>
+            <div class="calendar-grid">
+                <div class="calendar-weekday">Mon</div>
+                <div class="calendar-weekday">Tue</div>
+                <div class="calendar-weekday">Wed</div>
+                <div class="calendar-day is-outside"><button type="button" class="calendar-day-open"><span class="calendar-day-number">30</span></button></div>
+                <div class="calendar-day">
+                    <button type="button" class="calendar-day-open">
+                        <span class="calendar-day-number">1</span>
+                    </button>
+                    <button type="button" class="calendar-event">
+                        <span class="calendar-dot"></span>
+                        <span class="calendar-event-time">9:00 AM</span>
+                        <span class="calendar-event-title">Dentist</span>
+                    </button>
+                </div>
+                <div class="calendar-day is-today">
+                    <button type="button" class="calendar-day-open">
+                        <span class="calendar-day-number">2</span>
+                    </button>
+                    <button type="button" class="calendar-event">
+                        <span class="calendar-dot"></span>
+                        <span class="calendar-event-time">7:00 PM</span>
+                        <span class="calendar-event-title">Scouts</span>
+                    </button>
+                    <button type="button" class="calendar-event is-external">
+                        <span class="calendar-dot"></span>
+                        <span class="calendar-event-time">8:00 PM</span>
+                        <span class="calendar-event-title">Book club</span>
+                    </button>
+                    <button type="button" class="calendar-more">+2 more</button>
                 </div>
             </div>
         </section>

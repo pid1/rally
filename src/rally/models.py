@@ -30,6 +30,12 @@ class FamilyMember(Base):
     calendar_key: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )  # Deprecated, kept for migration compat
+    pushover_user_key: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )  # This person's Pushover user/group key; NULL means "never notified"
+    pushover_device: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )  # Optional Pushover device name; NULL means all of their devices
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
@@ -37,24 +43,30 @@ class FamilyMember(Base):
 class Calendar(Base):
     """Calendar feed model — each calendar is linked to a family member.
 
-    Supports three types:
+    Supports four types:
+    - native: Rally's own events, stored in the ``events`` table (no URL)
     - ics: Public ICS feed URL (unauthenticated)
     - caldav_google: Google CalDAV via app-specific password
     - caldav_apple: Apple iCloud CalDAV via app-specific password
+
+    A native calendar is a row here rather than a table of its own so that
+    per-member ownership, the Settings CRUD screen, and the generator's join
+    against ``family_members`` all apply to it unchanged — the fetch loop gains
+    one branch instead of a parallel concept beside it.
     """
 
     __tablename__ = "calendars"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     label: Mapped[str] = mapped_column(String(100))  # Display name, e.g. "Google Family"
-    url: Mapped[str] = mapped_column(Text)  # ICS feed URL or CalDAV server URL
+    url: Mapped[str] = mapped_column(Text, default="")  # Feed/server URL; empty for native
     family_member_id: Mapped[int] = mapped_column(Integer)  # FK to family_members.id
     owner_email: Mapped[str | None] = mapped_column(
         String(200), nullable=True
     )  # For declined-event detection
     cal_type: Mapped[str] = mapped_column(
         String(20), default="ics"
-    )  # ics, caldav_google, caldav_apple
+    )  # native, ics, caldav_google, caldav_apple
     username: Mapped[str | None] = mapped_column(
         String(200), nullable=True
     )  # Email for CalDAV auth
@@ -192,6 +204,148 @@ class SportsEventNotice(Base):
         String(60), nullable=True
     )  # The reason shown when it was announced; for debugging, never re-announced on
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+
+class Event(Base):
+    """A Rally-owned calendar event, or the template of a recurring series.
+
+    Times are stored twice on purpose, and the pair is the point:
+
+    - ``start_utc`` / ``end_utc`` are instants, and they are what orders a day
+      correctly. ``end_utc`` is **exclusive**, matching ICS ``DTEND``.
+    - ``start_date`` / ``end_date`` are local calendar dates, and they are what
+      renders correctly. ``end_date`` is **inclusive**, because that is what a
+      human means by "ends Friday" and what the edit form shows.
+
+    Deriving either pair from the other at read time is precisely where the
+    classic all-day off-by-one lives, so both are written once at the boundary
+    and read verbatim afterwards.
+
+    ``tzid`` is captured per event rather than read from the global
+    ``local_timezone`` setting: changing the family's timezone must not re-time
+    events that already exist.
+    """
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    calendar_id: Mapped[int] = mapped_column(Integer)  # FK to calendars.id (cal_type='native')
+    uid: Mapped[str] = mapped_column(String(200), unique=True, index=True)  # RFC 5545 UID
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    start_utc: Mapped[datetime] = mapped_column(DateTime)
+    end_utc: Mapped[datetime] = mapped_column(DateTime)  # Exclusive
+    start_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
+    end_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local, inclusive
+    tzid: Mapped[str] = mapped_column(String(64), default="UTC")
+    rrule: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # RFC 5545 RRULE body, no prefix; NULL means a single event
+    series_end_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # Denormalized UNTIL; NULL means unbounded
+    notify_minutes_before: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Push reminder lead time; NULL means no reminder
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (Index("ix_events_calendar_start", "calendar_id", "start_date"),)
+
+
+class EventAttendee(Base):
+    """Which family members an event belongs to.
+
+    A join table rather than a JSON array on the event — breaking with
+    ``DinnerPlan.attendee_ids`` — because a calendar is *filtered* by member
+    ("show me Emma's week") and a dinner plan never is. Filtering a JSON array
+    in SQLite means loading the whole window and filtering in Python, which is
+    fine for the planner's seven rows and not for a month. Notifications make
+    the same case twice: the recipients of a reminder are exactly this table.
+    """
+
+    __tablename__ = "event_attendees"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(Integer, index=True)
+    family_member_id: Mapped[int] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (
+        Index("ix_event_attendees_unique", "event_id", "family_member_id", unique=True),
+    )
+
+
+class EventOverride(Base):
+    """One occurrence of a series that differs from the rest, or is gone.
+
+    Keyed on ``occurrence_date`` — the local date the occurrence *originally*
+    fell on, which stays its identity even after it is moved. An index into the
+    series would have been simpler and wrong: it shifts the moment an earlier
+    occurrence is cancelled.
+
+    Every field is nullable, and NULL means "inherit from the series". A row
+    with ``cancelled=True`` is a deleted occurrence (ICS ``EXDATE``).
+    """
+
+    __tablename__ = "event_overrides"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(Integer, index=True)
+    occurrence_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, original local date
+    cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    all_day: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    start_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    end_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    start_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    end_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_event_overrides_unique", "event_id", "occurrence_date", unique=True),
+    )
+
+
+class EventNotification(Base):
+    """Record that an event occurrence was pushed to one family member.
+
+    Mirrors ``SportsEventNotice``: same problem (send once, not once per poll),
+    same shape, same purge discipline. The unique index below *is* the
+    send-once guarantee for reminders.
+
+    ``status`` matters as much as the row's existence. A failed send is
+    recorded rather than dropped — but it does not consume the dedupe slot,
+    because a five-minute provider outage must not silently eat the day's
+    reminders. The retry rewrites the same row.
+    """
+
+    __tablename__ = "event_notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(Integer, index=True)
+    occurrence_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
+    family_member_id: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(20))  # reminder | manual
+    status: Mapped[str] = mapped_column(String(20), default="sent")  # sent | failed
+    detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_event_notifications_unique",
+            "event_id",
+            "occurrence_date",
+            "family_member_id",
+            "kind",
+            unique=True,
+        ),
+    )
 
 
 class DashboardSnapshot(Base):

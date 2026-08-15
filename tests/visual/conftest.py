@@ -35,6 +35,7 @@ VIEWPORTS = {
 # Every page a family member can reach, plus the styleguide.
 PAGES = {
     "dashboard": "/dashboard",
+    "calendar": "/calendar",
     "todo": "/todo",
     "todo-completed": "/todo/completed",
     "shopping": "/shopping",
@@ -48,6 +49,7 @@ PAGES = {
 # Pages built from the page/toolbar primitives. Dashboard, Settings and the
 # styleguide are excluded from toolbar assertions: they have no filter bar.
 TOOLBAR_PAGES = [
+    "calendar",
     "todo",
     "todo-completed",
     "shopping",

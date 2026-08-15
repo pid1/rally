@@ -390,6 +390,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `016_add_stem_concept_history` - Add `stem_concept_history` table (records used STEM "concept of the day" topics so the generator avoids repeating a specific topic within 60 days)
 - `017_add_shopping_lists` - Add `shopping_stores`, `shopping_items`, and `shopping_item_history` tables, plus the case-insensitive unique index on store names and the unique index on `shopping_item_history.name_key`
 - `018_add_sports_watchlist` - Add `followed_teams` and `sports_event_notices` tables, plus the unique index on `sports_event_notices.event_key` (records which notable upcoming events have already been announced, so one is mentioned once rather than every morning for two weeks)
+- `020_add_native_calendaring` - Add the `events`, `event_attendees`, `event_overrides` and `event_notifications` tables plus their indexes (the unique index on `event_notifications` *is* the reminder send-once guarantee), add `pushover_user_key` / `pushover_device` to `family_members`, and seed one `cal_type='native'` calendar per existing family member. Purely additive
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 
 ### Running Migrations
@@ -530,10 +531,19 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
+│   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan
+│   ├── calendars/        # One normalized event shape for every calendar source
+│   │   ├── occurrence.py # The Occurrence dataclass + timezone/DST helpers
+│   │   ├── declined.py   # Declined/cancelled detection (one copy, was two)
+│   │   ├── ics.py        # iCalendar component → Occurrence, shared by ICS and CalDAV
+│   │   ├── native.py     # Rally-owned events: RRULE expansion and overrides
+│   │   ├── inputs.py     # Submitted local times → stored columns
+│   │   ├── merge.py      # Cross-calendar dedupe, attendance union, ordering
+│   │   └── sources.py    # Fetch every configured calendar into one merged list
 │   ├── generator/
 │   │   ├── __init__.py
 │   │   ├── generate.py   # Summary generation logic with calendar, todos, and dinner plans
@@ -545,6 +555,7 @@ rally/
 │   └── routers/
 │       ├── __init__.py
 │       ├── dashboard.py     # Dashboard routes
+│       ├── events.py        # Calendar event CRUD, occurrence expansion, notify
 │       ├── todos.py         # Todo CRUD API
 │       ├── shopping.py      # Shopping list, store, and autocomplete-suggestion API
 │       ├── recurring_todos.py # Recurring todo template CRUD API
@@ -557,6 +568,7 @@ rally/
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behaviour
 ├── templates/
 │   ├── dashboard.html       # Generated dashboard template
+│   ├── calendar.html        # Month and agenda calendar views
 │   ├── todo.html            # Todo management page
 │   ├── todo_completed.html  # Read-only previously-completed tasks page
 │   ├── shopping.html        # Shopping list page
@@ -582,6 +594,7 @@ rally/
 │   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
 │   ├── migrate_018_add_sports_watchlist.py # Migration 018: add followed_teams, sports_event_notices tables
 │   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
+│   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
@@ -606,6 +619,25 @@ rally/
   - LLM system prompt includes task filtering guideline (guideline 10): the LLM only references tasks explicitly listed in the TODOS section of its prompt
   - Todo and dinner plan date comparisons use the user's configured local timezone
 - ✅ Configuration via Settings UI (stored in DB) with config.toml fallback
+- ✅ **Native calendaring** (`/calendar`) — Rally owns events, and shows them
+  - One normalized `Occurrence` shape (`src/rally/calendars/`) produced by the native, ICS and CalDAV adapters and merged in one place. `generate.fetch_calendars()` is now a thin caller
+  - Fixed four defects the old dict-based read path made unavoidable: events sorted lexicographically by a 12-hour clock string (so 9 AM sorted after 1 PM), all-day events rendered as midnight appointments (a `date` also has `strftime`), a `(date, title)` dedupe key that dropped the second same-named event of a day, and a 7-day window measured in UTC dates
+  - `events` / `event_attendees` / `event_overrides` tables. Times are stored **twice on purpose**: `start_utc`/`end_utc` are exclusive instants that order a day correctly, `start_date`/`end_date` are inclusive local dates that render correctly. Deriving either from the other at read time is where the all-day off-by-one lives
+  - `tzid` is captured per event, so changing the family's timezone never re-times history
+  - Recurrence is **RFC 5545 RRULE**, expanded through `recurring_ical_events` — the same expander the ICS path uses, so a 7:00 PM weekly event stays 7:00 PM across a DST transition and there is only one place for that bug to live. The UI offers the familiar Rally choices and compiles them to RRULE; nobody types one
+  - Nonexistent local times (2:30 AM on spring-forward) shift forward by the gap; ambiguous ones (1:30 AM on fall-back) take the first instant. Both are policy, applied in `resolve_local` and tested
+  - Per-occurrence edits via `event_overrides`, keyed on the **original** occurrence date rather than an index — an index shifts the moment an earlier occurrence is cancelled
+  - Expansion is capped at 1,000 occurrences per event per query; hitting the cap logs and truncates rather than raising
+  - Native calendars are rows in `calendars` with `cal_type='native'` and no URL, so per-member ownership, the Settings CRUD screen and the generator's join all apply unchanged. Every family member gets one; the router creates one on demand if none exists
+- ✅ **Pushover reminders to an event's attendees** (Settings → Notifications)
+  - `pushover_app_token` identifies the install; `family_members.pushover_user_key` identifies a person. A member without a key is never notified, which is the default rather than an error
+  - Recipients are the event's **attendees**, never "everyone" — notifying four phones for one child's appointment is how a notification feature gets muted
+  - Two paths: a reminder lead time (`events.notify_minutes_before`) and an explicit `Notify attendees`. Both go through one `send_pushover` and one recipient resolver
+  - Lead time is subtracted from the **resolved occurrence**, not the series start; anything else is an hour wrong for half the year
+  - `event_notifications` mirrors `sports_event_notices`: its unique index on `(event_id, occurrence_date, family_member_id, kind)` *is* the send-once guarantee. A **failed** send is recorded but does not consume the slot, so a brief outage cannot permanently eat a reminder
+  - A window missed by more than `REMINDER_GRACE_MINUTES` (15) is **dropped, not replayed** — a push at 4:05 for a 2:30 reminder misinforms rather than reminds
+  - `check_due_reminders` runs from a minute loop in `entrypoint.sh` *and* opportunistically from `GET /api/events`, gated to once a minute. The container loop only exists under Docker, so without the second hook a `dev` instance would never send one — same reasoning as the shopping retention purge
+  - Failures are logged and recorded, never raised: a push cannot fail an API request or a summary
 - ✅ Calendar integration (Google Calendar, iCloud) - filters to next 7 days, deduplicates, handles declined events
 - ✅ Weather integration (configurable National Weather Service forecast URL — DWML feed)
 - ✅ Configurable LLM provider - Anthropic Claude or any OpenAI-compatible API
@@ -733,7 +765,10 @@ When touching the UI:
 - **Modals are `.modal-content > h3 + .modal-scroll > .modal-body`**, and the
   page loads `/static/modal.js`.
 - **Hit areas are `var(--target-min)`**, which is 44px on coarse pointers and
-  narrow viewports.
+  narrow viewports. The calendar month grid is the case where this bites: seven
+  columns at 390px leave 42px per day, so the grid is **hidden below 768px**
+  and `/calendar` forces the agenda view rather than shipping a target nobody
+  can hit.
 
 Run `uv run pytest tests/test_stylesheet.py` for the static checks, and the
 visual suite (above) before shipping a layout change.
@@ -743,6 +778,7 @@ visual suite (above) before shipping a layout change.
 ### Page Routes
 - `/` - Redirects to `/dashboard`
 - `/dashboard` - Serves the generated daily summary from cached snapshot (shows error if missing)
+- `/calendar` - Month and agenda views of every calendar source. `Add Event` opens a dual-mode modal carrying attendees, recurrence and a reminder lead time; editing an occurrence of a series prompts for scope (this / this and following / all) with three buttons rather than a select. External events render read-only. **Below 768px the month grid does not render at all** and the page forces the agenda view: seven columns leave 42px per day, which cannot carry a 44px tap target
 - `/todo` - Todo management page with full CRUD interface
 - `/todo/completed` - Read-only page of todos completed before today (local time); reachable only via the `View completed tasks` link on `/todo`, not from the nav bar
 - `/shopping` - Shopping list page: an `Add Item` header button opening a dual-mode modal with history-backed autocomplete, store grouping, store filter chips derived from the items on the list, and a `Manage stores` button in the Store toolbar group
@@ -753,6 +789,14 @@ visual suite (above) before shipping a layout change.
 
 ### API Routes
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot
+- `/api/events` - Calendar events. **Two shapes travel through here and they are deliberately different**: an *event* is the stored rule (what the edit form reads), an *occurrence* is one dated instance of it (what every view renders)
+  - `GET /api/events?start=&end=&member=&source=` - Expanded **occurrences** from every source, merged and ordered. Local dates; window capped at 366 days; repeatable `member` filters by attendee with OR semantics; `source` is `all` (default), `native`, or `external`. Also runs the once-per-minute due-reminder check
+  - `POST /api/events` - Create. Times are **local wall times plus `tzid`**, never UTC instants — the browser does no timezone maths. An all-day `end` is the inclusive last day. `rrule` is validated by parsing it
+  - `GET /api/events/{id}` - The stored series row plus its overrides
+  - `GET /api/events/{id}/occurrences?start=&end=` - Occurrences of one series, so the UI can show what a change affects
+  - `PUT /api/events/{id}?scope=this|following|all&occurrence_date=` - `this` writes an `event_overrides` row keyed on the **original** occurrence date; `following` truncates the series with `UNTIL` and creates a new event carrying the tail (moving the overrides at or after the split with it); `all` updates the row and **keeps existing overrides** — a moved occurrence stays moved. `occurrence_date` is required for the first two
+  - `DELETE /api/events/{id}?scope=…&occurrence_date=` - Cancel one occurrence, truncate the tail, or delete the event and cascade its attendees, overrides and notifications (SQLite does not enforce the references)
+  - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, failed}` **by name**: "it worked" and "both phones buzzed" are different claims, and an attendee with no Pushover key is reported as skipped rather than silently dropped
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
   - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
@@ -812,6 +856,9 @@ visual suite (above) before shipping a layout change.
   - `POST /api/settings/llm/config/rollback` - Make an existing snapshot active: restores the whole config together (including the stored `max_tokens`, verbatim — never re-resolved), bumps `last_used_at`, repoints the setting, and syncs the plain settings keys — no new row inserted. Body: `{history_id}`
 - `/api/settings/test-llm` - LLM connectivity test
   - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`. On Anthropic success, `message` appends the configured max-tokens value (e.g. `"Connected to claude-sonnet-4-6 (max tokens: 128000)"`) — the one place a freshly resolved "Model maximum" budget is confirmed to the operator, since the verify modal auto-closes on success and the field's helper text is the durable surface afterward
+- `/api/settings/test-pushover` - Pushover connectivity test
+  - `POST /api/settings/test-pushover` - Sends a real message to the first family member who has a user key. There is no token-only validation worth having: a well-formed token that belongs to another account looks identical to a correct one until a phone buzzes
+- `/api/family/{id}/test-pushover` - Send a test push to one member's profile
 - `/api/settings/test-weather` - Weather connectivity test
   - `POST /api/settings/test-weather` - Fetch the configured NWS forecast URL and confirm it returns DWML weather data (10-second timeout). Returns `{success, message}` or `{success, error}`.
 - `/api/calendars` - Calendar feed CRUD endpoints
@@ -820,10 +867,10 @@ visual suite (above) before shipping a layout change.
   - `GET /api/calendars/{id}` - Get specific calendar
   - `PUT /api/calendars/{id}` - Update calendar feed
   - `DELETE /api/calendars/{id}` - Delete calendar feed
-  - `POST /api/calendars/{id}/test` - Test calendar feed connectivity. For ICS feeds, fetches the URL and validates calendar data. For CalDAV, connects and counts available calendars. Returns `{success, message}` or `{success, error}`.
+  - `POST /api/calendars/{id}/test` - Test calendar feed connectivity. For ICS feeds, fetches the URL and validates calendar data. For CalDAV, connects and counts available calendars. For a **native** calendar there is nothing to connect to, so it reports how many events it holds — the button still means something in the same place. Returns `{success, message}` or `{success, error}`.
 
 ### Navigation
-All pages include a navigation bar allowing users to switch between Dashboard, Todos, Shopping, Dinner Planner, and Settings. The nav markup is duplicated across all six page templates, so a nav change must be applied to each.
+All pages include a navigation bar allowing users to switch between Dashboard, Calendar, Todos, Shopping, Dinner Planner, and Settings. The nav markup is duplicated across every page template, so a nav change must be applied to each. On a phone the nav is a **three**-column grid: five items in two columns is three rows, which pushes the first row of content below the fold.
 
 ## Configuration
 

@@ -39,6 +39,21 @@ echo "✓ Database ready"
   done
 ) &
 
+# Start the event reminder loop in the background.
+#
+# Reminders need minute resolution, so they cannot ride along with the 4:00 AM
+# generation job above — a reminder that fires at 4 AM is not a reminder. The
+# API also runs this opportunistically (see notifications.py), which is what
+# makes reminders work for a dev-served instance; this loop is what makes them
+# reliable in production, where the browser may not be open.
+(
+  echo "Starting event reminder loop (checks every 60 seconds)"
+  while true; do
+    python -m rally.notifications || echo "$(date): Reminder check failed"
+    sleep 60
+  done
+) &
+
 # Start the web server in foreground
 echo "Starting FastAPI server on port 8000..."
 exec uvicorn rally.main:app --host 0.0.0.0 --port 8000
