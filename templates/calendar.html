@@ -37,11 +37,13 @@
             <div class="page-header-row">
                 <h2 id="page-title">Calendar</h2>
                 <div class="page-header-actions">
+                    <button class="btn btn--quiet" id="btn-refresh-calendars" title="Fetch external calendars now">Refresh</button>
                     <button class="btn" id="btn-add-event">Add Event</button>
                 </div>
             </div>
             <div class="page-header-meta">
                 <span id="range-label"></span>
+                <span class="page-note" id="sync-note"></span>
             </div>
         </header>
 
@@ -830,6 +832,60 @@
             });
         });
 
+        // ── External calendar freshness ──
+        //
+        // External feeds are served from a cache refreshed in the background,
+        // so the page renders immediately. The trade is staleness, and the
+        // honest thing is to say how stale rather than let somebody wonder why
+        // an event they just added upstream is missing.
+        function relativeAge(iso) {
+            const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+            if (mins < 1) return 'just now';
+            if (mins === 1) return '1 minute ago';
+            if (mins < 60) return mins + ' minutes ago';
+            const hrs = Math.round(mins / 60);
+            return hrs === 1 ? '1 hour ago' : hrs + ' hours ago';
+        }
+
+        async function loadSyncStatus() {
+            const note = document.getElementById('sync-note');
+            try {
+                const r = await fetch('/api/events/sync/status');
+                if (!r.ok) { note.textContent = ''; return; }
+                const s = await r.json();
+                if (!s.expected) { note.textContent = ''; return; }
+
+                const parts = [];
+                if (s.oldest_fetched_at) {
+                    parts.push('External calendars updated ' + relativeAge(s.oldest_fetched_at));
+                } else {
+                    parts.push('External calendars have not synced yet');
+                }
+                if (s.failing && s.failing.length) {
+                    parts.push('showing the last good copy for ' + s.failing.join(', '));
+                }
+                note.textContent = parts.join(' · ');
+            } catch (e) {
+                note.textContent = '';
+            }
+        }
+
+        document.getElementById('btn-refresh-calendars').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-refresh-calendars');
+            const note = document.getElementById('sync-note');
+            btn.disabled = true;
+            note.textContent = 'Refreshing external calendars…';
+            try {
+                await fetch('/api/events/sync', { method: 'POST' });
+                await load();
+                await loadSyncStatus();
+            } catch (e) {
+                note.textContent = 'Could not refresh right now — showing the last good copy.';
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
         document.getElementById('btn-add-event').addEventListener('click', () => openAddEventModal());
         document.getElementById('btn-cancel-event').addEventListener('click', closeEventModal);
         document.getElementById('btn-close-detail').addEventListener('click', () => hideModalOverlay('detail-modal-overlay'));
@@ -926,6 +982,9 @@
             applyViewportView();
             await fetchFamilyMembers();
             await load();
+            // After the calendar is on screen, not before: freshness is a
+            // footnote and must never delay the thing it is a footnote about.
+            loadSyncStatus();
         })();
     </script>
 </body>

@@ -645,3 +645,51 @@ class PrepReview(Base):
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Which model produced it
     item_count: Mapped[int] = mapped_column(Integer, default=0)  # Inventory size at review time
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+
+class CalendarCache(Base):
+    """Cached occurrences for one external calendar.
+
+    Reads must not touch the network. The `/calendar` page was fetching every
+    remote feed synchronously on every request — measured at 11.5s against
+    three sources, of which 8.9MB of ICS was one — so the page spent its whole
+    life on "Loading calendar…". Native events stay live because they are a
+    local query (0.13s); only external sources are cached.
+
+    ``occurrences`` holds the already-expanded window as JSON. Caching the raw
+    feed text instead would look tidier, but neither feed here sends an ETag or
+    a Last-Modified, so a read would still pay the 4s download; and the parse
+    and recurrence expansion is another 2.4s on the large feed. Expanded and
+    stored is the only shape that makes a read free.
+
+    ``content_hash`` is what makes a sync *incremental*: when the fetched body
+    is byte-identical to last time, the expansion is skipped and only
+    ``fetched_at`` moves. ``etag`` / ``last_modified`` are sent as conditional
+    request headers when the server offers them — neither of this install's
+    feeds does, but Apple, Fastmail and Nextcloud all do, and a 304 skips the
+    download as well as the parse.
+    """
+
+    __tablename__ = "calendar_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    calendar_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    occurrences: Mapped[list] = mapped_column(JSON, default=list)  # serialized Occurrence dicts
+    window_start: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
+    window_end: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local, exclusive
+
+    # Incremental-sync bookkeeping.
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    etag: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    last_modified: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    fetched_at: Mapped[datetime] = mapped_column(default=now_utc)  # last successful contact
+    changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )  # last time the content actually differed
+    # A failing feed keeps serving its last good occurrences rather than
+    # blanking the calendar; the error travels alongside so the UI can say so.
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)

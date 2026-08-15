@@ -79,11 +79,23 @@ def collect_occurrences(
     local_tz: ZoneInfo,
     config: dict | None = None,
     sources: set[str] | None = None,
+    use_cache: bool = False,
 ) -> FetchResult:
     """Every occurrence in the window, from every configured source.
 
     Failures are collected rather than raised: one unreachable feed must
     shorten the list and name itself, never fail the page or the 4 AM summary.
+
+    ``use_cache`` serves external calendars from ``calendar_cache`` instead of
+    the network, which is what makes a page load fast. It defaults to False so
+    the 4 AM summary keeps fetching live — a briefing built from a
+    fifteen-minute-old cache would be fine, but one built from a cache that has
+    been failing silently for a day would not, and the generator is the one
+    caller with no user watching it.
+
+    A calendar with no cache row yet is fetched live and left for the next sync
+    to store, so a fresh install still renders rather than showing an empty
+    calendar until the first background pass.
     """
     window_start, window_end = window_bounds(start_day, end_day_exclusive, local_tz)
     result = FetchResult()
@@ -113,11 +125,29 @@ def collect_occurrences(
             print(f"Error expanding native events: {exc}")
             result.failures.append("Rally events")
 
+    cached_ids: set[int] = set()
+    if use_cache and (sources is None or "external" in sources):
+        from rally.calendars.cache import read_cached
+
+        cached, cache_failures, uncached = read_cached(
+            db, window_start=window_start, window_end=window_end
+        )
+        groups.append(cached)
+        result.failures.extend(cache_failures)
+        # Everything except the not-yet-cached falls through to a live fetch.
+        cached_ids = {
+            calendar.id
+            for calendar, _ in calendars
+            if (calendar.cal_type or "ics") != "native" and calendar.id not in uncached
+        }
+
     for calendar, owner in calendars:
         cal_type = calendar.cal_type or "ics"
         if cal_type == "native":
             continue
         if sources is not None and "external" not in sources:
+            continue
+        if calendar.id in cached_ids:
             continue
 
         member = owner.name if owner else None
