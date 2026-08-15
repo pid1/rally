@@ -21,6 +21,23 @@ def local_timezone_name(db: Session) -> str:
     return setting.value if setting and setting.value else "UTC"
 
 
+def home_location(db: Session) -> str:
+    """Where the family lives, as free text ("Highland Village, TX").
+
+    First-party rather than something buried in ``family_context``, because
+    several things want it structurally and not as prose: the daily summary
+    needs it to reason about local conditions, and anything that has to think
+    about climate, seasons or regional hazards needs a place to start from.
+
+    Free text on purpose. A structured address would need parsing, validation
+    and a geocoder to be worth more than this, and nothing here needs
+    coordinates — the weather integration already carries its own NWS URL.
+    Empty is a valid answer and every caller must handle it.
+    """
+    setting = db.query(Setting).filter(Setting.key == "home_location").first()
+    return (setting.value or "").strip() if setting else ""
+
+
 def today_start_utc(db: Session) -> datetime:
     """UTC instant of local midnight today, in the user's configured timezone.
 

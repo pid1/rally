@@ -183,6 +183,21 @@
         </form>
     </div>
 
+    <!-- Home Section -->
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Home</h3>
+        </div>
+        <form id="home-form">
+            <div class="form-group">
+                <label>Home Location</label>
+                <input type="text" id="home-location" placeholder="e.g. Highland Village, TX">
+                <small>Where the family lives. Sent to the AI along with your family context, so the daily summary can reason about local conditions. Free text — a town and state is plenty.</small>
+            </div>
+            <button type="submit" class="btn">Save</button>
+        </form>
+    </div>
+
     <!-- Notifications Section -->
     <div class="border-container stack">
         <div class="page-header-row">
@@ -791,6 +806,7 @@
             document.getElementById('meal-default-type').value = s.meal_default_type || 'Dinner';
 
             // Notifications
+            document.getElementById('home-location').value = s.home_location || '';
             document.getElementById('pushover-app-token').value = s.pushover_app_token || '';
             document.getElementById('prep-notify-enabled').checked = s.prep_notify_enabled !== 'false';
             document.getElementById('prep-notify-time').value = s.prep_notify_time || '08:00';
@@ -1495,6 +1511,20 @@
             } catch (error) {
                 console.error('Error saving meal planner settings:', error);
                 alert('Failed to save meal planner settings');
+            }
+        });
+
+        // Home form
+        document.getElementById('home-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    home_location: document.getElementById('home-location').value.trim()
+                });
+                alert('Home location saved.');
+            } catch (error) {
+                console.error('Error saving home location:', error);
+                alert('Failed to save home location');
             }
         });
 
