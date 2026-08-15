@@ -735,3 +735,31 @@ class PrepNoticeResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Preparedness — LLM review
+
+
+class PrepReviewGap(BaseModel):
+    item: str
+    category: str = ""
+    why: str = ""
+    priority: str = "medium"
+
+
+class PrepReviewData(BaseModel):
+    assessment: str = ""
+    gaps: list[PrepReviewGap] = []
+    strengths: list[str] = []
+    assumptions: list[str] = []
+    notes: str = ""
+
+
+class PrepReviewResponse(BaseModel):
+    id: int
+    review: PrepReviewData
+    model: str | None = None
+    item_count: int
+    current_item_count: int
+    stale: bool
+    created_at: datetime

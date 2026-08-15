@@ -37,6 +37,7 @@
             <div class="page-header-row">
                 <h2>Inventory</h2>
                 <div class="page-header-actions">
+                    <button class="btn btn--secondary" id="btn-review" style="display:none">Review</button>
                     <button class="btn" id="btn-add-item">Add Item</button>
                 </div>
             </div>
@@ -73,6 +74,8 @@
                 <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
             </div>
         </div>
+
+        <div id="review-panel"></div>
 
         <div id="groups-container">
             <div class="container-loading-state">Loading inventory…</div>
@@ -565,7 +568,91 @@
             });
         });
 
+        // ── AI review ──
+        //
+        // Reading is free and never calls the model; only the button does. A
+        // stored review is shown with its date and an explicit staleness note
+        // rather than being silently refreshed, so nobody acts on a review of
+        // an inventory they have since changed.
+        let reviewEnabled = false;
+
+        function priorityPill(priority) {
+            const tone = priority === 'high' ? 'overdue' : (priority === 'low' ? 'ok' : 'due');
+            return `<span class="pill pill--${tone}">${escapeHtml(priority)}</span>`;
+        }
+
+        function renderReview(payload) {
+            const panel = document.getElementById('review-panel');
+            if (!payload) { panel.innerHTML = ''; return; }
+
+            const r = payload.review || {};
+            const when = new Date(payload.created_at).toLocaleString();
+            const stale = payload.stale
+                ? `<p class="page-note">Reviewed when you had ${payload.item_count} items; you now have ${payload.current_item_count}. Run it again for an up-to-date answer.</p>`
+                : '';
+
+            const gaps = (r.gaps || []).map(g => `
+                <div class="prep-row">
+                    <div class="prep-main">
+                        <div class="prep-name">${escapeHtml(g.item)}</div>
+                        <div class="prep-meta">
+                            ${priorityPill(g.priority)}
+                            ${g.category ? `<span>${escapeHtml(g.category)}</span>` : ''}
+                        </div>
+                        ${g.why ? `<div class="prep-notes">${escapeHtml(g.why)}</div>` : ''}
+                    </div>
+                </div>`).join('');
+
+            const list = (items, title) => (items && items.length)
+                ? `<div class="prep-notes"><strong>${title}:</strong> ${items.map(escapeHtml).join(' · ')}</div>`
+                : '';
+
+            panel.innerHTML = `
+                <div class="prep-group">
+                    <div class="prep-group-header">
+                        <h3>What might be missing</h3>
+                        <span class="prep-group-count">${(r.gaps || []).length} suggestion${(r.gaps || []).length === 1 ? '' : 's'} · ${when}</span>
+                    </div>
+                    ${stale}
+                    ${r.assessment ? `<p>${escapeHtml(r.assessment)}</p>` : ''}
+                    ${gaps || '<div class="container-empty-state">No gaps found.</div>'}
+                    ${list(r.strengths, 'Already strong')}
+                    ${list(r.assumptions, 'Assumed')}
+                    ${r.notes ? `<div class="prep-notes">${escapeHtml(r.notes)}</div>` : ''}
+                    <p class="page-note">A second pair of eyes, not an authority — check an official list such as ready.gov for anything that matters.</p>
+                </div>`;
+        }
+
+        async function loadReview() {
+            const settings = await fetch('/api/settings').then(r => r.ok ? r.json() : { settings: {} });
+            reviewEnabled = (settings.settings || {}).prep_review_enabled === 'true';
+            document.getElementById('btn-review').style.display = reviewEnabled ? '' : 'none';
+            if (!reviewEnabled) { renderReview(null); return; }
+
+            const r = await fetch('/api/preparedness/review');
+            renderReview(r.ok ? await r.json() : null);
+        }
+
+        document.getElementById('btn-review').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-review');
+            const panel = document.getElementById('review-panel');
+            btn.disabled = true;
+            panel.innerHTML = '<div class="container-loading-state">Reviewing your inventory…</div>';
+            try {
+                const r = await fetch('/api/preparedness/review', { method: 'POST' });
+                const body = await r.json();
+                if (!r.ok) {
+                    panel.innerHTML = `<div class="container-empty-state">${escapeHtml(body.detail || 'The review failed.')}</div>`;
+                    return;
+                }
+                renderReview(body);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
         load();
+        loadReview();
         setInterval(load, REFRESH_MS);
     </script>
 </body>

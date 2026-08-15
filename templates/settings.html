@@ -270,6 +270,13 @@
                 <input type="number" id="prep-default-remind-days" min="0" step="1" placeholder="14">
                 <small>Prefilled on new items so you hear about a refresh early enough to act on it. A per-item value always wins.</small>
             </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="prep-review-enabled">
+                    <span>AI inventory review</span>
+                </label>
+                <small>Adds a <strong>Review</strong> button to the Preparedness page that asks your configured LLM what your kit is missing, using your family context, ages and home location. Off by default: it is a real LLM call, and it is only useful once you have entered a reasonable amount of stock.</small>
+            </div>
             <button type="submit" class="btn">Save</button>
             <button type="button" class="btn btn--secondary" id="btn-prep-preview">Preview what's due</button>
         </form>
@@ -809,6 +816,7 @@
             document.getElementById('home-location').value = s.home_location || '';
             document.getElementById('pushover-app-token').value = s.pushover_app_token || '';
             document.getElementById('prep-notify-enabled').checked = s.prep_notify_enabled !== 'false';
+            document.getElementById('prep-review-enabled').checked = s.prep_review_enabled === 'true';
             document.getElementById('prep-notify-time').value = s.prep_notify_time || '08:00';
             document.getElementById('prep-default-remind-days').value = s.prep_default_remind_days || '14';
 
@@ -1556,7 +1564,8 @@
                 await saveSettings({
                     prep_notify_enabled: document.getElementById('prep-notify-enabled').checked ? 'true' : 'false',
                     prep_notify_time: document.getElementById('prep-notify-time').value || '08:00',
-                    prep_default_remind_days: document.getElementById('prep-default-remind-days').value || '14'
+                    prep_default_remind_days: document.getElementById('prep-default-remind-days').value || '14',
+                    prep_review_enabled: document.getElementById('prep-review-enabled').checked ? 'true' : 'false'
                 });
                 alert('Preparedness settings saved.');
             } catch (error) {

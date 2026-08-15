@@ -622,3 +622,26 @@ class PrepRefreshNotice(Base):
         Text, nullable=True
     )  # Comma-separated member names, for the "did it send?" view
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+
+class PrepReview(Base):
+    """A stored LLM review of the preparedness inventory.
+
+    Reviews are snapshotted rather than recomputed on view, following
+    ``DashboardSnapshot``: the call costs real money and several seconds, so a
+    page load must never trigger one. ``POST`` runs a review, ``GET`` reads the
+    last one back, and the timestamp is shown so a stale review is obviously
+    stale rather than quietly wrong.
+
+    ``item_count`` is stored alongside the payload so the UI can say "reviewed
+    when you had 38 items, you now have 44" — the cheapest possible staleness
+    signal, and the one that actually matters after a big restock.
+    """
+
+    __tablename__ = "prep_reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    data: Mapped[dict] = mapped_column(JSON)  # The parsed review object
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Which model produced it
+    item_count: Mapped[int] = mapped_column(Integer, default=0)  # Inventory size at review time
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
