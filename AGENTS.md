@@ -896,7 +896,11 @@ visual suite (above) before shipping a layout change.
   - `GET /api/preparedness/digest/log` - Recent announcements, newest first
 
 ### Navigation
-The nav carries two dropdowns: **Meal Planner** (Current & Upcoming / Previous Meals) and **Preparedness** (Inventory / Go List). Opening one closes the other, and a click anywhere else closes both — the outside-click handler is generic over `.nav-dropdown` rather than naming a single id. Six top-level items still land as two clean rows of three on a phone, so the three-column mobile nav from #144 needed no change.
+Top level is the four pages a family touches daily — **Dashboard, Tasks, Shopping, Calendar** — plus a single **Other** dropdown holding everything visited occasionally: Meal Planner, Previous Meals, Preparedness, Go List.
+
+The split is by *frequency*, not by feature size. A meal plan is edited weekly and a go list is opened when something has gone wrong; neither earns a permanent slot next to Tasks. Collapsing the old Meal Planner dropdown into Other also keeps the top level at five items, so the three-column mobile nav from #144 still lands as two clean rows and nothing was pushed below the fold.
+
+The outside-click handler is generic over `.nav-dropdown` rather than naming an id, so adding a second dropdown later needs no JS change.
 
 All pages include a navigation bar allowing users to switch between Dashboard, Calendar, Todos, Shopping, Dinner Planner, and Settings. The nav markup is duplicated across every page template, so a nav change must be applied to each. On a phone the nav is a **three**-column grid: five items in two columns is three rows, which pushes the first row of content below the fold.
 

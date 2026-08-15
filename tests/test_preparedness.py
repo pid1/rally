@@ -547,8 +547,10 @@ class TestPages:
         for path in ("/preparedness", "/go-list"):
             assert client.get(path).status_code == 200, path
 
-    def test_every_page_carries_the_preparedness_nav(self, client):
+    def test_every_page_carries_the_other_dropdown(self, client):
+        """One dropdown, on every page, holding both low-traffic sections."""
         for path in (
+            "/dashboard",
             "/todo",
             "/shopping",
             "/calendar",
@@ -560,5 +562,17 @@ class TestPages:
             "/styleguide",
         ):
             body = client.get(path).text
-            assert 'id="prep-dropdown"' in body, path
+            assert 'id="other-dropdown"' in body, path
+            assert 'href="/preparedness"' in body, path
             assert 'href="/go-list"' in body, path
+            assert 'href="/dinner-planner"' in body, path
+
+    def test_top_level_nav_is_the_four_daily_pages(self, client):
+        """Dashboard, Tasks, Shopping, Calendar stay one tap away."""
+        body = client.get("/dashboard").text
+        nav = body[body.index("<nav>") : body.index("</nav>")]
+        assert nav.count("nav-dropdown") >= 1
+        for href in ('href="/dashboard"', 'href="/todo"', 'href="/shopping"', 'href="/calendar"'):
+            assert href in nav
+        # The meal and preparedness pages are reachable only through the dropdown.
+        assert nav.index('href="/dinner-planner"') > nav.index("nav-dropdown")
