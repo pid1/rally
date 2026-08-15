@@ -255,3 +255,102 @@ def test_save_snapshot_deactivates_prior_same_day(gen_db, frozen_now):
     assert len(snapshots) == 2
     assert len(active) == 1
     assert active[0].data == {"summary": "second"}
+
+
+class TestOverdueInDailyContext:
+    """The loader that feeds overdue stock into the daily briefing."""
+
+    def _gen(self, gen_db, monkeypatch):
+        from zoneinfo import ZoneInfo
+
+        from rally.generator.generate import SummaryGenerator
+
+        gen = SummaryGenerator.__new__(SummaryGenerator)
+        gen.local_tz = ZoneInfo("UTC")
+        gen.local_tz_name = "UTC"
+        gen._db_settings = {}
+        return gen
+
+    def test_lists_only_overdue_items(self, gen_db, monkeypatch):
+        from rally.models import PrepItem, PrepLocation
+
+        loc = PrepLocation(name="Garage", sort_order=1)
+        gen_db.add(loc)
+        gen_db.commit()
+        gen_db.add_all(
+            [
+                # Overdue.
+                PrepItem(
+                    name="Water drums",
+                    quantity="4 x 55gal",
+                    location_id=loc.id,
+                    refresh_mode="date",
+                    next_refresh_date="2020-01-01",
+                ),
+                # Due far in the future — the digest's job, not the briefing's.
+                PrepItem(
+                    name="Canned chili",
+                    refresh_mode="date",
+                    next_refresh_date="2099-01-01",
+                ),
+                # No schedule at all.
+                PrepItem(name="Spork"),
+            ]
+        )
+        gen_db.commit()
+
+        out = self._gen(gen_db, monkeypatch).load_overdue_prep_items()
+
+        assert "Water drums" in out
+        assert "Garage" in out
+        assert "4 x 55gal" in out
+        assert "Canned chili" not in out
+        assert "Spork" not in out
+
+    def test_returns_empty_when_nothing_is_overdue(self, gen_db, monkeypatch):
+        from rally.models import PrepItem
+
+        gen_db.add(PrepItem(name="Spork"))
+        gen_db.commit()
+
+        assert self._gen(gen_db, monkeypatch).load_overdue_prep_items() == ""
+
+    def test_a_due_soon_item_is_not_overdue(self, gen_db, monkeypatch):
+        """ "Due soon" is the digest's territory; the briefing nags only the ignored."""
+        from datetime import date, timedelta
+
+        from rally.models import PrepItem
+
+        soon = (date.today() + timedelta(days=3)).isoformat()
+        gen_db.add(
+            PrepItem(
+                name="Filters",
+                refresh_mode="date",
+                next_refresh_date=soon,
+                remind_days_before=30,
+            )
+        )
+        gen_db.commit()
+
+        assert self._gen(gen_db, monkeypatch).load_overdue_prep_items() == ""
+
+    def test_unassigned_items_are_labelled(self, gen_db, monkeypatch):
+        from rally.models import PrepItem
+
+        gen_db.add(PrepItem(name="Orphan", refresh_mode="date", next_refresh_date="2020-01-01"))
+        gen_db.commit()
+
+        assert "Unassigned" in self._gen(gen_db, monkeypatch).load_overdue_prep_items()
+
+    def test_reading_does_not_touch_the_digest_notices(self, gen_db, monkeypatch):
+        """The briefing must never consume the Pushover announce-once guarantee."""
+        from rally.models import PrepItem, PrepRefreshNotice
+
+        gen_db.add(
+            PrepItem(name="Water drums", refresh_mode="date", next_refresh_date="2020-01-01")
+        )
+        gen_db.commit()
+
+        before = gen_db.query(PrepRefreshNotice).count()
+        self._gen(gen_db, monkeypatch).load_overdue_prep_items()
+        assert gen_db.query(PrepRefreshNotice).count() == before == 0
