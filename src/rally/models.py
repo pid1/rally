@@ -681,6 +681,10 @@ class CalendarCache(Base):
     # Incremental-sync bookkeeping.
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     etag: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # CalDAV only: one RFC 6578 sync token per server-side calendar under the
+    # principal. Handing these back asks "what changed?" without downloading
+    # anything, which is the CalDAV equivalent of the ICS fingerprint.
+    sync_tokens: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     last_modified: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     fetched_at: Mapped[datetime] = mapped_column(default=now_utc)  # last successful contact

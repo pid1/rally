@@ -49,6 +49,9 @@ def run_migrations():
         from migrate_024_add_calendar_cache import (
             migrate as migrate_024_add_calendar_cache,
         )
+        from migrate_025_add_caldav_sync_tokens import (
+            migrate as migrate_025_add_caldav_sync_tokens,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -94,6 +97,7 @@ def run_migrations():
         ("022_add_home_location", migrate_022_add_home_location),
         ("023_add_prep_reviews", migrate_023_add_prep_reviews),
         ("024_add_calendar_cache", migrate_024_add_calendar_cache),
+        ("025_add_caldav_sync_tokens", migrate_025_add_caldav_sync_tokens),
     ]
 
     print("=" * 60)

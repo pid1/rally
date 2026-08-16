@@ -212,6 +212,8 @@ def _fetch_one(
     local_tz: ZoneInfo,
     etag: str | None,
     last_modified: str | None,
+    sync_tokens: dict | None = None,
+    has_cache: bool = False,
 ) -> dict:
     """Fetch one calendar. Returns a result dict; never raises.
 
@@ -225,6 +227,20 @@ def _fetch_one(
 
     try:
         if cal_type in ("caldav_google", "caldav_apple"):
+            from rally.caldav_client import sync_probe
+
+            # Ask what changed before downloading anything. iCloud answers in
+            # ~0.1s where a full fetch and expansion costs ~2.1s. A server
+            # without sync-collection returns None and we fetch as before.
+            tokens = None
+            if has_cache:
+                try:
+                    tokens, unchanged = sync_probe(calendar, sync_tokens)
+                    if tokens is not None and unchanged:
+                        return {"ok": True, "unchanged": True, "sync_tokens": tokens}
+                except Exception as exc:
+                    return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "label": label}
+
             if cal_type == "caldav_google":
                 from rally.caldav_client import fetch_google_caldav as fetch
             else:
@@ -238,7 +254,19 @@ def _fetch_one(
                 member=member,
                 member_color=member_color,
             )
-            return {"ok": True, "unchanged": False, "occurrences": occurrences}
+            if tokens is None:
+                # Capture a baseline so the next pass has something to compare
+                # against, but never let this fail a successful fetch.
+                try:
+                    tokens, _ = sync_probe(calendar, None)
+                except Exception:
+                    tokens = None
+            return {
+                "ok": True,
+                "unchanged": False,
+                "occurrences": occurrences,
+                "sync_tokens": tokens,
+            }
 
         import requests
 
@@ -323,6 +351,8 @@ def sync_calendars(
                 local_tz=local_tz,
                 etag=(rows.get(cal.id).etag if rows.get(cal.id) else None),
                 last_modified=(rows.get(cal.id).last_modified if rows.get(cal.id) else None),
+                sync_tokens=(rows.get(cal.id).sync_tokens if rows.get(cal.id) else None),
+                has_cache=bool(rows.get(cal.id) and rows.get(cal.id).occurrences),
             ): cal.id
             for cal, owner in targets
         }
@@ -355,6 +385,8 @@ def sync_calendars(
 
         if outcome.get("unchanged"):
             row.fetched_at = now
+            if outcome.get("sync_tokens") is not None:
+                row.sync_tokens = outcome["sync_tokens"]
             row.last_error = None
             row.failure_count = 0
             unchanged += 1
@@ -384,6 +416,8 @@ def sync_calendars(
         row.content_hash = digest
         row.etag = outcome.get("etag")
         row.last_modified = outcome.get("last_modified")
+        if outcome.get("sync_tokens") is not None:
+            row.sync_tokens = outcome["sync_tokens"]
         row.fetched_at = now
         row.changed_at = now
         row.last_error = None

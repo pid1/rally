@@ -179,3 +179,69 @@ def fetch_apple_caldav(
         member=member,
         member_color=member_color,
     )
+
+
+def sync_probe(calendar, stored_tokens: dict | None) -> tuple[dict[str, str] | None, bool]:
+    """Ask a CalDAV server whether anything changed, without downloading events.
+
+    RFC 6578 sync-collection. Handing back the token from last time returns
+    only what has changed since — so an untouched calendar answers "nothing"
+    in about a tenth of a second, where a full fetch and expansion of this
+    install's iCloud account costs 2.1s.
+
+    Returns ``(tokens, unchanged)``. ``tokens`` is ``None`` when the server does
+    not support sync-collection at all, which is not an error: the caller falls
+    back to fetching everything, exactly as before.
+
+    A principal holds several server-side calendars and each carries its own
+    token, so the answer is a map. A calendar appearing or disappearing counts
+    as a change on its own — otherwise adding a shared calendar upstream would
+    stay invisible until something inside it happened to move.
+    """
+    import caldav
+
+    from rally.calendars.occurrence import SOURCE_CALDAV_APPLE
+
+    url = calendar.url or (
+        APPLE_CALDAV_URL if (calendar.cal_type or "") == SOURCE_CALDAV_APPLE else GOOGLE_CALDAV_URL
+    )
+
+    try:
+        client = caldav.DAVClient(url=url, username=calendar.username, password=calendar.password)
+        server_calendars = client.principal().calendars()
+    except Exception as exc:
+        # Reaching the principal is the same work a real fetch would do, so a
+        # failure here is a genuine failure — let the caller handle it.
+        raise RuntimeError(f"CalDAV connection failed: {exc}") from exc
+
+    tokens: dict[str, str] = {}
+    changed = False
+
+    for server_cal in server_calendars:
+        key = str(getattr(server_cal, "url", "") or getattr(server_cal, "name", "") or "?")
+        previous = (stored_tokens or {}).get(key)
+
+        try:
+            # disable_fallback: the library will otherwise emulate
+            # sync-collection with a full listing, which returns every object as
+            # "changed" and costs more than the fetch it is meant to avoid.
+            collection = server_cal.objects_by_sync_token(
+                sync_token=previous, load_objects=False, disable_fallback=True
+            )
+            token = str(getattr(collection, "sync_token", "") or "")
+            if previous is None:
+                changed = True
+            elif len(list(collection)) > 0:
+                changed = True
+        except Exception:
+            # No sync-collection support on this server. Say so once, for the
+            # whole calendar, rather than guessing per collection.
+            return None, False
+
+        tokens[key] = token
+
+    if stored_tokens is not None and set(tokens) != set(stored_tokens):
+        # A server-side calendar was added or removed.
+        changed = True
+
+    return tokens, not changed
