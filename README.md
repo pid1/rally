@@ -55,6 +55,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
   - **AI review** (optional, off by default) - asks your LLM what the kit is missing, using your family context, ages and home location. It sees the whole inventory and is told to say what it assumed rather than guess
   - **Go list** - a printable packing list of everything, grouped by location in the order you walk it, exportable as Markdown, CSV or PDF
 - 👨‍👩‍👧‍👦 **Family Members** - Manage family members
+- 🗓️ **Calendar views** - Day, Week, Month and Agenda, with the week starting Sunday. Arrows move by whichever slice you are in. All four work on a phone
 - 📆 **Calendar Management** - Add and manage calendars per family member via the Settings UI (Rally-owned calendars, ICS feeds, Google CalDAV, Apple iCloud CalDAV)
 - 🏡 **Home Location** - Tell Rally where you live once, on the Settings page. It is sent to the AI alongside your family context, so the daily summary can reason about local conditions
 - ⚙️ **Settings** - Configure API keys, LLM provider, timezone, calendars, and Pushover through a web UI, with automatic connection verification on save

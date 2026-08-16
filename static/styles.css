@@ -1317,6 +1317,11 @@ input[type="radio"] {
     background: var(--surface);
 }
 
+/* Only a phone shows these; the desktop grid has room for event rows. */
+.calendar-day-dots {
+    display: none;
+}
+
 .calendar-weekday {
     padding: var(--space-2) var(--space-3);
     border-right: 1px solid var(--rule);
@@ -1850,14 +1855,67 @@ code {
     6. Responsive and print
     ============================================================ */
 @media screen and (max-width: 767px) {
-    /* On a phone the calendar IS the agenda.
-       Seven columns at 390px leaves each day about 42px wide, and no amount of
-       styling makes a 42px column carry a 44px target — the grid cannot meet
-       the hit-area rule at this width, so it does not render at all here. The
-       page forces the agenda view to match, which is the readable one on a
-       phone anyway. */
-    .calendar-grid {
+    /* The month grid now renders on a phone, in a compact form.
+       The original measurement said 42px per column, which is below the 44px
+       hit-area rule — but that was taken at 320px. Re-measured: a 390px
+       viewport gives a 358px page column, which is 51px per day, and 360px
+       gives 47px. The grid clears the rule at every width the visual suite
+       tests.
+       What does not fit is event *text*. So on a phone a day carries its
+       number and a dot per member, and tapping it opens that day — the whole
+       cell is the target. Below 340px the grid keeps its 44px columns and
+       scrolls inside its own container rather than pushing the body sideways. */
+    .calendar-grid-scroll {
+        overflow-x: auto;
+    }
+
+    /* The one label a phone can spare. "Prev / Today / Next" describes itself,
+       and adding the View selector above it put the first event below the fold
+       — the exact regression #139 fixed. Every other label still stacks above
+       its chips, by rule. */
+    #period-label {
         display: none;
+    }
+
+    .calendar-grid {
+        min-width: 20rem; /* 7 × 44px + borders: the hit-area floor */
+    }
+
+    .calendar-weekday {
+        padding: var(--space-2) var(--space-1);
+        text-align: center;
+    }
+
+    /* The cell carries no padding of its own: the button must fill it, or a
+       51px column becomes a 42px target and the hit-area rule is missed by
+       exactly the padding. */
+    .calendar-day {
+        min-height: var(--target-min);
+        padding: 0;
+        gap: 0;
+    }
+
+    .calendar-day-open {
+        min-height: var(--target-min);
+        width: 100%;
+        flex-direction: column;
+        justify-content: center;
+        gap: var(--space-1);
+        padding: var(--space-1) 0;
+    }
+
+    /* One target per cell. The event rows are real buttons, so leaving them
+       visible would put six 8px targets inside a 44px one; the dots inside the
+       day button say who, and the day view says what. */
+    .calendar-event,
+    .calendar-more {
+        display: none;
+    }
+
+    .calendar-day-dots {
+        display: flex;
+        gap: var(--space-1);
+        justify-content: center;
     }
 
     .agenda-time {

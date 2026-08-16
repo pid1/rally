@@ -43,7 +43,6 @@
             </div>
             <div class="page-header-meta">
                 <span id="range-label"></span>
-                <span class="page-note" id="sync-note"></span>
             </div>
         </header>
 
@@ -51,11 +50,13 @@
             <div class="toolbar-group">
                 <span class="toolbar-label" id="view-label">View</span>
                 <select id="view-select" class="select toolbar-control" aria-labelledby="view-label">
+                    <option value="day">Day</option>
+                    <option value="week">Week</option>
                     <option value="month">Month</option>
                     <option value="agenda">Agenda</option>
                 </select>
             </div>
-            <div class="toolbar-group">
+            <div class="toolbar-group" id="period-group">
                 <span class="toolbar-label" id="period-label">Period</span>
                 <div class="filter-chips" role="group" aria-labelledby="period-label">
                     <button type="button" class="filter-chip" id="btn-prev">&larr; Prev</button>
@@ -82,6 +83,11 @@
         </div>
 
         <div class="calendar-legend" id="calendar-legend"></div>
+
+        <!-- A note about how fresh the data is belongs after the data. Keeping
+             it out of the page header is also what keeps the first event above
+             the fold on a phone, now that the View selector lives there. -->
+        <p class="page-note" id="sync-note"></p>
     </div>
 
     <!-- Modal for add/edit -->
@@ -212,15 +218,19 @@
         let familyMembers = [];
         let occurrences = [];
         let selectedMembers = new Set();
-        let view = 'month';
-        // The first of the displayed month (month view) or the first displayed
-        // day (agenda). One anchor for both views keeps Prev/Next honest.
+        /* A phone lands on Day: the month grid is reachable but "what is
+           happening today" is what you open a calendar on a phone to find out.
+           Desktop keeps Month, where the grid has room to be useful. */
+        let view = window.matchMedia('(max-width: 767px)').matches ? 'day' : 'month';
+        // The first of the displayed month (month view), the first displayed
+        // day (day/week/agenda). One anchor for every view keeps Prev/Next
+        // honest.
         let anchor = startOfMonth(new Date());
         let editingEvent = null;      // Full event record while the modal is open
         let editingOccurrence = null; // The occurrence that was clicked
         let detailOccurrence = null;
 
-        const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const AGENDA_DAYS = 30;
 
         // --- Date helpers. Everything is a local YYYY-MM-DD string; the API
@@ -253,12 +263,34 @@
 
         /* The Monday on or before the first of the month, so the grid starts
            on a full week. getDay() is Sunday-based; the display is not. */
+        /* The week starts Sunday, which is what the family reads a calendar
+           as. getDay() is already Sunday-based, so the offset is the day
+           number itself. */
         function gridStart(monthStart) {
-            const offset = (monthStart.getDay() + 6) % 7;
-            return addDays(monthStart, -offset);
+            return addDays(monthStart, -monthStart.getDay());
         }
 
+        function startOfWeek(date) {
+            return addDays(startOfDay(date), -startOfDay(date).getDay());
+        }
+
+        function startOfDay(date) {
+            return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        }
+
+        /* Each view is a different slice of time over the same data, so the
+           window is the only thing that varies. Day and Week reuse the agenda
+           renderer, which already groups by day — a seven-column time grid
+           would be a different component for no gain on a phone. */
         function currentRange() {
+            if (view === 'day') {
+                const start = startOfDay(anchor);
+                return { start, end: addDays(start, 1) };
+            }
+            if (view === 'week') {
+                const start = startOfWeek(anchor);
+                return { start, end: addDays(start, 7) };
+            }
             if (view === 'agenda') {
                 return { start: anchor, end: addDays(anchor, AGENDA_DAYS) };
             }
@@ -333,11 +365,12 @@
             });
             container.querySelectorAll('[data-agenda-date]').forEach(node => {
                 node.addEventListener('click', () => {
-                    // Overflow switches to that day's agenda rather than opening
-                    // a popover: there is exactly one modal chassis.
-                    view = 'agenda';
+                    // Tapping a day drills into that day rather than opening a
+                    // popover: there is exactly one modal chassis, and Day is
+                    // now a real view rather than a 30-day list starting there.
+                    view = 'day';
                     anchor = parseIso(node.dataset.agendaDate);
-                    document.getElementById('view-select').value = 'agenda';
+                    document.getElementById('view-select').value = 'day';
                     load();
                 });
             });
@@ -347,6 +380,24 @@
             if (view === 'agenda') {
                 const end = addDays(anchor, AGENDA_DAYS - 1);
                 return `${anchor.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
+            }
+            if (view === 'day') {
+                return startOfDay(anchor).toLocaleDateString(undefined, {
+                    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+                });
+            }
+            if (view === 'week') {
+                const start = startOfWeek(anchor);
+                const end = addDays(start, 6);
+                const left = start.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+                // A week that stays in one month reads "August 9 – 15, 2026";
+                // one that straddles repeats the month. Built by hand because
+                // toLocaleDateString has no {day, year} format and silently
+                // produces "2026 (day: 15)" if you ask for one.
+                const right = start.getMonth() === end.getMonth()
+                    ? `${end.getDate()}, ${end.getFullYear()}`
+                    : end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+                return `${left} – ${right}`;
             }
             return anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
         }
@@ -377,7 +428,7 @@
             const today = todayIso();
             const month = anchor.getMonth();
 
-            let html = '<div class="calendar-grid">';
+            let html = '<div class="calendar-grid-scroll"><div class="calendar-grid">';
             WEEKDAYS.forEach(day => { html += `<div class="calendar-weekday">${day}</div>`; });
 
             for (let i = 0; i < 42; i++) {
@@ -395,8 +446,15 @@
                 // The day number opens that day's agenda — the same move
                 // "+N more" makes, offered on every day rather than only the
                 // crowded ones.
+                // The dots live inside the day button rather than in their own
+                // buttons, so a phone has exactly one target per cell. On
+                // desktop they are hidden and the event rows below carry the
+                // detail instead.
+                const dots = dayEvents.length
+                    ? `<span class="calendar-day-dots">${dayEvents.slice(0, 4).map(dotFor).join('')}</span>`
+                    : '';
                 html += `<button type="button" class="calendar-day-open" data-agenda-date="${iso}">`
-                    + `<span class="calendar-day-number">${day.getDate()}</span></button>`;
+                    + `<span class="calendar-day-number">${day.getDate()}</span>${dots}</button>`;
                 shown.forEach(occurrence => {
                     const index = occurrences.indexOf(occurrence);
                     const label = occurrence.all_day ? '' : `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`;
@@ -407,7 +465,7 @@
                 }
                 html += '</div>';
             }
-            return html + '</div>';
+            return html + '</div></div>';
         }
 
         function agendaHtml() {
@@ -439,7 +497,12 @@
                 rows.push(html + '</div>');
             }
             if (!rows.length) {
-                return '<div class="container-empty-state">Nothing scheduled in this stretch.</div>';
+                // The empty state names the slice you are actually looking at;
+                // "this stretch" reads oddly when the stretch is one day.
+                const empty = view === 'day' ? 'Nothing scheduled on this day.'
+                    : view === 'week' ? 'Nothing scheduled this week.'
+                    : 'Nothing scheduled in this stretch.';
+                return `<div class="container-empty-state">${empty}</div>`;
             }
             return rows.join('');
         }
@@ -814,7 +877,11 @@
         }
 
         function shift(direction) {
-            if (view === 'agenda') {
+            if (view === 'day') {
+                anchor = addDays(startOfDay(anchor), direction);
+            } else if (view === 'week') {
+                anchor = addDays(startOfWeek(anchor), direction * 7);
+            } else if (view === 'agenda') {
                 anchor = addDays(anchor, direction * AGENDA_DAYS);
             } else {
                 anchor = new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1);
@@ -931,13 +998,29 @@
         document.getElementById('btn-prev').addEventListener('click', () => shift(-1));
         document.getElementById('btn-next').addEventListener('click', () => shift(1));
         document.getElementById('btn-today').addEventListener('click', () => {
-            anchor = view === 'agenda' ? new Date() : startOfMonth(new Date());
+            const now = new Date();
+            anchor = view === 'month' ? startOfMonth(now)
+                : view === 'week' ? startOfWeek(now)
+                : view === 'day' ? startOfDay(now)
+                : now;
             load();
         });
 
         document.getElementById('view-select').addEventListener('change', (event) => {
             view = event.target.value;
-            anchor = view === 'agenda' ? new Date() : startOfMonth(anchor);
+            // Re-anchor to the slice that contains where you already were, so
+            // switching Month → Day while looking at August lands on a day in
+            // August rather than snapping to the 1st. Switching while looking
+            // at the current period lands on today, which is what you want
+            // almost every time.
+            const inCurrentPeriod =
+                anchor.getFullYear() === new Date().getFullYear() &&
+                anchor.getMonth() === new Date().getMonth();
+            const base = inCurrentPeriod ? new Date() : anchor;
+            anchor = view === 'month' ? startOfMonth(base)
+                : view === 'week' ? startOfWeek(base)
+                : view === 'day' ? startOfDay(base)
+                : base;
             load();
         });
 
@@ -961,16 +1044,15 @@
            that would render nothing. */
         const NARROW = '(max-width: 767px)';
 
+        /* Every view is now reachable at every width. The month grid used to be
+           hidden below 768px because seven columns could not carry a 44px tap
+           target — but that was measured at 320px. At 390px the page column is
+           358px, which is 51px per column, and at 360px it is 47px. So the grid
+           earns its place on a phone provided the cells carry a date and dots
+           rather than event text; the CSS does that, and the container scrolls
+           within itself on anything narrower than 340px rather than pushing the
+           body sideways. */
         function applyViewportView() {
-            const narrow = window.matchMedia(NARROW).matches;
-            const select = document.getElementById('view-select');
-            select.closest('.toolbar-group').style.display = narrow ? 'none' : '';
-            if (narrow && view !== 'agenda') {
-                view = 'agenda';
-                anchor = new Date();
-                select.value = 'agenda';
-                return true;
-            }
             return false;
         }
 
@@ -979,6 +1061,8 @@
         });
 
         (async function init() {
+            document.getElementById('view-select').value = view;
+            if (view !== 'month') anchor = new Date();
             applyViewportView();
             await fetchFamilyMembers();
             await load();
