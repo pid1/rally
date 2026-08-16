@@ -263,11 +263,11 @@
             selectedRating = plan.rating || 0;
             updateStarDisplay();
 
-            document.getElementById('review-modal-overlay').style.display = 'flex';
+            showModalOverlay('review-modal-overlay');
         }
 
         function closeReviewModal() {
-            document.getElementById('review-modal-overlay').style.display = 'none';
+            hideModalOverlay('review-modal-overlay');
             selectedRating = 0;
         }
 

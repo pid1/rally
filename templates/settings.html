@@ -597,7 +597,7 @@
             document.getElementById('member-id').value = '';
             // Testing a key that has not been saved yet would test nothing.
             document.getElementById('btn-test-member-pushover').style.display = 'none';
-            document.getElementById('member-modal-overlay').style.display = 'flex';
+            showModalOverlay('member-modal-overlay');
         }
 
         function openEditMemberModal(id) {
@@ -612,11 +612,11 @@
             document.getElementById('member-pushover-device').value = member.pushover_device || '';
             document.getElementById('btn-test-member-pushover').style.display =
                 member.pushover_user_key ? '' : 'none';
-            document.getElementById('member-modal-overlay').style.display = 'flex';
+            showModalOverlay('member-modal-overlay');
         }
 
         function closeMemberModal() {
-            document.getElementById('member-modal-overlay').style.display = 'none';
+            hideModalOverlay('member-modal-overlay');
             editingMemberId = null;
         }
 
@@ -747,7 +747,7 @@
             document.getElementById('calendar-type').value = 'ics';
             toggleCalendarTypeFields('ics');
             populateCalendarMemberDropdown();
-            document.getElementById('calendar-modal-overlay').style.display = 'flex';
+            showModalOverlay('calendar-modal-overlay');
         }
 
         function openEditCalendarModal(id) {
@@ -766,11 +766,11 @@
             populateCalendarMemberDropdown();
             document.getElementById('calendar-member').value = cal.family_member_id || '';
             document.getElementById('calendar-owner-email').value = cal.owner_email || '';
-            document.getElementById('calendar-modal-overlay').style.display = 'flex';
+            showModalOverlay('calendar-modal-overlay');
         }
 
         function closeCalendarModal() {
-            document.getElementById('calendar-modal-overlay').style.display = 'none';
+            hideModalOverlay('calendar-modal-overlay');
             editingCalendarId = null;
         }
 
@@ -995,7 +995,7 @@
 
             document.getElementById('history-modal-title').textContent = HISTORY_FIELD_META[field].label + ' Version History';
             document.getElementById('history-list').innerHTML = '<div class="container-loading-state">Loading version history...</div>';
-            document.getElementById('history-modal-overlay').style.display = 'flex';
+            showModalOverlay('history-modal-overlay');
 
             try {
                 const response = await fetch(HISTORY_FIELD_META[field].baseUrl + '/history');
@@ -1012,7 +1012,7 @@
         }
 
         function closeHistoryModal() {
-            document.getElementById('history-modal-overlay').style.display = 'none';
+            hideModalOverlay('history-modal-overlay');
             historyField = null;
         }
 
@@ -1101,7 +1101,7 @@
                 + '<div class="verify-spinner"></div>'
                 + '<div class="verify-message">Verifying ' + escapeHtml(serviceName) + ' connection\u2026</div>'
                 + '</div>';
-            document.getElementById('verify-modal-overlay').style.display = 'flex';
+            showModalOverlay('verify-modal-overlay');
         }
 
         function showVerifySuccess(message) {
@@ -1130,7 +1130,7 @@
                 clearTimeout(verifyAutoCloseTimer);
                 verifyAutoCloseTimer = null;
             }
-            document.getElementById('verify-modal-overlay').style.display = 'none';
+            hideModalOverlay('verify-modal-overlay');
         }
 
         // ── Followed teams ──
@@ -1207,7 +1207,7 @@
             document.getElementById('team-id').value = '';
             document.getElementById('team-active').checked = true;
             toggleTeamKeyField();
-            document.getElementById('team-modal-overlay').style.display = 'flex';
+            showModalOverlay('team-modal-overlay');
         }
 
         function openEditTeamModal(id) {
@@ -1222,11 +1222,11 @@
             document.getElementById('team-radio').value = team.radio_station || '';
             document.getElementById('team-active').checked = team.active;
             toggleTeamKeyField();
-            document.getElementById('team-modal-overlay').style.display = 'flex';
+            showModalOverlay('team-modal-overlay');
         }
 
         function closeTeamModal() {
-            document.getElementById('team-modal-overlay').style.display = 'none';
+            hideModalOverlay('team-modal-overlay');
             editingTeamId = null;
         }
 

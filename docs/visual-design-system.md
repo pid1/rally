@@ -210,6 +210,18 @@ left at the browser default 13×13 with `accent-color`. Both appear on Settings.
 Justified serif text in an 800px measure with no hyphenation produces uneven
 word spacing on the Dashboard's summary cards.
 
+**D7. Modals reopened wherever they were last left.** Found after the audit,
+from a screenshot of Add Item opening with its first label already scrolled
+off. A hidden modal keeps its `scrollTop`, and `showModalOverlay()` never reset
+it: scrolling to the bottom of Add Item, cancelling, and opening it again came
+back at 189px of 189 — a form that appears to start part-way through itself.
+
+The reason it was not uniform is that only some modals opened through the
+helper at all. Nineteen call sites across `settings.html`, `meal_history.html`,
+`todo.html` and `shopping.html` set `.style.display` on the overlay by hand,
+skipping the fade computation as well. One way in, one way out, and the reset
+lives in the helper where every modal gets it.
+
 ### E. Accessibility
 
 **E1. The toolbar has no visible keyboard focus at all.** `.filter-chip`,
@@ -362,6 +374,10 @@ taken from tokens rather than typed. It earned its place immediately: it caught
 a stale duplicate `.toolbar-search` rule that was silently overriding the new
 grid, and a second `:root` block in the same media query.
 
+`tests/test_pages.py` carries one static rule of the same kind for the markup:
+no template may set `display` on a modal overlay by hand, because that is how
+nineteen call sites came to skip the scroll reset and the fade (D7).
+
 **`tests/visual/`** — the audit's measuring code turned into assertions, run in
 its own CI job against a real browser and a seeded database. Every test names
 the finding it protects against:
@@ -377,6 +393,7 @@ the finding it protects against:
 | colours come from the palette | C4 |
 | text meets WCAG AA contrast | C5 |
 | every modal uses the shared chassis | D2 |
+| every modal reopens at the top | D7 |
 | every control shows a focus ring | E1 |
 | touch targets meet 44px on a phone | E2 |
 | focus rings are not clipped inside modals | E5 |

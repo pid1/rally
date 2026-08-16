@@ -550,7 +550,7 @@
         }
 
         function closeModal() {
-            document.getElementById('modal-overlay').style.display = 'none';
+            hideModalOverlay('modal-overlay');
             editingId = null;
         }
 
@@ -893,7 +893,7 @@
         }
 
         function closeRecurringModal() {
-            document.getElementById('recurring-modal-overlay').style.display = 'none';
+            hideModalOverlay('recurring-modal-overlay');
             editingRecurringId = null;
         }
 

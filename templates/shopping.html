@@ -558,7 +558,7 @@
         }
 
         function closeItemModal() {
-            document.getElementById('item-modal-overlay').style.display = 'none';
+            hideModalOverlay('item-modal-overlay');
             closeSuggestions();
             editingItemId = null;
         }
@@ -682,7 +682,7 @@
         });
 
         function closeStoreModal() {
-            document.getElementById('store-modal-overlay').style.display = 'none';
+            hideModalOverlay('store-modal-overlay');
         }
 
         document.getElementById('btn-close-stores').addEventListener('click', closeStoreModal);

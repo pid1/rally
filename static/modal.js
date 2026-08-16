@@ -46,7 +46,15 @@
         document.querySelectorAll('.modal-scroll').forEach(wire);
     }
 
-    /* Show a modal and compute its fade state once it has been laid out. */
+    /* Show a modal at its top, and compute its fade state once it has been
+     * laid out.
+     *
+     * The scroll reset is the point of opening through here. A hidden modal
+     * keeps the scrollTop it was left at, so scrolling to the bottom of Add
+     * Item, cancelling, and opening it again put you back at the bottom — with
+     * the first field's label above the fold, which reads as a form that
+     * starts mid-way through itself. Every modal opens at the top now.
+     */
     function showModalOverlay(overlayId) {
         const overlay = document.getElementById(overlayId);
         if (!overlay) return;
@@ -54,6 +62,8 @@
         const scroll = overlay.querySelector('.modal-scroll');
         if (scroll) {
             wire(scroll);
+            const body = scroll.querySelector('.modal-body');
+            if (body) body.scrollTop = 0;
             requestAnimationFrame(() => updateModalFade(scroll));
         }
     }
