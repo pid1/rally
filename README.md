@@ -225,6 +225,7 @@ Rally uses a **file-based migration system** that runs automatically on containe
 || `022_add_home_location` | Seed the `home_location` setting |
 || `023_add_prep_reviews` | Add `prep_reviews` for stored LLM inventory reviews |
 || `024_add_calendar_cache` | Add `calendar_cache` for external calendar occurrences |
+|| `025_add_caldav_sync_tokens` | Add `calendar_cache.sync_tokens` for RFC 6578 incremental CalDAV sync |
 
 ### Running Migrations Manually
 

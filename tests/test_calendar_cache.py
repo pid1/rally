@@ -425,3 +425,138 @@ class TestReadPath:
         body = client.post("/api/events/sync").json()
 
         assert body["synced"] == 1
+
+
+class TestCaldavSyncTokens:
+    """RFC 6578: ask what changed instead of downloading everything.
+
+    Verified against iCloud, which answers a delta call in ~0.12s where a full
+    fetch and expansion of the same account costs ~2.1s.
+    """
+
+    @pytest.fixture
+    def caldav_calendar(self, db_session, make_member):
+        from rally.models import Calendar
+
+        member = make_member("Jon")
+        cal = Calendar(
+            label="Personal",
+            url="https://caldav.icloud.com/",
+            family_member_id=member.id,
+            cal_type="caldav_apple",
+            username="jon@example.invalid",
+            password="app-specific",
+        )
+        db_session.add(cal)
+        db_session.commit()
+        db_session.refresh(cal)
+        return cal
+
+    def _seed_cache(self, db_session, cal, tokens=None):
+        row = CalendarCache(
+            calendar_id=cal.id,
+            occurrences=[calendar_cache.occurrence_to_dict(_occ(calendar_id=cal.id))],
+            window_start="2026-01-01",
+            window_end="2027-12-31",
+            sync_tokens=tokens,
+        )
+        db_session.add(row)
+        db_session.commit()
+        return row
+
+    def test_an_unchanged_collection_skips_the_fetch(
+        self, db_session, caldav_calendar, monkeypatch
+    ):
+        self._seed_cache(db_session, caldav_calendar, {"cal-a": "tok-1"})
+
+        import rally.caldav_client as cc
+
+        monkeypatch.setattr(cc, "sync_probe", lambda cal, stored: ({"cal-a": "tok-1"}, True))
+
+        def must_not_run(*a, **k):
+            raise AssertionError("a full fetch must not happen when nothing changed")
+
+        monkeypatch.setattr(cc, "fetch_apple_caldav", must_not_run)
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["unchanged"] == 1
+        assert summary["synced"] == 0
+
+    def test_a_changed_collection_fetches_and_stores_new_tokens(
+        self, db_session, caldav_calendar, monkeypatch
+    ):
+        self._seed_cache(db_session, caldav_calendar, {"cal-a": "tok-1"})
+
+        import rally.caldav_client as cc
+
+        monkeypatch.setattr(cc, "sync_probe", lambda cal, stored: ({"cal-a": "tok-2"}, False))
+        monkeypatch.setattr(
+            cc,
+            "fetch_apple_caldav",
+            lambda *a, **k: [_occ(title="Moved", calendar_id=caldav_calendar.id)],
+        )
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["synced"] == 1
+        row = db_session.query(CalendarCache).one()
+        assert row.occurrences[0]["title"] == "Moved"
+        assert row.sync_tokens == {"cal-a": "tok-2"}
+
+    def test_a_server_without_sync_collection_still_works(
+        self, db_session, caldav_calendar, monkeypatch
+    ):
+        """Google's endpoint may not support it; that is not an error."""
+        self._seed_cache(db_session, caldav_calendar, None)
+
+        import rally.caldav_client as cc
+
+        monkeypatch.setattr(cc, "sync_probe", lambda cal, stored: (None, False))
+        monkeypatch.setattr(
+            cc, "fetch_apple_caldav", lambda *a, **k: [_occ(calendar_id=caldav_calendar.id)]
+        )
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["synced"] == 1, "an unsupported server must fall back, not fail"
+
+    def test_the_first_sync_never_probes(self, db_session, caldav_calendar, monkeypatch):
+        """With no cached occurrences there is nothing to skip, and no baseline
+        token to compare against."""
+        import rally.caldav_client as cc
+
+        calls = []
+        monkeypatch.setattr(
+            cc, "sync_probe", lambda cal, stored: (calls.append(stored), ({"a": "t"}, False))[1]
+        )
+        monkeypatch.setattr(
+            cc, "fetch_apple_caldav", lambda *a, **k: [_occ(calendar_id=caldav_calendar.id)]
+        )
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["synced"] == 1
+        # Probed only for the post-fetch baseline, never to decide whether to fetch.
+        assert calls == [None]
+
+    def test_a_probe_failure_is_reported_not_swallowed(
+        self, db_session, caldav_calendar, monkeypatch
+    ):
+        """Reaching the principal is the same work a fetch does, so failing
+        there is a real failure rather than a reason to fetch anyway."""
+        self._seed_cache(db_session, caldav_calendar, {"cal-a": "tok-1"})
+
+        import rally.caldav_client as cc
+
+        def boom(cal, stored):
+            raise RuntimeError("CalDAV connection failed: unauthorised")
+
+        monkeypatch.setattr(cc, "sync_probe", boom)
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["failed"] == 1
+        row = db_session.query(CalendarCache).one()
+        assert "unauthorised" in row.last_error
+        assert len(row.occurrences) == 1, "a failed probe must not blank the calendar"
