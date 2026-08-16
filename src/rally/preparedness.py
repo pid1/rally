@@ -82,28 +82,46 @@ def parse_date(value: str | None) -> date | None:
         return None
 
 
-def notify_on(item: PrepItem) -> date | None:
-    """The first date this item should be announced on."""
+def lead_days(item: PrepItem, default_lead: int) -> int:
+    """This item's reminder lead time in days.
+
+    A blank per-item value inherits the household default from settings; an
+    explicit ``0`` means "announce it on the day" and is preserved. That
+    distinction is why this is an ``is None`` check and not ``or`` — `or` reads
+    a deliberate 0 as "unset" and quietly replaces it with 14.
+    """
+    return default_lead if item.remind_days_before is None else item.remind_days_before
+
+
+def notify_on(item: PrepItem, default_lead: int) -> date | None:
+    """The first date this item should be announced on.
+
+    ``default_lead`` is required rather than defaulted. The setting behind it
+    existed from the start, was shown in Settings as 14 days, and was applied
+    nowhere: `notify_on` took the item alone and fell back to `or 0`. A
+    parameter with a safe-looking default is what let that go unnoticed, so
+    there isn't one — every caller has to say which lead it means.
+    """
     target = parse_date(item.next_refresh_date)
     if target is None:
         return None
-    return target - timedelta(days=item.remind_days_before or 0)
+    return target - timedelta(days=lead_days(item, default_lead))
 
 
-def is_due(item: PrepItem, on_date: date) -> bool:
+def is_due(item: PrepItem, on_date: date, default_lead: int) -> bool:
     """True once the item's reminder window has opened."""
-    start = notify_on(item)
+    start = notify_on(item, default_lead)
     return start is not None and on_date >= start
 
 
-def status_of(item: PrepItem, on_date: date) -> str:
+def status_of(item: PrepItem, on_date: date, default_lead: int) -> str:
     """Derived display state — never stored. ``ok`` | ``due`` | ``overdue``."""
     target = parse_date(item.next_refresh_date)
     if target is None:
         return "ok"
     if on_date > target:
         return "overdue"
-    if is_due(item, on_date):
+    if is_due(item, on_date, default_lead):
         return "due"
     return "ok"
 
@@ -223,7 +241,9 @@ def find_due_items(db: Session, on_date: date) -> list[PrepItem]:
         .all()
     )
 
-    due = [item for item in candidates if is_due(item, on_date)]
+    # One settings read for the whole sweep rather than one per row.
+    default_lead = default_lead_days(db)
+    due = [item for item in candidates if is_due(item, on_date, default_lead)]
     if not due:
         return []
 

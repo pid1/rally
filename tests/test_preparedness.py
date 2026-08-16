@@ -16,6 +16,7 @@ from rally.preparedness import (
     days_until,
     find_due_items,
     is_due,
+    lead_days,
     mark_refreshed,
     run_daily_digest,
     send_digest,
@@ -55,29 +56,79 @@ class TestAddMonths:
 class TestDueness:
     def test_unscheduled_is_never_due(self, make_prep_item):
         item = make_prep_item()
-        assert is_due(item, date(2030, 1, 1)) is False
-        assert status_of(item, date(2030, 1, 1)) == "ok"
+        assert is_due(item, date(2030, 1, 1), 0) is False
+        assert status_of(item, date(2030, 1, 1), 0) == "ok"
 
     def test_fires_on_the_date_with_no_lead(self, make_prep_item):
         item = make_prep_item(refresh_mode="date", next_refresh_date="2027-01-01")
-        assert is_due(item, date(2026, 12, 31)) is False
-        assert is_due(item, date(2027, 1, 1)) is True
+        assert is_due(item, date(2026, 12, 31), 0) is False
+        assert is_due(item, date(2027, 1, 1), 0) is True
 
     def test_lead_time_opens_the_window_early(self, make_prep_item):
         item = make_prep_item(
             refresh_mode="date", next_refresh_date="2027-01-01", remind_days_before=30
         )
-        assert is_due(item, date(2026, 12, 1)) is False
-        assert is_due(item, date(2026, 12, 2)) is True
+        assert is_due(item, date(2026, 12, 1), 0) is False
+        assert is_due(item, date(2026, 12, 2), 0) is True
 
     def test_status_transitions(self, make_prep_item):
         item = make_prep_item(
             refresh_mode="date", next_refresh_date="2027-01-01", remind_days_before=30
         )
-        assert status_of(item, date(2026, 11, 1)) == "ok"
-        assert status_of(item, date(2026, 12, 15)) == "due"
-        assert status_of(item, date(2027, 1, 1)) == "due"
-        assert status_of(item, date(2027, 1, 2)) == "overdue"
+        assert status_of(item, date(2026, 11, 1), 0) == "ok"
+        assert status_of(item, date(2026, 12, 15), 0) == "due"
+        assert status_of(item, date(2027, 1, 1), 0) == "due"
+        assert status_of(item, date(2027, 1, 2), 0) == "overdue"
+
+
+class TestDefaultLead:
+    """A blank per-item lead inherits the household default; an explicit 0 does not.
+
+    The setting was displayed in Settings as 14 days and applied nowhere:
+    `notify_on` fell back to `or 0`, so every item with a blank lead announced
+    itself on the morning of its refresh date with no warning at all.
+    """
+
+    def test_blank_inherits_the_default(self, make_prep_item):
+        item = make_prep_item(refresh_mode="date", next_refresh_date="2027-01-01")
+        assert item.remind_days_before is None
+        assert is_due(item, date(2026, 12, 17), 14) is False
+        assert is_due(item, date(2026, 12, 18), 14) is True
+
+    def test_explicit_zero_means_on_the_day(self, make_prep_item):
+        """`or` would read this 0 as unset and hand back the default."""
+        item = make_prep_item(
+            refresh_mode="date", next_refresh_date="2027-01-01", remind_days_before=0
+        )
+        assert is_due(item, date(2026, 12, 31), 14) is False
+        assert is_due(item, date(2027, 1, 1), 14) is True
+
+    def test_item_value_wins_over_the_default(self, make_prep_item):
+        item = make_prep_item(
+            refresh_mode="date", next_refresh_date="2027-01-01", remind_days_before=3
+        )
+        assert is_due(item, date(2026, 12, 28), 14) is False
+        assert is_due(item, date(2026, 12, 29), 14) is True
+
+    def test_lead_days_resolves_the_same_way(self, make_prep_item):
+        assert lead_days(make_prep_item(), 14) == 14
+        assert lead_days(make_prep_item(remind_days_before=0), 14) == 0
+        assert lead_days(make_prep_item(remind_days_before=3), 14) == 3
+
+    def test_status_uses_the_default_too(self, make_prep_item):
+        """The badge on the inventory page has to agree with the notification."""
+        item = make_prep_item(refresh_mode="date", next_refresh_date="2027-01-01")
+        assert status_of(item, date(2026, 12, 17), 14) == "ok"
+        assert status_of(item, date(2026, 12, 18), 14) == "due"
+
+    def test_the_sweep_reads_the_setting(self, db_session, make_prep_item, make_setting):
+        """find_due_items must apply the household default, not zero."""
+        item = make_prep_item(refresh_mode="date", next_refresh_date="2026-08-29")
+        make_setting("prep_default_remind_days", "14")
+        assert [i.id for i in find_due_items(db_session, TODAY)] == [item.id]
+
+        make_setting("prep_default_remind_days", "0")
+        assert find_due_items(db_session, TODAY) == []
 
     def test_days_until(self, make_prep_item):
         item = make_prep_item(refresh_mode="date", next_refresh_date="2026-08-25")
@@ -310,10 +361,16 @@ class TestDailyDigestGate:
     def test_uses_the_local_date_not_utc(
         self, db_session, make_prep_item, make_setting, mock_pushover, prep_pushover
     ):
-        """03:30 UTC on the 16th is still the 15th in Chicago."""
+        """03:30 UTC on the 16th is still the 15th in Chicago.
+
+        The lead is pinned to 0 so this measures the date boundary and nothing
+        else. Under the household default of 14 days an item dated tomorrow is
+        legitimately due today, which would pass or fail this test for reasons
+        that have nothing to do with timezones.
+        """
         make_setting("local_timezone", "America/Chicago")
         make_setting("prep_notify_time", "08:00")
-        _due(make_prep_item, next_refresh_date="2026-08-16")
+        _due(make_prep_item, next_refresh_date="2026-08-16", remind_days_before=0)
 
         result = run_daily_digest(db_session, datetime(2026, 8, 16, 3, 30, tzinfo=UTC))
         assert result.count == 0, "not due yet in local terms"

@@ -83,7 +83,9 @@ def _location_names(db: Session) -> dict[int, str]:
     return {loc.id: loc.name for loc in db.query(PrepLocation).all()}
 
 
-def _to_response(item: PrepItem, on_date: date, names: dict[int, str]) -> PrepItemResponse:
+def _to_response(
+    item: PrepItem, on_date: date, names: dict[int, str], default_lead: int
+) -> PrepItemResponse:
     """Attach the fields the UI needs but the database never stores."""
     return PrepItemResponse(
         id=item.id,
@@ -98,7 +100,7 @@ def _to_response(item: PrepItem, on_date: date, names: dict[int, str]) -> PrepIt
         last_refreshed_on=item.last_refreshed_on,
         created_at=item.created_at,
         updated_at=item.updated_at,
-        status=preparedness.status_of(item, on_date),
+        status=preparedness.status_of(item, on_date, default_lead),
         days_until=preparedness.days_until(item, on_date),
         location_name=names.get(item.location_id, "Unassigned"),
     )
@@ -194,6 +196,7 @@ def list_items(
     preparedness.run_daily_digest(db)
 
     on_date = preparedness.today_for(db)
+    default_lead = preparedness.default_lead_days(db)
     query = db.query(PrepItem)
 
     if location:
@@ -215,7 +218,7 @@ def list_items(
     # Status is derived from today's date rather than stored, which is also why
     # it cannot be an index and is filtered here.
     if status in ("ok", "due", "overdue"):
-        items = [i for i in items if preparedness.status_of(i, on_date) == status]
+        items = [i for i in items if preparedness.status_of(i, on_date, default_lead) == status]
 
     order = {loc.id: (loc.sort_order, loc.name.lower()) for loc in db.query(PrepLocation).all()}
     if sort == "name":
@@ -228,7 +231,7 @@ def list_items(
         items.sort(key=lambda i: (order.get(i.location_id, (10**6, "zzz")), i.name.lower()))
 
     names = _location_names(db)
-    return [_to_response(i, on_date, names) for i in items]
+    return [_to_response(i, on_date, names, default_lead) for i in items]
 
 
 @router.post("/items", response_model=PrepItemResponse, status_code=201)
@@ -262,7 +265,7 @@ def create_item(item: PrepItemCreate, db: Session = Depends(get_db)):
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
-    return _to_response(db_item, on_date, _location_names(db))
+    return _to_response(db_item, on_date, _location_names(db), preparedness.default_lead_days(db))
 
 
 @router.get("/items/{item_id}", response_model=PrepItemResponse)
@@ -270,7 +273,9 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     db_item = db.query(PrepItem).filter(PrepItem.id == item_id).first()
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
-    return _to_response(db_item, preparedness.today_for(db), _location_names(db))
+    return _to_response(
+        db_item, preparedness.today_for(db), _location_names(db), preparedness.default_lead_days(db)
+    )
 
 
 @router.put("/items/{item_id}", response_model=PrepItemResponse)
@@ -311,7 +316,9 @@ def update_item(item_id: int, item: PrepItemUpdate, db: Session = Depends(get_db
 
     db.commit()
     db.refresh(db_item)
-    return _to_response(db_item, preparedness.today_for(db), _location_names(db))
+    return _to_response(
+        db_item, preparedness.today_for(db), _location_names(db), preparedness.default_lead_days(db)
+    )
 
 
 @router.delete("/items/{item_id}", status_code=204)
@@ -335,7 +342,9 @@ def refresh_item(item_id: int, body: PrepItemRefresh | None = None, db: Session 
 
     on = _parse_iso(body.on, "on") if body and body.on else preparedness.today_for(db)
     preparedness.mark_refreshed(db, db_item, on)
-    return _to_response(db_item, preparedness.today_for(db), _location_names(db))
+    return _to_response(
+        db_item, preparedness.today_for(db), _location_names(db), preparedness.default_lead_days(db)
+    )
 
 
 # --- Go list -------------------------------------------------------------------
@@ -347,6 +356,7 @@ def get_go_list(
     db: Session = Depends(get_db),
 ):
     on_date = preparedness.today_for(db)
+    default_lead = preparedness.default_lead_days(db)
     names = _location_names(db)
     groups = golist.build_groups(db, location or None)
 
@@ -357,7 +367,7 @@ def get_go_list(
             GoListGroup(
                 location_id=lid,
                 location_name=name,
-                items=[_to_response(i, on_date, names) for i in items],
+                items=[_to_response(i, on_date, names, default_lead) for i in items],
             )
             for lid, name, items in groups
         ],
@@ -408,6 +418,7 @@ def run_digest(
     suppress a real send.
     """
     on_date = preparedness.today_for(db)
+    default_lead = preparedness.default_lead_days(db)
     result = preparedness.send_digest(db, on_date, dry_run=dry_run)
     names = _location_names(db)
 
@@ -422,7 +433,7 @@ def run_digest(
                 name=i.name,
                 location_name=names.get(i.location_id, "Unassigned"),
                 next_refresh_date=i.next_refresh_date,
-                status=preparedness.status_of(i, on_date),
+                status=preparedness.status_of(i, on_date, default_lead),
             )
             for i in result.due_items
         ],

@@ -121,6 +121,7 @@ def build_inventory_text(db: Session) -> tuple[str, int]:
         return "The inventory is empty.", 0
 
     today = preparedness.today_for(db)
+    default_lead = preparedness.default_lead_days(db)
     lines: list[str] = []
     count = 0
     for _lid, name, items in groups:
@@ -131,7 +132,7 @@ def build_inventory_text(db: Session) -> tuple[str, int]:
                 bits.append(f"(qty: {item.quantity})")
             if item.notes:
                 bits.append(f"[{item.notes}]")
-            status = preparedness.status_of(item, today)
+            status = preparedness.status_of(item, today, default_lead)
             if status == "overdue":
                 bits.append(f"** OVERDUE for refresh since {item.next_refresh_date} **")
             elif status == "due":
