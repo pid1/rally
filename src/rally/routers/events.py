@@ -29,6 +29,7 @@ from rally.calendars import (
     series_end_date,
     validate_rrule,
 )
+from rally.calendars import cache as calendar_cache
 from rally.calendars.inputs import EventTimeError, local_form_values, resolve_event_times
 from rally.database import get_db
 from rally.models import (
@@ -283,6 +284,16 @@ def list_occurrences(
 
     run_due_reminders_once_per_minute(db)
 
+    # Keep the cache warm from the read path as well as the minute loop. The
+    # container loop only exists under Docker, so without this a `dev` instance
+    # would serve an ever-staler calendar — the same reasoning as reminders.
+    # This never blocks on the network unless the interval has actually
+    # elapsed, and never on a cache that is merely warm.
+    try:
+        calendar_cache.sync_if_stale(db, tz)
+    except Exception as exc:  # pragma: no cover - a sync must not fail a read
+        print(f"Calendar sync failed: {exc}")
+
     sources = None if source == "all" else {source}
     result = collect_occurrences(
         db,
@@ -290,6 +301,7 @@ def list_occurrences(
         end_day_exclusive=end_day,
         local_tz=tz,
         sources=sources,
+        use_cache=True,
     )
 
     occurrences = result.occurrences
@@ -695,3 +707,31 @@ def notify_event(
         db, event, occurrence, kind=KIND_MANUAL, tz=tz, message=payload.message
     )
     return EventNotifyResponse(**outcome)
+
+
+@router.get("/sync/status")
+def calendar_sync_status(db: Session = Depends(get_db)):
+    """How fresh the cached calendars are, and which are failing."""
+    status = calendar_cache.cache_status(db)
+    return {
+        "cached": status["cached"],
+        "expected": status["expected"],
+        "oldest_fetched_at": status["oldest_fetched_at"],
+        "failing": status["failing"],
+        "interval_minutes": calendar_cache.sync_interval_minutes(db),
+    }
+
+
+@router.post("/sync")
+def calendar_sync_now(db: Session = Depends(get_db)):
+    """Force a refresh of every external calendar.
+
+    The button behind this exists because the alternative to a cache is not
+    "always fresh" but "always slow": somebody who has just added an event
+    upstream needs a way to pull it in now without waiting out the interval.
+    """
+    tz = _tz(db)
+    try:
+        return calendar_cache.sync_calendars(db, tz)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Sync failed: {exc}") from exc

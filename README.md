@@ -224,6 +224,7 @@ Rally uses a **file-based migration system** that runs automatically on containe
 || `021_add_preparedness` | Add `prep_locations`, `prep_items`, and `prep_refresh_notices` |
 || `022_add_home_location` | Seed the `home_location` setting |
 || `023_add_prep_reviews` | Add `prep_reviews` for stored LLM inventory reviews |
+|| `024_add_calendar_cache` | Add `calendar_cache` for external calendar occurrences |
 
 ### Running Migrations Manually
 

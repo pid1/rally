@@ -394,6 +394,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `021_add_preparedness` - Add the `prep_locations`, `prep_items` and `prep_refresh_notices` tables plus their indexes (the unique index on `prep_refresh_notices.notice_key` *is* the refresh announce-once guarantee), and seed the `prep_notify_enabled` / `prep_notify_time` / `prep_default_remind_days` settings rows. Purely additive
 - `022_add_home_location` - Seed an empty `home_location` settings row. Purely additive; `home_location()` treats a missing row and an empty one identically, so this exists to make the field visible on the settings page from the first load rather than to change behaviour
 - `023_add_prep_reviews` - Add the `prep_reviews` table (stored LLM reviews of the preparedness inventory). Purely additive
+- `024_add_calendar_cache` - Add the `calendar_cache` table plus its unique index on `calendar_id` (one cache row per calendar; the index is what makes the sync's get-or-create safe), and seed `calendar_sync_interval_minutes` at 15. Purely additive; the table starts empty and the first sync fills it
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 
 ### Running Migrations
@@ -543,6 +544,7 @@ rally/
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalising
 │   ├── calendars/        # One normalized event shape for every calendar source
+│   │   └── cache.py      # Cached external occurrences + the concurrent background sync
 │   │   ├── occurrence.py # The Occurrence dataclass + timezone/DST helpers
 │   │   ├── declined.py   # Declined/cancelled detection (one copy, was two)
 │   │   ├── ics.py        # iCalendar component → Occurrence, shared by ICS and CalDAV
@@ -666,6 +668,7 @@ rally/
   - `shopping_list_in_summary_enabled` ("true"/"false", default "false") folds open shopping items into the daily summary (Shopping List section)
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
   - `home_location` (free text, e.g. "Highland Village, TX") is the family's home, sent to the LLM as its own `HOME:` block alongside `FAMILY CONTEXT`. First-party rather than prose inside the context so other views can read it structurally. An unset value omits the whole block — a labelled section with nothing after it invites the model to invent one
+  - `calendar_sync_interval_minutes` (default "15") is how stale a cached external calendar may get before the background sync refreshes it
   - `prep_overdue_in_summary_enabled` ("true"/"false", default **"true"**) folds preparedness stock that is past its refresh date into the daily summary. Defaults on, unlike the shopping and sports toggles: those add a standing block that costs tokens every day, whereas this one is normally empty and omits itself entirely, so it only costs anything on the days it matters
   - `prep_review_enabled` ("true"/"false", default **"false"**) adds the `Review` button to `/preparedness`. Off by default because it is a real LLM call and is only useful once a reasonable amount of stock has been entered
   - `prep_notify_enabled` ("true"/"false", default "true"), `prep_notify_time` (local HH:MM, default "08:00") and `prep_default_remind_days` (default "14") drive the preparedness refresh digest. `prep_last_digest_date` is internal bookkeeping written by the once-per-local-day gate — never surfaced in the UI, exactly like `shopping_last_purge_date`
@@ -745,6 +748,13 @@ rally/
   - One **digest** per day covering everything due, to every family member with a Pushover key — the household, not an event's attendees, because the water drums belong to the house. Each item is announced once per refresh date via `prep_refresh_notices`; a failed send records nothing so the next pass retries
   - The digest rides the existing minute loop (`python -m rally.notifications`) and the opportunistic API hook, rather than growing a second scheduler
   - The go list groups every item by location in walking order, prints cleanly, and exports as Markdown, CSV or PDF
+- ✅ External calendar cache - `/calendar` reads from the database, never the network
+  - The page was fetching every remote feed synchronously on every request: **11.5s measured in production** across three sources, serially, with one 8.9MB ICS feed accounting for 6.3s. Reads now come from `calendar_cache` and are **0.008s** — same 81 occurrences, verified against the live feeds
+  - **Native events are deliberately not cached.** They are a local query (0.13s), they are the events most likely to have just been edited, and serving them stale would make Rally feel broken where it owns the data
+  - Syncs run **concurrently** (`ThreadPoolExecutor`, 4 workers): a pass costs the slowest feed rather than the sum
+  - Syncs are **incremental**. A conditional request (`If-None-Match` / `If-Modified-Since`) turns an unchanged feed into a 304; failing that, a semantic fingerprint skips the re-expansion. Neither production feed sends a validator, so the fingerprint is what fires here — and it must be *semantic*, because Google rewrites `DTSTAMP` on every response **and** returns the VEVENTs in a different order each time, so a raw body hash reported "changed" every single fetch. The fingerprint unfolds continuation lines, drops `DTSTAMP`, sorts, and hashes; an incremental pass drops from 6.5s to 3.4s
+  - A failing feed **keeps serving its last good occurrences** and names itself, rather than blanking the calendar. `/calendar` shows how stale the cache is and offers a `Refresh` button
+  - The generator still fetches **live** (`use_cache` defaults to False): a briefing built from a cache that had been failing silently for a day would be wrong, and it is the one caller with nobody watching
 - ✅ Overdue preparedness stock in the daily summary (toggle in Settings → Preparedness, default on)
   - `load_overdue_prep_items()` lists only genuinely **overdue** items, never "due soon". The Pushover digest already announces the approach once per refresh date; the briefing is the standing nag for the ones nobody dealt with, and repeating every upcoming refresh would be noise
   - The section and its guideline are both omitted when nothing is overdue — an empty labelled section invites the model to comment on it anyway

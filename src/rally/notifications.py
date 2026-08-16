@@ -388,6 +388,25 @@ def main() -> int:
     sent = 0
     failed = False
     try:
+        # Keep the calendar cache warm. This is the reliable path; the API also
+        # syncs opportunistically so a dev instance is not left behind. Both
+        # gate on the configured interval, so calling this every minute costs
+        # one indexed read on all but one pass in fifteen.
+        try:
+            from zoneinfo import ZoneInfo
+
+            from rally.calendars import cache as calendar_cache
+            from rally.utils.settings import local_timezone_name
+
+            summary = calendar_cache.sync_if_stale(db, ZoneInfo(local_timezone_name(db)))
+            if summary and (summary["synced"] or summary["failed"]):
+                print(
+                    f"Calendar sync: {summary['synced']} updated, "
+                    f"{summary['unchanged']} unchanged, {summary['failed']} failed"
+                )
+        except Exception as exc:  # pragma: no cover - the loop must not die
+            print(f"Calendar sync failed: {exc}")
+
         try:
             sent = check_due_reminders(db)
         except Exception as exc:  # pragma: no cover - the loop must not die

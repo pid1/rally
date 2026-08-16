@@ -440,10 +440,15 @@ def local_timezone(make_setting):
 class FakeResponse:
     """Minimal stand-in for a ``requests`` response."""
 
-    def __init__(self, *, text: str = "", status_code: int = 200, json_data=None):
+    def __init__(
+        self, *, text: str = "", status_code: int = 200, json_data=None, headers: dict | None = None
+    ):
         self.text = text
         self.status_code = status_code
         self._json = json_data
+        # A real response always has headers; code that reads ETag or
+        # Last-Modified for conditional requests needs them to exist.
+        self.headers = headers or {}
 
     def json(self):
         return self._json
