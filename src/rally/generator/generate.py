@@ -533,7 +533,8 @@ class SummaryGenerator:
                 .all()
             )
             today = preparedness.today_for(db)
-            overdue = [i for i in items if preparedness.status_of(i, today) == "overdue"]
+            lead = preparedness.default_lead_days(db)
+            overdue = [i for i in items if preparedness.status_of(i, today, lead) == "overdue"]
             if not overdue:
                 return ""
 

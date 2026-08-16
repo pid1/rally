@@ -132,6 +132,7 @@
                     <div class="form-group" id="group-remind" style="display:none">
                         <label for="item-remind">Remind this many days early</label>
                         <input type="number" id="item-remind" min="0" step="1" placeholder="14">
+                        <small>Blank uses the household default from Settings. 0 means the day itself.</small>
                     </div>
                 </form>
                 <div class="modal-actions">
@@ -636,7 +637,9 @@
 
         async function loadReview() {
             const settings = await fetch('/api/settings').then(r => r.ok ? r.json() : { settings: {} });
-            reviewEnabled = (settings.settings || {}).prep_review_enabled === 'true';
+            const s = settings.settings || {};
+            document.getElementById('item-remind').placeholder = s.prep_default_remind_days || '14';
+            reviewEnabled = s.prep_review_enabled === 'true';
             document.getElementById('btn-review').style.display = reviewEnabled ? '' : 'none';
             if (!reviewEnabled) { renderReview(null); return; }
 
