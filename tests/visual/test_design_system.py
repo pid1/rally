@@ -242,3 +242,78 @@ def test_over_filtered_inventory_does_blame_the_filters(browser, live_server):
         assert "Nothing matches these filters" in empty
     finally:
         context.close()
+
+
+# --- calendar views on a phone --------------------------------------------------
+
+
+def _calendar(browser, live_server, width=390):
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.goto(live_server + "/calendar", wait_until="networkidle")
+    page.wait_for_selector("#calendar-view")
+    return context, page
+
+
+def test_every_view_is_reachable_on_a_phone(browser, live_server):
+    """The month grid used to be hidden below 768px and the selector with it,
+    so a phone had no view choice at all."""
+    context, page = _calendar(browser, live_server)
+    try:
+        options = page.eval_on_selector_all("#view-select option", "els => els.map(e => e.value)")
+        assert options == ["day", "week", "month", "agenda"]
+        assert page.is_visible("#view-select"), "the selector must not be hidden on a phone"
+    finally:
+        context.close()
+
+
+def test_a_phone_lands_on_the_day_view(browser, live_server):
+    """What is happening today is what you open a calendar on a phone to find."""
+    context, page = _calendar(browser, live_server)
+    try:
+        assert page.input_value("#view-select") == "day"
+    finally:
+        context.close()
+
+
+def test_the_month_grid_renders_on_a_phone(browser, live_server):
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#view-select", "month")
+        page.wait_for_selector(".calendar-grid", state="visible")
+        assert page.is_visible(".calendar-grid")
+    finally:
+        context.close()
+
+
+def test_the_week_starts_on_sunday(browser, live_server):
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#view-select", "month")
+        page.wait_for_selector(".calendar-weekday")
+        labels = page.eval_on_selector_all(
+            ".calendar-weekday", "els => els.map(e => e.textContent.trim())"
+        )
+        assert labels[0] == "Sun", f"week must start on Sunday, got {labels}"
+        assert labels == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    finally:
+        context.close()
+
+
+def test_the_arrows_move_by_the_selected_slice(browser, live_server):
+    """Prev/Next must mean a day in Day view and a week in Week view."""
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#view-select", "day")
+        page.wait_for_timeout(400)
+        first = page.inner_text("#range-label")
+        page.click("#btn-next")
+        page.wait_for_timeout(500)
+        assert page.inner_text("#range-label") != first
+
+        page.select_option("#view-select", "week")
+        page.wait_for_timeout(500)
+        week_label = page.inner_text("#range-label")
+        assert "–" in week_label, f"a week is a range, got {week_label!r}"
+    finally:
+        context.close()
