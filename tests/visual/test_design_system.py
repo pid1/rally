@@ -202,9 +202,9 @@ def test_every_modal_uses_the_shared_chassis(measure, page):
         )
 
 
-def _open(browser, live_server, path: str):
+def _open(browser, live_server, path: str, height: int = 900):
     """A real page at desktop width, for assertions the probe cache cannot make."""
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    context = browser.new_context(viewport={"width": 1440, "height": height})
     page = context.new_page()
     page.goto(live_server + path, wait_until="networkidle")
     return context, page
@@ -315,5 +315,123 @@ def test_the_arrows_move_by_the_selected_slice(browser, live_server):
         page.wait_for_timeout(500)
         week_label = page.inner_text("#range-label")
         assert "–" in week_label, f"a week is a range, got {week_label!r}"
+    finally:
+        context.close()
+
+
+# Every focusable field, measured against the padding edge of each ancestor
+# that clips it. Only the inline axis, and only where that ancestor cannot
+# scroll horizontally: ink outside a box that scrolls is still reachable, ink
+# outside one that does not is simply gone.
+FOCUS_CLIP_JS = r"""
+(overlayId) => {
+  const overlay = document.getElementById(overlayId);
+  overlay.style.display = 'flex';
+  const clipped = [];
+  const fields = overlay.querySelectorAll(
+    'input:not([type=hidden]), select, textarea, button, a[href]');
+  for (const el of fields) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    el.focus();
+    const cs = getComputedStyle(el);
+    if (cs.outlineStyle === 'none') { el.blur(); continue; }
+    const ring = parseFloat(cs.outlineWidth) + Math.max(0, parseFloat(cs.outlineOffset));
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      const ncs = getComputedStyle(n);
+      if (ncs.overflowX === 'visible') continue;
+      if (n.scrollWidth > n.clientWidth + 1) continue;  // scrollable: ink is reachable
+      const nr = n.getBoundingClientRect();
+      const left = r.left - (nr.left + parseFloat(ncs.borderLeftWidth));
+      const right = (nr.right - parseFloat(ncs.borderRightWidth)) - r.right;
+      if (left < ring - 0.5 || right < ring - 0.5) {
+        clipped.push({
+          field: el.id || el.tagName.toLowerCase(),
+          clipper: (n.className || n.tagName).toString().slice(0, 40),
+          ring, left: Math.round(left * 10) / 10, right: Math.round(right * 10) / 10,
+        });
+      }
+    }
+    el.blur();
+  }
+  overlay.style.display = 'none';
+  return clipped;
+}
+"""
+
+
+@pytest.mark.parametrize("page", ALL_PAGES)
+def test_focus_rings_are_not_clipped_inside_modals(browser, live_server, page):
+    """E5 — a focus ring must survive the box it is drawn in.
+
+    `.modal-body` scrolls vertically, which makes the browser clip the
+    horizontal axis too. Fields inside it are full-width and the ring sits 4px
+    outside their border box; there were 4px of room on the right and none on
+    the left, so every focused field in every modal was drawn as three sides of
+    a rectangle. E1 never caught it because a closed modal has no visible
+    controls to measure.
+    """
+    context, p = _open(browser, live_server, PAGES[page])
+    try:
+        overlays = p.eval_on_selector_all(
+            ".modal-overlay", "els => els.map(e => e.id).filter(Boolean)"
+        )
+        if not overlays:
+            pytest.skip(f"{page} has no modals")
+        for overlay_id in overlays:
+            clipped = p.evaluate(FOCUS_CLIP_JS, overlay_id)
+            assert not clipped, f"{page}/#{overlay_id} clips focus rings: {clipped[:4]}"
+    finally:
+        context.close()
+
+
+# Open a modal, drive it to the bottom, close it, and open it again. A short
+# viewport is what makes this measurable: a modal only scrolls when its content
+# outruns the 90vh cap.
+REOPEN_JS = r"""
+(overlayId) => {
+  const overlay = document.getElementById(overlayId);
+  const body = overlay.querySelector('.modal-body');
+  if (!body) return null;
+  showModalOverlay(overlayId);
+  body.scrollTop = body.scrollHeight;
+  const left = body.scrollTop;
+  hideModalOverlay(overlayId);
+  showModalOverlay(overlayId);
+  const reopened = body.scrollTop;
+  hideModalOverlay(overlayId);
+  return {left, reopened};
+}
+"""
+
+
+@pytest.mark.parametrize("page", ALL_PAGES)
+def test_every_modal_reopens_at_the_top(browser, live_server, page):
+    """D7 — a modal opens at its first field, never where it was left.
+
+    A hidden modal keeps its scrollTop. Scrolling to the bottom of Add Item,
+    cancelling and reopening it put you back at the bottom, with the first
+    field's label above the fold — a form that appears to start part-way
+    through itself.
+    """
+    context, p = _open(browser, live_server, PAGES[page], height=460)
+    try:
+        overlays = p.eval_on_selector_all(
+            ".modal-overlay", "els => els.map(e => e.id).filter(Boolean)"
+        )
+        if not overlays:
+            pytest.skip(f"{page} has no modals")
+        scrolled = 0
+        for overlay_id in overlays:
+            result = p.evaluate(REOPEN_JS, overlay_id)
+            if result is None or result["left"] == 0:
+                continue  # this modal fits; it has no scroll state to carry
+            scrolled += 1
+            assert result["reopened"] == 0, (
+                f"{page}/#{overlay_id} reopened at {result['reopened']}px, "
+                f"not at the top (it had been left at {result['left']}px)"
+            )
+        if not scrolled:
+            pytest.skip(f"{page} has no modal tall enough to scroll")
     finally:
         context.close()

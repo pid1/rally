@@ -801,11 +801,20 @@ input[type="radio"] {
     flex-direction: column;
 }
 
+/* `overflow-y: auto` forces `overflow-x` to compute to `auto` as well, so this
+   box clips its children's ink on both sides. Fields inside it are `width:
+   100%`, and the focus ring lands 4px outside their border box (2px offset +
+   2px outline): the 4px on the right cleared it, the 0 on the left cut the
+   ring's left edge off entirely, so a focused field looked bracketed rather
+   than outlined. The inline padding buys the ring its room on both sides; the
+   matching negative margin gives that room back to the layout, so every field
+   keeps the exact width and position it had. */
 .modal-body {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-    padding-right: var(--space-1);
+    padding-inline: var(--space-1);
+    margin-inline-start: calc(-1 * var(--space-1));
 }
 
 .modal-scroll::before,

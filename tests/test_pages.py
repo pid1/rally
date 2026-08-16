@@ -1,6 +1,11 @@
 """Smoke tests for the HTML page routes, redirects, and the no-cache static mount."""
 
+import pathlib
+import re
+
 import pytest
+
+TEMPLATES = pathlib.Path(__file__).resolve().parents[1] / "templates"
 
 
 @pytest.mark.parametrize(
@@ -65,3 +70,25 @@ def test_static_css_sets_no_cache(client):
     resp = client.get("/static/styles.css")
     assert resp.status_code == 200
     assert resp.headers["cache-control"] == "no-cache"
+
+
+def test_modals_are_opened_only_through_the_shared_helper():
+    """Setting `display` on an overlay by hand skips everything the helper does.
+
+    `showModalOverlay()` resets the scroll position and settles the fade that
+    signals more content below. Nineteen call sites across four templates set
+    `.style.display` directly instead, so those modals reopened wherever they
+    were last left — Add Item came back scrolled past its own first label — and
+    their fade state was whatever it happened to be. The behaviour has to be
+    the same for every modal, which means one way in and one way out.
+    """
+    direct = re.compile(r"getElementById\(['\"][a-z-]*modal-overlay['\"]\)\.style\.display")
+    offenders = [
+        f"{path.name}:{i}"
+        for path in sorted(TEMPLATES.glob("*.html"))
+        for i, line in enumerate(path.read_text().splitlines(), 1)
+        if direct.search(line)
+    ]
+    assert not offenders, (
+        f"modals must open with showModalOverlay() and close with hideModalOverlay(): {offenders}"
+    )
