@@ -317,3 +317,69 @@ def test_the_arrows_move_by_the_selected_slice(browser, live_server):
         assert "–" in week_label, f"a week is a range, got {week_label!r}"
     finally:
         context.close()
+
+
+# Every focusable field, measured against the padding edge of each ancestor
+# that clips it. Only the inline axis, and only where that ancestor cannot
+# scroll horizontally: ink outside a box that scrolls is still reachable, ink
+# outside one that does not is simply gone.
+FOCUS_CLIP_JS = r"""
+(overlayId) => {
+  const overlay = document.getElementById(overlayId);
+  overlay.style.display = 'flex';
+  const clipped = [];
+  const fields = overlay.querySelectorAll(
+    'input:not([type=hidden]), select, textarea, button, a[href]');
+  for (const el of fields) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    el.focus();
+    const cs = getComputedStyle(el);
+    if (cs.outlineStyle === 'none') { el.blur(); continue; }
+    const ring = parseFloat(cs.outlineWidth) + Math.max(0, parseFloat(cs.outlineOffset));
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      const ncs = getComputedStyle(n);
+      if (ncs.overflowX === 'visible') continue;
+      if (n.scrollWidth > n.clientWidth + 1) continue;  // scrollable: ink is reachable
+      const nr = n.getBoundingClientRect();
+      const left = r.left - (nr.left + parseFloat(ncs.borderLeftWidth));
+      const right = (nr.right - parseFloat(ncs.borderRightWidth)) - r.right;
+      if (left < ring - 0.5 || right < ring - 0.5) {
+        clipped.push({
+          field: el.id || el.tagName.toLowerCase(),
+          clipper: (n.className || n.tagName).toString().slice(0, 40),
+          ring, left: Math.round(left * 10) / 10, right: Math.round(right * 10) / 10,
+        });
+      }
+    }
+    el.blur();
+  }
+  overlay.style.display = 'none';
+  return clipped;
+}
+"""
+
+
+@pytest.mark.parametrize("page", ALL_PAGES)
+def test_focus_rings_are_not_clipped_inside_modals(browser, live_server, page):
+    """E5 — a focus ring must survive the box it is drawn in.
+
+    `.modal-body` scrolls vertically, which makes the browser clip the
+    horizontal axis too. Fields inside it are full-width and the ring sits 4px
+    outside their border box; there were 4px of room on the right and none on
+    the left, so every focused field in every modal was drawn as three sides of
+    a rectangle. E1 never caught it because a closed modal has no visible
+    controls to measure.
+    """
+    context, p = _open(browser, live_server, PAGES[page])
+    try:
+        overlays = p.eval_on_selector_all(
+            ".modal-overlay", "els => els.map(e => e.id).filter(Boolean)"
+        )
+        if not overlays:
+            pytest.skip(f"{page} has no modals")
+        for overlay_id in overlays:
+            clipped = p.evaluate(FOCUS_CLIP_JS, overlay_id)
+            assert not clipped, f"{page}/#{overlay_id} clips focus rings: {clipped[:4]}"
+    finally:
+        context.close()

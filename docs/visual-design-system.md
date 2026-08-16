@@ -233,6 +233,16 @@ renders at `rgb(0, 0, 238)` — the only non-grayscale pixel in the app.
 **E4. A third font family appears unstyled.** `<code>` is used in seven places
 on Settings and renders in the browser's monospace default.
 
+**E5. Every modal clipped the left side of its own focus ring.** Found after
+the audit, from a screenshot of the Add Item field on Preparedness. `.modal-body`
+sets `overflow-y: auto`, which makes `overflow-x` compute to `auto` as well, so
+the box clips its children's ink on both sides. Its fields are `width: 100%`
+and the ring lands 4px outside their border box (2px offset + 2px outline);
+there were 4px of room on the right and 0 on the left. Measured on
+`#item-name`: `gapLeft: 0, gapRight: 4` — the ring drew as three sides of a
+rectangle. All eight pages that own a modal were affected. E1 could not see it:
+it measures visible controls, and a closed modal has none.
+
 ### F. Stylesheet health
 
 **F1. Verbatim duplicate rules.** `footer`, `footer a` and `footer a:hover` are
@@ -369,6 +379,7 @@ the finding it protects against:
 | every modal uses the shared chassis | D2 |
 | every control shows a focus ring | E1 |
 | touch targets meet 44px on a phone | E2 |
+| focus rings are not clipped inside modals | E5 |
 | no horizontal overflow | — |
 
 They are geometric rather than pixel-based on purpose: when one fails it says
