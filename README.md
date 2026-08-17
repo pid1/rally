@@ -14,7 +14,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - 🔔 **Push Reminders** - Notify the people an event actually concerns
   - A per-family-member Pushover profile; a member without one is simply never notified
   - Set a reminder lead time on any event, or send one now with **Notify attendees**
-  - Adding, changing or removing an event tells its attendees automatically — `Calendar Addition: Soccer practice`, then when, where, and who is going, in your configured local zone
+  - Adding, changing or removing an event tells its attendees automatically — `Calendar Addition: Soccer practice`, then the time range, where, who is going, and how often it repeats, in your configured local zone
   - Reports per recipient, so "sent to Emma; Jon has no Pushover key" is visible rather than silent
 - 🔗 **Unified Calendar** - Pulls from Google Calendar and iCloud, merges with Rally's own events, filters to the next 7 days, deduplicates automatically
 - 🌤️ **Smart Weather Guidance** - Clothing recommendations and activity adjustments

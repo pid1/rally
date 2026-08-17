@@ -160,26 +160,143 @@ def format_message(event: Event, occurrence, tz: ZoneInfo) -> str:
     return " · ".join(parts)
 
 
-def when_label(occurrence, tz: ZoneInfo) -> str:
-    """When an occurrence happens: the local date, then the time on this server.
+def _clock(moment: datetime) -> str:
+    """A local time as "5:30 PM"."""
+    return moment.strftime("%I:%M %p").lstrip("0")
 
-    The date is read from the occurrence's own local date rather than
-    re-derived from the instant, which is what keeps an all-day event off the
-    day before. The time is rendered in the install's configured local zone —
-    the same clock the calendar screens use — and names that zone, because a
-    bare "5:30 PM" is only unambiguous to somebody who already knows which zone
-    the server keeps.
+
+def _time_range(start: datetime, end: datetime) -> str:
+    """ "5:30 to 6:30 PM" — how long the thing runs, not just when it starts.
+
+    The meridiem is stated once when both ends share it and twice when they do
+    not, which is the difference between reading a range and parsing one. An
+    event with no duration collapses to its start rather than saying "5:30 to
+    5:30".
     """
-    when = occurrence.start_local_date
-    if occurrence.spans_days():
-        when = f"{when} – {occurrence.end_local_date}"
+    if end <= start:
+        return _clock(start)
+    if start.strftime("%p") == end.strftime("%p"):
+        return f"{start.strftime('%I:%M').lstrip('0')} to {_clock(end)}"
+    return f"{_clock(start)} to {_clock(end)}"
+
+
+def when_label(occurrence, tz: ZoneInfo) -> str:
+    """When an occurrence happens, and for how long, on this server's clock.
+
+    Dates are read from the occurrence's own local dates rather than re-derived
+    from the instants, which is what keeps an all-day event off the day before.
+    Times are rendered in the install's configured local zone — the same clock
+    the calendar screens use — and name that zone, because a bare "5:30 PM" is
+    only unambiguous to somebody who already knows which zone the server keeps.
+    """
     if occurrence.all_day:
+        when = occurrence.start_local_date
+        if occurrence.spans_days():
+            when = f"{when} – {occurrence.end_local_date}"
         return f"{when} · All day"
 
-    local = occurrence.start.astimezone(tz)
-    clock = local.strftime("%I:%M %p").lstrip("0")
-    zone = local.strftime("%Z") or getattr(tz, "key", "")
-    return f"{when} · {clock} {zone}".strip()
+    start = occurrence.local_start(tz)
+    end = occurrence.local_end(tz)
+    zone = start.strftime("%Z") or getattr(tz, "key", "")
+
+    if occurrence.spans_days():
+        # Each time needs its own date or the range is a riddle: "2026-08-14 –
+        # 2026-08-16 · 5:30 PM to 9:00 AM" does not say which end is which.
+        return (
+            f"{occurrence.start_local_date} {_clock(start)} – "
+            f"{occurrence.end_local_date} {_clock(end)} {zone}"
+        ).strip()
+
+    return f"{occurrence.start_local_date} · {_time_range(start, end)} {zone}".strip()
+
+
+_WEEKDAY_NAMES = {
+    "MO": "Monday",
+    "TU": "Tuesday",
+    "WE": "Wednesday",
+    "TH": "Thursday",
+    "FR": "Friday",
+    "SA": "Saturday",
+    "SU": "Sunday",
+}
+
+# Singular for an interval of one, plural for the rest: "weekly" against "every
+# 2 weeks".
+_FREQ_WORDS = {
+    "DAILY": ("daily", "days"),
+    "WEEKLY": ("weekly", "weeks"),
+    "MONTHLY": ("monthly", "months"),
+    "YEARLY": ("yearly", "years"),
+}
+
+
+def _rrule_parts(rrule: str) -> dict[str, str]:
+    parts: dict[str, str] = {}
+    for chunk in rrule.split(";"):
+        name, _, value = chunk.partition("=")
+        if name.strip():
+            parts[name.strip().upper()] = value.strip()
+    return parts
+
+
+def _join_names(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _ordinal(day: int) -> str:
+    suffix = "th" if 11 <= day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix}"
+
+
+def describe_recurrence(rrule: str | None) -> str:
+    """How often a series repeats, in the vocabulary the event form offers.
+
+    The add-event form compiles five choices to RRULE — daily, weekly on this
+    day, every 2 weeks on this day, monthly on this date, yearly — and this
+    reads them back, so the notice describes the choice somebody actually made
+    rather than the syntax it was stored as. A rule richer than the form can
+    express (an imported one, or one typed by hand) degrades to a phrase that is
+    vague but true, never a confidently wrong one.
+    """
+    if not rrule:
+        return ""
+
+    parts = _rrule_parts(rrule)
+    freq = parts.get("FREQ", "").upper()
+    words = _FREQ_WORDS.get(freq)
+    if not words:
+        return "on a custom schedule"
+
+    singular, plural = words
+    try:
+        interval = int(parts.get("INTERVAL", "1"))
+    except ValueError:
+        interval = 1
+    phrase = singular if interval <= 1 else f"every {interval} {plural}"
+
+    if freq == "WEEKLY":
+        # ``BYDAY`` may carry an ordinal prefix ("2TU"); only the day matters
+        # here, and an ordinal one cannot occur in a weekly rule anyway.
+        days = [
+            _WEEKDAY_NAMES[code]
+            for code in (
+                token.strip().upper()[-2:]
+                for token in parts.get("BYDAY", "").split(",")
+                if token.strip()
+            )
+            if code in _WEEKDAY_NAMES
+        ]
+        if days:
+            return f"{phrase} on {_join_names(days)}"
+
+    if freq == "MONTHLY":
+        monthday = parts.get("BYMONTHDAY", "")
+        if monthday.isdigit():
+            return f"{phrase} on the {_ordinal(int(monthday))}"
+
+    return phrase
 
 
 def change_title(event_title: str, kind: str) -> str:
@@ -226,6 +343,10 @@ def format_change_message(
         lines.append(f"Where: {event.location}")
     if attendees:
         lines.append(f"Attendees: {', '.join(attendees)}")
+    if occurrence.recurring:
+        # A sentence rather than a fourth ``Label: value`` line, because it
+        # qualifies the whole notice instead of adding another field to it.
+        lines.append(f"This event repeats {describe_recurrence(event.rrule)}".rstrip())
     return "\n".join(lines)
 
 

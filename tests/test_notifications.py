@@ -447,8 +447,131 @@ def test_an_addition_reads_as_the_whole_notice(
 
     assert mock_pushover.sent[0]["title"] == "Calendar Addition: Soccer practice"
     assert mock_pushover.sent[0]["message"] == (
-        "When: 2026-08-14 · 5:30 PM CDT\nWhere: Field 3\nAttendees: Emma, Rodryk"
+        "When: 2026-08-14 · 5:30 to 6:30 PM CDT\nWhere: Field 3\nAttendees: Emma, Rodryk"
     )
+
+
+def test_a_repeating_addition_reads_as_the_whole_notice(
+    client, token, reachable, make_member, mock_pushover
+):
+    """The same, plus the sentence a recurring series earns."""
+    rodryk = make_member("Rodryk", pushover_user_key="rodryk-key")
+
+    _create(
+        client,
+        title="Soccer practice",
+        start="2026-08-14T17:30",
+        end="2026-08-14T18:30",
+        location="Field 3",
+        rrule="FREQ=WEEKLY;BYDAY=FR",
+        attendee_ids=[reachable.id, rodryk.id],
+    )
+
+    assert mock_pushover.sent[0]["message"] == (
+        "When: 2026-08-14 · 5:30 to 6:30 PM CDT\n"
+        "Where: Field 3\n"
+        "Attendees: Emma, Rodryk\n"
+        "This event repeats weekly on Friday"
+    )
+
+
+# --- How long it runs ----------------------------------------------------------
+
+
+def test_a_time_crossing_noon_states_both_meridiems(client, token, reachable, mock_pushover):
+    """ "11:30 to 1:00 PM" would be an hour and a half of guesswork."""
+    _create(
+        client,
+        start="2026-08-14T11:30",
+        end="2026-08-14T13:00",
+        attendee_ids=[reachable.id],
+    )
+
+    assert "When: 2026-08-14 · 11:30 AM to 1:00 PM CDT" in mock_pushover.sent[0]["message"]
+
+
+def test_an_event_with_no_duration_states_one_time(client, token, reachable, mock_pushover):
+    _create(
+        client,
+        start="2026-08-14T09:00",
+        end="2026-08-14T09:00",
+        attendee_ids=[reachable.id],
+    )
+
+    assert "When: 2026-08-14 · 9:00 AM CDT" in mock_pushover.sent[0]["message"]
+
+
+def test_a_timed_event_spanning_days_dates_both_ends(client, token, reachable, mock_pushover):
+    """Which end is which has to be readable without doing arithmetic."""
+    _create(
+        client,
+        title="Red-eye",
+        start="2026-08-14T22:30",
+        end="2026-08-15T06:15",
+        attendee_ids=[reachable.id],
+    )
+
+    assert "When: 2026-08-14 10:30 PM – 2026-08-15 6:15 AM CDT" in mock_pushover.sent[0]["message"]
+
+
+# --- How often it repeats ------------------------------------------------------
+#
+# The add-event form offers five choices and compiles them to RRULE. These are
+# those five, read back in the words somebody chose them by.
+
+
+@pytest.mark.parametrize(
+    ("rrule", "expected"),
+    [
+        ("FREQ=DAILY", "This event repeats daily"),
+        ("FREQ=WEEKLY;BYDAY=FR", "This event repeats weekly on Friday"),
+        ("FREQ=WEEKLY;INTERVAL=2;BYDAY=FR", "This event repeats every 2 weeks on Friday"),
+        ("FREQ=MONTHLY;BYMONTHDAY=14", "This event repeats monthly on the 14th"),
+        ("FREQ=YEARLY", "This event repeats yearly"),
+    ],
+)
+def test_each_repeat_choice_is_read_back_in_its_own_words(
+    client, token, reachable, mock_pushover, rrule, expected
+):
+    _create(client, rrule=rrule, attendee_ids=[reachable.id])
+    assert mock_pushover.sent[0]["message"].endswith(expected)
+
+
+def test_a_rule_richer_than_the_form_stays_vague_rather_than_wrong(
+    client, token, reachable, mock_pushover
+):
+    """An imported rule may say things the five choices cannot."""
+    _create(client, rrule="FREQ=HOURLY;INTERVAL=6", attendee_ids=[reachable.id])
+    assert mock_pushover.sent[0]["message"].endswith("This event repeats on a custom schedule")
+
+
+def test_a_multi_day_weekly_rule_names_every_day(client, token, reachable, mock_pushover):
+    _create(client, rrule="FREQ=WEEKLY;BYDAY=MO,WE,FR", attendee_ids=[reachable.id])
+    assert mock_pushover.sent[0]["message"].endswith(
+        "This event repeats weekly on Monday, Wednesday and Friday"
+    )
+
+
+def test_a_one_off_event_says_nothing_about_repeating(client, token, reachable, mock_pushover):
+    _create(client, attendee_ids=[reachable.id])
+    assert "repeats" not in mock_pushover.sent[0]["message"]
+
+
+def test_a_deletion_still_says_what_it_was_repeating(
+    client, token, reachable, make_event, mock_pushover
+):
+    """Knowing a whole weekly series just went away is the point."""
+    event = make_event(
+        "Scouts",
+        start="2026-08-04T19:00",
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+        attendees=[reachable],
+    )
+
+    client.delete(f"/api/events/{event.id}")
+
+    assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Scouts"
+    assert mock_pushover.sent[0]["message"].endswith("This event repeats weekly on Tuesday")
 
 
 def test_every_recipient_gets_the_same_body(client, token, reachable, make_member, mock_pushover):
@@ -468,7 +591,7 @@ def test_the_notice_dates_the_event_in_the_servers_local_time(
     """9:00 AM Chicago is 14:00 UTC — the notice must say the local reading."""
     _create(client, attendee_ids=[reachable.id])
 
-    assert "When: 2026-08-14 · 9:00 AM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-14 · 9:00 to 10:00 AM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_an_all_day_notice_carries_the_date_without_inventing_a_time(
@@ -525,7 +648,7 @@ def test_a_recurring_notice_describes_the_next_occurrence(client, token, reachab
         attendee_ids=[reachable.id],
     )
 
-    assert "When: 2026-08-11 · 7:00 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-11 · 7:00 to 8:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_an_event_with_no_attendees_announces_nothing(client, token, reachable, mock_pushover):
@@ -540,7 +663,7 @@ def test_a_modification_says_so(client, token, reachable, make_event, mock_pusho
 
     assert response.status_code == 200
     assert mock_pushover.sent[0]["title"] == "Calendar Modification: Dentist"
-    assert "When: 2026-08-14 · 10:30 AM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-14 · 10:30 to 11:30 AM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_modifying_one_occurrence_names_that_occurrence_not_the_next_one(
@@ -561,7 +684,7 @@ def test_modifying_one_occurrence_names_that_occurrence_not_the_next_one(
     )
 
     assert response.status_code == 200
-    assert "When: 2026-08-18 · 5:30 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-18 · 5:30 to 6:30 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_modifying_the_rest_of_a_series_announces_the_edited_tail(
@@ -582,7 +705,7 @@ def test_modifying_the_rest_of_a_series_announces_the_edited_tail(
 
     assert response.status_code == 200
     assert mock_pushover.sent[0]["title"] == "Calendar Modification: Scouts (new time)"
-    assert "When: 2026-08-18 · 5:30 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-18 · 5:30 to 6:30 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_deleting_an_event_announces_the_deletion(
@@ -597,7 +720,7 @@ def test_deleting_an_event_announces_the_deletion(
 
     assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Dentist"
     assert mock_pushover.sent[0]["message"] == (
-        "When: 2026-08-14 · 9:00 AM CDT\nWhere: Dr. Kim\nAttendees: Emma"
+        "When: 2026-08-14 · 9:00 to 10:00 AM CDT\nWhere: Dr. Kim\nAttendees: Emma"
     )
 
 
@@ -630,7 +753,7 @@ def test_deleting_one_occurrence_names_that_occurrence(
 
     assert response.status_code == 204
     assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Scouts"
-    assert "When: 2026-08-18 · 7:00 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-18 · 7:00 to 8:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_deleting_the_rest_of_a_series_names_the_first_occurrence_removed(
@@ -648,7 +771,7 @@ def test_deleting_the_rest_of_a_series_names_the_first_occurrence_removed(
     )
 
     assert response.status_code == 204
-    assert "When: 2026-08-18 · 7:00 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-18 · 7:00 to 8:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_a_deletion_notice_records_against_a_surviving_series(
