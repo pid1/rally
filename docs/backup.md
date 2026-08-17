@@ -171,14 +171,37 @@ plugin installs — so nothing needs adding to `crontab` or `/etc/cron.d/root`.
 
 ```bash
 #!/bin/bash
-# Rally offsite backup: snapshot the database, push it to R2, prune old copies.
+# Rally offsite backup: snapshot the database, push it to R2, prove the copy is
+# restorable, then prune. Setup and rationale: docs/backup.md in the rally repo.
+#
+# Fails closed. Any step that does not verify aborts the run with a non-zero
+# exit and an Unraid notification, and old snapshots are NOT pruned — a run that
+# cannot prove itself must never be the reason good backups are deleted.
 set -euo pipefail
 
 APPDATA=/mnt/user/appdata/rally
 CONTAINER=rally
-SNAPSHOT="$APPDATA/backup/rally-snap.db"
+BACKUP_DIR="$APPDATA/backup"
+SNAPSHOT="$BACKUP_DIR/rally-snap.db"
+# Verification scratch lives outside the backed-up volume so a run that dies
+# mid-way can never leave a restored copy to be swept into the next backup.
+VERIFY_DIR=/tmp/rally-backup-verify
+NOTIFY=/usr/local/emhttp/webGui/scripts/notify
 
-# Credentials live in appdata, not here — see docs/backup.md.
+cleanup() { rm -rf "$SNAPSHOT" "$VERIFY_DIR"; }
+
+fail() {
+    echo "RALLY BACKUP FAILED: $1" >&2
+    if [ -x "$NOTIFY" ]; then
+        "$NOTIFY" -e "Rally backup" -s "Rally backup FAILED" -d "$1" -i "alert" || true
+    fi
+    cleanup
+    exit 1
+}
+trap 'fail "unexpected error at line $LINENO"' ERR
+trap cleanup EXIT
+
+[ -f "$APPDATA/backup.env" ] || fail "missing $APPDATA/backup.env"
 # shellcheck source=/dev/null
 source "$APPDATA/backup.env"
 
@@ -189,44 +212,106 @@ restic_run() {
         "$@"
 }
 
-mkdir -p "$APPDATA/backup"
-rm -f "$SNAPSHOT"   # VACUUM INTO refuses to overwrite an existing target
+# All SQLite work runs inside Rally's container, so this job depends on no host
+# sqlite3 build. $BACKUP_DIR is under the container's /data mount.
+sqlite_in_container() {
+    docker exec "$CONTAINER" python -c "$1"
+}
 
-# Consistent snapshot via the container's own Python, so the host needs no
-# sqlite3 binary and Rally keeps serving while it runs.
-docker exec "$CONTAINER" python -c \
-    "import sqlite3; c = sqlite3.connect('/data/rally.db'); c.execute(\"VACUUM INTO '/data/backup/rally-snap.db'\"); c.close()"
+mkdir -p "$BACKUP_DIR" "$VERIFY_DIR"
+rm -f "$SNAPSHOT"           # VACUUM INTO refuses to overwrite an existing target
+rm -rf "${VERIFY_DIR:?}"/*
 
+# --- 1. Consistent snapshot ------------------------------------------------
+# Taken through SQLite's own locking, so Rally keeps serving and the copy is
+# never mid-write.
+sqlite_in_container \
+    "import sqlite3; c = sqlite3.connect('/data/rally.db'); c.execute(\"VACUUM INTO '/data/backup/rally-snap.db'\"); c.close()" \
+    || fail "VACUUM INTO failed"
+[ -s "$SNAPSHOT" ] || fail "snapshot was not produced"
+
+# --- 2. Validate before uploading ------------------------------------------
+# No point storing a corrupt snapshot, and catching it here keeps the last known
+# good backup in place rather than burying it under a bad one.
+integrity=$(sqlite_in_container \
+    "import sqlite3; print(sqlite3.connect('/data/backup/rally-snap.db').execute('PRAGMA integrity_check').fetchone()[0])" \
+    | tr -d '\r\n')
+[ "$integrity" = "ok" ] || fail "snapshot failed integrity_check ($integrity); nothing uploaded"
+
+expected_sha=$(sha256sum "$SNAPSHOT" | awk '{print $1}')
+
+# --- 3. Upload --------------------------------------------------------------
 # Back up the whole volume, minus: the live database (the snapshot stands in for
-# it), any ad-hoc manual copies in backups/ (restic's own versioning supersedes
-# them), and backup.env — the credentials that protect this repository must not
-# live inside it. Anything else new landing in /data is picked up without
-# editing this script.
+# it), any manual copies in backups/ (restic's versioning supersedes them), and
+# backup.env — the credentials protecting this repository must not live inside
+# it. Anything else new landing in /data is picked up without editing this file.
 restic_run -v "$APPDATA:/src:ro" restic/restic backup \
     --tag rally --host unraid \
     --exclude /src/rally.db \
     --exclude '/src/rally.db-journal' \
     --exclude /src/backups \
     --exclude /src/backup.env \
-    /src
+    /src || fail "restic backup failed"
 
+# --- 4. Prove it is restorable ---------------------------------------------
+# The point of a backup is a successful restore, so download what was just
+# stored and check it byte for byte. Comparing against the local snapshot rather
+# than the live database makes this immune to writes landing mid-run.
+restic_run -v "$VERIFY_DIR:/restore" restic/restic restore latest --target /restore \
+    || fail "verification restore failed — backup is NOT known to be recoverable"
+
+restored=$(find "$VERIFY_DIR" -name 'rally-snap.db' -type f | head -1)
+[ -n "$restored" ] || fail "verification restore produced no rally-snap.db"
+
+actual_sha=$(sha256sum "$restored" | awk '{print $1}')
+[ "$actual_sha" = "$expected_sha" ] \
+    || fail "restored copy does not match what was uploaded (expected $expected_sha, got $actual_sha)"
+
+# --- 5. Only now is it safe to prune ---------------------------------------
 restic_run restic/restic forget --tag rally \
-    --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune
+    --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune \
+    || fail "prune failed (backup itself succeeded and was verified)"
 
-rm -f "$SNAPSHOT"
+restic_run restic/restic check || fail "repository check reported errors"
+
+cleanup
+echo "Rally backup verified and complete: $(date)"
+echo "  snapshot sha256: $expected_sha"
 ```
 
 That retention really does keep a year of history for a few megabytes. Measured
 against a live instance: the 2.2 MiB snapshot stored as **253 KiB** on the first
 run, and a second run minutes later added **1016 bytes**. Daily snapshots of a
-database that changes slowly cost almost nothing.
+database that changes slowly cost almost nothing — which is exactly what makes
+the verification step affordable.
 
-Two deletions in that script are deliberate, and both are about not leaving
+### Why the script verifies rather than assuming
+
+A job that only checks whether the upload returned an error is testing the wrong
+property. What you actually need to know is that a *restore* would work, and the
+only way to know that is to do one. Because the data is tiny and R2 charges
+nothing for egress, downloading the copy back and comparing it byte for byte
+costs a few seconds and nothing at all in money.
+
+The ordering is the substance of the design:
+
+- **Integrity is checked before upload**, so a corrupt snapshot is never stored
+  on top of good backups.
+- **The round trip is compared against the local snapshot**, not against the live
+  database. The live database may take writes during the run; the snapshot
+  cannot. Comparing to it makes the check exact instead of approximate.
+- **Pruning happens only after verification passes.** A run that cannot prove
+  itself must never be the reason older, good snapshots get deleted. This is the
+  failure mode that turns a backup system into a liability.
+- **Every failure path exits non-zero and raises an Unraid notification**, so the
+  job shows as failed in User Scripts rather than failing silently for months.
+
+Two deletions in the script are deliberate, and both are about not leaving
 credentials lying around:
 
-- **The local snapshot is removed when the run finishes.** It is an unencrypted
-  copy of the credentials table; there is no reason to keep one in appdata
-  between runs.
+- **The local snapshot is removed when the run finishes**, including on failure.
+  It is an unencrypted copy of the credentials table; there is no reason to keep
+  one in appdata between runs.
 - **`backup.env` is excluded from the backup.** Backing up the whole volume
   otherwise sweeps it in, which puts the restic passphrase and the R2 keys
   *inside the repository they protect*. It is encrypted there, so this is not an
@@ -263,37 +348,65 @@ schema is upgraded automatically on the next boot.
 
 ## Verify it works
 
-Do these once at setup, then revisit occasionally.
+The nightly job already restores every backup it takes and compares it byte for
+byte, and runs `restic check` afterward. The checks below are the ones it cannot
+do for itself.
 
-**Restore to a scratch directory and read the result.** A backup that has never
-been restored is a hypothesis, not a backup:
-
-```bash
-docker run --rm -v /mnt/user/appdata/rally/verify:/verify \
-  -e RESTIC_REPOSITORY -e RESTIC_PASSWORD \
-  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION \
-  restic/restic restore latest --target /verify
-
-docker run --rm -v /mnt/user/appdata/rally/verify:/verify python:3.14-slim \
-  python -c "import sqlite3; c = sqlite3.connect('/verify/src/backup/rally-snap.db'); \
-    print(c.execute('PRAGMA integrity_check').fetchone()); \
-    print(c.execute('SELECT count(*) FROM family_members').fetchone())"
-```
-
-Expect `('ok',)` and a plausible member count.
-
-**Check the repository itself** every few months:
+**Read every stored byte**, every few months. Plain `restic check` validates the
+repository's structure and indexes; `--read-data` re-downloads and re-verifies
+the actual contents:
 
 ```bash
 docker run --rm \
   -e RESTIC_REPOSITORY -e RESTIC_PASSWORD \
   -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION \
-  restic/restic check
+  restic/restic check --read-data
 ```
 
-**Confirm the schedule is actually firing.** User Scripts keeps per-script logs;
-after the first day, check that a snapshot was written and that
-`restic snapshots` lists it.
+**Prove the restored database actually runs Rally**, once at setup and after any
+major upgrade. Byte-identical is not the same as bootable — this is the check
+that catches a schema the current image can no longer migrate. Run a *second*
+container against a copy, so production is never involved:
+
+```bash
+TESTDIR=/mnt/user/appdata/rally-restoretest
+mkdir -p "$TESTDIR/r"
+
+docker run --rm -e RESTIC_REPOSITORY -e RESTIC_PASSWORD \
+  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION \
+  -v "$TESTDIR/r:/restore" restic/restic restore latest --target /restore
+
+cp "$TESTDIR/r/src/backup/rally-snap.db" "$TESTDIR/rally.db"
+rm -rf "$TESTDIR/r"
+
+# Clear the Pushover token in the COPY so a test instance cannot send
+# notifications to the family. Never do this to the live database.
+sqlite3 "$TESTDIR/rally.db" "DELETE FROM settings WHERE key='pushover_app_token';"
+
+docker run -d --name rally-restoretest -p 8181:8000 \
+  -v "$TESTDIR:/data" -v rally-restoretest-output:/output \
+  "$(docker inspect rally --format '{{.Config.Image}}')"
+
+sleep 15
+docker logs rally-restoretest 2>&1 | grep -iE "migration|Database ready|✗|error"
+curl -s -o /dev/null -w "dashboard: %{http_code}\n" -L http://127.0.0.1:8181/dashboard
+
+docker rm -f rally-restoretest && docker volume rm rally-restoretest-output
+rm -rf "$TESTDIR"
+```
+
+Expect every migration to report idempotent success, `Database ready`, and
+`dashboard: 200`.
+
+**Confirm the schedule is actually firing.** User Scripts keeps a per-script log
+at `/tmp/user.scripts/tmpScripts/Rally Backup/log.txt`. After the first day it
+should end with `Rally backup verified and complete`, and `restic snapshots`
+should list a new entry. To test the scheduled path immediately without waiting
+for the timer, run the plugin's own hook:
+
+```bash
+/etc/cron.daily/user.script.start.daily.sh
+```
 
 ## Troubleshooting
 
