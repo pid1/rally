@@ -425,18 +425,23 @@ def _create(client, **overrides) -> dict:
 
 
 def test_creating_an_event_announces_it_to_each_attendee_by_name(
-    client, token, make_member, mock_pushover
+    client, token, reachable, make_member, mock_pushover
 ):
-    """Two attendees, two messages, each addressed to its own reader."""
-    sarah = make_member("Sarah", pushover_user_key="sarah-key")
-    dana = make_member("Dana", pushover_user_key="dana-key")
+    """Every recipient gets their own copy, addressed to them.
 
-    _create(client, attendee_ids=[sarah.id, dana.id])
+    Three of them, deliberately: the body is built per recipient rather than
+    broadcast, so nothing here is special to a particular pair of people.
+    """
+    maya = make_member("Maya", pushover_user_key="maya-key")
+    alex = make_member("Alex", pushover_user_key="alex-key")
+
+    _create(client, attendee_ids=[reachable.id, maya.id, alex.id])
 
     bodies = {message["user"]: message["message"] for message in mock_pushover.sent}
-    assert set(bodies) == {"sarah-key", "dana-key"}
-    assert bodies["sarah-key"].startswith("Sarah, Dentist is on the calendar.")
-    assert bodies["dana-key"].startswith("Dana, Dentist is on the calendar.")
+    assert set(bodies) == {"emma-key", "maya-key", "alex-key"}
+    assert bodies["emma-key"].startswith("Emma, Dentist is on the calendar.")
+    assert bodies["maya-key"].startswith("Maya, Dentist is on the calendar.")
+    assert bodies["alex-key"].startswith("Alex, Dentist is on the calendar.")
     assert mock_pushover.sent[0]["title"] == "New event: Dentist"
 
 
