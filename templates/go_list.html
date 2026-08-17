@@ -26,8 +26,10 @@
             <div class="nav-dropdown-content">
                 <a href="/dinner-planner">Meal Planner</a>
                 <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-                <a href="/go-list" class="active">Go List</a>
+                <!-- The go list is a view of the inventory reached from it, so
+                     the nav marks where you came from rather than going blank
+                     for want of an entry of its own. -->
+                <a href="/preparedness" class="active">Preparedness</a>
             </div>
         </div>
     </nav>

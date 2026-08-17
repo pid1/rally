@@ -717,15 +717,26 @@ input[type="radio"] {
     margin-top: var(--space-1);
 }
 
-.checkbox-label,
-.weekday-label,
+/* A label that *wraps* a control is a row, not a field caption, so it lays out
+   as a flex row rather than as the block `.form-group label` makes every other
+   label. The `label` qualifier is what carries the specificity to say so
+   inside a form group: as bare classes these rules lost to `.form-group label`
+   and the checkboxes fell back to sitting on the text baseline, a few pixels
+   above the middle of their own box. */
+label.checkbox-label,
+label.weekday-label,
 .radio-options label {
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
     min-height: var(--target-min);
+    /* The caption styling `.form-group label` adds is wrong for a row: it made
+       the same component render at 500 weight inside a form and 400 in the
+       styleguide, and gave every wrapped chip a stray 4px below it. */
+    margin-bottom: 0;
     font-family: var(--font-body);
     font-size: var(--text-sm);
+    font-weight: 400;
     color: var(--ink);
     cursor: pointer;
     user-select: none;
