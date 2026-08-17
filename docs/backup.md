@@ -44,6 +44,11 @@ Everything in the `/data` volume:
 - `config.toml` — API keys, coordinates, timezone
 - `context.txt`, `agent_voice.txt` — family context and AI voice profile
 
+Only the database is guaranteed to be there. An instance configured entirely
+through the Settings UI keeps all of that in the `settings` table and has no
+`config.toml` at all, which is why the script backs up the whole volume by
+exclusion rather than naming files — whatever exists gets captured.
+
 The `/output` volume is **not** backed up. It holds generated dashboard HTML,
 which is rebuilt from the database on the next generation run.
 
@@ -66,9 +71,14 @@ worth knowing:
 - **The target must not already exist.** `VACUUM INTO` fails with
   `output file already exists` rather than overwriting, so the script deletes
   the previous snapshot first.
-- **No host tooling is required.** Unraid does not ship the `sqlite3` binary,
-  but Rally's container has Python, and `sqlite3` is in the standard library. The
-  script runs the snapshot inside the container via `docker exec`.
+- **It runs in the container, not on the host.** Unraid 7.x does ship
+  `/usr/bin/sqlite3`, so this is not strictly necessary there — but running the
+  snapshot through Rally's own container via `docker exec` uses the same SQLite
+  build that wrote the database, and keeps the job working on hosts where the
+  binary is absent or older than `VACUUM INTO` (SQLite 3.27, 2019).
+
+Measured on a live 3.1 MB production database: 0.127 s to produce a 2.3 MB
+compacted snapshot, with the app still serving.
 
 ## Storage: Cloudflare R2
 
@@ -153,7 +163,11 @@ Unraid runs from RAM and rebuilds itself from the flash drive at boot, so a
 `crontab -e` edit disappears silently at the next reboot. User Scripts persist,
 and the schedule is managed in the Unraid UI alongside everything else.
 
-Add a script named `rally-backup`, set its schedule to **Daily**, and paste:
+Add a script named `Rally Backup`, paste the body below, then set its schedule to
+**Scheduled Daily** in the User Scripts page and click **Apply**. The plugin
+stores that choice in `/boot/config/plugins/user.scripts/schedule.json` and the
+daily run is driven by `/etc/cron.daily/user.script.start.daily.sh`, which the
+plugin installs — so nothing needs adding to `crontab` or `/etc/cron.d/root`.
 
 ```bash
 #!/bin/bash
@@ -183,11 +197,17 @@ rm -f "$SNAPSHOT"   # VACUUM INTO refuses to overwrite an existing target
 docker exec "$CONTAINER" python -c \
     "import sqlite3; c = sqlite3.connect('/data/rally.db'); c.execute(\"VACUUM INTO '/data/backup/rally-snap.db'\"); c.close()"
 
-# Back up the whole volume, minus the live database — the snapshot stands in for
-# it. Anything new that lands in /data is picked up without editing this script.
+# Back up the whole volume, minus: the live database (the snapshot stands in for
+# it), any ad-hoc manual copies in backups/ (restic's own versioning supersedes
+# them), and backup.env — the credentials that protect this repository must not
+# live inside it. Anything else new landing in /data is picked up without
+# editing this script.
 restic_run -v "$APPDATA:/src:ro" restic/restic backup \
     --tag rally --host unraid \
-    --exclude /src/rally.db --exclude '/src/rally.db-journal' \
+    --exclude /src/rally.db \
+    --exclude '/src/rally.db-journal' \
+    --exclude /src/backups \
+    --exclude /src/backup.env \
     /src
 
 restic_run restic/restic forget --tag rally \
@@ -196,11 +216,23 @@ restic_run restic/restic forget --tag rally \
 rm -f "$SNAPSHOT"
 ```
 
-That retention keeps a year of history for a few megabytes.
+That retention really does keep a year of history for a few megabytes. Measured
+against a live instance: the 2.2 MiB snapshot stored as **253 KiB** on the first
+run, and a second run minutes later added **1016 bytes**. Daily snapshots of a
+database that changes slowly cost almost nothing.
 
-The script deletes the local snapshot when it finishes, on purpose. It is an
-unencrypted copy of the credentials table, and there is no reason to leave one
-sitting in appdata between runs.
+Two deletions in that script are deliberate, and both are about not leaving
+credentials lying around:
+
+- **The local snapshot is removed when the run finishes.** It is an unencrypted
+  copy of the credentials table; there is no reason to keep one in appdata
+  between runs.
+- **`backup.env` is excluded from the backup.** Backing up the whole volume
+  otherwise sweeps it in, which puts the restic passphrase and the R2 keys
+  *inside the repository they protect*. It is encrypted there, so this is not an
+  immediate exposure — but anyone who obtained the passphrase would also get keys
+  that can delete the backups, and an R2 token is trivially re-created, so there
+  is no recovery value to offset the risk.
 
 ## Restoring
 
@@ -218,8 +250,10 @@ docker run --rm -v /mnt/user/appdata/rally/restore:/restore \
 
 cp /mnt/user/appdata/rally/restore/src/backup/rally-snap.db \
    /mnt/user/appdata/rally/rally.db
-cp /mnt/user/appdata/rally/restore/src/config.toml \
-   /mnt/user/appdata/rally/config.toml
+
+# Only if the instance uses one — a Settings-UI-configured install has no config.toml.
+[ -f /mnt/user/appdata/rally/restore/src/config.toml ] && \
+  cp /mnt/user/appdata/rally/restore/src/config.toml /mnt/user/appdata/rally/config.toml
 
 docker start rally
 ```
@@ -260,6 +294,25 @@ docker run --rm \
 **Confirm the schedule is actually firing.** User Scripts keeps per-script logs;
 after the first day, check that a snapshot was written and that
 `restic snapshots` lists it.
+
+## Troubleshooting
+
+**TLS handshake failures from host tools, but not from containers.** If a
+host-installed S3 client (`rclone`, for instance) fails against the R2 endpoint
+with `remote error: tls: handshake failure` while `curl` to the same URL
+succeeds, suspect broken IPv6 egress rather than TLS. R2 endpoints resolve to
+both A and AAAA records; a tool that prefers IPv6 on a host with no working IPv6
+route fails in ways that read like a certificate problem. Confirm with:
+
+```bash
+curl -4 -sS -o /dev/null -w "v4: %{http_code}\n" https://<account-id>.r2.cloudflarestorage.com
+curl -6 -sS -o /dev/null -w "v6: %{http_code}\n" https://<account-id>.r2.cloudflarestorage.com
+```
+
+A `400` is the expected healthy answer to an unauthenticated request. This does
+not affect the backup job — Docker's default bridge network is IPv4-only, so
+restic in a container is unaffected — but it will bite anyone debugging the
+endpoint with host tools first.
 
 ## Alternatives considered
 
