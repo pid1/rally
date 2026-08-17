@@ -197,6 +197,13 @@ docker run -d \
   rally
 ```
 
+### Backups
+
+The `/data` volume holds the database, which stores API keys and CalDAV
+app-specific passwords in plaintext. See **[docs/backup.md](docs/backup.md)** for
+a scheduled, client-side-encrypted offsite backup — worked through for Unraid
+and Cloudflare R2, and adaptable to any host.
+
 ## Database Migrations
 
 Rally uses a **file-based migration system** that runs automatically on container startup. All migrations are **idempotent** (safe to run multiple times).
@@ -285,6 +292,9 @@ rally/
 │   ├── shopping.html       # Shopping list page
 │   ├── dinner_planner.html # Dinner planner page
 │   └── settings.html       # Settings and family/calendar management page
+├── docs/                   # Project documentation
+│   ├── backup.md           # Offsite backup setup (Unraid + Cloudflare R2)
+│   └── visual-design-system.md # Design system audit, tokens, and enforcement
 ├── data/                   # Configuration and data (not in git)
 │   ├── config.toml         # API keys, calendar URLs, coordinates (optional if using Settings UI)
 │   ├── context.txt         # Family context for AI
