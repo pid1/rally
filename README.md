@@ -12,11 +12,11 @@ It runs on your own hardware. Your family's schedule stays in the house, apart f
 
 A ten-minute walk through the whole app, recorded against a seeded demo instance.
 
-<video src="https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4" controls muted playsinline>
-  <a href="https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4">Watch the Rally demo</a>
+<video src="https://github.com/user-attachments/assets/5c63ade2-e276-4239-afb2-73626440a270" controls muted playsinline>
+  <a href="https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4"><img src="docs/screenshots/demo-poster.png" alt="Watch the Rally walkthrough"></a>
 </video>
 
-If the player does not load, [download the recording](https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4). You can run the same demo instance yourself in about a minute: see [docs/development.md](docs/development.md#the-demo-instance).
+You can run the same demo instance yourself in about a minute: see [docs/development.md](docs/development.md#the-demo-instance).
 
 ## What Rally does
 
