@@ -80,6 +80,24 @@ in
 
     dev-logs.exec = "tail -50 .devenv/logs/dev.log 2>/dev/null || echo 'No dev logs found'";
 
+    # A throwaway, freshly seeded copy of Rally for demos and screenshots.
+    # It lives in its own database on its own port, so recording a walkthrough
+    # never touches `rally.db` and never has to be undone afterwards.
+    # The walkthrough itself is docs/demo-walkthrough.md.
+    demo.exec = ''
+      cd ${config.env.DEVENV_ROOT}
+      export RALLY_DB_PATH="${config.env.DEVENV_ROOT}/demo.db"
+      rm -f "$RALLY_DB_PATH"
+      uv run --directory . python -c 'from rally.database import init_db; init_db()'
+      uv run --directory . python -m rally.cli
+      echo ""
+      echo "🎬 Demo instance on http://localhost:8100 — Ctrl+C to stop"
+      echo "   Database: $RALLY_DB_PATH (throwaway; rally.db is untouched)"
+      echo "   Walkthrough: docs/demo-walkthrough.md"
+      echo ""
+      uv run --directory . uvicorn rally.main:app --host 0.0.0.0 --port 8100
+    '';
+
     # Quality commands (NOTE: currently checks app/ which doesn't exist yet)
     lint.exec = "uv run ruff check .";
     lint-fix.exec = "uv run ruff check . --fix";
@@ -129,6 +147,7 @@ in
     echo ""
     echo "Interactive commands (block until killed):"
     echo "  dev              - Start Rally dev server (port 8000)"
+    echo "  demo             - Fresh seeded demo instance (port 8100, own database)"
     echo ""
     echo "Background commands (for agents/scripts):"
     echo "  dev-start        - Start FastAPI in background"
