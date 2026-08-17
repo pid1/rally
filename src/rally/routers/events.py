@@ -42,11 +42,14 @@ from rally.models import (
 )
 from rally.notifications import (
     KIND_CREATED,
+    KIND_DELETED,
     KIND_MANUAL,
     KIND_UPDATED,
     notify_event_change,
     notify_occurrence,
+    plan_change_notice,
     run_due_reminders_once_per_minute,
+    send_change_notice,
 )
 from rally.schemas import (
     UNSET,
@@ -631,11 +634,21 @@ def delete_event(
     occurrence_date: str | None = None,
     db: Session = Depends(get_db),
 ):
-    """Delete one occurrence, the tail of a series, or the whole event."""
+    """Delete one occurrence, the tail of a series, or the whole event.
+
+    Each scope announces the deletion to the attendees. The notice is *planned*
+    before the delete and *sent* after it: a delete destroys the occurrence, the
+    attendee list and sometimes the event row, so there is nothing left to build
+    a message from afterwards — and announcing it beforehand would risk naming a
+    deletion that then failed.
+    """
     event = _load_event(db, event_id)
 
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
+        notice = plan_change_notice(
+            db, event, kind=KIND_DELETED, occurrence_date=split_day.isoformat()
+        )
         override = (
             db.query(EventOverride)
             .filter(
@@ -649,17 +662,28 @@ def delete_event(
             db.add(override)
         override.cancelled = True
         db.commit()
+        send_change_notice(db, notice)
         return None
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
+        # The first occurrence being removed is the one worth naming: everything
+        # from here on is going, and that is the date people had in their heads.
+        notice = plan_change_notice(
+            db, event, kind=KIND_DELETED, occurrence_date=split_day.isoformat()
+        )
         _truncate_series(event, split_day)
         db.query(EventOverride).filter(
             EventOverride.event_id == event.id,
             EventOverride.occurrence_date >= split_day.isoformat(),
         ).delete(synchronize_session=False)
         db.commit()
+        send_change_notice(db, notice)
         return None
+
+    # ``record=False``: the notification rows for this event are about to be
+    # cascaded away, so writing another would leave an orphan behind.
+    notice = plan_change_notice(db, event, kind=KIND_DELETED, record=False)
 
     # SQLite foreign keys are not enforced, so the cascade is explicit — an
     # orphaned attendee or notification row would otherwise linger invisibly.
@@ -674,6 +698,7 @@ def delete_event(
     )
     db.delete(event)
     db.commit()
+    send_change_notice(db, notice)
     return None
 
 

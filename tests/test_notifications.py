@@ -14,6 +14,7 @@ import pytest
 from rally.models import EventNotification, Setting
 from rally.notifications import (
     KIND_CREATED,
+    KIND_DELETED,
     KIND_REMINDER,
     KIND_UPDATED,
     REMINDER_GRACE_MINUTES,
@@ -404,11 +405,16 @@ def test_old_notification_records_are_purged(db_session):
     assert db_session.query(EventNotification).count() == 1
 
 
-# --- Create and edit notices ---------------------------------------------------
+# --- Add, change and remove notices --------------------------------------------
 #
-# Saving an event is the thing the user asked for. These check both halves of
-# that: the right people learn what changed, and nothing about the push can stop
-# the save from happening.
+# Changing the calendar is the thing the user asked for. These check both halves
+# of that: the attendees learn what changed, and nothing about the push can stop
+# the change from happening.
+#
+# The message is one body sent to everybody — a title naming what happened, then
+# When / Where / Attendees. It is deliberately not personalized: the recipients
+# are the attendees, so a body addressed to nobody in particular still reaches
+# exactly the right people, and the family compares one text rather than four.
 
 
 def _create(client, **overrides) -> dict:
@@ -424,14 +430,28 @@ def _create(client, **overrides) -> dict:
     return response.json()
 
 
-def test_creating_an_event_announces_it_to_each_attendee_by_name(
+def test_an_addition_reads_as_the_whole_notice(
     client, token, reachable, make_member, mock_pushover
 ):
-    """Every recipient gets their own copy, addressed to them.
+    """The shape of the thing, asserted once, in full."""
+    rodryk = make_member("Rodryk", pushover_user_key="rodryk-key")
 
-    Three of them, deliberately: the body is built per recipient rather than
-    broadcast, so nothing here is special to a particular pair of people.
-    """
+    _create(
+        client,
+        title="Soccer practice",
+        start="2026-08-14T17:30",
+        end="2026-08-14T18:30",
+        location="Field 3",
+        attendee_ids=[reachable.id, rodryk.id],
+    )
+
+    assert mock_pushover.sent[0]["title"] == "Calendar Addition: Soccer practice"
+    assert mock_pushover.sent[0]["message"] == (
+        "When: 2026-08-14 · 5:30 PM CDT\nWhere: Field 3\nAttendees: Emma, Rodryk"
+    )
+
+
+def test_every_recipient_gets_the_same_body(client, token, reachable, make_member, mock_pushover):
     maya = make_member("Maya", pushover_user_key="maya-key")
     alex = make_member("Alex", pushover_user_key="alex-key")
 
@@ -439,19 +459,16 @@ def test_creating_an_event_announces_it_to_each_attendee_by_name(
 
     bodies = {message["user"]: message["message"] for message in mock_pushover.sent}
     assert set(bodies) == {"emma-key", "maya-key", "alex-key"}
-    assert bodies["emma-key"].startswith("Emma, Dentist is on the calendar.")
-    assert bodies["maya-key"].startswith("Maya, Dentist is on the calendar.")
-    assert bodies["alex-key"].startswith("Alex, Dentist is on the calendar.")
-    assert mock_pushover.sent[0]["title"] == "New event: Dentist"
+    assert len(set(bodies.values())) == 1
 
 
-def test_the_notice_dates_the_event_yyyymmdd_in_the_servers_local_time(
+def test_the_notice_dates_the_event_in_the_servers_local_time(
     client, token, reachable, mock_pushover
 ):
     """9:00 AM Chicago is 14:00 UTC — the notice must say the local reading."""
     _create(client, attendee_ids=[reachable.id])
 
-    assert "When: 20260814 · 9:00 AM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-14 · 9:00 AM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_an_all_day_notice_carries_the_date_without_inventing_a_time(
@@ -466,7 +483,7 @@ def test_an_all_day_notice_carries_the_date_without_inventing_a_time(
         attendee_ids=[reachable.id],
     )
 
-    assert "When: 20260814 · All day" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-14 · All day" in mock_pushover.sent[0]["message"]
 
 
 def test_a_multi_day_notice_names_both_ends(client, token, reachable, mock_pushover):
@@ -479,12 +496,22 @@ def test_a_multi_day_notice_names_both_ends(client, token, reachable, mock_pusho
         attendee_ids=[reachable.id],
     )
 
-    assert "When: 20260814–20260816 · All day" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-14 – 2026-08-16 · All day" in mock_pushover.sent[0]["message"]
 
 
-def test_the_notice_includes_the_location_when_known(client, token, reachable, mock_pushover):
-    _create(client, location="Dr. Kim", attendee_ids=[reachable.id])
-    assert "Where: Dr. Kim" in mock_pushover.sent[0]["message"]
+def test_a_notice_without_a_location_simply_omits_the_line(client, token, reachable, mock_pushover):
+    _create(client, attendee_ids=[reachable.id])
+    assert "Where:" not in mock_pushover.sent[0]["message"]
+
+
+def test_the_attendee_line_names_everybody_including_the_unreachable(
+    client, token, reachable, unreachable, mock_pushover
+):
+    """A member with no Pushover key is still going to the dentist."""
+    _create(client, attendee_ids=[reachable.id, unreachable.id])
+
+    assert [message["user"] for message in mock_pushover.sent] == ["emma-key"]
+    assert "Attendees: Emma, Jon" in mock_pushover.sent[0]["message"]
 
 
 def test_a_recurring_notice_describes_the_next_occurrence(client, token, reachable, mock_pushover):
@@ -498,9 +525,7 @@ def test_a_recurring_notice_describes_the_next_occurrence(client, token, reachab
         attendee_ids=[reachable.id],
     )
 
-    body = mock_pushover.sent[0]["message"]
-    assert "When: 20260811 · 7:00 PM CDT" in body
-    assert "Repeats" in body
+    assert "When: 2026-08-11 · 7:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_an_event_with_no_attendees_announces_nothing(client, token, reachable, mock_pushover):
@@ -508,28 +533,17 @@ def test_an_event_with_no_attendees_announces_nothing(client, token, reachable, 
     assert mock_pushover.sent == []
 
 
-def test_a_member_without_a_key_is_not_announced_to(
-    client, token, reachable, unreachable, mock_pushover
-):
-    _create(client, attendee_ids=[reachable.id, unreachable.id])
-    assert [message["user"] for message in mock_pushover.sent] == ["emma-key"]
-
-
-def test_editing_an_event_says_so_rather_than_repeating_the_creation_wording(
-    client, token, reachable, make_event, mock_pushover
-):
+def test_a_modification_says_so(client, token, reachable, make_event, mock_pushover):
     event = make_event("Dentist", start="2026-08-14T09:00", attendees=[reachable])
 
     response = client.put(f"/api/events/{event.id}", json={"start": "2026-08-14T10:30"})
 
     assert response.status_code == 200
-    body = mock_pushover.sent[0]["message"]
-    assert body.startswith("Emma, Dentist has been updated.")
-    assert "When: 20260814 · 10:30 AM CDT" in body
-    assert mock_pushover.sent[0]["title"] == "Updated event: Dentist"
+    assert mock_pushover.sent[0]["title"] == "Calendar Modification: Dentist"
+    assert "When: 2026-08-14 · 10:30 AM CDT" in mock_pushover.sent[0]["message"]
 
 
-def test_editing_one_occurrence_names_that_occurrence_not_the_next_one(
+def test_modifying_one_occurrence_names_that_occurrence_not_the_next_one(
     client, token, reachable, make_event, mock_pushover
 ):
     """A change to next Tuesday must not be announced as this Tuesday."""
@@ -547,10 +561,10 @@ def test_editing_one_occurrence_names_that_occurrence_not_the_next_one(
     )
 
     assert response.status_code == 200
-    assert "When: 20260818 · 5:30 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: 2026-08-18 · 5:30 PM CDT" in mock_pushover.sent[0]["message"]
 
 
-def test_editing_the_rest_of_a_series_announces_the_edited_tail(
+def test_modifying_the_rest_of_a_series_announces_the_edited_tail(
     client, token, reachable, make_event, mock_pushover
 ):
     event = make_event(
@@ -567,11 +581,96 @@ def test_editing_the_rest_of_a_series_announces_the_edited_tail(
     )
 
     assert response.status_code == 200
-    assert mock_pushover.sent[0]["title"] == "Updated event: Scouts (new time)"
-    assert "When: 20260818 · 5:30 PM CDT" in mock_pushover.sent[0]["message"]
+    assert mock_pushover.sent[0]["title"] == "Calendar Modification: Scouts (new time)"
+    assert "When: 2026-08-18 · 5:30 PM CDT" in mock_pushover.sent[0]["message"]
 
 
-def test_the_event_still_saves_when_pushover_is_down(
+def test_deleting_an_event_announces_the_deletion(
+    client, token, reachable, make_event, mock_pushover
+):
+    """The notice is built before the delete and sent after it."""
+    event = make_event(
+        "Dentist", start="2026-08-14T09:00", location="Dr. Kim", attendees=[reachable]
+    )
+
+    assert client.delete(f"/api/events/{event.id}").status_code == 204
+
+    assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Dentist"
+    assert mock_pushover.sent[0]["message"] == (
+        "When: 2026-08-14 · 9:00 AM CDT\nWhere: Dr. Kim\nAttendees: Emma"
+    )
+
+
+def test_deleting_an_event_leaves_no_orphaned_notification_row(
+    client, db_session, token, reachable, make_event, mock_pushover
+):
+    """The cascade removes this event's rows; the notice must not re-add one."""
+    event = make_event("Dentist", start="2026-08-14T09:00", attendees=[reachable])
+
+    client.delete(f"/api/events/{event.id}")
+
+    assert len(mock_pushover.sent) == 1
+    assert db_session.query(EventNotification).count() == 0
+
+
+def test_deleting_one_occurrence_names_that_occurrence(
+    client, token, reachable, make_event, mock_pushover
+):
+    """Cancelling next Tuesday must not be announced as this Tuesday."""
+    event = make_event(
+        "Scouts",
+        start="2026-08-04T19:00",
+        rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=10",
+        attendees=[reachable],
+    )
+
+    response = client.delete(
+        f"/api/events/{event.id}", params={"scope": "this", "occurrence_date": "2026-08-18"}
+    )
+
+    assert response.status_code == 204
+    assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Scouts"
+    assert "When: 2026-08-18 · 7:00 PM CDT" in mock_pushover.sent[0]["message"]
+
+
+def test_deleting_the_rest_of_a_series_names_the_first_occurrence_removed(
+    client, token, reachable, make_event, mock_pushover
+):
+    event = make_event(
+        "Scouts",
+        start="2026-08-04T19:00",
+        rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=10",
+        attendees=[reachable],
+    )
+
+    response = client.delete(
+        f"/api/events/{event.id}", params={"scope": "following", "occurrence_date": "2026-08-18"}
+    )
+
+    assert response.status_code == 204
+    assert "When: 2026-08-18 · 7:00 PM CDT" in mock_pushover.sent[0]["message"]
+
+
+def test_a_deletion_notice_records_against_a_surviving_series(
+    client, db_session, token, reachable, make_event, mock_pushover
+):
+    """Cancelling one occurrence leaves the event, so the row has a home."""
+    event = make_event(
+        "Scouts",
+        start="2026-08-04T19:00",
+        rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=10",
+        attendees=[reachable],
+    )
+
+    client.delete(
+        f"/api/events/{event.id}", params={"scope": "this", "occurrence_date": "2026-08-18"}
+    )
+
+    row = db_session.query(EventNotification).one()
+    assert (row.kind, row.status, row.occurrence_date) == (KIND_DELETED, "sent", "2026-08-18")
+
+
+def test_the_change_still_happens_when_pushover_is_down(
     client, db_session, token, reachable, mock_pushover
 ):
     """The calendar is the product; the push is a courtesy."""
@@ -584,6 +683,16 @@ def test_the_event_still_saves_when_pushover_is_down(
     assert row.status == "failed"
 
 
+def test_a_deletion_still_happens_when_pushover_is_down(
+    client, token, reachable, make_event, mock_pushover
+):
+    event = make_event("Dentist", start="2026-08-14T09:00", attendees=[reachable])
+    mock_pushover.fail_with("service unavailable")
+
+    assert client.delete(f"/api/events/{event.id}").status_code == 204
+    assert client.get(f"/api/events/{event.id}").status_code == 404
+
+
 def test_a_notice_records_who_it_reached(client, db_session, token, reachable, mock_pushover):
     created = _create(client, attendee_ids=[reachable.id])
 
@@ -592,10 +701,10 @@ def test_a_notice_records_who_it_reached(client, db_session, token, reachable, m
     assert row.occurrence_date == "2026-08-14"
 
 
-def test_creation_notices_do_not_consume_the_reminder_slot(
+def test_change_notices_do_not_consume_the_reminder_slot(
     client, db_session, token, reachable, mock_pushover
 ):
-    """Both rows key on the same occurrence; only ``kind`` separates them."""
+    """Every row keys on the same occurrence; only ``kind`` separates them."""
     created = _create(
         client, start="2026-08-11T13:00", end="2026-08-11T14:00", attendee_ids=[reachable.id]
     )
