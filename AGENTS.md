@@ -540,7 +540,7 @@ rally/
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
-│   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan
+│   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan, create/edit notices
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalising
@@ -642,7 +642,10 @@ rally/
 - ✅ **Pushover reminders to an event's attendees** (Settings → Notifications)
   - `pushover_app_token` identifies the install; `family_members.pushover_user_key` identifies a person. A member without a key is never notified, which is the default rather than an error
   - Recipients are the event's **attendees**, never "everyone" — notifying four phones for one child's appointment is how a notification feature gets muted
-  - Two paths: a reminder lead time (`events.notify_minutes_before`) and an explicit `Notify attendees`. Both go through one `send_pushover` and one recipient resolver
+  - Three paths: a reminder lead time (`events.notify_minutes_before`), an explicit `Notify attendees`, and an automatic notice when an event is **created or edited**. All go through one `send_pushover` and one recipient resolver
+  - Change notices are **personalized per recipient** — each attendee's message opens with their own name, built by `personalize` on `notify_occurrence` rather than one body sent to everybody. They date the occurrence as `YYYYMMDD` and give the time in the install's configured local zone, named (`20260814 · 9:00 AM CDT`), because an unpunctuated stamp plus a bare clock reading is ambiguous twice over
+  - Which occurrence a change notice describes follows the edit's scope: `scope=this` names that occurrence, everything else names the next one that has not finished yet, falling back to the most recent for a series entirely in the past
+  - `notify_event_change` cannot raise and runs **after** the commit: saving the event is what the user asked for, and a Pushover outage must not fail the write
   - Lead time is subtracted from the **resolved occurrence**, not the series start; anything else is an hour wrong for half the year
   - `event_notifications` mirrors `sports_event_notices`: its unique index on `(event_id, occurrence_date, family_member_id, kind)` *is* the send-once guarantee. A **failed** send is recorded but does not consume the slot, so a brief outage cannot permanently eat a reminder
   - A window missed by more than `REMINDER_GRACE_MINUTES` (15) is **dropped, not replayed** — a push at 4:05 for a 2:30 reminder misinforms rather than reminds
@@ -838,6 +841,7 @@ visual suite (above) before shipping a layout change.
   - `GET /api/events/{id}/occurrences?start=&end=` - Occurrences of one series, so the UI can show what a change affects
   - `PUT /api/events/{id}?scope=this|following|all&occurrence_date=` - `this` writes an `event_overrides` row keyed on the **original** occurrence date; `following` truncates the series with `UNTIL` and creates a new event carrying the tail (moving the overrides at or after the split with it); `all` updates the row and **keeps existing overrides** — a moved occurrence stays moved. `occurrence_date` is required for the first two
   - `DELETE /api/events/{id}?scope=…&occurrence_date=` - Cancel one occurrence, truncate the tail, or delete the event and cascade its attendees, overrides and notifications (SQLite does not enforce the references)
+  - Creating an event (`POST`) or editing one (`PUT`, any scope) pushes a personalized notice to its attendees. The response is unaffected: the notice is best-effort and never fails the write
   - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, failed}` **by name**: "it worked" and "both phones buzzed" are different claims, and an attendee with no Pushover key is reported as skipped rather than silently dropped
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)

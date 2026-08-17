@@ -2,7 +2,9 @@
 
 Rally's only scheduled job is the 4:00 AM generator, which is exactly the wrong
 instrument for "the dentist is in thirty minutes". This module is the other
-one.
+one. Three things reach a phone through it: a reminder before an occurrence, an
+explicit "notify attendees", and a notice that an event was just created or
+edited.
 
 Two things it deliberately does not do:
 
@@ -16,7 +18,8 @@ Two things it deliberately does not do:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -49,6 +52,18 @@ MAX_LEAD_MINUTES = 60 * 24 * 7
 
 KIND_REMINDER = "reminder"
 KIND_MANUAL = "manual"
+KIND_CREATED = "created"
+KIND_UPDATED = "updated"
+
+# How far a change notice will look for the occurrence to describe. Forward
+# first — a new event is nearly always in the future — and only then backwards,
+# so correcting the title of last Tuesday's appointment still says which one.
+CHANGE_WINDOW_DAYS = 366
+
+# Slack either side of a named occurrence date when hunting for it. An edit can
+# move an occurrence off its own date, and the moved instance is the one worth
+# describing.
+CHANGE_DATE_SLACK_DAYS = 7
 
 NOTIFICATION_RETENTION_DAYS = 30
 _LAST_CHECK_KEY = "reminder_last_check_at"
@@ -135,6 +150,58 @@ def format_message(event: Event, occurrence, tz: ZoneInfo) -> str:
     return " · ".join(parts)
 
 
+def stamp_date(day: str) -> str:
+    """A local ``YYYY-MM-DD`` date as the compact ``YYYYMMDD`` stamp."""
+    return date.fromisoformat(day).strftime("%Y%m%d")
+
+
+def when_label(occurrence, tz: ZoneInfo) -> str:
+    """When an occurrence happens: ``YYYYMMDD`` plus the time on this server.
+
+    The date is read from the occurrence's own local date rather than
+    re-derived from the instant, which is what keeps an all-day event off the
+    day before. The time is rendered in the install's configured local zone —
+    the same clock the calendar screens use — and names that zone, because a
+    bare "6:00 PM" in a message that also carries an unpunctuated date stamp is
+    exactly the kind of ambiguity this format is meant to remove.
+    """
+    stamp = stamp_date(occurrence.start_local_date)
+
+    if occurrence.spans_days():
+        stamp = f"{stamp}–{stamp_date(occurrence.end_local_date)}"
+    if occurrence.all_day:
+        return f"{stamp} · All day"
+
+    local = occurrence.start.astimezone(tz)
+    clock = local.strftime("%I:%M %p").lstrip("0")
+    zone = local.strftime("%Z") or getattr(tz, "key", "")
+    return f"{stamp} · {clock} {zone}".strip()
+
+
+def change_title(event: Event, kind: str) -> str:
+    """The push title for a change notice, which leads with what happened."""
+    prefix = "New event" if kind == KIND_CREATED else "Updated event"
+    return f"{prefix}: {event.title}"
+
+
+def format_change_message(
+    event: Event, occurrence, tz: ZoneInfo, *, kind: str, member_name: str
+) -> str:
+    """One recipient's copy of "this event changed".
+
+    Addressed by name on purpose. These go to the people an event actually
+    concerns, and a message that opens with the reader's own name is one they
+    can act on without first working out whether it is theirs.
+    """
+    opener = "is on the calendar" if kind == KIND_CREATED else "has been updated"
+    lines = [f"{member_name}, {event.title} {opener}.", f"When: {when_label(occurrence, tz)}"]
+    if event.location:
+        lines.append(f"Where: {event.location}")
+    if occurrence.recurring:
+        lines.append("Repeats — this is the next one.")
+    return "\n".join(lines)
+
+
 def _record(
     db: Session,
     *,
@@ -186,11 +253,16 @@ def notify_occurrence(
     kind: str,
     tz: ZoneInfo,
     message: str | None = None,
+    personalize: Callable[[FamilyMember], str] | None = None,
+    title: str | None = None,
 ) -> dict:
     """Push one occurrence to its attendees, recording each outcome.
 
     Returns ``{"sent": [...], "skipped": [...], "failed": [...]}`` with names,
     never raising.
+
+    ``personalize`` builds the body per recipient, for messages that address
+    somebody by name; without it every attendee gets the same text.
     """
     result: dict[str, list] = {"sent": [], "skipped": [], "failed": []}
 
@@ -217,8 +289,8 @@ def notify_occurrence(
             send_pushover(
                 token,
                 member.pushover_user_key.strip(),
-                body,
-                title=event.title,
+                personalize(member) if personalize else body,
+                title=title or event.title,
                 device=(member.pushover_device or "").strip() or None,
             )
         except PushoverError as exc:
@@ -246,6 +318,107 @@ def notify_occurrence(
 
     db.commit()
     return result
+
+
+def _expand(db: Session, event: Event, window_start: datetime, window_end: datetime, tz: ZoneInfo):
+    overrides = db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
+    return expand_event(
+        event,
+        overrides=overrides,
+        window_start=window_start,
+        window_end=window_end,
+        local_tz=tz,
+    )
+
+
+def change_occurrence(
+    db: Session,
+    event: Event,
+    *,
+    tz: ZoneInfo,
+    occurrence_date: str | None = None,
+    now: datetime | None = None,
+):
+    """The occurrence a change notice should describe, or ``None``.
+
+    An edit scoped to one occurrence is about *that* one, so a named date wins.
+    Otherwise the next occurrence that has not finished yet is the one people
+    need to know about — "the dentist moved" means the next dentist. A series
+    whose occurrences are all in the past falls back to the most recent, which
+    is better than a notice that names no date at all.
+    """
+    now = (now or now_utc()).astimezone(UTC)
+
+    if occurrence_date:
+        try:
+            target = date.fromisoformat(occurrence_date)
+        except ValueError:
+            target = None
+        if target is not None:
+            slack = timedelta(days=CHANGE_DATE_SLACK_DAYS)
+            # A wide window and a match on identity, rather than a one-day
+            # window: an override can move an occurrence clean off its own date,
+            # and the moved instance is the one being asked about.
+            found = [
+                occurrence
+                for occurrence in _expand(
+                    db,
+                    event,
+                    datetime.combine(target, datetime.min.time(), tzinfo=UTC) - slack,
+                    datetime.combine(target, datetime.max.time(), tzinfo=UTC) + slack,
+                    tz,
+                )
+                if occurrence.occurrence_date == occurrence_date
+            ]
+            if found:
+                return found[0]
+
+    window = timedelta(days=CHANGE_WINDOW_DAYS)
+    upcoming = [o for o in _expand(db, event, now, now + window, tz) if o.end >= now]
+    if upcoming:
+        return upcoming[0]
+
+    past = _expand(db, event, now - window, now, tz)
+    return past[-1] if past else None
+
+
+def notify_event_change(
+    db: Session,
+    event: Event,
+    *,
+    kind: str,
+    occurrence_date: str | None = None,
+    now: datetime | None = None,
+) -> dict:
+    """Tell an event's attendees, each by name, that it was created or edited.
+
+    Never raises and never rolls anything back: saving the event is the thing
+    the user asked for, and a Pushover outage must not fail it. The same
+    discipline as every other send in this module, with more at stake — this
+    one runs inside a write request rather than a background pass.
+    """
+    try:
+        tz = ZoneInfo(local_timezone_name(db))
+        occurrence = change_occurrence(db, event, tz=tz, occurrence_date=occurrence_date, now=now)
+        if occurrence is None:
+            # A series edited into having no occurrences at all. There is
+            # nothing truthful to say about when it happens, so say nothing.
+            return {"sent": [], "skipped": [], "failed": []}
+
+        return notify_occurrence(
+            db,
+            event,
+            occurrence,
+            kind=kind,
+            tz=tz,
+            title=change_title(event, kind),
+            personalize=lambda member: format_change_message(
+                event, occurrence, tz, kind=kind, member_name=member.name
+            ),
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"Event {kind} notification failed: {exc}")
+        return {"sent": [], "skipped": [], "failed": [], "error": str(exc)}
 
 
 def _already_sent(db: Session, event_id: int, occurrence_date: str, member_ids: list[int]) -> bool:

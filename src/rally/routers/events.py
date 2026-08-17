@@ -41,7 +41,10 @@ from rally.models import (
     FamilyMember,
 )
 from rally.notifications import (
+    KIND_CREATED,
     KIND_MANUAL,
+    KIND_UPDATED,
+    notify_event_change,
     notify_occurrence,
     run_due_reminders_once_per_minute,
 )
@@ -367,6 +370,10 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
     _set_attendees(db, event.id, payload.attendee_ids)
     db.commit()
     db.refresh(event)
+
+    # After the commit, never before: the event exists whether or not a phone
+    # buzzes, and ``notify_event_change`` cannot raise.
+    notify_event_change(db, event, kind=KIND_CREATED)
     return _event_response(db, event)
 
 
@@ -442,21 +449,34 @@ def update_event(
     or after the split with it. Splitting on a *date* rather than an occurrence
     index matters — an index shifts the moment an earlier occurrence is
     cancelled.
+
+    Every scope announces itself to the attendees afterwards. Which occurrence
+    the notice names differs by scope, and that is the point: a change to one
+    Tuesday says that Tuesday, while a change to the series says the next one
+    people will actually turn up to.
     """
     event = _load_event(db, event_id)
     tz_name = payload.tzid or event.tzid or local_timezone_name(db)
 
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        return _update_single_occurrence(db, event, payload, split_day, tz_name)
+        response = _update_single_occurrence(db, event, payload, split_day, tz_name)
+        notify_event_change(db, event, kind=KIND_UPDATED, occurrence_date=split_day.isoformat())
+        return response
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        return _split_series(db, event, payload, split_day, tz_name)
+        response = _split_series(db, event, payload, split_day, tz_name)
+        # The edit now lives on the tail series, so that is what gets described.
+        tail = db.query(Event).filter(Event.id == response.id).first()
+        if tail is not None:
+            notify_event_change(db, tail, kind=KIND_UPDATED)
+        return response
 
     _apply_event_fields(db, event, payload, tz_name)
     db.commit()
     db.refresh(event)
+    notify_event_change(db, event, kind=KIND_UPDATED)
     return _event_response(db, event)
 
 

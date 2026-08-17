@@ -14,6 +14,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - 🔔 **Push Reminders** - Notify the people an event actually concerns
   - A per-family-member Pushover profile; a member without one is simply never notified
   - Set a reminder lead time on any event, or send one now with **Notify attendees**
+  - Creating or editing an event tells its attendees automatically, each by name, dated `20260814 · 9:00 AM CDT` — a `YYYYMMDD` stamp plus the time in your configured local zone
   - Reports per recipient, so "sent to Emma; Jon has no Pushover key" is visible rather than silent
 - 🔗 **Unified Calendar** - Pulls from Google Calendar and iCloud, merges with Rally's own events, filters to the next 7 days, deduplicates automatically
 - 🌤️ **Smart Weather Guidance** - Clothing recommendations and activity adjustments
@@ -75,7 +76,7 @@ Rally helps families come together around a shared daily plan. It synthesizes ca
 - **Uvicorn** - High-performance ASGI server
 - **Anthropic / OpenAI** - Configurable LLM provider for summary generation (Anthropic Claude or any OpenAI-compatible API)
 - **caldav** - CalDAV protocol support for Google and Apple calendar access
-- **Pushover** - Per-family-member push notifications for event reminders and the daily preparedness refresh digest
+- **Pushover** - Per-family-member push notifications for event reminders, calendar changes, and the daily preparedness refresh digest
 - **icalendar + recurring-ical-events** - ICS calendar parsing with full recurring event support
 - **Python 3.14** - Latest Python with modern syntax
 - **uv** - Fast Python dependency management
