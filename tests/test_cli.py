@@ -14,27 +14,35 @@ from rally.models import (
     Event,
     EventAttendee,
     FamilyMember,
+    PrepItem,
+    PrepLocation,
+    RecurringTodo,
     Setting,
     ShoppingItem,
     ShoppingItemHistory,
     ShoppingStore,
     Todo,
 )
+from rally.preparedness import status_of
 from rally.utils.timezone import today_utc
 
 EXPECTED_COUNTS = {
     "family": 4,
-    # Three sample feeds plus one Rally-owned calendar per family member.
-    "calendars": 7,
+    # One Rally-owned calendar per family member, and no external feeds: a
+    # seeded feed URL cannot resolve, so it would only ever render an error.
+    "calendars": 4,
     "events": 5,
     "event_attendees": 11,
     "settings": 5,
     "todos": 6,
+    "recurring_todos": 3,
     "dinner": 16,  # 6 upcoming + 10 past
     "snapshots": 1,
     "stores": 2,
     "shopping_items": 7,
     "item_history": 6,
+    "prep_locations": 3,
+    "prep_items": 8,
 }
 
 
@@ -65,11 +73,14 @@ def _counts(session):
         "event_attendees": session.query(EventAttendee).count(),
         "settings": session.query(Setting).count(),
         "todos": session.query(Todo).count(),
+        "recurring_todos": session.query(RecurringTodo).count(),
         "dinner": session.query(DinnerPlan).count(),
         "snapshots": session.query(DashboardSnapshot).count(),
         "stores": session.query(ShoppingStore).count(),
         "shopping_items": session.query(ShoppingItem).count(),
         "item_history": session.query(ShoppingItemHistory).count(),
+        "prep_locations": session.query(PrepLocation).count(),
+        "prep_items": session.query(PrepItem).count(),
     }
 
 
@@ -93,6 +104,26 @@ def test_seed_creates_past_meals_for_history_filters(cli_db):
     ratings = {p.rating for p in past}
     assert None in ratings
     assert len([r for r in ratings if r is not None]) >= 3
+
+
+def test_seed_shows_every_preparedness_state(cli_db):
+    """A demo or a screenshot of one flat state teaches nothing.
+
+    The seeded stock must span overdue, inside the reminder window, and merely
+    scheduled, and include an item with no location so the "Unassigned" group
+    and the end of the go list are real.
+    """
+    cli.seed()
+    today = today_utc()
+
+    items = cli_db.query(PrepItem).all()
+    statuses = {status_of(item, today, default_lead=14) for item in items}
+    assert {"overdue", "due", "ok"} <= statuses, statuses
+
+    assert any(item.location_id is None for item in items), "expected an unassigned item"
+    assert any(item.refresh_mode == "none" for item in items), "expected unscheduled stock"
+    # Locations are walked in physical order, so the seed must set it explicitly.
+    assert sorted(loc.sort_order for loc in cli_db.query(PrepLocation)) == [1, 2, 3]
 
 
 def test_seed_is_idempotent(cli_db):

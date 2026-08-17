@@ -12,6 +12,9 @@ from rally.models import (
     Event,
     EventAttendee,
     FamilyMember,
+    PrepItem,
+    PrepLocation,
+    RecurringTodo,
     Setting,
     ShoppingItem,
     ShoppingItemHistory,
@@ -35,9 +38,12 @@ def seed():
         db.query(Setting).delete()
         db.query(DashboardSnapshot).delete()
         db.query(Todo).delete()
+        db.query(RecurringTodo).delete()
         db.query(ShoppingItem).delete()
         db.query(ShoppingItemHistory).delete()
         db.query(ShoppingStore).delete()
+        db.query(PrepItem).delete()
+        db.query(PrepLocation).delete()
         db.query(FamilyMember).delete()
         db.commit()
 
@@ -103,26 +109,12 @@ def seed():
             db.add(member)
         db.flush()  # Get IDs assigned
 
-        # Create sample calendars linked to family members
-        calendars = [
-            Calendar(
-                label="Google Family",
-                url="https://calendar.google.com/calendar/ical/example/basic.ics",
-                family_member_id=mom.id,
-            ),
-            Calendar(
-                label="iCloud Dad",
-                url="https://p01-caldav.icloud.com/published/2/example",
-                family_member_id=dad.id,
-            ),
-            Calendar(
-                label="School Calendar",
-                url="https://calendar.google.com/calendar/ical/school/basic.ics",
-                family_member_id=emma.id,
-            ),
-        ]
-        for cal in calendars:
-            db.add(cal)
+        # No sample *external* calendars. The three that used to be seeded
+        # pointed at `example` URLs that can never resolve, so every seeded
+        # install rendered a permanent "Could not reach: Google Family, iCloud
+        # Dad, School Calendar" banner across the calendar page — sample data
+        # that demonstrates a failure. Connecting a real feed is a Settings
+        # task with credentials behind it, not something a seed can fake.
 
         # Every family member gets a Rally-owned calendar to put events on.
         native_calendars = {
@@ -254,6 +246,37 @@ def seed():
         for todo in todos:
             db.add(todo)
 
+        # Recurring templates, so /todo's Recurring section is not an empty
+        # state on a fresh install. `last_generated_date` is left unset: the
+        # first page load generates today's instances, which is the behaviour
+        # worth seeing rather than a row that looks inert.
+        recurring_todos = [
+            RecurringTodo(
+                title="Take the bins out",
+                description="Kerbside collection is Thursday morning",
+                recurrence_type="weekly",
+                recurrence_day=2,  # Wednesday, the night before
+                assigned_to=jake.id,
+                has_due_date=True,
+            ),
+            RecurringTodo(
+                title="Change the furnace filter",
+                description="20x25x1, spares are on the garage shelf",
+                recurrence_type="monthly",
+                recurrence_day=1,
+                assigned_to=dad.id,
+                has_due_date=True,
+                remind_days_before=3,
+            ),
+            RecurringTodo(
+                title="Water the plants",
+                recurrence_type="daily",
+                active=False,  # Deactivated rather than deleted, which is the point of the flag
+            ),
+        ]
+        for recurring in recurring_todos:
+            db.add(recurring)
+
         # Create a sample shopping list: two named stores plus catch-all items,
         # one already purchased today so the dimmed-until-midnight styling shows.
         costco = ShoppingStore(name="Costco")
@@ -296,6 +319,94 @@ def seed():
 
         # Create sample meal plans (multiple per date to showcase the feature)
         today_date = today_utc()
+
+        # Preparedness stock. Locations carry an explicit `sort_order` because
+        # a go list is walked in physical order — the truck on the driveway,
+        # then the garage, then the basement — and the dates below are relative
+        # to today so the page shows an overdue item, one inside its reminder
+        # window and several simply scheduled, rather than one flat state.
+        def in_days(days: int) -> str:
+            return (today_date + timedelta(days=days)).strftime("%Y-%m-%d")
+
+        truck, garage, basement = (
+            PrepLocation(name="Truck", sort_order=1),
+            PrepLocation(name="Garage shelf", sort_order=2),
+            PrepLocation(name="Basement", sort_order=3),
+        )
+        db.add_all([truck, garage, basement])
+        db.flush()
+
+        prep_items = [
+            PrepItem(
+                name="Bottled water",
+                quantity="6 cases",
+                location_id=basement.id,
+                notes="Rotate through the kitchen so nothing is ever thrown away",
+                refresh_mode="interval",
+                refresh_interval_months=6,
+                next_refresh_date=in_days(-9),  # Overdue, and says so on the page
+                last_refreshed_on=in_days(-192),
+            ),
+            PrepItem(
+                name="First-aid kit",
+                quantity="1",
+                location_id=truck.id,
+                notes="Check the burn gel and the children's paracetamol",
+                refresh_mode="interval",
+                refresh_interval_months=12,
+                next_refresh_date=in_days(6),  # Inside the reminder window
+                remind_days_before=14,
+                last_refreshed_on=in_days(-359),
+            ),
+            PrepItem(
+                name="Canned food",
+                quantity="~40 tins",
+                location_id=basement.id,
+                notes="Stamped 2027-01-01; soup, beans, tuna",
+                refresh_mode="date",
+                next_refresh_date=in_days(45),
+            ),
+            PrepItem(
+                name="Propane",
+                quantity="2 tanks",
+                location_id=garage.id,
+                refresh_mode="interval",
+                refresh_interval_months=3,
+                next_refresh_date=in_days(21),
+                last_refreshed_on=in_days(-70),
+            ),
+            PrepItem(
+                name="Hand-crank radio",
+                quantity="1",
+                location_id=garage.id,
+                notes="NOAA weather band; crank it once a season so the cell stays healthy",
+                refresh_mode="none",
+            ),
+            PrepItem(
+                name="Batteries",
+                quantity="AA ×24, AAA ×12, D ×8",
+                location_id=garage.id,
+                refresh_mode="interval",
+                refresh_interval_months=12,
+                next_refresh_date=in_days(120),
+                last_refreshed_on=in_days(-245),
+            ),
+            PrepItem(
+                name="Wool blankets",
+                quantity="4",
+                location_id=truck.id,
+                refresh_mode="none",
+            ),
+            PrepItem(
+                name="Spare phone cable",
+                quantity="2",
+                # No location: the "Unassigned" group is a real state, and the
+                # go list puts it last.
+                refresh_mode="none",
+            ),
+        ]
+        for prep_item in prep_items:
+            db.add(prep_item)
 
         # Past meals across all meal types with a range of ratings (and some
         # unrated) so the Previous Meals page and its meal-type/rating filters
@@ -425,14 +536,15 @@ def seed():
         print("✅ Database seeded with sample data")
         print(f"   - 1 dashboard snapshot for {today}")
         print("   - 4 family members")
-        print(f"   - {len(calendars)} calendars")
         print(f"   - {len(native_calendars)} Rally calendars with {len(events)} events")
         print(f"   - {len(sample_settings)} settings")
         print(f"   - {len(todos)} sample todos")
+        print(f"   - {len(recurring_todos)} recurring task templates")
         print(f"   - {len(shopping_items)} shopping items across 2 stores")
         print(f"   - {len(history)} shopping history entries")
         print(f"   - {len(dinner_plans)} upcoming meal plans")
         print(f"   - {len(past_meals)} past meal plans")
+        print(f"   - {len(prep_items)} preparedness items across 3 locations")
 
     except Exception as e:
         db.rollback()

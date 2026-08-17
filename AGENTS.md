@@ -2,6 +2,14 @@
 
 This document provides guidance for AI coding assistants (Claude, Cursor, Copilot, etc.) working on this codebase.
 
+It is the home for agent guidance specifically. Documentation written for people
+lives in [docs/](docs/) and is linked from the README: [installation](docs/installation.md),
+[configuration](docs/configuration.md), [development](docs/development.md),
+[demo walkthrough](docs/demo-walkthrough.md), [backups](docs/backup.md),
+[voice shortcuts](docs/voice-shortcuts.md) and the
+[design system](docs/visual-design-system.md). When a change alters how Rally is
+installed, configured or developed, update the relevant page there as well as this one.
+
 ## About Rally
 
 Rally is a family command center that helps families come together, coordinate their days, and make the most of every opportunity. The tone should be empowering and encouraging—helping families work hard, support each other, and excel at what they do.
@@ -54,6 +62,7 @@ All commands should be run inside `devenv shell`.
 | `dev-stop` | Stop background dev server | No |
 | `dev-status` | Check status of background processes | No |
 | `dev-logs` | View last 50 lines of dev logs | No |
+| `demo` | Fresh seeded demo instance on port 8100, in its own `demo.db` | Yes |
 
 #### Quality & Testing
 
@@ -194,6 +203,14 @@ UI actions that call them) will permanently change local data.
 
 ```bash
 uv run pytest
+```
+
+✅ **Prefer the demo instance** for anything that has to run against a live server —
+manual verification, screenshots, a recorded walkthrough. It seeds its own throwaway
+database on its own port, so there is nothing to restore afterwards:
+
+```bash
+demo                # http://localhost:8100, backed by demo.db
 ```
 
 ✅ **If you must drive the running app against write paths**, isolate the data first:
@@ -606,6 +623,17 @@ rally/
 │   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
 │   ├── migrate_021_add_preparedness.py # Migration 021: preparedness stock, locations, refresh notices
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
+├── tests/                # Pytest suite (in-memory DB per test)
+│   └── visual/           # Design-system regression suite; drives real Chromium
+├── docs/                 # Human documentation, linked from README.md
+│   ├── installation.md   # Requirements, Docker deployment, upgrades, env vars
+│   ├── configuration.md  # Settings UI, LLM, weather, calendars, notifications
+│   ├── development.md    # Local setup, commands, tests, migrations, layout
+│   ├── voice-shortcuts.md # Siri / Apple Shortcuts for the shopping list
+│   ├── demo-walkthrough.md # The `demo` instance and a script for recording it
+│   ├── backup.md         # Offsite encrypted backup (Unraid + Cloudflare R2)
+│   ├── visual-design-system.md # Design system audit, tokens, and enforcement
+│   └── screenshots/      # README screenshots, taken from a seeded `demo` instance
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
 │   ├── context.txt       # Family context for LLM
