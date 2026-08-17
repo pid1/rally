@@ -621,8 +621,21 @@ class TestPages:
             body = client.get(path).text
             assert 'id="other-dropdown"' in body, path
             assert 'href="/preparedness"' in body, path
-            assert 'href="/go-list"' in body, path
             assert 'href="/dinner-planner"' in body, path
+
+    def test_the_go_list_is_reached_from_the_inventory_not_the_nav(self, client):
+        """It is a view of the inventory, so it is linked from the inventory.
+
+        Carrying it in the dropdown as well spent a permanent nav slot on a
+        page that is opened when something has already gone wrong.
+        """
+        preparedness = client.get("/preparedness").text
+        assert 'href="/go-list"' in preparedness
+
+        for path in ("/dashboard", "/todo", "/shopping", "/calendar", "/go-list"):
+            body = client.get(path).text
+            nav = body[body.index("<nav>") : body.index("</nav>")]
+            assert 'href="/go-list"' not in nav, path
 
     def test_top_level_nav_is_the_four_daily_pages(self, client):
         """Dashboard, Tasks, Shopping, Calendar stay one tap away."""
