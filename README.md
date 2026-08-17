@@ -10,9 +10,11 @@ It runs on your own hardware. Your family's schedule stays in the house, apart f
 
 ## Watch the tour
 
-A ten-minute walk through the whole app, recorded against a seeded demo instance. Click through to watch it.
+A ten-minute walk through the whole app, recorded against a seeded demo instance.
 
-[![Watch the Rally walkthrough](docs/screenshots/demo-poster.png)](https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4)
+<video src="https://github.com/user-attachments/assets/5c63ade2-e276-4239-afb2-73626440a270" controls muted playsinline>
+  <a href="https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4"><img src="docs/screenshots/demo-poster.png" alt="Watch the Rally walkthrough"></a>
+</video>
 
 You can run the same demo instance yourself in about a minute: see [docs/development.md](docs/development.md#the-demo-instance).
 
