@@ -319,6 +319,33 @@ def test_the_arrows_move_by_the_selected_slice(browser, live_server):
         context.close()
 
 
+def test_add_event_defaults_to_the_day_on_screen(browser, live_server):
+    """Adding an event while reading a day means adding it to that day.
+
+    The button used to hand the form today's date whatever you were looking
+    at, so an event added from Saturday's page was saved on Monday.
+    """
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#view-select", "day")
+        page.wait_for_timeout(400)
+        page.click("#btn-next")
+        page.wait_for_timeout(500)
+        viewed = page.evaluate("() => isoDate(anchor)")
+        assert viewed != page.evaluate("() => todayIso()"), "Next did not move off today"
+
+        page.click("#btn-add-event")
+        page.wait_for_selector("#event-modal-overlay", state="visible")
+        assert page.input_value("#event-start-time").startswith(viewed)
+        assert page.input_value("#event-end-time").startswith(viewed)
+
+        page.check("#event-all-day")
+        assert page.input_value("#event-start-date") == viewed
+        assert page.input_value("#event-end-date") == viewed
+    finally:
+        context.close()
+
+
 # Every focusable field, measured against the padding edge of each ancestor
 # that clips it. Only the inline axis, and only where that ancestor cannot
 # scroll horizontally: ink outside a box that scrolls is still reachable, ink

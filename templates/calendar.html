@@ -626,6 +626,29 @@
             group.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
 
+        /* Add Event opens on the day you are looking at. Reading Saturday the
+           22nd and adding an event means adding it to the 22nd — defaulting to
+           today is a silent wrong answer you only notice after saving. Where
+           the slice on screen is wider than a day, today is still the obvious
+           default as long as it is in that slice; otherwise the slice's first
+           day is. */
+        function defaultEventDate() {
+            const now = new Date();
+            if (view === 'day') return isoDate(startOfDay(anchor));
+            if (view === 'month') {
+                // Measured against the anchored month, not the 42-cell grid:
+                // the grid shows a few days either side, and being handed
+                // August 31st while reading September is the same wrong answer.
+                const sameMonth = now.getFullYear() === anchor.getFullYear()
+                    && now.getMonth() === anchor.getMonth();
+                return sameMonth ? todayIso() : isoDate(startOfMonth(anchor));
+            }
+            const range = currentRange();
+            const today = startOfDay(now);
+            if (today >= range.start && today < range.end) return todayIso();
+            return isoDate(startOfDay(range.start));
+        }
+
         function openAddEventModal(dateIso) {
             editingEvent = null;
             editingOccurrence = null;
@@ -953,7 +976,7 @@
             }
         });
 
-        document.getElementById('btn-add-event').addEventListener('click', () => openAddEventModal());
+        document.getElementById('btn-add-event').addEventListener('click', () => openAddEventModal(defaultEventDate()));
         document.getElementById('btn-cancel-event').addEventListener('click', closeEventModal);
         document.getElementById('btn-close-detail').addEventListener('click', () => hideModalOverlay('detail-modal-overlay'));
         document.getElementById('btn-notify-attendees').addEventListener('click', notifyAttendees);
