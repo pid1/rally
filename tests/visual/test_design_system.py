@@ -435,3 +435,59 @@ def test_every_modal_reopens_at_the_top(browser, live_server, page):
             pytest.skip(f"{page} has no modal tall enough to scroll")
     finally:
         context.close()
+
+
+# Every label that wraps a checkbox or radio, measured against the control it
+# wraps. Modals are shown first: most of these rows live in one, and a closed
+# modal has nothing to measure.
+CONTROL_ROW_JS = r"""
+() => {
+  const overlays = [...document.querySelectorAll('.modal-overlay')];
+  const shown = overlays.filter(o => getComputedStyle(o).display === 'none');
+  shown.forEach(o => { o.style.display = 'flex'; });
+
+  const rows = [];
+  for (const label of document.querySelectorAll('label')) {
+    const control = label.querySelector('input[type=checkbox], input[type=radio]');
+    if (!control) continue;
+    const lr = label.getBoundingClientRect();
+    const cr = control.getBoundingClientRect();
+    if (!lr.height || !cr.height) continue;
+    rows.push({
+      label: (label.textContent || '').trim().slice(0, 30),
+      cls: (label.className || '').toString().slice(0, 40),
+      display: getComputedStyle(label).display,
+      // Positive means the control sits above the middle of its own row.
+      offset: Math.round(((lr.y + lr.height / 2) - (cr.y + cr.height / 2)) * 10) / 10,
+      rowHeight: Math.round(lr.height * 10) / 10,
+      controlHeight: Math.round(cr.height * 10) / 10,
+    });
+  }
+
+  shown.forEach(o => { o.style.display = 'none'; });
+  return rows;
+}
+"""
+
+
+@pytest.mark.parametrize("page", ALL_PAGES)
+def test_a_label_centres_the_control_it_wraps(browser, live_server, page):
+    """A checkbox sits in the middle of its row, not on the text baseline.
+
+    `.form-group label` is a block, and it outranked the bare `.checkbox-label`
+    and `.weekday-label` classes — so inside a form every one of these rows
+    silently lost its flex layout and the box floated a few pixels high, most
+    visibly in the calendar's "Who's involved" chips.
+    """
+    context, p = _open(browser, live_server, PAGES[page])
+    try:
+        rows = p.evaluate(CONTROL_ROW_JS)
+        if not rows:
+            pytest.skip(f"{page} has no label-wrapped checkboxes")
+        # A row taller than its control has wrapped onto more than one line;
+        # centring a control against a paragraph is not what this measures.
+        single_line = [r for r in rows if r["rowHeight"] <= r["controlHeight"] + TARGET_MIN]
+        off_centre = [r for r in single_line if abs(r["offset"]) > 1]
+        assert not off_centre, f"{page} has off-centre controls: {off_centre[:4]}"
+    finally:
+        context.close()
