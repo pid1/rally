@@ -2,7 +2,9 @@
 
 Rally's only scheduled job is the 4:00 AM generator, which is exactly the wrong
 instrument for "the dentist is in thirty minutes". This module is the other
-one.
+one. Three things reach a phone through it: a reminder before an occurrence, an
+explicit "notify attendees", and a notice that an event was just added, changed
+or removed.
 
 Two things it deliberately does not do:
 
@@ -16,7 +18,9 @@ Two things it deliberately does not do:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -49,6 +53,27 @@ MAX_LEAD_MINUTES = 60 * 24 * 7
 
 KIND_REMINDER = "reminder"
 KIND_MANUAL = "manual"
+KIND_CREATED = "created"
+KIND_UPDATED = "updated"
+KIND_DELETED = "deleted"
+
+# What a change notice calls itself. The three read as a set on a lock screen —
+# the word that differs is the first one that matters.
+CHANGE_LABELS = {
+    KIND_CREATED: "Calendar Addition",
+    KIND_UPDATED: "Calendar Modification",
+    KIND_DELETED: "Calendar Deletion",
+}
+
+# How far a change notice will look for the occurrence to describe. Forward
+# first — a new event is nearly always in the future — and only then backwards,
+# so correcting the title of last Tuesday's appointment still says which one.
+CHANGE_WINDOW_DAYS = 366
+
+# Slack either side of a named occurrence date when hunting for it. An edit can
+# move an occurrence off its own date, and the moved instance is the one worth
+# describing.
+CHANGE_DATE_SLACK_DAYS = 7
 
 NOTIFICATION_RETENTION_DAYS = 30
 _LAST_CHECK_KEY = "reminder_last_check_at"
@@ -135,6 +160,196 @@ def format_message(event: Event, occurrence, tz: ZoneInfo) -> str:
     return " · ".join(parts)
 
 
+def _clock(moment: datetime) -> str:
+    """A local time as "5:30 PM"."""
+    return moment.strftime("%I:%M %p").lstrip("0")
+
+
+def _time_range(start: datetime, end: datetime) -> str:
+    """ "5:30 to 6:30 PM" — how long the thing runs, not just when it starts.
+
+    The meridiem is stated once when both ends share it and twice when they do
+    not, which is the difference between reading a range and parsing one. An
+    event with no duration collapses to its start rather than saying "5:30 to
+    5:30".
+    """
+    if end <= start:
+        return _clock(start)
+    if start.strftime("%p") == end.strftime("%p"):
+        return f"{start.strftime('%I:%M').lstrip('0')} to {_clock(end)}"
+    return f"{_clock(start)} to {_clock(end)}"
+
+
+def when_label(occurrence, tz: ZoneInfo) -> str:
+    """When an occurrence happens, and for how long, on this server's clock.
+
+    Dates are read from the occurrence's own local dates rather than re-derived
+    from the instants, which is what keeps an all-day event off the day before.
+    Times are rendered in the install's configured local zone — the same clock
+    the calendar screens use — and name that zone, because a bare "5:30 PM" is
+    only unambiguous to somebody who already knows which zone the server keeps.
+    """
+    if occurrence.all_day:
+        when = occurrence.start_local_date
+        if occurrence.spans_days():
+            when = f"{when} – {occurrence.end_local_date}"
+        return f"{when} · All day"
+
+    start = occurrence.local_start(tz)
+    end = occurrence.local_end(tz)
+    zone = start.strftime("%Z") or getattr(tz, "key", "")
+
+    if occurrence.spans_days():
+        # Each time needs its own date or the range is a riddle: "2026-08-14 –
+        # 2026-08-16 · 5:30 PM to 9:00 AM" does not say which end is which.
+        return (
+            f"{occurrence.start_local_date} {_clock(start)} – "
+            f"{occurrence.end_local_date} {_clock(end)} {zone}"
+        ).strip()
+
+    return f"{occurrence.start_local_date} · {_time_range(start, end)} {zone}".strip()
+
+
+_WEEKDAY_NAMES = {
+    "MO": "Monday",
+    "TU": "Tuesday",
+    "WE": "Wednesday",
+    "TH": "Thursday",
+    "FR": "Friday",
+    "SA": "Saturday",
+    "SU": "Sunday",
+}
+
+# Singular for an interval of one, plural for the rest: "weekly" against "every
+# 2 weeks".
+_FREQ_WORDS = {
+    "DAILY": ("daily", "days"),
+    "WEEKLY": ("weekly", "weeks"),
+    "MONTHLY": ("monthly", "months"),
+    "YEARLY": ("yearly", "years"),
+}
+
+
+def _rrule_parts(rrule: str) -> dict[str, str]:
+    parts: dict[str, str] = {}
+    for chunk in rrule.split(";"):
+        name, _, value = chunk.partition("=")
+        if name.strip():
+            parts[name.strip().upper()] = value.strip()
+    return parts
+
+
+def _join_names(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _ordinal(day: int) -> str:
+    suffix = "th" if 11 <= day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix}"
+
+
+def describe_recurrence(rrule: str | None) -> str:
+    """How often a series repeats, in the vocabulary the event form offers.
+
+    The add-event form compiles five choices to RRULE — daily, weekly on this
+    day, every 2 weeks on this day, monthly on this date, yearly — and this
+    reads them back, so the notice describes the choice somebody actually made
+    rather than the syntax it was stored as. A rule richer than the form can
+    express (an imported one, or one typed by hand) degrades to a phrase that is
+    vague but true, never a confidently wrong one.
+    """
+    if not rrule:
+        return ""
+
+    parts = _rrule_parts(rrule)
+    freq = parts.get("FREQ", "").upper()
+    words = _FREQ_WORDS.get(freq)
+    if not words:
+        return "on a custom schedule"
+
+    singular, plural = words
+    try:
+        interval = int(parts.get("INTERVAL", "1"))
+    except ValueError:
+        interval = 1
+    phrase = singular if interval <= 1 else f"every {interval} {plural}"
+
+    if freq == "WEEKLY":
+        # ``BYDAY`` may carry an ordinal prefix ("2TU"); only the day matters
+        # here, and an ordinal one cannot occur in a weekly rule anyway.
+        days = [
+            _WEEKDAY_NAMES[code]
+            for code in (
+                token.strip().upper()[-2:]
+                for token in parts.get("BYDAY", "").split(",")
+                if token.strip()
+            )
+            if code in _WEEKDAY_NAMES
+        ]
+        if days:
+            return f"{phrase} on {_join_names(days)}"
+
+    if freq == "MONTHLY":
+        monthday = parts.get("BYMONTHDAY", "")
+        if monthday.isdigit():
+            return f"{phrase} on the {_ordinal(int(monthday))}"
+
+    return phrase
+
+
+def change_title(event_title: str, kind: str) -> str:
+    """The push title for a change notice: what happened, then to what."""
+    return f"{CHANGE_LABELS.get(kind, 'Calendar Update')}: {event_title}"
+
+
+def attendee_names(db: Session, event_id: int) -> list[str]:
+    """Every attendee's name, in the order they were put on the event.
+
+    All of them, not only the reachable ones: the list describes the event, and
+    somebody without a Pushover key is still going to the dentist.
+    """
+    rows = (
+        db.query(EventAttendee)
+        .filter(EventAttendee.event_id == event_id)
+        .order_by(EventAttendee.id.asc())
+        .all()
+    )
+    if not rows:
+        return []
+
+    names = {
+        member.id: member.name
+        for member in db.query(FamilyMember)
+        .filter(FamilyMember.id.in_([row.family_member_id for row in rows]))
+        .all()
+    }
+    return [names[row.family_member_id] for row in rows if row.family_member_id in names]
+
+
+def format_change_message(
+    event: Event, occurrence, tz: ZoneInfo, *, attendees: Sequence[str]
+) -> str:
+    """The body of a change notice: when, where, and who it is for.
+
+    One body for everybody, deliberately. The recipients are the event's
+    attendees, so a message addressed to no one in particular is still
+    addressed to exactly the right people — and it is the same text the family
+    can compare notes on rather than four slightly different ones.
+    """
+    lines = [f"When: {when_label(occurrence, tz)}"]
+    if event.location:
+        lines.append(f"Where: {event.location}")
+    if attendees:
+        lines.append(f"Attendees: {', '.join(attendees)}")
+    if occurrence.recurring:
+        # A sentence rather than a fourth ``Label: value`` line, because it
+        # qualifies the whole notice instead of adding another field to it.
+        lines.append(f"This event repeats {describe_recurrence(event.rrule)}".rstrip())
+    return "\n".join(lines)
+
+
 def _record(
     db: Session,
     *,
@@ -178,6 +393,79 @@ def _record(
     )
 
 
+def _deliver(
+    db: Session,
+    members: Sequence[FamilyMember],
+    *,
+    body: str,
+    title: str,
+    kind: str,
+    event_id: int,
+    occurrence_date: str,
+    skipped: Sequence[str] = (),
+    record: bool = True,
+) -> dict:
+    """Send one body to several people, recording each outcome.
+
+    The single place a push is attempted, so the reporting, the send-once row
+    and the "a failure is data, not an exception" rule each exist once.
+
+    ``record=False`` is for a notice about an event that no longer exists: its
+    ``event_notifications`` rows were cascaded away with it, and writing a fresh
+    one would leave an orphan pointing at a deleted id.
+    """
+    result: dict[str, list] = {"sent": [], "skipped": list(skipped), "failed": []}
+
+    if not members:
+        return result
+
+    token = app_token(db)
+    if not token:
+        # Not an error worth failing a request over: the family simply has not
+        # configured Pushover yet, and every attendee is unreachable for the
+        # same reason.
+        result["skipped"] = sorted(result["skipped"] + [m.name for m in members])
+        result["error"] = "No Pushover application token configured"
+        return result
+
+    for member in members:
+        try:
+            send_pushover(
+                token,
+                member.pushover_user_key.strip(),
+                body,
+                title=title,
+                device=(member.pushover_device or "").strip() or None,
+            )
+        except PushoverError as exc:
+            print(f"  Pushover failed for {member.name}: {exc}")
+            if record:
+                _record(
+                    db,
+                    event_id=event_id,
+                    occurrence_date=occurrence_date,
+                    member_id=member.id,
+                    kind=kind,
+                    status="failed",
+                    detail=str(exc)[:200],
+                )
+            result["failed"].append(member.name)
+        else:
+            if record:
+                _record(
+                    db,
+                    event_id=event_id,
+                    occurrence_date=occurrence_date,
+                    member_id=member.id,
+                    kind=kind,
+                    status="sent",
+                )
+            result["sent"].append(member.name)
+
+    db.commit()
+    return result
+
+
 def notify_occurrence(
     db: Session,
     event: Event,
@@ -192,60 +480,180 @@ def notify_occurrence(
     Returns ``{"sent": [...], "skipped": [...], "failed": [...]}`` with names,
     never raising.
     """
-    result: dict[str, list] = {"sent": [], "skipped": [], "failed": []}
-
-    token = app_token(db)
     reachable, skipped = recipients_for_event(db, event.id)
-    result["skipped"] = list(skipped)
+    return _deliver(
+        db,
+        reachable,
+        body=message or format_message(event, occurrence, tz),
+        title=event.title,
+        kind=kind,
+        event_id=event.id,
+        occurrence_date=occurrence.occurrence_date or occurrence.start_local_date,
+        skipped=skipped,
+    )
 
-    if not reachable:
-        return result
 
-    if not token:
-        # Not an error worth failing a request over: the family simply has not
-        # configured Pushover yet, and every attendee is unreachable for the
-        # same reason.
-        result["skipped"] = sorted(result["skipped"] + [m.name for m in reachable])
-        result["error"] = "No Pushover application token configured"
-        return result
+def _expand(db: Session, event: Event, window_start: datetime, window_end: datetime, tz: ZoneInfo):
+    overrides = db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
+    return expand_event(
+        event,
+        overrides=overrides,
+        window_start=window_start,
+        window_end=window_end,
+        local_tz=tz,
+    )
 
-    body = message or format_message(event, occurrence, tz)
-    occurrence_date = occurrence.occurrence_date or occurrence.start_local_date
 
-    for member in reachable:
+def change_occurrence(
+    db: Session,
+    event: Event,
+    *,
+    tz: ZoneInfo,
+    occurrence_date: str | None = None,
+    now: datetime | None = None,
+):
+    """The occurrence a change notice should describe, or ``None``.
+
+    An edit scoped to one occurrence is about *that* one, so a named date wins.
+    Otherwise the next occurrence that has not finished yet is the one people
+    need to know about — "the dentist moved" means the next dentist. A series
+    whose occurrences are all in the past falls back to the most recent, which
+    is better than a notice that names no date at all.
+    """
+    now = (now or now_utc()).astimezone(UTC)
+
+    if occurrence_date:
         try:
-            send_pushover(
-                token,
-                member.pushover_user_key.strip(),
-                body,
-                title=event.title,
-                device=(member.pushover_device or "").strip() or None,
-            )
-        except PushoverError as exc:
-            print(f"  Pushover failed for {member.name}: {exc}")
-            _record(
-                db,
-                event_id=event.id,
-                occurrence_date=occurrence_date,
-                member_id=member.id,
-                kind=kind,
-                status="failed",
-                detail=str(exc)[:200],
-            )
-            result["failed"].append(member.name)
-        else:
-            _record(
-                db,
-                event_id=event.id,
-                occurrence_date=occurrence_date,
-                member_id=member.id,
-                kind=kind,
-                status="sent",
-            )
-            result["sent"].append(member.name)
+            target = date.fromisoformat(occurrence_date)
+        except ValueError:
+            target = None
+        if target is not None:
+            slack = timedelta(days=CHANGE_DATE_SLACK_DAYS)
+            # A wide window and a match on identity, rather than a one-day
+            # window: an override can move an occurrence clean off its own date,
+            # and the moved instance is the one being asked about.
+            found = [
+                occurrence
+                for occurrence in _expand(
+                    db,
+                    event,
+                    datetime.combine(target, datetime.min.time(), tzinfo=UTC) - slack,
+                    datetime.combine(target, datetime.max.time(), tzinfo=UTC) + slack,
+                    tz,
+                )
+                if occurrence.occurrence_date == occurrence_date
+            ]
+            if found:
+                return found[0]
 
-    db.commit()
-    return result
+    window = timedelta(days=CHANGE_WINDOW_DAYS)
+    upcoming = [o for o in _expand(db, event, now, now + window, tz) if o.end >= now]
+    if upcoming:
+        return upcoming[0]
+
+    past = _expand(db, event, now - window, now, tz)
+    return past[-1] if past else None
+
+
+@dataclass
+class ChangeNotice:
+    """A change notice worked out in full before the change lands.
+
+    Deletion is why this is a two-step. A delete destroys the very things the
+    message is made of — the occurrence, the attendee list, sometimes the event
+    row itself — so the text and the recipients have to be resolved *first* and
+    delivered *after*, once the change is safely committed. Additions and edits
+    do not need the split, but they take the same path rather than growing a
+    second one.
+    """
+
+    title: str
+    body: str
+    kind: str
+    event_id: int
+    occurrence_date: str
+    members: list[FamilyMember] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+    record: bool = True
+
+
+def plan_change_notice(
+    db: Session,
+    event: Event,
+    *,
+    kind: str,
+    occurrence_date: str | None = None,
+    now: datetime | None = None,
+    record: bool = True,
+) -> ChangeNotice | None:
+    """Work out what to say about a change, and to whom, before making it.
+
+    Returns ``None`` when there is nothing truthful to say — no occurrence to
+    describe — rather than a notice with a hole in it. Never raises: this runs
+    inside a write request, and the calendar edit is what the user asked for.
+    """
+    try:
+        tz = ZoneInfo(local_timezone_name(db))
+        occurrence = change_occurrence(db, event, tz=tz, occurrence_date=occurrence_date, now=now)
+        if occurrence is None:
+            return None
+
+        reachable, skipped = recipients_for_event(db, event.id)
+        return ChangeNotice(
+            title=change_title(event.title, kind),
+            body=format_change_message(
+                event, occurrence, tz, attendees=attendee_names(db, event.id)
+            ),
+            kind=kind,
+            event_id=event.id,
+            occurrence_date=occurrence.occurrence_date or occurrence.start_local_date,
+            members=list(reachable),
+            skipped=list(skipped),
+            record=record,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"Event {kind} notice could not be prepared: {exc}")
+        return None
+
+
+def send_change_notice(db: Session, notice: ChangeNotice | None) -> dict:
+    """Deliver a planned notice. A no-op on ``None``, and never raises."""
+    if notice is None:
+        return {"sent": [], "skipped": [], "failed": []}
+
+    try:
+        return _deliver(
+            db,
+            notice.members,
+            body=notice.body,
+            title=notice.title,
+            kind=notice.kind,
+            event_id=notice.event_id,
+            occurrence_date=notice.occurrence_date,
+            skipped=notice.skipped,
+            record=notice.record,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"Event {notice.kind} notification failed: {exc}")
+        return {"sent": [], "skipped": [], "failed": [], "error": str(exc)}
+
+
+def notify_event_change(
+    db: Session,
+    event: Event,
+    *,
+    kind: str,
+    occurrence_date: str | None = None,
+    now: datetime | None = None,
+) -> dict:
+    """Tell an event's attendees it was added or changed, in one call.
+
+    For the paths where the event survives the write and nothing has to be
+    captured ahead of it. A deletion plans and sends separately.
+    """
+    return send_change_notice(
+        db, plan_change_notice(db, event, kind=kind, occurrence_date=occurrence_date, now=now)
+    )
 
 
 def _already_sent(db: Session, event_id: int, occurrence_date: str, member_ids: list[int]) -> bool:

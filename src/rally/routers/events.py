@@ -41,9 +41,15 @@ from rally.models import (
     FamilyMember,
 )
 from rally.notifications import (
+    KIND_CREATED,
+    KIND_DELETED,
     KIND_MANUAL,
+    KIND_UPDATED,
+    notify_event_change,
     notify_occurrence,
+    plan_change_notice,
     run_due_reminders_once_per_minute,
+    send_change_notice,
 )
 from rally.schemas import (
     UNSET,
@@ -367,6 +373,10 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
     _set_attendees(db, event.id, payload.attendee_ids)
     db.commit()
     db.refresh(event)
+
+    # After the commit, never before: the event exists whether or not a phone
+    # buzzes, and ``notify_event_change`` cannot raise.
+    notify_event_change(db, event, kind=KIND_CREATED)
     return _event_response(db, event)
 
 
@@ -442,21 +452,34 @@ def update_event(
     or after the split with it. Splitting on a *date* rather than an occurrence
     index matters — an index shifts the moment an earlier occurrence is
     cancelled.
+
+    Every scope announces itself to the attendees afterwards. Which occurrence
+    the notice names differs by scope, and that is the point: a change to one
+    Tuesday says that Tuesday, while a change to the series says the next one
+    people will actually turn up to.
     """
     event = _load_event(db, event_id)
     tz_name = payload.tzid or event.tzid or local_timezone_name(db)
 
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        return _update_single_occurrence(db, event, payload, split_day, tz_name)
+        response = _update_single_occurrence(db, event, payload, split_day, tz_name)
+        notify_event_change(db, event, kind=KIND_UPDATED, occurrence_date=split_day.isoformat())
+        return response
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        return _split_series(db, event, payload, split_day, tz_name)
+        response = _split_series(db, event, payload, split_day, tz_name)
+        # The edit now lives on the tail series, so that is what gets described.
+        tail = db.query(Event).filter(Event.id == response.id).first()
+        if tail is not None:
+            notify_event_change(db, tail, kind=KIND_UPDATED)
+        return response
 
     _apply_event_fields(db, event, payload, tz_name)
     db.commit()
     db.refresh(event)
+    notify_event_change(db, event, kind=KIND_UPDATED)
     return _event_response(db, event)
 
 
@@ -611,11 +634,21 @@ def delete_event(
     occurrence_date: str | None = None,
     db: Session = Depends(get_db),
 ):
-    """Delete one occurrence, the tail of a series, or the whole event."""
+    """Delete one occurrence, the tail of a series, or the whole event.
+
+    Each scope announces the deletion to the attendees. The notice is *planned*
+    before the delete and *sent* after it: a delete destroys the occurrence, the
+    attendee list and sometimes the event row, so there is nothing left to build
+    a message from afterwards — and announcing it beforehand would risk naming a
+    deletion that then failed.
+    """
     event = _load_event(db, event_id)
 
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
+        notice = plan_change_notice(
+            db, event, kind=KIND_DELETED, occurrence_date=split_day.isoformat()
+        )
         override = (
             db.query(EventOverride)
             .filter(
@@ -629,17 +662,28 @@ def delete_event(
             db.add(override)
         override.cancelled = True
         db.commit()
+        send_change_notice(db, notice)
         return None
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
+        # The first occurrence being removed is the one worth naming: everything
+        # from here on is going, and that is the date people had in their heads.
+        notice = plan_change_notice(
+            db, event, kind=KIND_DELETED, occurrence_date=split_day.isoformat()
+        )
         _truncate_series(event, split_day)
         db.query(EventOverride).filter(
             EventOverride.event_id == event.id,
             EventOverride.occurrence_date >= split_day.isoformat(),
         ).delete(synchronize_session=False)
         db.commit()
+        send_change_notice(db, notice)
         return None
+
+    # ``record=False``: the notification rows for this event are about to be
+    # cascaded away, so writing another would leave an orphan behind.
+    notice = plan_change_notice(db, event, kind=KIND_DELETED, record=False)
 
     # SQLite foreign keys are not enforced, so the cascade is explicit — an
     # orphaned attendee or notification row would otherwise linger invisibly.
@@ -654,6 +698,7 @@ def delete_event(
     )
     db.delete(event)
     db.commit()
+    send_change_notice(db, notice)
     return None
 
 

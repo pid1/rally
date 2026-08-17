@@ -331,7 +331,8 @@ class EventNotification(Base):
     event_id: Mapped[int] = mapped_column(Integer, index=True)
     occurrence_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
     family_member_id: Mapped[int] = mapped_column(Integer)
-    kind: Mapped[str] = mapped_column(String(20))  # reminder | manual
+    # reminder | manual | created | updated | deleted
+    kind: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="sent")  # sent | failed
     detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
