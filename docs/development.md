@@ -88,7 +88,28 @@ CI runs `pytest`, `ruff check .` and `ruff format --check .`, plus the visual su
 
 It seeds no external calendar feeds. A seeded feed URL cannot resolve, so it would only ever render an error banner.
 
-For anything you intend to record or screenshot, use `demo` instead. It builds the same data in a throwaway `demo.db` on port 8100, leaving your own dev database alone. See [demo-walkthrough.md](demo-walkthrough.md).
+For anything you intend to record or screenshot, use the demo instance instead. It builds the same data in a throwaway database, leaving your own dev database alone.
+
+## The demo instance
+
+```bash
+devenv shell    # or: direnv allow
+demo
+```
+
+`demo` deletes and rebuilds `demo.db`, seeds it, and serves Rally on **http://localhost:8100**. Your `rally.db` and the dev server on port 8000 are untouched. Ctrl+C stops it, and running `demo` again gives you a clean slate.
+
+Without devenv, the same steps by hand:
+
+```bash
+export RALLY_DB_PATH="$PWD/demo.db" PYTHONPATH="$PWD/src"
+rm -f "$RALLY_DB_PATH"
+uv run python -c 'from rally.database import init_db; init_db()'
+uv run python -m rally.cli
+uv run uvicorn rally.main:app --port 8100
+```
+
+The sample family is Mom, Dad, Emma and Jake. The data is anchored to the day you run it, so the calendar always has this week's events in it and the preparedness list always has something overdue. The screenshots in this repository and the walkthrough video in the README were both recorded against it.
 
 ## Database migrations
 

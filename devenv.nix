@@ -83,7 +83,7 @@ in
     # A throwaway, freshly seeded copy of Rally for demos and screenshots.
     # It lives in its own database on its own port, so recording a walkthrough
     # never touches `rally.db` and never has to be undone afterwards.
-    # The walkthrough itself is docs/demo-walkthrough.md.
+    # Documented in docs/development.md.
     demo.exec = ''
       cd ${config.env.DEVENV_ROOT}
       export RALLY_DB_PATH="${config.env.DEVENV_ROOT}/demo.db"
@@ -93,7 +93,7 @@ in
       echo ""
       echo "🎬 Demo instance on http://localhost:8100 — Ctrl+C to stop"
       echo "   Database: $RALLY_DB_PATH (throwaway; rally.db is untouched)"
-      echo "   Walkthrough: docs/demo-walkthrough.md"
+      echo "   Docs: docs/development.md"
       echo ""
       uv run --directory . uvicorn rally.main:app --host 0.0.0.0 --port 8100
     '';

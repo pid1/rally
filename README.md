@@ -10,10 +10,13 @@ It runs on your own hardware. Your family's schedule stays in the house, apart f
 
 ## Watch the tour
 
-<!-- Loom: paste the share URL below, replacing this line and the italic line under it.
-     The walkthrough it follows is docs/demo-walkthrough.md. -->
+A ten-minute walk through the whole app, recorded against a seeded demo instance.
 
-*A recorded walkthrough is on its way here.* Until then the same tour is written down in **[docs/demo-walkthrough.md](docs/demo-walkthrough.md)**, and you can run the demo instance it describes yourself in about a minute.
+<video src="https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4" controls muted playsinline>
+  <a href="https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4">Watch the Rally demo</a>
+</video>
+
+If the player does not load, [download the recording](https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4). You can run the same demo instance yourself in about a minute: see [docs/development.md](docs/development.md#the-demo-instance).
 
 ## What Rally does
 
@@ -78,8 +81,7 @@ Full instructions, including what you need before you start: **[docs/installatio
 | [Configuration](docs/configuration.md) | Settings UI, AI providers, weather, calendars, Pushover notifications |
 | [Voice shortcuts](docs/voice-shortcuts.md) | Adding shopping items with Siri and Apple Shortcuts |
 | [Backups](docs/backup.md) | Scheduled, client-side-encrypted offsite backup |
-| [Development](docs/development.md) | Local setup, commands, tests, database migrations |
-| [Demo walkthrough](docs/demo-walkthrough.md) | A seeded demo instance and a script for recording it |
+| [Development](docs/development.md) | Local setup, commands, tests, database migrations, the demo instance |
 | [Design system](docs/visual-design-system.md) | Typography, spacing, components and how they are enforced |
 
 ## Contributing
