@@ -3,7 +3,8 @@
 Covers the local-midnight visibility boundary (mirroring test_completed_todos.py),
 the 30-day retention purge and its once-per-local-day gate, store CRUD and the
 reassign-on-delete behaviour, item create/dedupe/update semantics, store-by-name
-resolution for scripted clients, and the history-backed suggestions endpoints.
+resolution for scripted clients, the history-backed suggestions endpoints, and
+the hand-arranged ordering behind drag-to-reorder.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -549,3 +550,254 @@ def test_purchased_is_independent_of_include_hidden(
     client.get("/api/shopping/items", params={"include_hidden": "true"})
     assert item_names(client.get("/api/shopping/purchased").json()) == ["Eggs"]
     assert item_names(client.get("/api/shopping/items").json()) == ["Milk"]
+
+
+# --- Ordering ------------------------------------------------------------------
+#
+# `sort_order` is per-store and only ever compared, never counted on to be
+# contiguous — a cross-store move leaves a gap behind it on purpose.
+
+
+def test_items_read_in_sort_order_within_a_store(client, make_store, make_shopping_item):
+    store = make_store("Costco")
+    make_shopping_item("Rotisserie chicken", store_id=store.id, sort_order=2)
+    make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
+    make_shopping_item("Batteries", store_id=store.id, sort_order=1)
+
+    assert item_names(client.get("/api/shopping/items").json()) == [
+        "Paper towels",
+        "Batteries",
+        "Rotisserie chicken",
+    ]
+
+
+def test_a_new_item_lands_above_the_store_it_joins(client, make_store, make_shopping_item):
+    """Adding used to surface at the top by `created_at DESC`; it still does."""
+    store = make_store("Costco")
+    make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
+    make_shopping_item("Batteries", store_id=store.id, sort_order=1)
+
+    client.post("/api/shopping/items", json={"name": "Milk", "store_id": store.id})
+
+    assert item_names(client.get("/api/shopping/items").json())[0] == "Milk"
+
+
+def test_a_new_item_is_placed_only_against_its_own_store(client, make_store, make_shopping_item):
+    """A crowded Costco must not push a first Trader Joe's item off the top."""
+    costco = make_store("Costco")
+    trader_joes = make_store("Trader Joe's")
+    make_shopping_item("Paper towels", store_id=costco.id, sort_order=-20)
+
+    response = client.post(
+        "/api/shopping/items", json={"name": "Almond milk", "store_id": trader_joes.id}
+    )
+
+    assert response.json()["sort_order"] == 0
+
+
+def test_purchased_items_sink_below_arranged_ones(
+    client, make_store, make_shopping_item, frozen_now, local_timezone
+):
+    """A position from before the item was ticked off must not float it back up."""
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    store = make_store("Costco")
+    make_shopping_item(
+        "Coffee beans",
+        store_id=store.id,
+        sort_order=-99,
+        completed=True,
+        completed_at=AFTER_LOCAL_MIDNIGHT,
+    )
+    make_shopping_item("Paper towels", store_id=store.id, sort_order=5)
+
+    assert item_names(client.get("/api/shopping/items").json()) == [
+        "Paper towels",
+        "Coffee beans",
+    ]
+
+
+def test_purchased_items_stay_newest_first_among_themselves(
+    client, make_shopping_item, frozen_now, local_timezone
+):
+    """Their tier falls through to `created_at DESC`, as it did before ordering."""
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    make_shopping_item(
+        "Older",
+        sort_order=0,
+        completed=True,
+        completed_at=AFTER_LOCAL_MIDNIGHT,
+        created_at=datetime(2026, 3, 1, tzinfo=UTC),
+    )
+    make_shopping_item(
+        "Newer",
+        sort_order=9,
+        completed=True,
+        completed_at=AFTER_LOCAL_MIDNIGHT,
+        created_at=datetime(2026, 3, 10, tzinfo=UTC),
+    )
+
+    assert item_names(client.get("/api/shopping/items").json()) == ["Newer", "Older"]
+
+
+# --- Reorder -------------------------------------------------------------------
+
+
+def test_reorder_rewrites_the_order_of_a_store(client, make_store, make_shopping_item):
+    store = make_store("Costco")
+    towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
+    batteries = make_shopping_item("Batteries", store_id=store.id, sort_order=1)
+
+    response = client.post(
+        "/api/shopping/items/reorder",
+        json={"store_id": store.id, "item_ids": [batteries.id, towels.id]},
+    )
+
+    assert response.status_code == 200
+    assert item_names(response.json()) == ["Batteries", "Paper towels"]
+    assert item_names(client.get("/api/shopping/items").json()) == [
+        "Batteries",
+        "Paper towels",
+    ]
+
+
+def test_reorder_moves_an_item_into_the_destination_store(client, make_store, make_shopping_item):
+    """The cross-store drag: one payload carries the move and the position."""
+    costco = make_store("Costco")
+    trader_joes = make_store("Trader Joe's")
+    milk = make_shopping_item("Almond milk", store_id=costco.id, sort_order=0)
+    dumplings = make_shopping_item("Frozen dumplings", store_id=trader_joes.id, sort_order=0)
+
+    client.post(
+        "/api/shopping/items/reorder",
+        json={"store_id": trader_joes.id, "item_ids": [milk.id, dumplings.id]},
+    )
+
+    moved = next(i for i in client.get("/api/shopping/items").json() if i["id"] == milk.id)
+    assert moved["store_id"] == trader_joes.id
+    assert moved["sort_order"] == 0
+
+
+def test_reorder_can_move_an_item_to_the_catch_all(client, make_store, make_shopping_item):
+    store = make_store("Costco")
+    stamps = make_shopping_item("Stamps", store_id=store.id, sort_order=0)
+
+    client.post("/api/shopping/items/reorder", json={"store_id": None, "item_ids": [stamps.id]})
+
+    moved = client.get("/api/shopping/items").json()[0]
+    assert moved["store_id"] is None
+
+
+def test_reorder_leaves_the_store_the_item_left_alone(client, make_store, make_shopping_item):
+    """The gap is deliberate: positions are compared, never counted."""
+    costco = make_store("Costco")
+    trader_joes = make_store("Trader Joe's")
+    towels = make_shopping_item("Paper towels", store_id=costco.id, sort_order=0)
+    batteries = make_shopping_item("Batteries", store_id=costco.id, sort_order=1)
+    chicken = make_shopping_item("Rotisserie chicken", store_id=costco.id, sort_order=2)
+
+    client.post(
+        "/api/shopping/items/reorder",
+        json={"store_id": trader_joes.id, "item_ids": [batteries.id]},
+    )
+
+    remaining = [i for i in client.get("/api/shopping/items").json() if i["store_id"] == costco.id]
+    assert [i["id"] for i in remaining] == [towels.id, chicken.id]
+
+
+def test_reorder_with_an_unknown_item_changes_nothing(client, make_store, make_shopping_item):
+    """All or nothing — a half-applied order is one the user never asked for."""
+    store = make_store("Costco")
+    towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
+    batteries = make_shopping_item("Batteries", store_id=store.id, sort_order=1)
+
+    response = client.post(
+        "/api/shopping/items/reorder",
+        json={"store_id": store.id, "item_ids": [batteries.id, 9999, towels.id]},
+    )
+
+    assert response.status_code == 404
+    assert item_names(client.get("/api/shopping/items").json()) == [
+        "Paper towels",
+        "Batteries",
+    ]
+
+
+def test_reorder_rejects_an_unknown_store(client, make_shopping_item):
+    item = make_shopping_item("Stamps")
+
+    response = client.post(
+        "/api/shopping/items/reorder", json={"store_id": 9999, "item_ids": [item.id]}
+    )
+
+    assert response.status_code == 422
+
+
+def test_reorder_keeps_the_first_mention_of_a_repeated_id(client, make_store, make_shopping_item):
+    """A duplicate would otherwise assign two positions and let the later win."""
+    store = make_store("Costco")
+    towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
+    batteries = make_shopping_item("Batteries", store_id=store.id, sort_order=1)
+
+    response = client.post(
+        "/api/shopping/items/reorder",
+        json={"store_id": store.id, "item_ids": [batteries.id, towels.id, batteries.id]},
+    )
+
+    assert item_names(response.json()) == ["Batteries", "Paper towels"]
+
+
+def test_reorder_of_nothing_is_a_no_op(client, make_store, make_shopping_item):
+    store = make_store("Costco")
+    make_shopping_item("Paper towels", store_id=store.id, sort_order=3)
+
+    response = client.post(
+        "/api/shopping/items/reorder", json={"store_id": store.id, "item_ids": []}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert client.get("/api/shopping/items").json()[0]["sort_order"] == 3
+
+
+def test_reorder_is_idempotent(client, make_store, make_shopping_item):
+    store = make_store("Costco")
+    towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
+    batteries = make_shopping_item("Batteries", store_id=store.id, sort_order=1)
+    payload = {"store_id": store.id, "item_ids": [batteries.id, towels.id]}
+
+    client.post("/api/shopping/items/reorder", json=payload)
+    client.post("/api/shopping/items/reorder", json=payload)
+
+    assert item_names(client.get("/api/shopping/items").json()) == [
+        "Batteries",
+        "Paper towels",
+    ]
+
+
+def test_changing_store_through_the_edit_form_replaces_the_item(
+    client, make_store, make_shopping_item
+):
+    """A rank held at the old store means nothing at the new one."""
+    costco = make_store("Costco")
+    trader_joes = make_store("Trader Joe's")
+    make_shopping_item("Almond milk", store_id=trader_joes.id, sort_order=0)
+    towels = make_shopping_item("Paper towels", store_id=costco.id, sort_order=7)
+
+    client.put(f"/api/shopping/items/{towels.id}", json={"store_id": trader_joes.id})
+
+    assert item_names(client.get("/api/shopping/items").json()) == [
+        "Paper towels",
+        "Almond milk",
+    ]
+
+
+def test_editing_an_item_without_moving_it_keeps_its_place(client, make_store, make_shopping_item):
+    """Renaming is not a move: only a real store change re-places a row."""
+    store = make_store("Costco")
+    towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=7)
+
+    client.put(f"/api/shopping/items/{towels.id}", json={"name": "Kitchen roll"})
+
+    assert client.get("/api/shopping/items").json()[0]["sort_order"] == 7

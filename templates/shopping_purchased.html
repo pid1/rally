@@ -216,19 +216,24 @@
                 return;
             }
 
+            // Same group markup as /shopping, which needs the wrapper so a drag
+            // can be aimed at a whole group. Kept identical here so the two
+            // views of one list do not drift into two shapes.
             container.innerHTML = keys.map(key => {
                 const groupItems = groups.get(key);
                 const countLabel = `${groupItems.length} item${groupItems.length === 1 ? '' : 's'}`;
                 const rows = groupItems.length === 0
                     ? '<div class="container-empty-state">Nothing here right now.</div>'
-                    : `<div class="list-container">${groupItems.map(renderItemRow).join('')}</div>`;
+                    : groupItems.map(renderItemRow).join('');
                 return `
-                    <div class="shopping-group-header">
-                        <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
-                        <span class="shopping-group-rule"></span>
-                        <span class="shopping-group-count">${countLabel}</span>
-                    </div>
-                    ${rows}
+                    <section class="shopping-group" data-group="${escapeHtml(key)}">
+                        <div class="shopping-group-header">
+                            <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
+                            <span class="shopping-group-rule"></span>
+                            <span class="shopping-group-count">${countLabel}</span>
+                        </div>
+                        <div class="list-container">${rows}</div>
+                    </section>
                 `;
             }).join('');
         }

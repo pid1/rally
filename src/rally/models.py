@@ -458,6 +458,13 @@ class ShoppingItem(Base):
     )  # FK to shopping_stores.id; NULL is the "Anywhere" catch-all
     completed: Mapped[bool] = mapped_column(default=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Hand-arranged position *within a store group*, ascending — the order the
+    # aisles are walked in, which is why it is per-store rather than global.
+    # Values are only ever compared, never counted on to be contiguous: a
+    # cross-store drag leaves a gap behind it and nothing renumbers the group it
+    # left. New items get `min - 1` so an add still lands at the top, which is
+    # what `created_at DESC` did before this column existed.
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 

@@ -10,6 +10,9 @@ Three tables back this feature, and the split between them is deliberate:
   counter. It powers autocomplete and deliberately outlives the purge — which is
   precisely what makes deleting purchased rows safe.
 * ``shopping_stores`` groups items; the catch-all is ``store_id IS NULL``.
+
+Items are hand-orderable within their store via ``sort_order`` (see the column's
+note in ``models``), which is what ``POST /items/reorder`` writes.
 """
 
 from datetime import timedelta
@@ -25,6 +28,7 @@ from rally.schemas import (
     ShoppingItemCreate,
     ShoppingItemResponse,
     ShoppingItemUpdate,
+    ShoppingReorder,
     ShoppingStoreCreate,
     ShoppingStoreResponse,
     ShoppingStoreUpdate,
@@ -93,6 +97,38 @@ def _escape_like(term: str) -> str:
         .replace("%", f"{_LIKE_ESCAPE}%")
         .replace("_", f"{_LIKE_ESCAPE}_")
     )
+
+
+def _list_ordering():
+    """The one order the list reads in: open items first, hand-arranged.
+
+    ``sort_order`` is deliberately neutralised for completed rows. They sink to
+    the bottom of their group and are ordered newest-first among themselves, so
+    letting a stale position from before they were ticked off shuffle them would
+    be noise. Collapsing them to a single tie value hands that tier to
+    ``created_at DESC`` — exactly how the list read before ordering existed.
+    """
+    open_position = case((ShoppingItem.completed, 0), else_=ShoppingItem.sort_order)
+    return (
+        ShoppingItem.completed.asc(),
+        open_position.asc(),
+        ShoppingItem.created_at.desc(),
+    )
+
+
+def _next_sort_order(db: Session, store_id: int | None) -> int:
+    """The position that puts a new item at the top of its store group.
+
+    Adding used to surface at the top by virtue of ``created_at DESC``, and that
+    is worth keeping: you add milk because you just thought of it, so you want to
+    see that it landed. One below the current minimum does that without
+    renumbering the group.
+    """
+    store_clause = (
+        ShoppingItem.store_id.is_(None) if store_id is None else ShoppingItem.store_id == store_id
+    )
+    lowest = db.query(func.min(ShoppingItem.sort_order)).filter(store_clause).scalar()
+    return 0 if lowest is None else lowest - 1
 
 
 def purge_old_purchased_items(db: Session) -> None:
@@ -241,7 +277,7 @@ def list_items(
             (ShoppingItem.completed == False) | (ShoppingItem.completed_at >= cutoff)  # noqa: E712
         )
 
-    return query.order_by(ShoppingItem.completed.asc(), ShoppingItem.created_at.desc()).all()
+    return query.order_by(*_list_ordering()).all()
 
 
 @router.get("/purchased", response_model=list[ShoppingItemResponse])
@@ -317,7 +353,13 @@ def create_item(item: ShoppingItemCreate, response: Response, db: Session = Depe
         response.status_code = 200
         return existing
 
-    db_item = ShoppingItem(name=name, note=item.note, store_id=store_id, completed=False)
+    db_item = ShoppingItem(
+        name=name,
+        note=item.note,
+        store_id=store_id,
+        completed=False,
+        sort_order=_next_sort_order(db, store_id),
+    )
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
@@ -339,6 +381,13 @@ def update_item(item_id: int, item: ShoppingItemUpdate, db: Session = Depends(ge
         db_item.note = item.note
     if item.store_id is not UNSET:
         _require_store(db, item.store_id)
+        if item.store_id != db_item.store_id:
+            # A position is only meaningful inside the store it was arranged in,
+            # so changing store through the edit form re-places the item at the
+            # top of its new group rather than dropping it at whatever rank it
+            # held in the old one. Dragging takes the other path (`reorder_items`),
+            # where the user has said exactly where it goes.
+            db_item.sort_order = _next_sort_order(db, item.store_id)
         db_item.store_id = item.store_id
     if item.completed is not None:
         if item.completed and not db_item.completed:
@@ -350,6 +399,57 @@ def update_item(item_id: int, item: ShoppingItemUpdate, db: Session = Depends(ge
     db.commit()
     db.refresh(db_item)
     return db_item
+
+
+@router.post("/items/reorder", response_model=list[ShoppingItemResponse])
+def reorder_items(payload: ShoppingReorder, db: Session = Depends(get_db)):
+    """Rewrite one store group's order, moving in any item that isn't there yet.
+
+    The client sends the destination group as it should now read, top to bottom,
+    and every listed item is assigned to ``store_id`` and numbered by its index.
+    That makes the endpoint idempotent and makes a cross-store drag the same
+    operation as a within-store one: the item simply appears in a payload for a
+    store it did not previously belong to.
+
+    The group the item *left* is deliberately not renumbered. Positions are only
+    ever compared, so the gap left behind changes nothing, and rewriting a second
+    group would double the rows this touches for no visible effect.
+
+    Only the items named in the payload are returned, in their new order — the
+    caller's own list is the thing it needs back. Completed items are usually
+    absent from it (they are not draggable and sort below the arranged ones
+    regardless), but naming one is allowed and moves it like any other row.
+    """
+    _require_store(db, payload.store_id)
+
+    # A duplicate id would otherwise assign two positions to one row, and the
+    # later one would silently win. Keep the first mention, drop the rest.
+    ordered_ids: list[int] = []
+    seen: set[int] = set()
+    for item_id in payload.item_ids:
+        if item_id not in seen:
+            seen.add(item_id)
+            ordered_ids.append(item_id)
+
+    if not ordered_ids:
+        return []
+
+    rows = {
+        row.id: row for row in db.query(ShoppingItem).filter(ShoppingItem.id.in_(ordered_ids)).all()
+    }
+    missing = [item_id for item_id in ordered_ids if item_id not in rows]
+    if missing:
+        # All or nothing: a partial reorder would leave the list in an order the
+        # user never asked for, which is worse than refusing and refetching.
+        raise HTTPException(status_code=404, detail=f"Unknown item ids: {missing}")
+
+    for position, item_id in enumerate(ordered_ids):
+        row = rows[item_id]
+        row.store_id = payload.store_id
+        row.sort_order = position
+
+    db.commit()
+    return [rows[item_id] for item_id in ordered_ids]
 
 
 @router.delete("/items/{item_id}", status_code=204)

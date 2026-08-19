@@ -413,6 +413,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `024_add_calendar_cache` - Add the `calendar_cache` table plus its unique index on `calendar_id` (one cache row per calendar; the index is what makes the sync's get-or-create safe), and seed `calendar_sync_interval_minutes` at 15. Purely additive; the table starts empty and the first sync fills it
 - `025_add_caldav_sync_tokens` - Add `calendar_cache.sync_tokens` (one RFC 6578 sync token per server-side CalDAV calendar). Purely additive; NULL means "no baseline yet" and the next sync captures one
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
+- `026_add_shopping_sort_order` - Add `shopping_items.sort_order`, the per-store hand-arranged position behind drag-to-reorder. Backfilled per store group in the order the list already read (`completed ASC, created_at DESC, id ASC`), so no existing list visibly moves
 
 ### Running Migrations
 
@@ -590,6 +591,7 @@ rally/
 ├── static/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide
+│   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behaviour
 ├── templates/
 │   ├── dashboard.html       # Generated dashboard template
@@ -617,6 +619,7 @@ rally/
 │   ├── migrate_012_add_ai_settings_history.py # Migration 012: add ai_settings_history table
 │   ├── migrate_015_add_llm_settings_history.py # Migration 015: add llm_settings_history table
 │   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
+│   ├── migrate_026_add_shopping_sort_order.py # Migration 026: add shopping_items.sort_order
 │   ├── migrate_018_add_sports_watchlist.py # Migration 018: add followed_teams, sports_event_notices tables
 │   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
 │   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
@@ -753,6 +756,11 @@ rally/
   - **Two separate memories, deliberately.** `shopping_items` is a 30-day rolling record whose completed rows are *deleted*; `shopping_item_history` is permanent and deduplicated with a use counter. The purge is safe precisely because autocomplete reads history, not items — trimming one never damages the other
   - The purge runs opportunistically from the items listing (the `process_recurring_todos` precedent), gated on the `shopping_last_purge_date` settings row so it executes at most once per local day. The 4 AM container job would be the obvious home but lives in `entrypoint.sh` and only runs under Docker, so a `dev`-served instance would never purge
   - Open items optionally feed the AI daily summary via `shopping_list_in_summary_enabled` (Settings → Shopping List, default off). Completed items never reach the LLM
+  - **Drag to reorder**, via a grip on every open row. A drop on another store's group *is* the store change — one gesture, one request (`POST /api/shopping/items/reorder`), so a move can never half-apply. Order is per-store (`shopping_items.sort_order`), which is the point: a list is arranged in the order the aisles are walked
+  - The drag is pointer events (`static/drag_reorder.js`), **not** HTML5 drag-and-drop, because `dragstart` never fires from a touch and Rally is used on a phone and a wall tablet at least as much as on a desktop. The dragged row is not a stand-in placeholder — the real element moves through the DOM while a copy follows the pointer, so the live DOM is always exactly what a release would save, and committing is a matter of reading the destination list back
+  - The grip is a real `<button>`, so ↑/↓ reorder it from the keyboard and focus is restored to the moved row after the list re-renders. Moving stores by keyboard is the edit form's Store field, which already does it. Each move is announced through an `aria-live` region
+  - Purchased rows have no grip. `sort_order` is neutralised for them in `_list_ordering()` so a position held from before they were ticked off cannot float them back up; they sit below the arranged rows, newest-first
+  - The 60-second refetch is skipped mid-drag — re-rendering the list would delete the row out of the user's hand
 - ✅ STEM Concept of the Day - Optional family learning feature (toggle in Settings → Learning)
   - When `stem_concept_enabled` is "true", the generator adds a `stem_concept` object to the summary JSON (title, field, explanation, and age-appropriate `activities`)
   - The LLM tailors ideas to the ages described in FAMILY CONTEXT and keeps each idea super easy to fold into the day's existing plans
@@ -836,6 +844,10 @@ When touching the UI:
   as the toolbar's last child, never inside a `.toolbar-group`.
 - **Modals are `.modal-content > h3 + .modal-scroll > .modal-body`**, and the
   page loads `/static/modal.js`.
+- **A reorderable list is `.shopping-group > .shopping-group-header +
+  .list-container > .editable-item[data-id]`**, and the page loads
+  `/static/drag_reorder.js`. The group wrapper is what makes a whole group —
+  heading included, and an empty one — a drop target.
 - **Hit areas are `var(--target-min)`**, which is 44px on coarse pointers and
   narrow viewports. The calendar month grid is the case where this bites: seven
   columns at 390px leave 42px per day, so the grid is **hidden below 768px**
@@ -853,7 +865,7 @@ visual suite (above) before shipping a layout change.
 - `/calendar` - Day, Week, Month and Agenda views of every calendar source. **The week starts Sunday.** Prev/Today/Next move by the selected slice — a day, a week, a month, or the 30-day agenda window. Every view is reachable at every width: the month grid was previously hidden below 768px on a measurement of 42px per column, but that was taken at 320px; re-measured, a 390px viewport gives 51px per column and 360px gives 47px, both clear of the 44px rule. On a phone the grid drops event text and shows a date plus a dot per member, with the whole cell as one tap target, and it scrolls inside its own container below 340px. A phone lands on **Day** — desktop still lands on Month. `Add Event` opens a dual-mode modal carrying attendees, recurrence and a reminder lead time; editing an occurrence of a series prompts for scope (this / this and following / all) with three buttons rather than a select. External events render read-only. **Below 768px the month grid does not render at all** and the page forces the agenda view: seven columns leave 42px per day, which cannot carry a 44px tap target
 - `/todo` - Todo management page with full CRUD interface
 - `/todo/completed` - Read-only page of todos completed before today (local time); reachable only via the `View completed tasks` link on `/todo`, not from the nav bar
-- `/shopping` - Shopping list page: an `Add Item` header button opening a dual-mode modal with history-backed autocomplete, store grouping, store filter chips derived from the items on the list, and a `Manage stores` button in the Store toolbar group
+- `/shopping` - Shopping list page: an `Add Item` header button opening a dual-mode modal with history-backed autocomplete, store grouping, store filter chips derived from the items on the list, a `Manage stores` button in the Store toolbar group, and drag-to-reorder via the grip on each open row
 - `/shopping/purchased` - Read-only page of items purchased before today (local time), grouped by store; reachable only via the `View purchased items` link on `/shopping`, not from the nav bar
 - `/dinner-planner` - Dinner planning page with date picker and plan management
 - `/settings` - Settings, family member, calendar, and followed-team management page
@@ -884,9 +896,10 @@ visual suite (above) before shipping a layout change.
   - `POST /api/shopping/stores` - Create a store. `409` on a case-insensitive name conflict
   - `PUT /api/shopping/stores/{id}` - Rename. `409` on conflict with a *different* store
   - `DELETE /api/shopping/stores/{id}` - Delete. **Reassigns the store's items to `store_id = NULL` first** — SQLite FKs aren't enforced, so an orphaned `store_id` would make those items vanish from every rendered group
-  - `GET /api/shopping/items?include_hidden=false` - List items, ordered `completed ASC, created_at DESC`. Hides items completed before local midnight today unless `include_hidden=true`. Runs the once-per-local-day retention purge (see below)
-  - `POST /api/shopping/items` - Create. `201`, or `200` with the existing row when an **open** item with the same trimmed, case-insensitive name already exists in the same store (a merely *completed* match creates a new item). Accepts `store` as a store **name** in place of `store_id` for scripted/voice clients; sending both is `422`, and an unrecognized name falls back to the catch-all rather than erroring or auto-creating a store. A `201` upserts `shopping_item_history`; a `200` does not
-  - `PUT /api/shopping/items/{id}` - Partial update of `name`, `note`, `store_id`, `completed` (`note`/`store_id` use the `UNSET` sentinel). Completion stamping matches `PUT /api/todos/{id}` exactly. Does **not** touch history
+  - `GET /api/shopping/items?include_hidden=false` - List items, ordered `completed ASC`, then by the hand-arranged `sort_order ASC`, then `created_at DESC`. `sort_order` is neutralised for completed rows so they stay newest-first among themselves. Hides items completed before local midnight today unless `include_hidden=true`. Runs the once-per-local-day retention purge (see below)
+  - `POST /api/shopping/items` - Create. `201`, or `200` with the existing row when an **open** item with the same trimmed, case-insensitive name already exists in the same store (a merely *completed* match creates a new item). Accepts `store` as a store **name** in place of `store_id` for scripted/voice clients; sending both is `422`, and an unrecognized name falls back to the catch-all rather than erroring or auto-creating a store. A `201` upserts `shopping_item_history`; a `200` does not. A new item is given `min(sort_order) - 1` **within its own store**, so it lands at the top of that group — which is what `created_at DESC` used to do on its own
+  - `PUT /api/shopping/items/{id}` - Partial update of `name`, `note`, `store_id`, `completed` (`note`/`store_id` use the `UNSET` sentinel). Completion stamping matches `PUT /api/todos/{id}` exactly. Does **not** touch history. A *changed* `store_id` re-places the item at the top of its new group — a rank held at the old store means nothing at the new one
+  - `POST /api/shopping/items/reorder` - Rewrite one store group's order. Body is `{store_id, item_ids}`: the **destination** store (`null` for the catch-all) and that group's items in the order they should read. Every listed item is assigned to `store_id` and numbered by its index, so a cross-store drag is the same call as a within-store one. Idempotent. Duplicate ids keep their first mention; an unknown id is `404` and changes nothing (all-or-nothing — a half-applied order is one nobody asked for); an unknown `store_id` is `422`. The group the item *left* is deliberately not renumbered, because positions are only ever compared. Returns the listed items in their new order
   - `DELETE /api/shopping/items/{id}` - Delete an item; history is untouched
   - `GET /api/shopping/purchased?search=` - List items purchased **before** local midnight today — the exact complement of `GET /api/shopping/items`, including completed rows whose `completed_at` is `NULL` so nothing is invisible in both views. Ordered most-recent-first. Optional case-insensitive `search` across name and note. No sort/limit/offset: `PURCHASED_RETENTION_DAYS = 30` bounds the response. Runs the once-per-local-day retention purge
   - `GET /api/shopping/suggestions?q=&limit=8` - Autocomplete over `shopping_item_history`. Substring (wildcard) match with `%`/`_` escaped, ranked prefix-matches-first then by `times_added` DESC, `last_added_at` DESC, `name` ASC. Empty `q` returns the top entries by use count. `limit` defaults to 8 and is clamped to 25
