@@ -895,6 +895,25 @@ label.weekday-label,
     background: var(--surface-sunken);
 }
 
+/* A row is top-aligned so that the controls beside a title line up with the
+   *title*, and any second line — a note, a purchase time, a due date — runs on
+   beneath them. When there is no second line there is nothing to run on, and
+   top-alignment just leaves a single line of text sitting ~8px above the centre
+   of the 44px controls next to it.
+
+   Keyed off the content block having a second child rather than off a note
+   specifically, so it reads correctly for every kind of second line. */
+.editable-item:not(:has(.editable-item-content > * + *)) {
+    align-items: center;
+}
+
+/* The title's bottom margin exists to separate it from that second line. With
+   no second line it is trailing space inside the centred block, which pushes
+   the text back off-centre by half of it. */
+.editable-item:not(:has(.editable-item-content > * + *)) .editable-item-title {
+    margin-bottom: 0;
+}
+
 .editable-item.completed {
     opacity: 0.6;
 }
