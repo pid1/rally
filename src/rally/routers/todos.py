@@ -8,6 +8,7 @@ from rally.database import get_db
 from rally.models import FamilyMember, Todo
 from rally.recurrence import process_recurring_todos
 from rally.schemas import UNSET, CompletedTodoPage, TodoCreate, TodoResponse, TodoUpdate
+from rally.todo_notifications import notify_assignment
 from rally.utils.settings import today_start_utc
 from rally.utils.timezone import now_utc
 
@@ -146,6 +147,10 @@ def create_todo(todo: TodoCreate, db: Session = Depends(get_db)):
     db.add(db_todo)
     db.commit()
     db.refresh(db_todo)
+
+    # After the commit and unable to raise: the task is what the caller asked
+    # for, and a Pushover outage must not fail creating it.
+    notify_assignment(db, db_todo)
     return db_todo
 
 
@@ -169,6 +174,10 @@ def update_todo(
     if not db_todo:
         raise HTTPException(status_code=404, detail="Todo not found")
 
+    # Who held it before this write, so a hand-over can be told apart from an
+    # edit that happens to mention the same assignee.
+    previous_assignee = db_todo.assigned_to
+
     # Update only provided fields
     if todo.title is not None:
         db_todo.title = todo.title
@@ -190,6 +199,8 @@ def update_todo(
     # updated_at is automatically set by SQLAlchemy via onupdate
     db.commit()
     db.refresh(db_todo)
+
+    notify_assignment(db, db_todo, previous_assignee=previous_assignee)
     return db_todo
 
 

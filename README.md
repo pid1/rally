@@ -36,7 +36,7 @@ When somebody adds, moves or cancels an event, the people on that event get a pu
 
 ### Tasks and shopping
 
-Tasks can belong to a person, carry a due date, and repeat daily, weekly or monthly. Completed ones stay on the page until midnight, so nobody has to wonder whether the bins went out.
+Tasks can belong to a person, carry a due date, and repeat daily, weekly or monthly. Hand one to somebody and their phone gets a push — theirs alone, once, when it becomes theirs. Completed ones stay on the page until midnight, so nobody has to wonder whether the bins went out.
 
 ![The Rally task list with assignees, due dates and recurring tasks](docs/screenshots/readme-tasks.png)
 
