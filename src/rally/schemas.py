@@ -351,10 +351,26 @@ class ShoppingItemResponse(BaseModel):
     store_id: int | None = None
     completed: bool
     completed_at: datetime | None = None
+    sort_order: int
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ShoppingReorder(BaseModel):
+    """The new contents of one store group, in the order they should read.
+
+    A drag expresses both halves of a move at once — which store the item now
+    belongs to, and where it sits among that store's items — so one request
+    carries both rather than making the client issue a PUT and a reorder and
+    hope neither half fails on its own. ``store_id`` is the *destination*;
+    dragging across groups is just a reorder whose payload happens to include an
+    item that used to live somewhere else.
+    """
+
+    store_id: int | None = None  # None is the "Anywhere" catch-all
+    item_ids: list[int]
 
 
 class ShoppingSuggestion(BaseModel):

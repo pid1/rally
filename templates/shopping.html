@@ -60,6 +60,10 @@
         <div id="groups-container">
             <div class="container-loading-state">Loading shopping list…</div>
         </div>
+
+        <!-- Reordering is otherwise a purely visual event: a screen reader
+             following the grip button hears nothing when the row moves. -->
+        <div class="sr-only" id="reorder-status" role="status" aria-live="polite"></div>
     </div>
 
     <!-- Modal for adding and editing an item — one modal, two modes, exactly as
@@ -123,6 +127,7 @@
         </div>
     </div>
 
+    <script src="/static/drag_reorder.js?v={{ css_version }}"></script>
     <script>
         // ── State ──
         let items = [];
@@ -192,6 +197,18 @@
         async function deleteItem(id) {
             const response = await fetch(`/api/shopping/items/${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to delete item');
+        }
+
+        // One call carries both halves of a drop — which store the item now
+        // belongs to, and the whole destination group in its new order — so a
+        // move across stores can never half-apply.
+        async function reorderItems(storeId, itemIds) {
+            const response = await fetch('/api/shopping/items/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ store_id: storeId, item_ids: itemIds })
+            });
+            if (!response.ok) throw new Error('Failed to save the new order');
         }
 
         // ── Store select + filter chips ──
@@ -300,25 +317,38 @@
                 return;
             }
 
+            // Header and rows are wrapped together so a group is one element:
+            // a drop can then be aimed at the whole block, heading included,
+            // and an empty group is still a target you can drag the last item
+            // of a store back into.
             container.innerHTML = keys.map(key => {
-                const groupItems = [...groups.get(key)].sort((a, b) => {
-                    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-                    return new Date(b.created_at) - new Date(a.created_at);
-                });
+                const groupItems = [...groups.get(key)].sort(compareItems);
                 const openCount = groupItems.filter(i => !i.completed).length;
                 const countLabel = `${openCount} item${openCount === 1 ? '' : 's'}`;
                 const rows = groupItems.length === 0
                     ? '<div class="container-empty-state">Nothing here right now.</div>'
-                    : `<div class="list-container">${groupItems.map(renderItemRow).join('')}</div>`;
+                    : groupItems.map(renderItemRow).join('');
                 return `
-                    <div class="shopping-group-header">
-                        <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
-                        <span class="shopping-group-rule"></span>
-                        <span class="shopping-group-count">${countLabel}</span>
-                    </div>
-                    ${rows}
+                    <section class="shopping-group" data-group="${escapeAttr(key)}">
+                        <div class="shopping-group-header">
+                            <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
+                            <span class="shopping-group-rule"></span>
+                            <span class="shopping-group-count">${countLabel}</span>
+                        </div>
+                        <div class="list-container">${rows}</div>
+                    </section>
                 `;
             }).join('');
+        }
+
+        // The order the server sorts by, restated so the client never renders a
+        // different one: open items first in their hand-arranged order, then the
+        // purchased block newest-first. `sort_order` is deliberately ignored for
+        // purchased rows — see `_list_ordering` in routers/shopping.py.
+        function compareItems(a, b) {
+            if (a.completed !== b.completed) return a.completed ? 1 : -1;
+            if (!a.completed && a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+            return new Date(b.created_at) - new Date(a.created_at);
         }
 
         // Every item renders inside its store's group, so the store is already
@@ -342,6 +372,12 @@
                     </div>
                     <div class="editable-item-actions">
                         <button class="btn btn--sm" onclick="openEditModal(${item.id})">Edit</button>
+                        ${item.completed ? '' : `
+                        <button type="button" class="btn drag-handle"
+                                aria-label="Reorder ${escapeAttr(item.name)}"
+                                title="Drag to reorder or move to another store. Arrow keys work too.">
+                            <span aria-hidden="true">⠿</span>
+                        </button>`}
                     </div>
                 </div>
             `;
@@ -704,12 +740,46 @@
 
         document.getElementById('filter-clear').addEventListener('click', clearFilters);
 
+        // ── Drag to reorder ──
+        //
+        // The group key is the chip value the rest of this page already speaks:
+        // a store id as a string, or ANYWHERE for the catch-all.
+        const dragging = initDragReorder({
+            container: document.getElementById('groups-container'),
+            groupSelector: '.shopping-group',
+            listSelector: '.list-container',
+            itemSelector: '.editable-item',
+            handleSelector: '.drag-handle',
+            canDrag: (row) => !row.classList.contains('completed'),
+            groupKey: (group) => group.dataset.group,
+            groupLabel: (group) => groupLabel(group.dataset.group),
+            itemLabel: (row) => row.querySelector('.editable-item-title').textContent,
+            announce: (message) => {
+                document.getElementById('reorder-status').textContent = message;
+            },
+            onReorder: async (key, itemIds) => {
+                try {
+                    await reorderItems(key === ANYWHERE ? null : parseInt(key, 10), itemIds);
+                } catch (error) {
+                    console.error('Error reordering items:', error);
+                    alert('Failed to save the new order');
+                }
+                // Refetch either way: on success to pick up the store change,
+                // and on failure to put the list back the way the server has it
+                // rather than leaving a move on screen that was never saved.
+                await fetchItems();
+            }
+        });
+
         // ── Initialize ──
         fetchStores().then(fetchItems);
 
         // A plain refetch, not an expiry sweep: the visibility boundary is local
         // midnight and is decided server-side, so the client only has to ask again.
+        // It is skipped mid-drag, because re-rendering the list would delete the
+        // row out of the user's hand.
         setInterval(() => {
+            if (dragging && dragging.isDragging()) return;
             fetchStores().then(fetchItems);
         }, REFRESH_MS);
 

@@ -284,16 +284,28 @@ def seed():
         db.add_all([costco, trader_joes])
         db.flush()
 
+        # `sort_order` is explicit because it is per-store and every row here
+        # shares a created_at to the second: without it the seeded list would
+        # have no defined order to demonstrate rearranging.
         shopping_items = [
-            ShoppingItem(name="Paper towels", store_id=costco.id),
-            ShoppingItem(name="Rotisserie chicken", note="2 if they have them", store_id=costco.id),
+            ShoppingItem(name="Paper towels", store_id=costco.id, sort_order=0),
             ShoppingItem(
-                name="Coffee beans", store_id=costco.id, completed=True, completed_at=now_utc()
+                name="Rotisserie chicken",
+                note="2 if they have them",
+                store_id=costco.id,
+                sort_order=1,
             ),
-            ShoppingItem(name="Almond milk", store_id=trader_joes.id),
-            ShoppingItem(name="Frozen dumplings", store_id=trader_joes.id),
-            ShoppingItem(name="Stamps"),
-            ShoppingItem(name="Batteries", note="AA"),
+            ShoppingItem(
+                name="Coffee beans",
+                store_id=costco.id,
+                completed=True,
+                completed_at=now_utc(),
+                sort_order=2,
+            ),
+            ShoppingItem(name="Almond milk", store_id=trader_joes.id, sort_order=0),
+            ShoppingItem(name="Frozen dumplings", store_id=trader_joes.id, sort_order=1),
+            ShoppingItem(name="Stamps", sort_order=0),
+            ShoppingItem(name="Batteries", note="AA", sort_order=1),
         ]
         for item in shopping_items:
             db.add(item)

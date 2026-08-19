@@ -139,6 +139,21 @@ h3 { font-size: var(--text-lg); }
     outline-offset: 2px;
 }
 
+/* Text for assistive technology only. Announcing a drag needs somewhere to say
+   "Paper towels, 2 of 3 in Costco" that costs no pixels; `display: none` would
+   not be announced at all. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    border: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    clip-path: inset(50%);
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;
@@ -1263,7 +1278,10 @@ label.weekday-label,
     margin: var(--space-6) 0 var(--space-3);
 }
 
-.shopping-group-header:first-child {
+/* The header is now the first child of its own .shopping-group, so the reset
+   has to key off the group rather than the header — otherwise every heading on
+   the page loses the space that separates one store from the next. */
+.shopping-group:first-child .shopping-group-header {
     margin-top: 0;
 }
 
@@ -1307,6 +1325,61 @@ label.weekday-label,
     color: var(--ink);
     font-family: var(--font-body);
     font-size: var(--text-base);
+}
+
+/* Drag to reorder.
+ *
+ * The grip borrows `.btn` for its hit area and focus ring and overrides only
+ * its skin, so it stays a real button — reordering has a keyboard path, and a
+ * button is what carries it.
+ *
+ * `touch-action: none` is the load-bearing declaration: without it a touch that
+ * starts on the grip scrolls the page instead of lifting the row, which is the
+ * whole gesture on a phone. It is scoped to the grip alone so the list itself
+ * still scrolls normally under a finger. */
+.drag-handle {
+    padding-left: 0;
+    padding-right: 0;
+    border-color: transparent;
+    background: none;
+    color: var(--ink-subtle);
+    font-size: var(--text-lg);
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.drag-handle:hover:not(:disabled) {
+    background: none;
+    color: var(--ink);
+}
+
+/* The row stays in the list while it is being dragged — it *is* the drop
+   preview, which is why the live DOM can be read back as the new order. */
+.editable-item.drag-source {
+    opacity: 0.35;
+    border-style: dashed;
+}
+
+/* The copy under the pointer. No shadow: a lifted row reads as lifted here by
+   taking the strong rule, the same way every other emphasised edge in Rally
+   does. */
+.drag-ghost {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 900;
+    pointer-events: none;
+    border-color: var(--ink);
+    cursor: grabbing;
+}
+
+/* Applies to the whole document, not just the row: the pointer is captured, so
+   it spends the drag over whatever it happens to be crossing. */
+body.is-dragging {
+    cursor: grabbing;
+    user-select: none;
 }
 
 /* ---- Calendar ----
