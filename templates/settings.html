@@ -212,6 +212,23 @@
         </form>
     </div>
 
+    <!-- Tasks Section -->
+    <div class="border-container stack">
+        <div class="page-header-row">
+            <h3>Tasks</h3>
+        </div>
+        <form id="tasks-form">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="todo-notify-enabled">
+                    <span>Push a task to whoever it is assigned to</span>
+                </label>
+                <small>Sent once, when the task is created or handed to somebody new &mdash; to that person only, not the whole family. A task assigned to Everyone pushes to nobody, and recurring instances are never announced.</small>
+            </div>
+            <button type="submit" class="btn">Save</button>
+        </form>
+    </div>
+
     <!-- Learning Section -->
     <div class="border-container stack">
         <div class="page-header-row">
@@ -826,6 +843,9 @@
             document.getElementById('prep-overdue-in-summary').checked = s.prep_overdue_in_summary_enabled !== 'false';
             document.getElementById('prep-notify-time').value = s.prep_notify_time || '08:00';
             document.getElementById('prep-default-remind-days').value = s.prep_default_remind_days || '14';
+
+            // Tasks
+            document.getElementById('todo-notify-enabled').checked = s.todo_notify_enabled !== 'false';
 
             // Learning
             document.getElementById('stem-concept-enabled').checked = s.stem_concept_enabled === 'true';
@@ -1555,6 +1575,21 @@
             } catch (error) {
                 console.error('Error saving Pushover settings:', error);
                 alert('Failed to save notification settings');
+            }
+        });
+
+        // Tasks form. No connectivity check: the toggle is policy, and the
+        // transport it rides on is verified by the Notifications form above.
+        document.getElementById('tasks-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await saveSettings({
+                    todo_notify_enabled: document.getElementById('todo-notify-enabled').checked ? 'true' : 'false'
+                });
+                alert('Task settings saved.');
+            } catch (error) {
+                console.error('Error saving task settings:', error);
+                alert('Failed to save task settings');
             }
         });
 

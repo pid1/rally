@@ -558,6 +558,7 @@ rally/
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
 │   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan, add/change/remove notices
+│   ├── todo_notifications.py # The push that goes to a task's assignee when it lands on their list
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalising
@@ -683,6 +684,14 @@ rally/
   - A window missed by more than `REMINDER_GRACE_MINUTES` (15) is **dropped, not replayed** — a push at 4:05 for a 2:30 reminder misinforms rather than reminds
   - `check_due_reminders` runs from a minute loop in `entrypoint.sh` *and* opportunistically from `GET /api/events`, gated to once a minute. The container loop only exists under Docker, so without the second hook a `dev` instance would never send one — same reasoning as the shopping retention purge
   - Failures are logged and recorded, never raised: a push cannot fail an API request or a summary
+- ✅ **Pushover on task assignment** (Settings → Tasks)
+  - One recipient: the task's `assigned_to` member, and nobody else. `assigned_to IS NULL` means "Everyone", which is precisely the audience an event notification refuses to buzz, so an unassigned task announces nothing
+  - Fired from the write paths only — `POST /api/todos` and `PUT /api/todos/{id}` — after the commit, and it cannot raise. Same discipline as the calendar change notices: the task is what the caller asked for and a Pushover outage must not fail creating it
+  - A hand-over, not an edit: `notify_assignment(db, todo, previous_assignee=…)` sends only when `assigned_to` changed to somebody new. Renaming a task somebody has had for a week is silent, and so is clearing the assignee or completing the task
+  - An **already-complete** task is never announced, including when a done task is reassigned — that is bookkeeping, not work
+  - Title is `New Task: <title>`; the body is the due date then the description, each line omitted when there is nothing to say. Wording is the shortest unambiguous form — `Due today`, `Due tomorrow`, `Due Saturday` inside a week, `Due Sep 30` beyond it (with the year when it is not this one), and `Overdue since Aug 14` for a date already past, because handing somebody a late task must not read as an ordinary one. A task with neither falls back to `It's on your list.`: Pushover rejects an empty message
+  - **No send-once row.** Unlike a reminder, this fires from a single write rather than a repeating scan, so there is nothing to deduplicate — and a task genuinely bounced between two people is two hand-overs, both worth announcing
+  - Recurring instances are **not** announced. `process_recurring_todos()` runs opportunistically inside `GET /api/todos`, so a push there would fire from a read and would buzz the owner of a daily chore every morning about a standing arrangement
 - ✅ Calendar integration (Google Calendar, iCloud) - filters to next 7 days, deduplicates, handles declined events
 - ✅ Weather integration (configurable National Weather Service forecast URL — DWML feed)
 - ✅ Configurable LLM provider - Anthropic Claude or any OpenAI-compatible API
@@ -708,6 +717,7 @@ rally/
   - `prep_overdue_in_summary_enabled` ("true"/"false", default **"true"**) folds preparedness stock that is past its refresh date into the daily summary. Defaults on, unlike the shopping and sports toggles: those add a standing block that costs tokens every day, whereas this one is normally empty and omits itself entirely, so it only costs anything on the days it matters
   - `prep_review_enabled` ("true"/"false", default **"false"**) adds the `Review` button to `/preparedness`. Off by default because it is a real LLM call and is only useful once a reasonable amount of stock has been entered
   - `prep_notify_enabled` ("true"/"false", default "true"), `prep_notify_time` (local HH:MM, default "08:00") and `prep_default_remind_days` (default "14") drive the preparedness refresh digest. `prep_last_digest_date` is internal bookkeeping written by the once-per-local-day gate — never surfaced in the UI, exactly like `shopping_last_purge_date`
+  - `todo_notify_enabled` ("true"/"false", default "true") pushes a task to its assignee when it is created or handed to somebody new (Tasks section). Defaults on: a family that has entered Pushover keys wants the pushes, and the row only exists once somebody turns them off
   - `sports_watchlist_enabled` ("true"/"false", default "false") folds tonight's games and notable upcoming events for followed teams into the daily summary (Sports section)
   - `llm_anthropic_max_tokens` / `llm_local_max_tokens` (default `"4000"` each) are the per-provider token budgets `_call_llm` sends — each provider owns its own key, so switching `Provider` never carries one provider's budget onto the other. `llm_anthropic_max_tokens_mode` (`"model_max"` or `"custom"`, default `"custom"`) is Anthropic-only; in `"model_max"` mode the value is resolved from the Anthropic Models API at save time (not on every generation run) and stored, not re-resolved later — rollback restores the stored number verbatim rather than re-resolving it
   - Connection verification on save: LLM, Weather, Calendar, and Followed Team settings show a verification modal with spinner, checkmark on success (auto-closes), or error message with Close button on failure
@@ -887,9 +897,9 @@ visual suite (above) before shipping a layout change.
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
   - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
-  - `POST /api/todos` - Create new todo
+  - `POST /api/todos` - Create new todo. Pushes to the assignee when one is set (see **Pushover on task assignment**)
   - `GET /api/todos/{id}` - Get specific todo
-  - `PUT /api/todos/{id}` - Update todo
+  - `PUT /api/todos/{id}` - Update todo. Pushes to the assignee only when `assigned_to` changes to somebody new
   - `DELETE /api/todos/{id}` - Delete todo
 - `/api/shopping` - Shopping list endpoints
   - `GET /api/shopping/stores` - List stores, ordered by name ASC

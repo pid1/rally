@@ -58,13 +58,16 @@ Rally uses [Pushover](https://pushover.net). Settings → **Notifications** take
 
 A member without a key is never notified. That is the default rather than an error.
 
-Three things send a push:
+Four things send a push:
 
 - **A reminder lead time** on an event, such as "30 minutes before"
 - **Notify attendees**, sent by hand from an event
 - **An automatic notice** when an event is added, changed or removed
+- **A task assignment**, when a task is created for somebody or handed to them
 
-All three go to the event's **attendees** rather than to the whole household. Buzzing four phones about one child's appointment is how a family learns to ignore notifications.
+The first three go to the event's **attendees** rather than to the whole household. Buzzing four phones about one child's appointment is how a family learns to ignore notifications.
+
+A task assignment goes to the assignee alone, once, at the moment the task becomes theirs. A task assigned to Everyone pushes to nobody, editing a task somebody already has is silent, and recurring instances are never announced — the hand-over happened when you wrote the recurring task, not every morning since. Turn it off in Settings → **Tasks**.
 
 Preparedness has its own daily digest, with its own time and lead-time settings.
 
