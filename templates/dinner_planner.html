@@ -105,7 +105,12 @@
             if (dateStr === today) return 'Today';
             if (dateStr === tomorrow) return 'Tomorrow';
 
-            return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+            // The planner runs to the end of the plan list, so a meal can land in
+            // a later year — show the year when it isn't the current one.
+            const opts = { weekday: 'long', month: 'short', day: 'numeric' };
+            if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = 'numeric';
+
+            return date.toLocaleDateString('en-US', opts);
         }
 
         // Family member helpers
@@ -136,11 +141,11 @@
             const response = await fetch('/api/dinner-plans');
             const allPlans = await response.json();
 
-            // Filter to next 7 days, then sort by date then meal type order
+            // Keep every meal from today onward (no upper bound — the planner
+            // shows the whole future), then sort by date then meal type order.
             const today = todayLocal();
-            const weekFromNow = getDateInDays(7);
             plans = allPlans
-                .filter(p => p.date >= today && p.date <= weekFromNow)
+                .filter(p => p.date >= today)
                 .sort((a, b) => {
                     if (a.date !== b.date) return a.date.localeCompare(b.date);
                     return (MEAL_TYPE_ORDER[a.meal_type] ?? 99) - (MEAL_TYPE_ORDER[b.meal_type] ?? 99);
@@ -163,7 +168,7 @@
             if (visible.length === 0) {
                 container.innerHTML = selectedMealTypes.size > 0
                     ? '<div class="container-empty-state">No meals match the current filters.</div>'
-                    : '<div class="container-empty-state">No meal plans for the next 7 days. Click "Add Meal" to get started.</div>';
+                    : '<div class="container-empty-state">No upcoming meal plans. Click "Add Meal" to get started.</div>';
                 return;
             }
 
