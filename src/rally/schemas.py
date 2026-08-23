@@ -309,6 +309,7 @@ class RecurringTodoBase(BaseModel):
     has_due_date: bool = False
     remind_days_before: int | None = None  # Days before due_date to start LLM reminders
     custom_rule: dict | None = None  # JSON rule for custom recurrence type
+    start_date: str | None = None  # YYYY-MM-DD: earliest date the series may fire
 
 
 class RecurringTodoCreate(RecurringTodoBase):
@@ -325,6 +326,7 @@ class RecurringTodoUpdate(BaseModel):
     remind_days_before: int | None = UNSET  # Days before due_date; None means "always"
     active: bool | None = None
     custom_rule: dict | None = UNSET  # UNSET means not changing; None means clear
+    start_date: str | None = UNSET  # UNSET means not changing; None means clear
 
 
 class RecurringTodoResponse(RecurringTodoBase):
@@ -338,6 +340,21 @@ class RecurringTodoResponse(RecurringTodoBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RecurrencePreviewRequest(BaseModel):
+    """An unsaved recurrence rule, asked what dates it would produce."""
+
+    recurrence_type: str  # daily, weekly, monthly, custom
+    recurrence_day: int | None = None
+    custom_rule: dict | None = None
+    start_date: str | None = None  # YYYY-MM-DD
+
+
+class RecurrencePreviewResponse(BaseModel):
+    """The next few dates that rule lands on, earliest first."""
+
+    occurrences: list[str]  # YYYY-MM-DD
 
 
 # Shopping List
