@@ -444,6 +444,9 @@ class RecurringTodo(Base):
     remind_days_before: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # Days before due_date to start showing in LLM briefings
+    start_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # YYYY-MM-DD: the earliest date this series may fire; NULL means "from today"
     last_generated_date: Mapped[str | None] = mapped_column(
         String(10), nullable=True
     )  # YYYY-MM-DD: recurrence date of the most recently generated instance

@@ -415,6 +415,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 - `026_add_shopping_sort_order` - Add `shopping_items.sort_order`, the per-store hand-arranged position behind drag-to-reorder. Backfilled per store group in the order the list already read (`completed ASC, created_at DESC, id ASC`), so no existing list visibly moves
 - `027_add_member_notification_prefs` - Add the `member_notification_prefs` table plus its index and the unique index on `(family_member_id, kind)`. Purely additive and it writes **no rows**: an absent row means the kind's default, so upgrading changes nobody's behaviour — shipping the feature is not the same as turning it on
+- `028_add_recurring_todo_start_date` - Add `recurring_todos.start_date`, the day a series' first instance is due. Purely additive and writes no rows: `NULL` means "start from today", which is what every existing template already does
 
 ### Running Migrations
 
@@ -624,6 +625,7 @@ rally/
 │   ├── migrate_015_add_llm_settings_history.py # Migration 015: add llm_settings_history table
 │   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
 │   ├── migrate_026_add_shopping_sort_order.py # Migration 026: add shopping_items.sort_order
+│   ├── migrate_028_add_recurring_todo_start_date.py # Migration 028: add recurring_todos.start_date
 │   ├── migrate_018_add_sports_watchlist.py # Migration 018: add followed_teams, sports_event_notices tables
 │   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
 │   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
@@ -758,6 +760,10 @@ rally/
   - Optional due date and reminder window per template
   - Assign to family members
   - Auto-generates concrete todo instances when due and no open instance exists
+  - **Optional start date** — the day the first instance is due, with the cadence counted from there ("replace the smoke detector battery every 12 months, starting 1 January 2027", set up in 2026 in one pass). One substitution does all of it: `get_first_recurrence_date()` resolves from `max(today, start_date)` rather than from today, and `_first_custom()` already means "the first date matching this rule on or after the day I hand you". For daily and Custom "every N days" the start date is the **anchor** — the first task is on it and the interval counts from it; for the rules that name a position on the calendar (a weekday, a day of the month, the first Sunday) it is a **floor**, because that named position is the point of the rule. `get_next_recurrence_date()`, `_next_custom()` and `_resolve_reference_date()` are untouched: once the first instance exists, `last_generated_date` is the anchor and the start date has done its job
+  - `process_recurring_todos()` skips a template whose start date is later than today, before any other work. A series that begins in 2027 puts nothing on the task list in 2026 — that is the difference between a start date and a far-off due date
+  - Built-in **Monthly** rolls the first occurrence forward when this month's day has already passed, instead of handing back a task due three weeks ago. This changes newly created templates only: anything already generating has a `last_generated_date` and never reaches that path
+  - The modal reads the rule back as dates through `POST /api/recurring-todos/preview` (*First task: Friday, January 1, 2027 — then January 1, 2028*), and the Recurring list row appends `· starts Jan 1, 2027` while the start date is still in the future, so a series with nothing on the task list is still visibly scheduled
   - Recurrence processing runs during dashboard generation
   - Activate/deactivate templates without deleting
 - ✅ Shopping list (`/shopping`) - Store-grouped family shopping list, a peer of Tasks and the Meal Planner
@@ -921,8 +927,9 @@ visual suite (above) before shipping a layout change.
 - `/api/recurring-todos` - Recurring todo template CRUD endpoints
   - `GET /api/recurring-todos` - List all recurring todo templates
   - `POST /api/recurring-todos` - Create new recurring todo template
+  - `POST /api/recurring-todos/preview` - Ask an **unsaved** rule (`{recurrence_type, recurrence_day, custom_rule, start_date}`) what dates it produces; returns `{"occurrences": ["2027-01-01", "2028-01-01", "2029-01-01"]}`. This exists so the modal's read-back line does not reimplement the recurrence math in JavaScript — `rally.recurrence` stays the only place that knows what "every 12 months on the first Sunday" means. Computed from the rule and today, the same way a new template's first instance is placed; a series already running from a completion anchor can differ
   - `GET /api/recurring-todos/{id}` - Get specific template
-  - `PUT /api/recurring-todos/{id}` - Update template
+  - `PUT /api/recurring-todos/{id}` - Update template. `start_date` uses the `UNSET` sentinel like `custom_rule`, and its three edit states are enforced here: freely editable before anything is generated; after the first instance exists but nothing has been completed, a change re-dates the open instance and resets `last_generated_date` to the new first occurrence (the template owns the anchor — hand-editing the task never moved it); after any instance has been completed the change is a `409`, because the last completion drives the series from then on. Re-sending the value already stored is not a change. A malformed date, or one that is not `YYYY-MM-DD`, is a `422`
   - `DELETE /api/recurring-todos/{id}` - Delete template
 - `/api/dinner-plans` - Dinner plan CRUD endpoints
   - `GET /api/dinner-plans` - List all dinner plans
@@ -1053,7 +1060,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `StemConceptHistory` - Records used STEM "concept of the day" topics (title, field, used_on date) so the generator avoids repeating a specific topic within 60 days; one row per (title, used_on)
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag
 - `Todo` - Task management with title, description, optional due_date (YYYY-MM-DD), assigned_to (family member), optional recurring_todo_id (link to recurring template), optional remind_days_before (reminder window), completion status, and timestamps
-- `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, last_generated_date (tracks most recently generated instance's recurrence date), active flag, and timestamps
+- `RecurringTodo` - Recurring todo templates with title, description, recurrence_type (daily/weekly/monthly), recurrence_day, assigned_to, has_due_date, remind_days_before, optional start_date (YYYY-MM-DD; the earliest date the series may fire, NULL meaning "from today"), last_generated_date (tracks most recently generated instance's recurrence date), active flag, and timestamps
 - `ShoppingStore` - User-defined store items are grouped under (Costco, Trader Joe's, …). Names are unique case-insensitively; there is no seeded "Anywhere" row — the catch-all is `store_id IS NULL`
 - `ShoppingItem` - Shopping list item with name, optional note, optional store_id, completion status, completed_at, and timestamps. Uses the same `completed`/`completed_at` columns and semantics as `Todo`, so a completed item stays visible until local midnight; completed rows are deleted 30 days after completion
 - `ShoppingItemHistory` - Permanent, deduplicated record of every name ever added (name_key = trimmed + casefolded), with the display casing, the most recently used store_id, a `times_added` counter and `last_added_at`. Powers autocomplete and deliberately survives the purchased-item purge
