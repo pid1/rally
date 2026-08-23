@@ -9,7 +9,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from rally.models import Todo
+from rally import notification_prefs
+from rally.models import MemberNotificationPref, Todo
 from rally.todo_notifications import due_label, notify_assignment
 
 TODAY = datetime(2026, 8, 19, 12, tzinfo=UTC)
@@ -298,3 +299,61 @@ def test_an_assignee_who_no_longer_exists_is_not_a_crash(db_session, token, mock
 
     assert result["sent"] == []
     assert result["skipped_reason"] == "the assignee no longer exists"
+
+
+# --- Per-member preferences ----------------------------------------------------
+
+
+def test_an_assignee_who_muted_hand_offs_is_not_pushed(
+    client, db_session, token, reachable, mock_pushover
+):
+    db_session.add(
+        MemberNotificationPref(
+            family_member_id=reachable.id,
+            kind=notification_prefs.TASK_ASSIGNMENT,
+            enabled=False,
+        )
+    )
+    db_session.commit()
+
+    _create(client, assigned_to=reachable.id)
+
+    assert mock_pushover.sent == []
+
+
+def test_a_muted_assignee_is_named_rather_than_dropped(db_session, token, reachable):
+    """*Muted* and *skipped* are different answers to a silent phone."""
+    db_session.add(
+        MemberNotificationPref(
+            family_member_id=reachable.id,
+            kind=notification_prefs.TASK_ASSIGNMENT,
+            enabled=False,
+        )
+    )
+    db_session.commit()
+    todo = Todo(title="Take out the trash", assigned_to=reachable.id)
+    db_session.add(todo)
+    db_session.commit()
+
+    result = notify_assignment(db_session, todo)
+
+    assert result["muted"] == ["Emma"]
+    assert result["skipped"] == []
+    assert result["skipped_reason"] == "the assignee has task hand-offs turned off"
+
+
+def test_muting_hand_offs_does_not_mute_that_persons_reminders(
+    client, db_session, token, reachable, mock_pushover
+):
+    db_session.add(
+        MemberNotificationPref(
+            family_member_id=reachable.id,
+            kind=notification_prefs.TASK_ASSIGNMENT,
+            enabled=False,
+        )
+    )
+    db_session.commit()
+
+    assert (
+        notification_prefs.wants(db_session, reachable, notification_prefs.EVENT_REMINDER) is True
+    )

@@ -326,6 +326,16 @@ def create_item(item: ShoppingItemCreate, response: Response, db: Session = Depe
     *unrecognized* name is not an error — the item lands in the catch-all rather
     than failing mid-dictation — and unknown names never auto-create a store.
     """
+    # Announce the *previous* batch, if it has finished settling. Hung off a
+    # write rather than a read — pushing from a GET is the mistake
+    # ``todo_notifications`` explicitly avoids — and run before the insert
+    # rather than after it, because the item being added is by definition
+    # brand new: a pass taken afterwards would always find the batch still
+    # warm and would never send anything. Gated to one pass a minute, like the
+    # reminder check, so the container loop stays the reliable path while a
+    # ``dev``-served instance is not silent.
+    shopping_notifications.run_once_per_minute(db)
+
     name = _clean_name(item.name, "Item name")
 
     store_id = item.store_id
@@ -366,14 +376,6 @@ def create_item(item: ShoppingItemCreate, response: Response, db: Session = Depe
     db.refresh(db_item)
 
     record_item_history(db, name, store_id)
-
-    # Announce the batch this item belongs to, if it has finished settling.
-    # Hung off the *write* rather than a read: pushing from a GET is the
-    # mistake ``todo_notifications`` explicitly avoids, and adding an item is
-    # the exact moment there is something to say. Gated to one pass a minute,
-    # like the reminder check, so the container loop stays the reliable path
-    # and a ``dev``-served instance is not silent.
-    shopping_notifications.run_once_per_minute(db)
     return db_item
 
 

@@ -210,6 +210,13 @@
             </div>
             <button type="submit" class="btn">Save</button>
         </form>
+
+        <div class="page-header-row">
+            <h3>What Rally sends</h3>
+        </div>
+        <div class="list-container" id="notification-overview">
+            <div class="container-loading-state">Loading notifications…</div>
+        </div>
     </div>
 
     <!-- Tasks Section -->
@@ -258,6 +265,18 @@
                     <span>Include the shopping list in the daily summary</span>
                 </label>
                 <small>Adds your open shopping items, grouped by store, to The Briefing. Purchased items are never included.</small>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="shopping-notify-enabled">
+                    <span>Push new items to whoever asked for them</span>
+                </label>
+                <small>A shopping list belongs to the household, so this one has no audience of its own &mdash; it goes only to the people who tick <strong>Shopping list additions</strong> on their own family member. Off by default. Purchases, edits and deletions are never announced.</small>
+            </div>
+            <div class="form-group">
+                <label>Wait for adding to stop (minutes)</label>
+                <input type="number" id="shopping-notify-settle" min="0" step="1" placeholder="5">
+                <small>Nine items added while walking the pantry is one push, not nine. Rally waits this long after the most recent addition before sending the batch.</small>
             </div>
             <button type="submit" class="btn">Save</button>
         </form>
@@ -365,6 +384,11 @@
                 <div class="form-group">
                     <label>Pushover Device (optional)</label>
                     <input type="text" id="member-pushover-device" placeholder="Leave blank for all devices">
+                </div>
+                <div class="form-group">
+                    <label id="member-notify-label">Notify about</label>
+                    <div id="member-notify-options"></div>
+                    <small id="member-notify-help"></small>
                 </div>
 
                 <div class="modal-actions">
@@ -606,6 +630,116 @@
             `).join('');
         }
 
+        // ── Notifications ──
+        //
+        // One fetch feeds both surfaces: the read-only "what Rally sends" list
+        // in the Notifications section, and the switches inside the family
+        // member modal. The catalogue lives on the server, so a kind added
+        // later appears in both without a template change.
+
+        let notificationKinds = [];
+        let notificationTokenConfigured = false;
+
+        async function fetchNotificationOverview() {
+            try {
+                const response = await fetch('/api/notifications/overview');
+                const body = await response.json();
+                notificationKinds = body.kinds || [];
+                notificationTokenConfigured = !!body.token_configured;
+            } catch (error) {
+                console.error('Error loading notification overview:', error);
+                notificationKinds = [];
+            }
+            renderNotificationOverview();
+        }
+
+        // Three different silences, named separately: nobody hearing something
+        // because they muted it is a different problem from nobody having a
+        // key, and "why didn't Jake get that?" is answered by saying which.
+        function recipientSummary(kind) {
+            const parts = [];
+            parts.push(kind.receiving.length
+                ? 'Goes to ' + kind.receiving.map(escapeHtml).join(', ')
+                : 'Goes to nobody right now');
+            if (kind.muted.length) {
+                parts.push(kind.muted.map(escapeHtml).join(', ') + ' turned it off');
+            }
+            if (kind.no_key.length) {
+                parts.push(kind.no_key.map(escapeHtml).join(', ') + ' — no Pushover key');
+            }
+            return parts.join(' · ');
+        }
+
+        function renderNotificationOverview() {
+            const container = document.getElementById('notification-overview');
+
+            if (!notificationKinds.length) {
+                container.innerHTML = '<div class="container-empty-state">Could not load what Rally sends.</div>';
+                return;
+            }
+
+            const rows = notificationKinds.map(kind => `
+                <div class="editable-item" data-kind="${kind.kind}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(kind.label)}${kind.enabled ? '' : ' — switched off for everybody'}</div>
+                        <div class="editable-item-description">${escapeHtml(kind.audience)}</div>
+                        <div class="assignee-label">${recipientSummary(kind)}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            // The token is the first of the five gates. Without it a carefully
+            // configured list of recipients would read as working.
+            const warning = notificationTokenConfigured ? '' :
+                '<div class="container-empty-state">No Pushover application token yet — nothing sends until one is saved above.</div>';
+
+            container.innerHTML = warning + rows;
+        }
+
+        function renderMemberNotifyOptions(member) {
+            const container = document.getElementById('member-notify-options');
+            const prefs = (member && member.notifications) || {};
+
+            container.innerHTML = notificationKinds.map(kind => {
+                const on = (kind.kind in prefs) ? prefs[kind.kind] : kind.default_on;
+                return `<div><label class="checkbox-label">
+                    <input type="checkbox" data-notify-kind="${kind.kind}"${on ? ' checked' : ''}>
+                    <span>${escapeHtml(kind.label)}</span>
+                </label></div>`;
+            }).join('');
+
+            updateMemberNotifyLabel();
+            updateMemberNotifyState();
+        }
+
+        function updateMemberNotifyLabel() {
+            const name = document.getElementById('member-name').value.trim();
+            document.getElementById('member-notify-label').textContent =
+                name ? `Notify ${name} about` : 'Notify about';
+        }
+
+        // Held and explained rather than silently ineffective: a member with no
+        // key is never notified, whatever these say. The values are still
+        // saved, so they take effect the moment a key is added rather than
+        // needing a second trip through Settings.
+        function updateMemberNotifyState() {
+            const hasKey = document.getElementById('member-pushover-key').value.trim() !== '';
+            document.querySelectorAll('#member-notify-options input[type="checkbox"]').forEach(box => {
+                box.disabled = !hasKey;
+            });
+            document.getElementById('member-notify-help').textContent = hasKey
+                ? 'Each of these only ever narrows what this person already receives — ticking one never sends them somebody else\'s appointments.'
+                : 'Add a Pushover user key above to switch these on. They are saved either way, and take effect the moment a key is added.';
+        }
+
+        function collectMemberNotifications() {
+            const values = {};
+            document.querySelectorAll('#member-notify-options input[type="checkbox"]').forEach(box => {
+                values[box.dataset.notifyKind] = box.checked;
+            });
+            return values;
+        }
+
         function openAddMemberModal() {
             editingMemberId = null;
             document.getElementById('member-modal-title').textContent = 'Add Family Member';
@@ -613,6 +747,7 @@
             document.getElementById('member-id').value = '';
             // Testing a key that has not been saved yet would test nothing.
             document.getElementById('btn-test-member-pushover').style.display = 'none';
+            renderMemberNotifyOptions(null);
             showModalOverlay('member-modal-overlay');
         }
 
@@ -628,6 +763,7 @@
             document.getElementById('member-pushover-device').value = member.pushover_device || '';
             document.getElementById('btn-test-member-pushover').style.display =
                 member.pushover_user_key ? '' : 'none';
+            renderMemberNotifyOptions(member);
             showModalOverlay('member-modal-overlay');
         }
 
@@ -852,6 +988,8 @@
 
             // Shopping List
             document.getElementById('shopping-list-in-summary').checked = s.shopping_list_in_summary_enabled === 'true';
+            document.getElementById('shopping-notify-enabled').checked = s.shopping_notify_enabled === 'true';
+            document.getElementById('shopping-notify-settle').value = s.shopping_notify_settle_minutes || '5';
 
             // Sports
             document.getElementById('sports-watchlist-enabled').checked = s.sports_watchlist_enabled === 'true';
@@ -1291,13 +1429,17 @@
             if (e.target.id === 'member-modal-overlay') closeMemberModal();
         });
 
+        document.getElementById('member-name').addEventListener('input', updateMemberNotifyLabel);
+        document.getElementById('member-pushover-key').addEventListener('input', updateMemberNotifyState);
+
         document.getElementById('member-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const data = {
                 name: document.getElementById('member-name').value,
                 pushover_user_key: document.getElementById('member-pushover-key').value.trim() || null,
-                pushover_device: document.getElementById('member-pushover-device').value.trim() || null
+                pushover_device: document.getElementById('member-pushover-device').value.trim() || null,
+                notifications: collectMemberNotifications()
             };
 
             try {
@@ -1308,6 +1450,7 @@
                 }
                 closeMemberModal();
                 await fetchMembers();
+                await fetchNotificationOverview();
             } catch (error) {
                 console.error('Error saving member:', error);
                 alert('Failed to save family member');
@@ -1586,6 +1729,7 @@
                 await saveSettings({
                     todo_notify_enabled: document.getElementById('todo-notify-enabled').checked ? 'true' : 'false'
                 });
+                await fetchNotificationOverview();
                 alert('Task settings saved.');
             } catch (error) {
                 console.error('Error saving task settings:', error);
@@ -1610,6 +1754,7 @@
                     prep_review_enabled: document.getElementById('prep-review-enabled').checked ? 'true' : 'false',
                     prep_overdue_in_summary_enabled: document.getElementById('prep-overdue-in-summary').checked ? 'true' : 'false'
                 });
+                await fetchNotificationOverview();
                 alert('Preparedness settings saved.');
             } catch (error) {
                 console.error('Error saving preparedness settings:', error);
@@ -1666,8 +1811,11 @@
             e.preventDefault();
             try {
                 await saveSettings({
-                    shopping_list_in_summary_enabled: document.getElementById('shopping-list-in-summary').checked ? 'true' : 'false'
+                    shopping_list_in_summary_enabled: document.getElementById('shopping-list-in-summary').checked ? 'true' : 'false',
+                    shopping_notify_enabled: document.getElementById('shopping-notify-enabled').checked ? 'true' : 'false',
+                    shopping_notify_settle_minutes: document.getElementById('shopping-notify-settle').value || '5'
                 });
+                await fetchNotificationOverview();
                 alert('Shopping List settings saved.');
             } catch (error) {
                 console.error('Error saving shopping list settings:', error);
@@ -1690,7 +1838,7 @@
         });
 
         // ── Initialize ──
-        Promise.all([fetchMembers(), fetchCalendars(), fetchFollowedTeams(), fetchSettings(), fetchAiSettings()]);
+        Promise.all([fetchMembers(), fetchCalendars(), fetchFollowedTeams(), fetchSettings(), fetchAiSettings(), fetchNotificationOverview()]);
 
         // Nav dropdown toggle (for touch devices)
         function toggleOtherDropdown(e) {
