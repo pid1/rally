@@ -349,6 +349,44 @@ class EventNotification(Base):
     )
 
 
+class MemberNotificationPref(Base):
+    """One family member's answer for one kind of notification.
+
+    Whether somebody has a Pushover key was the only per-person lever Rally
+    had, and it decided five different kinds of notification at once. This
+    table is the narrower one: Dad can hear about the shopping list without
+    hearing every calendar edit.
+
+    **An absent row means the kind's default** — the same discipline
+    ``todo_notify_enabled`` follows, where the row only exists once somebody
+    has expressed a preference. So installing this feature changes nobody's
+    behaviour, and a kind added later inherits its own default for free rather
+    than needing a backfill.
+
+    A preference can only ever *narrow* what somebody already receives: it is
+    applied after the kind's audience rule, never instead of it. Ticking
+    ``event_reminder`` does not start sending you other people's appointments.
+
+    No foreign key, matching ``event_attendees`` and ``shopping_items``:
+    resolution always starts from a member row, so a stray orphan can never
+    grant anybody a notification. ``DELETE /api/family/{id}`` clears these rows
+    explicitly all the same.
+    """
+
+    __tablename__ = "member_notification_prefs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    family_member_id: Mapped[int] = mapped_column(Integer, index=True)
+    kind: Mapped[str] = mapped_column(String(40))  # one of notification_prefs.KINDS
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_member_notification_prefs_unique", "family_member_id", "kind", unique=True),
+    )
+
+
 class DashboardSnapshot(Base):
     """Dashboard snapshot model - stores generated daily summary data."""
 

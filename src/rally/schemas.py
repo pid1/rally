@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+
+from rally import notification_prefs
 
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
@@ -20,8 +22,30 @@ class FamilyMemberBase(BaseModel):
     pushover_device: str | None = None
 
 
+def _check_notification_kinds(values: dict[str, bool] | None) -> dict[str, bool] | None:
+    """Reject a preference for a kind Rally does not send.
+
+    A typo'd key would otherwise be stored forever and read by nothing, which
+    looks exactly like a preference that quietly stopped working. Raising here
+    makes it a 422 at the door instead.
+    """
+    if not values:
+        return values
+    unknown = sorted(set(values) - set(notification_prefs.KIND_KEYS))
+    if unknown:
+        known = ", ".join(notification_prefs.KIND_KEYS)
+        raise ValueError(f"Unknown notification kind(s): {', '.join(unknown)}. Known: {known}")
+    return values
+
+
 class FamilyMemberCreate(FamilyMemberBase):
-    pass
+    # Omitted means "the defaults" — everything on except shopping additions.
+    notifications: dict[str, bool] | None = None
+
+    @field_validator("notifications")
+    @classmethod
+    def check_notification_kinds(cls, values):
+        return _check_notification_kinds(values)
 
 
 class FamilyMemberUpdate(BaseModel):
@@ -29,12 +53,25 @@ class FamilyMemberUpdate(BaseModel):
     color: str | None = None
     pushover_user_key: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     pushover_device: str | None = UNSET
+    # A *partial* map: kinds left out keep whatever they resolve to today.
+    # UNSET means "not provided", the same distinction the fields above draw.
+    notifications: dict[str, bool] | None = UNSET
+
+    @field_validator("notifications")
+    @classmethod
+    def check_notification_kinds(cls, values):
+        return _check_notification_kinds(values)
 
 
 class FamilyMemberResponse(FamilyMemberBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    # Resolved values with the defaults already filled in, so no client has to
+    # know what the defaults are. This is the preference alone: somebody with
+    # no Pushover key still has one, and it takes effect the moment a key is
+    # added rather than needing a second trip through Settings.
+    notifications: dict[str, bool] = {}
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -587,13 +624,52 @@ class EventNotifyResponse(BaseModel):
 
     "It worked" and "four phones buzzed" are different claims, and only this
     shape can tell them apart — an attendee with no Pushover key is reported as
-    skipped rather than silently dropped.
+    skipped rather than silently dropped, and one who turned event reminders
+    off is reported as muted. The manual notify button is filtered like every
+    other push, so it has to be able to say *"sent to Jon · Emma has event
+    reminders turned off"*.
     """
 
     sent: list[str] = []
-    skipped: list[str] = []
+    skipped: list[str] = []  # no Pushover key
+    muted: list[str] = []  # has a key, turned this kind off
     failed: list[str] = []
     error: str | None = None
+
+
+# Notifications — what Rally sends, and who hears it
+
+
+class NotificationKindOverview(BaseModel):
+    """One row of the read-only *What Rally sends* list.
+
+    ``audience`` is carried rather than derived client-side because it is the
+    answer to *"why didn't Jake get that?"*, and that answer belongs on the
+    same screen as the question. The three name lists are the state, split the
+    way a silent phone actually splits: hearing it, muted it, has no key.
+    """
+
+    kind: str
+    label: str
+    audience: str
+    default_on: bool
+    settings_key: str | None = None  # The install-wide switch, where it has one
+    enabled: bool  # Whether that switch is on; True for a kind with none
+    receiving: list[str] = []
+    muted: list[str] = []
+    no_key: list[str] = []
+
+
+class NotificationOverviewResponse(BaseModel):
+    """Every kind Rally sends, in catalogue order.
+
+    ``token_configured`` sits at the top because it is the first of the five
+    gates: with no application token nothing sends at all, and a list of
+    carefully configured recipients would otherwise read as working.
+    """
+
+    token_configured: bool
+    kinds: list[NotificationKindOverview]
 
 
 # Preparedness — locations
@@ -736,7 +812,8 @@ class PrepDigestResponse(BaseModel):
     count: int
     items: list[PrepDigestItem]
     sent_to: list[str] = []
-    skipped: list[str] = []
+    skipped: list[str] = []  # no Pushover key
+    muted: list[str] = []  # has a key, turned the digest off
     failed: list[str] = []
     skipped_reason: str | None = None
 

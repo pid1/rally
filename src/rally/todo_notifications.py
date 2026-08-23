@@ -35,6 +35,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from rally import notification_prefs
 from rally.models import FamilyMember, Setting, Todo
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import today_local
@@ -141,13 +142,15 @@ def notify_assignment(db: Session, todo: Todo, *, previous_assignee: int | None 
     assignee alone stays silent. Editing the title of a task somebody has had
     for a week is not a hand-over.
 
-    Returns ``{"sent": [...], "skipped": [...], "failed": [...]}`` with names,
-    plus a ``skipped_reason`` when the whole send was a no-op — so a caller can
-    tell "nobody to tell" from "it worked" without inspecting the database.
+    Returns ``{"sent": [...], "skipped": [...], "failed": [...], "muted": [...]}``
+    with names, plus a ``skipped_reason`` when the whole send was a no-op — so a
+    caller can tell "nobody to tell" from "it worked" without inspecting the
+    database. *Skipped* is "no Pushover key"; *muted* is "asked not to hear
+    about task hand-offs", which is a different answer to a silent phone.
     """
     from rally.notifications import PushoverError, app_token, send_pushover
 
-    result: dict = {"sent": [], "skipped": [], "failed": []}
+    result: dict = {"sent": [], "skipped": [], "failed": [], "muted": []}
 
     def skip(reason: str) -> dict:
         result["skipped_reason"] = reason
@@ -172,6 +175,12 @@ def notify_assignment(db: Session, todo: Todo, *, previous_assignee: int | None 
             # keys and leave the rest blank.
             result["skipped"].append(member.name)
             return skip("the assignee has no Pushover key")
+
+        if not notification_prefs.wants(db, member, notification_prefs.TASK_ASSIGNMENT):
+            # They have a key and the install-wide switch is on; they simply
+            # do not want this kind. Named rather than dropped.
+            result["muted"].append(member.name)
+            return skip("the assignee has task hand-offs turned off")
 
         token = app_token(db)
         if not token:

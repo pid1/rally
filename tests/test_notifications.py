@@ -139,7 +139,13 @@ def test_an_event_with_no_attendees_notifies_nobody(
 ):
     event = make_event("Dentist")
     response = client.post(f"/api/events/{event.id}/notify", json={})
-    assert response.json() == {"sent": [], "skipped": [], "failed": [], "error": None}
+    assert response.json() == {
+        "sent": [],
+        "skipped": [],
+        "muted": [],
+        "failed": [],
+        "error": None,
+    }
     assert mock_pushover.sent == []
 
 

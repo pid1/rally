@@ -5,6 +5,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from rally import notification_prefs
 from rally.database import get_db
 from rally.models import AISettingsHistory, Calendar, FollowedTeam, LLMSettingsHistory, Setting
 from rally.schemas import (
@@ -27,6 +28,8 @@ from rally.schemas import (
     LLMConfigHistoryResponse,
     LLMConfigState,
     LLMConfigUpdate,
+    NotificationKindOverview,
+    NotificationOverviewResponse,
     SettingsResponse,
     SettingsUpdate,
 )
@@ -425,6 +428,23 @@ def test_pushover_connection(db: Session = Depends(get_db)):
     except PushoverError as exc:
         return {"success": False, "error": str(exc)}
     return {"success": True, "message": f"Test notification sent to {member.name}"}
+
+
+@router.get("/api/notifications/overview", response_model=NotificationOverviewResponse)
+def notifications_overview(db: Session = Depends(get_db)):
+    """Every kind Rally sends, its audience rule, and who currently gets it.
+
+    Read-only on purpose. The editor for a preference is the person's own
+    family member record — one editor for one piece of state — and this is the
+    screen that answers *"why didn't I get that?"* without making anybody open
+    four member modals to find out.
+    """
+    from rally.notifications import app_token
+
+    return NotificationOverviewResponse(
+        token_configured=bool(app_token(db)),
+        kinds=[NotificationKindOverview(**row) for row in notification_prefs.overview(db)],
+    )
 
 
 @router.post("/api/settings/test-weather")

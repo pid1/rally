@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import case, func, nullslast, or_
 from sqlalchemy.orm import Session
 
+from rally import shopping_notifications
 from rally.database import get_db
 from rally.models import Setting, ShoppingItem, ShoppingItemHistory, ShoppingStore
 from rally.schemas import (
@@ -365,6 +366,14 @@ def create_item(item: ShoppingItemCreate, response: Response, db: Session = Depe
     db.refresh(db_item)
 
     record_item_history(db, name, store_id)
+
+    # Announce the batch this item belongs to, if it has finished settling.
+    # Hung off the *write* rather than a read: pushing from a GET is the
+    # mistake ``todo_notifications`` explicitly avoids, and adding an item is
+    # the exact moment there is something to say. Gated to one pass a minute,
+    # like the reminder check, so the container loop stays the reliable path
+    # and a ``dev``-served instance is not silent.
+    shopping_notifications.run_once_per_minute(db)
     return db_item
 
 
