@@ -23,6 +23,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
 from rally.models import FamilyMember, PrepItem, PrepLocation, PrepRefreshNotice, Setting
+from rally.notification_prefs import PREP_REFRESH, filter_recipients
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc, today_local
 
@@ -209,7 +210,8 @@ class DigestResult:
 
     due_items: list[PrepItem] = field(default_factory=list)
     sent_to: list[str] = field(default_factory=list)
-    skipped: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)  # no Pushover key
+    muted: list[str] = field(default_factory=list)  # asked not to hear the digest
     failed: list[str] = field(default_factory=list)
     dry_run: bool = False
     skipped_reason: str | None = None
@@ -319,6 +321,10 @@ def digest_recipients(db: Session) -> tuple[list[FamilyMember], list[str]]:
 
     Returning the unreachable names too keeps the settings page honest — "sent
     to Emma, Jon has no Pushover key" is a different claim from "it worked".
+
+    This is the audience rule alone. ``send_digest`` narrows it again by each
+    member's own preference: the digest is daily, which is the noise profile
+    somebody is most likely to want out of.
     """
     members = db.query(FamilyMember).order_by(FamilyMember.name.asc()).all()
     reachable = [m for m in members if (m.pushover_user_key or "").strip()]
@@ -361,6 +367,14 @@ def send_digest(db: Session, on_date: date, *, dry_run: bool = False) -> DigestR
     result.skipped = list(skipped)
     if not reachable:
         result.skipped_reason = "no family member has a Pushover key"
+        return result
+
+    # The household is the audience; each member's own preference narrows it.
+    # Muted is reported separately from skipped because "asked not to hear the
+    # digest" and "has no key" are different answers to a silent phone.
+    reachable, result.muted = filter_recipients(db, reachable, PREP_REFRESH)
+    if not reachable:
+        result.skipped_reason = "everybody has the preparedness digest turned off"
         return result
 
     title, message = build_digest(db, result.due_items, on_date)

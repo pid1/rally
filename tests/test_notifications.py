@@ -11,7 +11,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from rally.models import EventNotification, Setting
+from rally import notification_prefs
+from rally.models import EventNotification, MemberNotificationPref, Setting
 from rally.notifications import (
     KIND_CREATED,
     KIND_DELETED,
@@ -139,7 +140,13 @@ def test_an_event_with_no_attendees_notifies_nobody(
 ):
     event = make_event("Dentist")
     response = client.post(f"/api/events/{event.id}/notify", json={})
-    assert response.json() == {"sent": [], "skipped": [], "failed": [], "error": None}
+    assert response.json() == {
+        "sent": [],
+        "skipped": [],
+        "muted": [],
+        "failed": [],
+        "error": None,
+    }
     assert mock_pushover.sent == []
 
 
@@ -836,6 +843,89 @@ def test_change_notices_do_not_consume_the_reminder_slot(
     assert check_due_reminders(db_session, now=_at("2026-08-11T12:30")) == 1
     kinds = {row.kind for row in db_session.query(EventNotification).all()}
     assert kinds == {KIND_CREATED, KIND_UPDATED, KIND_REMINDER}
+
+
+# --- Per-member preferences ----------------------------------------------------
+#
+# A preference only ever narrows the audience rule that already chose these
+# people. What it must never do is stay silent about having done so: a button
+# that drops a recipient without saying which one is worse than one that
+# reports it.
+
+
+def _mute(db_session, member, kind):
+    db_session.add(MemberNotificationPref(family_member_id=member.id, kind=kind, enabled=False))
+    db_session.commit()
+
+
+def test_an_attendee_who_muted_reminders_is_not_pushed(
+    db_session, token, reachable, make_event, mock_pushover
+):
+    _mute(db_session, reachable, notification_prefs.EVENT_REMINDER)
+    make_event("Dentist", start="2026-08-11T09:00", notify_minutes_before=30, attendees=[reachable])
+
+    assert check_due_reminders(db_session, now=_at("2026-08-11T08:30")) == 0
+    assert mock_pushover.sent == []
+
+
+def test_muting_reminders_leaves_change_notices_alone(
+    client, db_session, token, reachable, mock_pushover
+):
+    """The two kinds are separable, which is the whole point of the split."""
+    _mute(db_session, reachable, notification_prefs.EVENT_CHANGE)
+    created = _create(client, attendee_ids=[reachable.id])
+    assert mock_pushover.sent == []
+
+    client.put(f"/api/events/{created['id']}", json={"notify_minutes_before": 30})
+    assert mock_pushover.sent == []
+
+    assert check_due_reminders(db_session, now=_at("2026-08-14T08:30")) == 1
+
+
+def test_the_notify_button_names_who_it_muted_rather_than_dropping_them(
+    client, db_session, token, reachable, make_member, make_event, mock_pushover
+):
+    jon = make_member("Jon", pushover_user_key="jon-key")
+    _mute(db_session, reachable, notification_prefs.EVENT_REMINDER)
+    event = make_event("Dentist", attendees=[reachable, jon])
+
+    body = client.post(f"/api/events/{event.id}/notify", json={}).json()
+
+    assert body["sent"] == ["Jon"]
+    assert body["muted"] == ["Emma"]
+    assert body["skipped"] == []
+
+
+def test_muted_and_skipped_are_different_answers(
+    client, db_session, token, reachable, unreachable, make_event, mock_pushover
+):
+    """No key is not the same claim as "asked not to hear this"."""
+    _mute(db_session, reachable, notification_prefs.EVENT_REMINDER)
+    event = make_event("Dentist", attendees=[reachable, unreachable])
+
+    body = client.post(f"/api/events/{event.id}/notify", json={}).json()
+
+    assert body["muted"] == ["Emma"]
+    assert body["skipped"] == ["Jon"]
+    assert mock_pushover.sent == []
+
+
+def test_a_muted_attendee_does_not_leave_the_reminder_permanently_outstanding(
+    db_session, token, reachable, make_member, make_event, mock_pushover
+):
+    """The send-once check counts only the people who still want it."""
+    jon = make_member("Jon", pushover_user_key="jon-key")
+    _mute(db_session, reachable, notification_prefs.EVENT_REMINDER)
+    make_event(
+        "Dentist",
+        start="2026-08-11T09:00",
+        notify_minutes_before=30,
+        attendees=[reachable, jon],
+    )
+
+    assert check_due_reminders(db_session, now=_at("2026-08-11T08:30")) == 1
+    assert check_due_reminders(db_session, now=_at("2026-08-11T08:31")) == 0
+    assert [push["user"] for push in mock_pushover.sent] == ["jon-key"]
 
 
 # --- Connectivity tests --------------------------------------------------------

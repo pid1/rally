@@ -58,16 +58,33 @@ Rally uses [Pushover](https://pushover.net). Settings → **Notifications** take
 
 A member without a key is never notified. That is the default rather than an error.
 
-Four things send a push:
+Five kinds of push, each with its own audience rule:
 
-- **A reminder lead time** on an event, such as "30 minutes before"
-- **Notify attendees**, sent by hand from an event
-- **An automatic notice** when an event is added, changed or removed
-- **A task assignment**, when a task is created for somebody or handed to them
+| Kind | Fires when | Goes to | Default | Install-wide switch |
+|---|---|---|---|---|
+| Event reminders | An event's lead time arrives, or somebody presses **Notify attendees** | The event's attendees | On | — |
+| Calendar additions and changes | A Rally event is added, changed or deleted | The event's attendees | On | — |
+| Task hand-offs | A task is created for somebody or handed to them | That one assignee | On | Settings → **Tasks** |
+| Preparedness refresh digest | Daily, at the configured time | Everybody with a key | On | Settings → **Preparedness** |
+| Shopping list additions | Items are added to the list | Whoever opted in | **Off** | Settings → **Shopping List** |
 
-The first three go to the event's **attendees** rather than to the whole household. Buzzing four phones about one child's appointment is how a family learns to ignore notifications.
+The event kinds go to the event's **attendees** rather than to the whole household. Buzzing four phones about one child's appointment is how a family learns to ignore notifications.
 
-A task assignment goes to the assignee alone, once, at the moment the task becomes theirs. A task assigned to Everyone pushes to nobody, editing a task somebody already has is silent, and recurring instances are never announced — the hand-over happened when you wrote the recurring task, not every morning since. Turn it off in Settings → **Tasks**.
+A task assignment goes to the assignee alone, once, at the moment the task becomes theirs. A task assigned to Everyone pushes to nobody, editing a task somebody already has is silent, and recurring instances are never announced — the hand-over happened when you wrote the recurring task, not every morning since.
+
+### Who hears what
+
+Each family member chooses which kinds they get, in **Notify … about** on their own record in Settings → **Family Members**. A tick only ever *narrows* what that person already receives: turning on **Event reminders** does not start sending you other people's appointments. Somebody with no Pushover key keeps whatever they have set — the switches are held and explained rather than silently ineffective, and they take effect the moment a key is added.
+
+Settings → **Notifications** lists every kind with its audience rule and who currently receives it, including who has muted it and who has no key. It is read-only: one screen answers *"why didn't I get that?"*, and the place to change an answer is the person's own record.
+
+### Shopping list additions
+
+A shopping list belongs to the household, so this is the one kind with no audience of its own — it goes only to the people who asked. Turn it on in Settings → **Shopping List**; it is off after an upgrade until somebody does.
+
+Additions are **batched**. Nine things added while walking the pantry is one push, not nine: Rally waits for the adding to stop before it sends, and the wait is the **Wait for adding to stop** setting (`shopping_notify_settle_minutes`, default 5). An item added and purchased inside that window is never announced, which is correct — it was already bought. Purchases, edits, deletions and reordering are never announced; a notification when the list gets *shorter* is nobody's news.
+
+Rally has no sign-in, so it cannot know who added an item: whoever opted in hears about their own adds too.
 
 Preparedness has its own daily digest, with its own time and lead-time settings.
 

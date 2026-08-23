@@ -8,6 +8,7 @@ are covered separately in Phase 5 with the external-boundary stubs.
 from datetime import UTC, datetime
 
 from rally.models import AISettingsHistory, Calendar, LLMSettingsHistory
+from rally.notification_prefs import KIND_KEYS
 
 T1 = datetime(2026, 1, 1, tzinfo=UTC)
 T2 = datetime(2026, 1, 2, tzinfo=UTC)
@@ -492,3 +493,62 @@ class TestHomeLocation:
         client.put("/api/settings", json={"settings": {"home_location": "Highland Village, TX"}})
         body = client.get("/api/settings").json()
         assert body["settings"]["home_location"] == "Highland Village, TX"
+
+
+# --- What Rally sends ----------------------------------------------------------
+
+
+def test_the_overview_lists_every_kind_with_its_audience(client):
+    body = client.get("/api/notifications/overview").json()
+
+    assert [kind["kind"] for kind in body["kinds"]] == list(KIND_KEYS)
+    assert all(kind["audience"] for kind in body["kinds"])
+
+
+def test_the_overview_reports_a_missing_application_token(client, make_setting):
+    """The first of the five gates: without it nothing sends at all."""
+    assert client.get("/api/notifications/overview").json()["token_configured"] is False
+
+    make_setting("pushover_app_token", "app-token")
+    assert client.get("/api/notifications/overview").json()["token_configured"] is True
+
+
+def test_the_overview_says_who_hears_each_kind(client, make_member):
+    make_member("Dad", pushover_user_key="dad-key")
+    make_member("Jake")
+    emma = make_member("Emma", pushover_user_key="emma-key")
+    client.put(f"/api/family/{emma.id}", json={"notifications": {"event_change": False}})
+
+    rows = {
+        kind["kind"]: kind for kind in client.get("/api/notifications/overview").json()["kinds"]
+    }
+
+    assert rows["event_change"]["receiving"] == ["Dad"]
+    assert rows["event_change"]["muted"] == ["Emma"]
+    assert rows["event_change"]["no_key"] == ["Jake"]
+
+
+def test_the_overview_names_the_install_wide_switch_behind_a_kind(client):
+    rows = {
+        kind["kind"]: kind for kind in client.get("/api/notifications/overview").json()["kinds"]
+    }
+
+    assert rows["task_assignment"]["settings_key"] == "todo_notify_enabled"
+    assert rows["event_reminder"]["settings_key"] is None
+
+
+def test_shopping_notification_settings_round_trip(client):
+    client.put(
+        "/api/settings",
+        json={
+            "settings": {
+                "shopping_notify_enabled": "true",
+                "shopping_notify_settle_minutes": "10",
+            }
+        },
+    )
+
+    settings = client.get("/api/settings").json()["settings"]
+
+    assert settings["shopping_notify_enabled"] == "true"
+    assert settings["shopping_notify_settle_minutes"] == "10"

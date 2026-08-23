@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import case, func, nullslast, or_
 from sqlalchemy.orm import Session
 
+from rally import shopping_notifications
 from rally.database import get_db
 from rally.models import Setting, ShoppingItem, ShoppingItemHistory, ShoppingStore
 from rally.schemas import (
@@ -325,6 +326,16 @@ def create_item(item: ShoppingItemCreate, response: Response, db: Session = Depe
     *unrecognized* name is not an error — the item lands in the catch-all rather
     than failing mid-dictation — and unknown names never auto-create a store.
     """
+    # Announce the *previous* batch, if it has finished settling. Hung off a
+    # write rather than a read — pushing from a GET is the mistake
+    # ``todo_notifications`` explicitly avoids — and run before the insert
+    # rather than after it, because the item being added is by definition
+    # brand new: a pass taken afterwards would always find the batch still
+    # warm and would never send anything. Gated to one pass a minute, like the
+    # reminder check, so the container loop stays the reliable path while a
+    # ``dev``-served instance is not silent.
+    shopping_notifications.run_once_per_minute(db)
+
     name = _clean_name(item.name, "Item name")
 
     store_id = item.store_id

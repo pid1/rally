@@ -9,8 +9,9 @@ from datetime import UTC, date, datetime
 
 import pytest
 
+from rally import notification_prefs
 from rally.golist import build_groups, render_csv, render_markdown, render_pdf
-from rally.models import PrepRefreshNotice
+from rally.models import MemberNotificationPref, PrepRefreshNotice
 from rally.preparedness import (
     add_months,
     days_until,
@@ -646,3 +647,48 @@ class TestPages:
             assert href in nav
         # The meal and preparedness pages are reachable only through the dropdown.
         assert nav.index('href="/dinner-planner"') > nav.index("nav-dropdown")
+
+
+# --- Per-member preferences ----------------------------------------------------
+
+
+def test_the_digest_skips_somebody_who_turned_it_off(
+    db_session, prep_pushover, make_member, make_prep_item, mock_pushover
+):
+    emma = make_member("Emma", pushover_user_key="emma-key")
+    db_session.add(
+        MemberNotificationPref(
+            family_member_id=emma.id,
+            kind=notification_prefs.PREP_REFRESH,
+            enabled=False,
+        )
+    )
+    db_session.commit()
+    make_prep_item("Water drums", refresh_mode="date", next_refresh_date="2026-08-20")
+
+    result = send_digest(db_session, date(2026, 8, 20))
+
+    assert result.sent_to == ["Jon"]
+    assert result.muted == ["Emma"]
+    assert [push["user"] for push in mock_pushover.sent] == ["test-user-key"]
+
+
+def test_a_digest_nobody_wants_records_nothing_and_says_why(
+    db_session, prep_pushover, make_prep_item, mock_pushover
+):
+    """Nothing announced means the next pass still has something to announce."""
+    db_session.add(
+        MemberNotificationPref(
+            family_member_id=prep_pushover.id,
+            kind=notification_prefs.PREP_REFRESH,
+            enabled=False,
+        )
+    )
+    db_session.commit()
+    make_prep_item("Water drums", refresh_mode="date", next_refresh_date="2026-08-20")
+
+    result = send_digest(db_session, date(2026, 8, 20))
+
+    assert mock_pushover.sent == []
+    assert result.skipped_reason == "everybody has the preparedness digest turned off"
+    assert db_session.query(PrepRefreshNotice).count() == 0

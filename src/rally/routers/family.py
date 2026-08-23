@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from rally import notification_prefs
 from rally.database import get_db
 from rally.models import Calendar, FamilyMember
 from rally.schemas import UNSET, FamilyMemberCreate, FamilyMemberResponse, FamilyMemberUpdate
@@ -10,10 +11,23 @@ from rally.schemas import UNSET, FamilyMemberCreate, FamilyMemberResponse, Famil
 router = APIRouter(prefix="/api/family", tags=["family"])
 
 
+def _response(db: Session, member: FamilyMember) -> FamilyMemberResponse:
+    """A member plus their resolved notification preferences.
+
+    Resolved rather than raw: an absent row means the kind's default, and
+    making every client work that out for itself is how two of them end up
+    disagreeing about what "not set" means.
+    """
+    body = FamilyMemberResponse.model_validate(member)
+    body.notifications = notification_prefs.preferences(db, member.id)
+    return body
+
+
 @router.get("", response_model=list[FamilyMemberResponse])
 def list_family_members(db: Session = Depends(get_db)):
     """List all family members."""
-    return db.query(FamilyMember).order_by(FamilyMember.name.asc()).all()
+    members = db.query(FamilyMember).order_by(FamilyMember.name.asc()).all()
+    return [_response(db, member) for member in members]
 
 
 @router.post("", response_model=FamilyMemberResponse, status_code=201)
@@ -40,7 +54,13 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
         )
     )
     db.commit()
-    return db_member
+
+    # Nothing is written when the caller says nothing: a new member starts on
+    # the catalogue's defaults, which is everything on except shopping
+    # additions.
+    if member.notifications:
+        notification_prefs.set_preferences(db, db_member.id, member.notifications)
+    return _response(db, db_member)
 
 
 @router.get("/{member_id}", response_model=FamilyMemberResponse)
@@ -49,7 +69,7 @@ def get_family_member(member_id: int, db: Session = Depends(get_db)):
     member = db.query(FamilyMember).filter(FamilyMember.id == member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Family member not found")
-    return member
+    return _response(db, member)
 
 
 @router.put("/{member_id}", response_model=FamilyMemberResponse)
@@ -74,7 +94,13 @@ def update_family_member(
 
     db.commit()
     db.refresh(db_member)
-    return db_member
+
+    # A partial map: kinds the caller left out are left where they are. An
+    # unknown kind never reaches here — the schema rejects it with a 422 rather
+    # than storing a preference nothing will ever read.
+    if member.notifications is not UNSET and member.notifications:
+        notification_prefs.set_preferences(db, db_member.id, member.notifications)
+    return _response(db, db_member)
 
 
 @router.delete("/{member_id}", status_code=204)
@@ -84,6 +110,9 @@ def delete_family_member(member_id: int, db: Session = Depends(get_db)):
     if not db_member:
         raise HTTPException(status_code=404, detail="Family member not found")
 
+    # Nothing enforces the reference, so the preference rows have to be cleared
+    # by hand — the same reason deleting an event cascades its own attendees.
+    notification_prefs.delete_preferences(db, member_id)
     db.delete(db_member)
     db.commit()
     return None

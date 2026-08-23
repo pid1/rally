@@ -439,6 +439,7 @@ def run_digest(
         ],
         sent_to=result.sent_to,
         skipped=result.skipped,
+        muted=result.muted,
         failed=result.failed,
         skipped_reason=result.skipped_reason,
     )

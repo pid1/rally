@@ -9,7 +9,8 @@ or removed.
 Two things it deliberately does not do:
 
 - **Notify the whole family.** The recipients of any notification are the
-  event's attendees who have a Pushover key. Buzzing four phones for one
+  event's attendees who have a Pushover key — narrowed again by each one's own
+  preference in ``rally.notification_prefs``. Buzzing four phones for one
   child's appointment is how a notification feature gets muted for good.
 - **Raise.** A push failure is recorded and logged. It cannot fail an API
   request and it cannot fail summary generation, the same discipline
@@ -26,6 +27,7 @@ from zoneinfo import ZoneInfo
 import requests
 from sqlalchemy.orm import Session
 
+from rally import notification_prefs
 from rally.calendars.native import expand_event
 from rally.models import (
     Calendar,
@@ -56,6 +58,21 @@ KIND_MANUAL = "manual"
 KIND_CREATED = "created"
 KIND_UPDATED = "updated"
 KIND_DELETED = "deleted"
+
+# Which per-member preference governs each of them. Five kinds of record, two
+# kinds of noise: a reminder fires once before something you are going to, and
+# a change notice fires on every edit to every event you are on. Somebody can
+# keep the first and drop the second. The manual "notify attendees" is filtered
+# too rather than exempted — but the response says who it skipped by name,
+# because a button that silently drops a recipient is worse than one that
+# reports it.
+PREF_KIND = {
+    KIND_REMINDER: notification_prefs.EVENT_REMINDER,
+    KIND_MANUAL: notification_prefs.EVENT_REMINDER,
+    KIND_CREATED: notification_prefs.EVENT_CHANGE,
+    KIND_UPDATED: notification_prefs.EVENT_CHANGE,
+    KIND_DELETED: notification_prefs.EVENT_CHANGE,
+}
 
 # What a change notice calls itself. The three read as a set on a lock screen —
 # the word that differs is the first one that matters.
@@ -407,15 +424,25 @@ def _deliver(
 ) -> dict:
     """Send one body to several people, recording each outcome.
 
-    The single place a push is attempted, so the reporting, the send-once row
-    and the "a failure is data, not an exception" rule each exist once.
+    The single place a push is attempted, so the reporting, the send-once row,
+    the per-member preference filter and the "a failure is data, not an
+    exception" rule each exist once.
 
     ``record=False`` is for a notice about an event that no longer exists: its
     ``event_notifications`` rows were cascaded away with it, and writing a fresh
     one would leave an orphan pointing at a deleted id.
-    """
-    result: dict[str, list] = {"sent": [], "skipped": list(skipped), "failed": []}
 
+    ``muted`` sits beside ``skipped`` rather than inside it because they are
+    different claims: *skipped* is "no Pushover key", *muted* is "asked not to
+    hear this one". Collapsing them would make the settings page lie about
+    which problem a silent phone has.
+    """
+    result: dict[str, list] = {"sent": [], "skipped": list(skipped), "failed": [], "muted": []}
+
+    # The audience rule chose these people; the preference can only narrow it.
+    members, result["muted"] = notification_prefs.filter_recipients(
+        db, members, PREF_KIND.get(kind, notification_prefs.EVENT_REMINDER)
+    )
     if not members:
         return result
 
@@ -477,8 +504,9 @@ def notify_occurrence(
 ) -> dict:
     """Push one occurrence to its attendees, recording each outcome.
 
-    Returns ``{"sent": [...], "skipped": [...], "failed": [...]}`` with names,
-    never raising.
+    Returns ``{"sent": [...], "skipped": [...], "failed": [...], "muted": [...]}``
+    with names, never raising. An attendee who turned this kind off is reported
+    as *muted* — named, not silently dropped.
     """
     reachable, skipped = recipients_for_event(db, event.id)
     return _deliver(
@@ -619,7 +647,7 @@ def plan_change_notice(
 def send_change_notice(db: Session, notice: ChangeNotice | None) -> dict:
     """Deliver a planned notice. A no-op on ``None``, and never raises."""
     if notice is None:
-        return {"sent": [], "skipped": [], "failed": []}
+        return {"sent": [], "skipped": [], "failed": [], "muted": []}
 
     try:
         return _deliver(
@@ -635,7 +663,7 @@ def send_change_notice(db: Session, notice: ChangeNotice | None) -> dict:
         )
     except Exception as exc:  # pragma: no cover - defensive
         print(f"Event {notice.kind} notification failed: {exc}")
-        return {"sent": [], "skipped": [], "failed": [], "error": str(exc)}
+        return {"sent": [], "skipped": [], "failed": [], "muted": [], "error": str(exc)}
 
 
 def notify_event_change(
@@ -708,9 +736,16 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
         )
 
         reachable, _ = recipients_for_event(db, event.id)
-        if not reachable:
+        # Narrow to the attendees who still want reminders *before* the
+        # send-once check. Counting a muted attendee as outstanding would leave
+        # the occurrence permanently "not yet sent", and the scan would rebuild
+        # its expansion every minute for a push nobody is going to receive.
+        wanting, _muted = notification_prefs.filter_recipients(
+            db, reachable, notification_prefs.EVENT_REMINDER
+        )
+        if not wanting:
             continue
-        member_ids = [member.id for member in reachable]
+        member_ids = [member.id for member in wanting]
 
         for occurrence in occurrences:
             # Subtracted from the *resolved occurrence*, never from the series
@@ -780,17 +815,21 @@ def run_due_reminders_once_per_minute(db: Session, now: datetime | None = None) 
 def main() -> int:
     """Run one notification pass. Entry point for the container's minute loop.
 
-    Two jobs share this loop rather than each growing a scheduler:
+    Three jobs share this loop rather than each growing a scheduler:
 
     - Event reminders, which need minute resolution.
     - The preparedness refresh digest, which needs day resolution but has to be
       checked often enough to catch its configured send time. It gates itself
       on a settings row, so calling it every minute costs one indexed read.
+    - Shopping list additions, which need minute resolution for the opposite
+      reason: the settle window is what turns nine adds into one push, and it
+      can only expire between passes.
 
-    A failure in either is logged and does not stop the other.
+    A failure in any of them is logged and does not stop the others.
     """
     from rally.database import SessionLocal
     from rally.preparedness import run_daily_digest
+    from rally.shopping_notifications import scan_once as scan_shopping_additions
 
     db = SessionLocal()
     sent = 0
@@ -827,6 +866,17 @@ def main() -> int:
                 print(f"Sent preparedness digest for {digest.count} item(s)")
         except Exception as exc:  # pragma: no cover - the loop must not die
             print(f"Preparedness digest failed: {exc}")
+            failed = True
+
+        try:
+            additions = scan_shopping_additions(db)
+            if additions.sent:
+                print(
+                    f"Announced {additions.count} shopping list addition(s) to "
+                    f"{', '.join(additions.sent_to)}"
+                )
+        except Exception as exc:  # pragma: no cover - the loop must not die
+            print(f"Shopping list notification failed: {exc}")
             failed = True
     finally:
         db.close()

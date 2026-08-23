@@ -414,6 +414,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `025_add_caldav_sync_tokens` - Add `calendar_cache.sync_tokens` (one RFC 6578 sync token per server-side CalDAV calendar). Purely additive; NULL means "no baseline yet" and the next sync captures one
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 - `026_add_shopping_sort_order` - Add `shopping_items.sort_order`, the per-store hand-arranged position behind drag-to-reorder. Backfilled per store group in the order the list already read (`completed ASC, created_at DESC, id ASC`), so no existing list visibly moves
+- `027_add_member_notification_prefs` - Add the `member_notification_prefs` table plus its index and the unique index on `(family_member_id, kind)`. Purely additive and it writes **no rows**: an absent row means the kind's default, so upgrading changes nobody's behaviour — shipping the feature is not the same as turning it on
 
 ### Running Migrations
 
@@ -553,12 +554,14 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, DinnerPlan)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
 │   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan, add/change/remove notices
+│   ├── notification_prefs.py # The KINDS catalogue and the one place that decides who hears what
 │   ├── todo_notifications.py # The push that goes to a task's assignee when it lands on their list
+│   ├── shopping_notifications.py # Batched "added to the shopping list" pushes, behind a settle window
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalising
@@ -625,6 +628,7 @@ rally/
 │   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
 │   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
 │   ├── migrate_021_add_preparedness.py # Migration 021: preparedness stock, locations, refresh notices
+│   ├── migrate_027_add_member_notification_prefs.py # Migration 027: per-member notification preferences
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium
@@ -893,7 +897,7 @@ visual suite (above) before shipping a layout change.
   - `PUT /api/events/{id}?scope=this|following|all&occurrence_date=` - `this` writes an `event_overrides` row keyed on the **original** occurrence date; `following` truncates the series with `UNTIL` and creates a new event carrying the tail (moving the overrides at or after the split with it); `all` updates the row and **keeps existing overrides** — a moved occurrence stays moved. `occurrence_date` is required for the first two
   - `DELETE /api/events/{id}?scope=…&occurrence_date=` - Cancel one occurrence, truncate the tail, or delete the event and cascade its attendees, overrides and notifications (SQLite does not enforce the references)
   - Creating (`POST`), editing (`PUT`) or deleting (`DELETE`) an event pushes a notice to its attendees, at every scope. The response is unaffected: the notice is best-effort and never fails the write
-  - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, failed}` **by name**: "it worked" and "both phones buzzed" are different claims, and an attendee with no Pushover key is reported as skipped rather than silently dropped
+  - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, muted, failed}` **by name**: "it worked" and "both phones buzzed" are different claims. An attendee with no Pushover key is reported as *skipped*, and one who turned event reminders off is reported as *muted* — the button is filtered like every other push rather than exempted, so it has to say who it dropped
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
   - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
@@ -907,7 +911,7 @@ visual suite (above) before shipping a layout change.
   - `PUT /api/shopping/stores/{id}` - Rename. `409` on conflict with a *different* store
   - `DELETE /api/shopping/stores/{id}` - Delete. **Reassigns the store's items to `store_id = NULL` first** — SQLite FKs aren't enforced, so an orphaned `store_id` would make those items vanish from every rendered group
   - `GET /api/shopping/items?include_hidden=false` - List items, ordered `completed ASC`, then by the hand-arranged `sort_order ASC`, then `created_at DESC`. `sort_order` is neutralised for completed rows so they stay newest-first among themselves. Hides items completed before local midnight today unless `include_hidden=true`. Runs the once-per-local-day retention purge (see below)
-  - `POST /api/shopping/items` - Create. `201`, or `200` with the existing row when an **open** item with the same trimmed, case-insensitive name already exists in the same store (a merely *completed* match creates a new item). Accepts `store` as a store **name** in place of `store_id` for scripted/voice clients; sending both is `422`, and an unrecognized name falls back to the catch-all rather than erroring or auto-creating a store. A `201` upserts `shopping_item_history`; a `200` does not. A new item is given `min(sort_order) - 1` **within its own store**, so it lands at the top of that group — which is what `created_at DESC` used to do on its own
+  - `POST /api/shopping/items` - Create. Runs the once-per-minute shopping-additions pass **before** the insert (a pass taken afterwards would always find the batch still settling, leaving a `dev`-served instance silent). `201`, or `200` with the existing row when an **open** item with the same trimmed, case-insensitive name already exists in the same store (a merely *completed* match creates a new item). Accepts `store` as a store **name** in place of `store_id` for scripted/voice clients; sending both is `422`, and an unrecognized name falls back to the catch-all rather than erroring or auto-creating a store. A `201` upserts `shopping_item_history`; a `200` does not. A new item is given `min(sort_order) - 1` **within its own store**, so it lands at the top of that group — which is what `created_at DESC` used to do on its own
   - `PUT /api/shopping/items/{id}` - Partial update of `name`, `note`, `store_id`, `completed` (`note`/`store_id` use the `UNSET` sentinel). Completion stamping matches `PUT /api/todos/{id}` exactly. Does **not** touch history. A *changed* `store_id` re-places the item at the top of its new group — a rank held at the old store means nothing at the new one
   - `POST /api/shopping/items/reorder` - Rewrite one store group's order. Body is `{store_id, item_ids}`: the **destination** store (`null` for the catch-all) and that group's items in the order they should read. Every listed item is assigned to `store_id` and numbered by its index, so a cross-store drag is the same call as a within-store one. Idempotent. Duplicate ids keep their first mention; an unknown id is `404` and changes nothing (all-or-nothing — a half-applied order is one nobody asked for); an unknown `store_id` is `422`. The group the item *left* is deliberately not renumbered, because positions are only ever compared. Returns the listed items in their new order
   - `DELETE /api/shopping/items/{id}` - Delete an item; history is untouched
@@ -927,12 +931,12 @@ visual suite (above) before shipping a layout change.
   - `GET /api/dinner-plans/date/{date}` - Get all plans for a date (YYYY-MM-DD)
   - `PUT /api/dinner-plans/{id}` - Update plan
   - `DELETE /api/dinner-plans/{id}` - Delete plan
-- `/api/family` - Family member CRUD endpoints
+- `/api/family` - Family member CRUD endpoints. Every response carries `notifications: {kind: bool}` — **resolved** values with the defaults already filled in, so no client has to know what the defaults are
   - `GET /api/family` - List all family members
-  - `POST /api/family` - Create new family member
+  - `POST /api/family` - Create new family member. Accepts an optional `notifications` map; omitting it starts the member on the catalogue defaults (everything on except `shopping_added`)
   - `GET /api/family/{id}` - Get specific family member
-  - `PUT /api/family/{id}` - Update family member
-  - `DELETE /api/family/{id}` - Delete family member
+  - `PUT /api/family/{id}` - Update family member. `notifications` is a **partial** map — kinds left out keep what they resolve to today, and an unknown kind is `422` rather than a stored preference nothing will ever read
+  - `DELETE /api/family/{id}` - Delete family member. **Deletes their `member_notification_prefs` rows first** — nothing enforces the reference, the same reason deleting an event cascades its own attendees by hand
 - `/api/followed-teams` - Sports watchlist subscriptions (teams and racing series)
   - `GET /api/followed-teams` - List every followed team, active or not, ordered by label
   - `POST /api/followed-teams` - Follow a team or racing series. `team_key` is `NULL` for a racing series, which is a league-level subscription with no team
@@ -954,6 +958,8 @@ visual suite (above) before shipping a layout change.
   - `POST /api/settings/llm/config/rollback` - Make an existing snapshot active: restores the whole config together (including the stored `max_tokens`, verbatim — never re-resolved), bumps `last_used_at`, repoints the setting, and syncs the plain settings keys — no new row inserted. Body: `{history_id}`
 - `/api/settings/test-llm` - LLM connectivity test
   - `POST /api/settings/test-llm` - Test LLM provider connection (sends minimal 1-token request). Returns `{success, message}` or `{success, error}`. On Anthropic success, `message` appends the configured max-tokens value (e.g. `"Connected to claude-sonnet-4-6 (max tokens: 128000)"`) — the one place a freshly resolved "Model maximum" budget is confirmed to the operator, since the verify modal auto-closes on success and the field's helper text is the durable surface afterward
+- `/api/notifications/overview` - What Rally sends, and who currently hears it
+  - `GET /api/notifications/overview` - One row per kind: its stable key, label, audience sentence, default, install-wide settings key and whether that switch is on, plus `receiving` / `muted` / `no_key` **by name**. Read-only on purpose: the editor for a preference is the person's own family member record, and an editable member × kind matrix does not survive 390px. Also reports `token_configured`, the first of the five gates
 - `/api/settings/test-pushover` - Pushover connectivity test
   - `POST /api/settings/test-pushover` - Sends a real message to the first family member who has a user key. There is no token-only validation worth having: a well-formed token that belongs to another account looks identical to a correct one until a phone buzzes
 - `/api/family/{id}/test-pushover` - Send a test push to one member's profile
@@ -1054,6 +1060,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `PrepLocation` - A place preparedness stock lives (Garage shelf, Truck, Bug-out bag). Names unique case-insensitively; the catch-all is `location_id IS NULL`, never a seeded row. `sort_order` is physical walking order — a go list is packed in the order you walk it, and alphabetical is the wrong order for that
 - `PrepItem` - Preparedness stock with a free-text `quantity`, optional location and notes, and an optional refresh schedule (`refresh_mode` none/date/interval, `refresh_interval_months`, `next_refresh_date`, `remind_days_before`, `last_refreshed_on`). `next_refresh_date` is stored and indexed rather than derived — it is the only column the digest reads
 - `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimisation
+- `MemberNotificationPref` - One family member's answer for one kind of notification (`event_reminder`, `event_change`, `task_assignment`, `prep_refresh`, `shopping_added`), unique on `(family_member_id, kind)`. **An absent row means the kind's default** — the row only exists once somebody has expressed a preference, the same discipline `todo_notify_enabled` follows. A preference only ever *narrows* the kind's audience rule; it can never add somebody to an audience they were not already in
 - `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues
