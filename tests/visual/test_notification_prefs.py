@@ -50,18 +50,36 @@ def test_what_rally_sends_lists_every_kind_without_overflowing(browser, live_ser
 
 @pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
 def test_the_member_modal_switches_meet_the_touch_target(browser, live_server, viewport):
-    """One row per kind, each a full-height hit area — the rule that bites at 390px."""
+    """One row per kind, each a full hit area — the rule that bites at 390px.
+
+    Measured against the page's own ``--target-min`` rather than a literal 44,
+    because the token is 44px on a coarse pointer and smaller on a desktop
+    mouse. The point is that the switches take the standard size, not that they
+    take one particular number of pixels.
+    """
     context, page = _settings(browser, live_server, viewport)
     try:
         page.click("#btn-add-member")
         page.wait_for_selector("#member-notify-options label")
 
+        # Resolved through a probe element rather than read off the custom
+        # property: the token is declared in rem at one breakpoint and px at
+        # another, and only layout knows what that is in pixels here.
+        target = page.evaluate(
+            "() => { const probe = document.createElement('div');"
+            " probe.style.height = 'var(--target-min)';"
+            " document.body.appendChild(probe);"
+            " const height = probe.getBoundingClientRect().height;"
+            " probe.remove(); return height; }"
+        )
         heights = page.eval_on_selector_all(
             "#member-notify-options label",
             "els => els.map(e => e.getBoundingClientRect().height)",
         )
         assert len(heights) == 5
-        assert all(h >= TARGET_MIN - 0.5 for h in heights), heights
+        assert all(h >= target - 0.5 for h in heights), (heights, target)
+        if viewport == "mobile":
+            assert target >= TARGET_MIN
     finally:
         context.close()
 

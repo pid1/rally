@@ -439,9 +439,6 @@ def _deliver(
     """
     result: dict[str, list] = {"sent": [], "skipped": list(skipped), "failed": [], "muted": []}
 
-    if not members:
-        return result
-
     # The audience rule chose these people; the preference can only narrow it.
     members, result["muted"] = notification_prefs.filter_recipients(
         db, members, PREF_KIND.get(kind, notification_prefs.EVENT_REMINDER)

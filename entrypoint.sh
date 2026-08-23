@@ -39,17 +39,20 @@ echo "✓ Database ready"
   done
 ) &
 
-# Start the event reminder loop in the background.
+# Start the notification loop in the background.
 #
-# Reminders need minute resolution, so they cannot ride along with the 4:00 AM
-# generation job above — a reminder that fires at 4 AM is not a reminder. The
-# API also runs this opportunistically (see notifications.py), which is what
-# makes reminders work for a dev-served instance; this loop is what makes them
-# reliable in production, where the browser may not be open.
+# Three jobs share it: event reminders, the preparedness refresh digest, and
+# shopping list additions. Reminders need minute resolution, so they cannot
+# ride along with the 4:00 AM generation job above — a reminder that fires at
+# 4 AM is not a reminder — and the shopping settle window can only expire
+# between passes. The API runs all three opportunistically (see
+# notifications.py and shopping_notifications.py), which is what makes them
+# work for a dev-served instance; this loop is what makes them reliable in
+# production, where the browser may not be open.
 (
-  echo "Starting event reminder loop (checks every 60 seconds)"
+  echo "Starting notification loop (checks every 60 seconds)"
   while true; do
-    python -m rally.notifications || echo "$(date): Reminder check failed"
+    python -m rally.notifications || echo "$(date): Notification check failed"
     sleep 60
   done
 ) &
