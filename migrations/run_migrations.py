@@ -58,6 +58,9 @@ def run_migrations():
         from migrate_027_add_member_notification_prefs import (
             migrate as migrate_027_add_member_notification_prefs,
         )
+        from migrate_028_add_recurring_todo_start_date import (
+            migrate as migrate_028_add_recurring_todo_start_date,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -106,6 +109,7 @@ def run_migrations():
         ("025_add_caldav_sync_tokens", migrate_025_add_caldav_sync_tokens),
         ("026_add_shopping_sort_order", migrate_026_add_shopping_sort_order),
         ("027_add_member_notification_prefs", migrate_027_add_member_notification_prefs),
+        ("028_add_recurring_todo_start_date", migrate_028_add_recurring_todo_start_date),
     ]
 
     print("=" * 60)
