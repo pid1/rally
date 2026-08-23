@@ -683,6 +683,17 @@ nav a.active,
     min-height: 6rem;
 }
 
+/* A field that is shown but cannot be changed — a recurring task's start date
+   once the series has completions. Read-back, not an input: saying so beats a
+   field that silently ignores what is typed into it. */
+.form-group input:disabled,
+.form-group select:disabled,
+.form-group textarea:disabled {
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+    cursor: not-allowed;
+}
+
 .form-group small {
     display: block;
     margin-top: var(--space-1);
@@ -1213,6 +1224,30 @@ label.weekday-label,
     letter-spacing: var(--tracking-wide);
     color: var(--ink-subtle);
     margin-left: var(--space-2);
+}
+
+/* The recurring modal reads its rule back as dates: what the schedule actually
+   produces, which is the question the controls above it cannot answer. Sunken
+   rather than bordered — it is a statement, not another field. */
+.recurrence-preview {
+    background: var(--surface-sunken);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.recurrence-preview:empty {
+    display: none;
+}
+
+.recurrence-preview-lead {
+    font-size: var(--text-sm);
+    color: var(--ink);
+}
+
+.recurrence-preview-rest {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    margin-top: var(--space-1);
 }
 
 /* ---- Shopping ---- */
