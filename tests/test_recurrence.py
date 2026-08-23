@@ -26,13 +26,16 @@ from rally.recurrence import (
 )
 
 
-def rt(recurrence_type="daily", *, recurrence_day=None, custom_rule=None) -> RecurringTodo:
+def rt(
+    recurrence_type="daily", *, recurrence_day=None, custom_rule=None, start_date=None
+) -> RecurringTodo:
     """Build an unsaved RecurringTodo for the pure-function tests."""
     return RecurringTodo(
         title="T",
         recurrence_type=recurrence_type,
         recurrence_day=recurrence_day,
         custom_rule=custom_rule,
+        start_date=start_date,
     )
 
 
@@ -710,5 +713,283 @@ def test_anchor_ignored_without_due_date(db_session, make_recurring_todo, make_t
         recurring_todo_id=template.id,
     )
 
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2026-03-15"
+
+
+# --- Start date: the first occurrence ------------------------------------------
+#
+# One substitution does all of this: the first occurrence is resolved from
+# max(today, start_date) rather than from today. For daily and custom "every N
+# days" that lands *on* the start date (an anchor); for the rules that name a
+# position on the calendar it lands on the first such position on or after it
+# (a floor), because that named position is the point of the rule.
+
+MEASURED = date(2026, 8, 22)  # the Saturday the issue was measured on
+
+
+def test_first_ignores_a_start_date_already_past():
+    # A past start date is a floor nothing hits: today wins, so the template
+    # behaves exactly as one with no start date at all.
+    assert get_first_recurrence_date(rt("daily", start_date="2020-01-01"), MEASURED) == MEASURED
+    assert get_first_recurrence_date(rt("daily"), MEASURED) == MEASURED
+
+
+def test_first_daily_is_anchored_on_the_start_date():
+    assert get_first_recurrence_date(rt("daily", start_date="2027-01-01"), MEASURED) == date(
+        2027, 1, 1
+    )
+
+
+def test_first_custom_every_n_days_is_anchored_on_the_start_date():
+    # "The furnace filter, from the day I actually changed it."
+    template = rt(
+        "custom",
+        custom_rule={"freq": "daily", "interval": 90},
+        start_date="2026-10-15",
+    )
+    first = get_first_recurrence_date(template, MEASURED)
+    assert first == date(2026, 10, 15)
+    assert get_next_recurrence_date(template, first) == date(2027, 1, 13)
+
+
+def test_first_weekly_floors_to_the_listed_weekday():
+    # Weekly on Tuesday, starting Fri Jan 1 2027 -> the following Tuesday.
+    assert get_first_recurrence_date(
+        rt("weekly", recurrence_day=1, start_date="2027-01-01"), MEASURED
+    ) == date(2027, 1, 5)
+
+
+def test_first_custom_weekly_floors_and_the_cycle_counts_from_there():
+    # Every 2 weeks on Tuesday from Jan 1 2027 -> Jan 5, then Jan 19.
+    template = rt(
+        "custom",
+        custom_rule={"freq": "weekly", "interval": 2, "weekdays": [1]},
+        start_date="2027-01-01",
+    )
+    first = get_first_recurrence_date(template, MEASURED)
+    assert first == date(2027, 1, 5)
+    assert get_next_recurrence_date(template, first) == date(2027, 1, 19)
+
+
+def test_first_monthly_by_day_floors_rather_than_overriding():
+    # A "day 1" series started on the 15th is still a day-1 series: the first
+    # occurrence is the 1st of the next month, not the 15th.
+    assert get_first_recurrence_date(
+        rt("monthly", recurrence_day=1, start_date="2027-01-15"), MEASURED
+    ) == date(2027, 2, 1)
+
+
+def test_first_custom_monthly_by_day_floors_and_steps_from_that_month():
+    # Every 12 months on the 1st from Jan 1 2027 -> 2027-01-01, then 2028-01-01.
+    template = rt(
+        "custom",
+        custom_rule={"freq": "monthly", "interval": 12, "mode": "day", "day": 1},
+        start_date="2027-01-01",
+    )
+    first = get_first_recurrence_date(template, MEASURED)
+    assert first == date(2027, 1, 1)
+    assert get_next_recurrence_date(template, first) == date(2028, 1, 1)
+
+
+def test_first_custom_monthly_by_weekday_floors():
+    # First Sunday, every 6 months, from Jan 1 2027 -> Jan 3, then Jul 4.
+    template = rt(
+        "custom",
+        custom_rule={
+            "freq": "monthly",
+            "interval": 6,
+            "mode": "weekday",
+            "ordinal": "first",
+            "weekday": 6,
+        },
+        start_date="2027-01-01",
+    )
+    first = get_first_recurrence_date(template, MEASURED)
+    assert first == date(2027, 1, 3)
+    assert get_next_recurrence_date(template, first) == date(2027, 7, 4)
+
+
+def test_first_start_date_on_the_31st_clamps_into_february():
+    # Monthly on the 31st, starting Feb 1 2027: February has 28 days, so the
+    # first occurrence is the 28th rather than a date that does not exist.
+    assert get_first_recurrence_date(
+        rt("monthly", recurrence_day=31, start_date="2027-02-01"), MEASURED
+    ) == date(2027, 2, 28)
+
+
+def test_first_start_date_on_the_29th_clamps_into_february():
+    # The 29th does not exist in February 2027; the rule's own clamping decides
+    # where the task lands, and the start date only says which month to look in.
+    assert get_first_recurrence_date(
+        rt("monthly", recurrence_day=29, start_date="2027-02-05"), MEASURED
+    ) == date(2027, 2, 28)
+
+
+def test_first_custom_start_date_on_the_30th_clamps_into_february():
+    assert get_first_recurrence_date(
+        rt(
+            "custom",
+            custom_rule={"freq": "monthly", "interval": 1, "mode": "day", "day": 30},
+            start_date="2027-02-01",
+        ),
+        MEASURED,
+    ) == date(2027, 2, 28)
+
+
+# --- Built-in Monthly rolls forward --------------------------------------------
+
+
+def test_first_monthly_rolls_forward_when_this_months_day_has_passed():
+    # Created on the 22nd, "Monthly on the 1st": the first task is next month's,
+    # not one that arrives three weeks overdue.
+    assert get_first_recurrence_date(rt("monthly", recurrence_day=1), MEASURED) == date(2026, 9, 1)
+
+
+def test_first_monthly_rolls_forward_across_a_year_boundary():
+    assert get_first_recurrence_date(rt("monthly", recurrence_day=1), date(2026, 12, 15)) == date(
+        2027, 1, 1
+    )
+
+
+def test_first_monthly_roll_forward_clamps_into_february():
+    # Day 30 on Jan 31: the roll-forward lands in February, which has 28 days.
+    assert get_first_recurrence_date(rt("monthly", recurrence_day=30), date(2026, 1, 31)) == date(
+        2026, 2, 28
+    )
+
+
+def test_first_monthly_keeps_this_month_when_the_day_is_still_ahead():
+    # The roll-forward must not fire when this month's day has not yet passed.
+    assert get_first_recurrence_date(rt("monthly", recurrence_day=25), MEASURED) == date(
+        2026, 8, 25
+    )
+
+
+def test_first_monthly_keeps_today_when_the_day_is_today():
+    assert get_first_recurrence_date(rt("monthly", recurrence_day=22), MEASURED) == MEASURED
+
+
+# --- Start date: generation ----------------------------------------------------
+
+
+def _battery_template(make_recurring_todo, **overrides):
+    """The issue's worked example: every 12 months on the 1st."""
+    fields = {
+        "recurrence_type": "custom",
+        "custom_rule": {"freq": "monthly", "interval": 12, "mode": "day", "day": 1},
+        "has_due_date": True,
+        "start_date": "2027-01-01",
+    }
+    fields.update(overrides)
+    return make_recurring_todo("Replace smoke detector battery", **fields)
+
+
+def test_process_generates_nothing_before_the_start_date(
+    db_session, make_recurring_todo, frozen_now
+):
+    frozen_now(datetime(2026, 8, 22, 12, tzinfo=UTC))
+    template = _battery_template(make_recurring_todo)
+
+    assert process_recurring_todos(db_session) == 0
+    assert _instances(db_session, template.id) == []
+    assert template.last_generated_date is None
+
+
+def test_process_start_date_gates_before_any_other_work(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # The gate runs first, so a series that has not begun is untouched whatever
+    # else is on the list.
+    frozen_now(datetime(2026, 8, 22, 12, tzinfo=UTC))
+    template = make_recurring_todo(
+        "Blow out the sprinklers",
+        recurrence_type="daily",
+        has_due_date=True,
+        start_date="2026-10-01",
+    )
+    make_todo("Unrelated", completed=False, completed_at=None)
+
+    assert process_recurring_todos(db_session) == 0
+    assert _instances(db_session, template.id) == []
+
+
+def test_process_generates_on_the_start_date_due_exactly_then(
+    db_session, make_recurring_todo, frozen_now
+):
+    frozen_now(datetime(2027, 1, 1, 12, tzinfo=UTC))
+    template = _battery_template(make_recurring_todo)
+
+    assert process_recurring_todos(db_session) == 1
+    assert [t.due_date for t in _instances(db_session, template.id)] == ["2027-01-01"]
+    assert template.last_generated_date == "2027-01-01"
+
+
+def test_process_with_a_past_start_date_matches_a_template_without_one(
+    db_session, make_recurring_todo, frozen_now
+):
+    frozen_now(FROZEN)
+    started = make_recurring_todo(
+        "Vitamins", recurrence_type="daily", has_due_date=True, start_date="2020-01-01"
+    )
+    plain = make_recurring_todo("Stretch", recurrence_type="daily", has_due_date=True)
+
+    assert process_recurring_todos(db_session) == 2
+    assert _instances(db_session, started.id)[0].due_date == "2026-03-15"
+    assert _instances(db_session, plain.id)[0].due_date == "2026-03-15"
+
+
+def test_smoke_detector_battery_end_to_end(db_session, make_recurring_todo, frozen_now):
+    """The journey from the issue: set up in 2026, correct forever after.
+
+    Every 12 months on the 1st, starting 1 Jan 2027. Nothing lands in 2026, the
+    first task is due exactly on the start date, and completing it puts the next
+    one a year later rather than snapping the series back to August.
+    """
+    frozen_now(datetime(2026, 8, 22, 12, tzinfo=UTC))
+    template = _battery_template(make_recurring_todo)
+
+    # 2026: the series is scheduled but nothing is on the task list.
+    assert process_recurring_todos(db_session) == 0
+
+    # 1 Jan 2027: the first task arrives, due that day.
+    frozen_now(datetime(2027, 1, 1, 8, tzinfo=UTC))
+    assert process_recurring_todos(db_session) == 1
+    first = _instances(db_session, template.id)[0]
+    assert first.due_date == "2027-01-01"
+
+    # Completed the same day: the next occurrence is a year out, not next August.
+    first.completed = True
+    first.completed_at = datetime(2027, 1, 1, 18, 0, tzinfo=UTC)
+    db_session.commit()
+
+    assert process_recurring_todos(db_session) == 1
+    assert template.last_generated_date == "2028-01-01"
+    open_due = [t.due_date for t in _instances(db_session, template.id) if not t.completed]
+    assert open_due == ["2028-01-01"]
+
+
+def test_null_start_date_leaves_generation_unchanged(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
+    # The one guarantee the whole feature rests on: an existing template has no
+    # start date, and nothing about it moves.
+    frozen_now(FROZEN)
+    template = make_recurring_todo(
+        "Swap sheets",
+        recurrence_type="weekly",
+        recurrence_day=6,  # Sunday
+        has_due_date=True,
+        last_generated_date="2026-03-08",
+    )
+    make_todo(
+        "Swap sheets",
+        completed=True,
+        due_date="2026-03-08",
+        completed_at=datetime(2026, 3, 8, 12, 0, tzinfo=UTC),
+        recurring_todo_id=template.id,
+    )
+
+    assert template.start_date is None
     assert process_recurring_todos(db_session) == 1
     assert template.last_generated_date == "2026-03-15"
