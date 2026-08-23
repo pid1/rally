@@ -242,13 +242,28 @@ def get_next_recurrence_date(rt: RecurringTodo, after_date: date) -> date:
     return after_date + timedelta(days=1)
 
 
+def get_start_date(rt: RecurringTodo) -> date | None:
+    """The template's start date, or None when it has none."""
+    return date.fromisoformat(rt.start_date) if rt.start_date else None
+
+
 def get_first_recurrence_date(rt: RecurringTodo, today: date) -> date:
     """Get the first recurrence date for a newly created template.
 
     Unlike get_last_recurrence_date, this always uses the current period
     (current month/week) so the first instance isn't backdated to a
     previous period.
+
+    A start date moves the day the search begins: the first occurrence is the
+    first date the rule produces on or after ``max(today, start_date)``. For
+    daily and custom "every N days" that *is* the start date, so it acts as the
+    series anchor; for the rules that name a position on the calendar (a
+    weekday, a day of the month, the first Sunday) it acts as a floor, because
+    that named position is the point of the rule.
     """
+    start = get_start_date(rt)
+    today = max(today, start) if start else today
+
     if rt.recurrence_type == "daily":
         return today
     elif rt.recurrence_type == "weekly":
@@ -258,7 +273,15 @@ def get_first_recurrence_date(rt: RecurringTodo, today: date) -> date:
     elif rt.recurrence_type == "monthly":
         day = rt.recurrence_day or 1
         clamped = min(day, cal_module.monthrange(today.year, today.month)[1])
-        return today.replace(day=clamped)
+        candidate = today.replace(day=clamped)
+        if candidate >= today:
+            return candidate
+        # This month's day has already passed: roll forward rather than hand
+        # back a first instance that arrives overdue.
+        next_year, next_month = _advance_months(today.year, today.month, 1)
+        return date(
+            next_year, next_month, min(day, cal_module.monthrange(next_year, next_month)[1])
+        )
     elif rt.recurrence_type == "custom" and rt.custom_rule:
         return _first_custom(rt.custom_rule, today)
     return today
@@ -387,6 +410,13 @@ def process_recurring_todos(db: Session) -> int:
     recurring = db.query(RecurringTodo).filter(RecurringTodo.active == True).all()  # noqa: E712
 
     for rt in recurring:
+        # A start date is the earliest day the series may fire. A series that
+        # begins in 2027 puts nothing on the task list in 2026 — that is the
+        # difference between a start date and a far-off due date.
+        start = get_start_date(rt)
+        if start and today < start:
+            continue
+
         # Skip if there's an open (incomplete) instance
         open_todo = (
             db.query(Todo)
