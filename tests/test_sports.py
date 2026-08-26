@@ -31,6 +31,12 @@ CHICAGO = ZoneInfo("America/Chicago")
 # The recorded NFL regular-season fixture is the 2026 season, opening Sept 10.
 NFL_WINDOW = (date(2026, 9, 1), date(2026, 9, 30))
 
+# Tests that reach a window through an endpoint cannot be handed dates — the
+# endpoint asks the clock. They pin it here instead. The recorded NASCAR races
+# are 2026-08-15 and 2026-08-23, and the endpoint window is WINDOW_DAYS (14)
+# long, so any pinned day in 2026-08-09..2026-08-15 contains both.
+NASCAR_WINDOW_DAY = datetime(2026, 8, 10, 12, tzinfo=UTC)
+
 
 def load(name: str) -> dict:
     return json.loads((FIXTURES / f"{name}.json").read_text())
@@ -859,9 +865,22 @@ def test_the_connection_test_reports_an_empty_window_honestly(client, db_session
     assert "check the league and team key" in result["message"]
 
 
-def test_the_connection_test_returns_the_window_it_found(client, db_session, sports_http):
+def test_the_connection_test_returns_the_window_it_found(
+    client, db_session, sports_http, frozen_now
+):
+    """The endpoint derives its own window from *today*, so the clock is pinned.
+
+    Unlike the adapter tests, this one cannot be handed a window — it goes
+    through `/api/followed-teams/{id}/test`, which asks for `today` through
+    `today + WINDOW_DAYS`. Left on the real clock it passed only while today
+    was on or before the last recorded race, and had failed every day since
+    (#186). `NASCAR_WINDOW_DAY` sits far enough ahead of the fixture that both
+    events fall inside the fourteen-day window, and noon UTC keeps the local
+    date the same in every zone the install might be configured for.
+    """
     from rally.models import FollowedTeam
 
+    frozen_now(NASCAR_WINDOW_DAY)
     sports_http.route("/scoreboard", load("espn_nascar_cup"))
     team_row = FollowedTeam(
         provider="espn",
@@ -875,8 +894,17 @@ def test_the_connection_test_returns_the_window_it_found(client, db_session, spo
 
     result = client.post(f"/api/followed-teams/{team_row.id}/test").json()
 
+    # The window the endpoint actually asked for. This is the assertion that
+    # keeps the bug from coming back: if the real clock leaks in again, this
+    # string moves with it and says so, instead of the test quietly going red
+    # on whatever day the fixture falls off the end.
+    assert sports_http.calls[0][1]["dates"] == "20260810-20260824"
+
     assert result["success"] is True
-    assert result["events"]
+    # Both recorded races, named rather than merely counted: a fixture re-record
+    # that moved them out of the window would otherwise still satisfy `assert
+    # result["events"]` as long as one survived.
+    assert [e["date"] for e in result["events"]] == ["2026-08-15", "2026-08-23"]
     assert all(e["radio"] for e in result["events"])
 
 
