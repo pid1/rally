@@ -28,7 +28,17 @@ in
 
   # Environment variables
   env.PYTHONUNBUFFERED = "1";
-  env.PYTHONPATH = "${config.env.DEVENV_ROOT}/src";
+  # PYTHONPATH is deliberately *not* set as an `env.` option. devenv's own
+  # Python module now defines it too — pointing at the sitecustomize.py that
+  # makes the uv-managed venv resolve — and two normal-priority definitions of
+  # one option is a build error, not a merge:
+  #
+  #   error: The option `env.PYTHONPATH' has conflicting definition values
+  #
+  # `lib.mkForce` would win the conflict by throwing devenv's sitecustomize
+  # away, and `lib.mkDefault` by throwing ours away; both trade one broken
+  # import for another. Prepending in enterShell keeps both, in the order that
+  # matters. See the note below and `[tool.pytest.ini_options] pythonpath`.
 
   # Scripts
   scripts = {
@@ -135,6 +145,12 @@ in
 
   # Enter shell hook
   enterShell = ''
+    # `rally` is a src-layout package that is run from PYTHONPATH rather than
+    # installed into the venv — pyproject.toml says so, and mirrors it for the
+    # test run with `[tool.pytest.ini_options] pythonpath`. So `src` has to
+    # lead, and whatever devenv put there has to survive behind it.
+    export PYTHONPATH="${config.env.DEVENV_ROOT}/src''${PYTHONPATH:+:$PYTHONPATH}"
+
     echo "🚀 Rally Development Environment"
     echo ""
     echo "Python: $(python --version)"
