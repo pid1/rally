@@ -266,12 +266,27 @@ def _calendar(browser, live_server, width=390):
 
 def test_every_view_is_reachable_on_a_phone(browser, live_server):
     """The month grid used to be hidden below 768px and the selector with it,
-    so a phone had no view choice at all."""
+    so a phone had no view choice at all.
+
+    View and Range are two controls now: the renderer and the slice of time.
+    `Next 30 days` is a list-only idea, so it is hidden while View is Calendar
+    rather than offered and then refused.
+    """
     context, page = _calendar(browser, live_server)
     try:
-        options = page.eval_on_selector_all("#view-select option", "els => els.map(e => e.value)")
-        assert options == ["day", "week", "month", "agenda"]
+        views = page.eval_on_selector_all("#view-select option", "els => els.map(e => e.value)")
+        assert views == ["calendar", "agenda"]
+        ranges = page.eval_on_selector_all("#range-select option", "els => els.map(e => e.value)")
+        assert ranges == ["day", "week", "month", "rolling30"]
         assert page.is_visible("#view-select"), "the selector must not be hidden on a phone"
+        assert page.is_visible("#range-select"), "the selector must not be hidden on a phone"
+
+        assert page.eval_on_selector("#range-select option[value=rolling30]", "el => el.hidden"), (
+            "Calendar cannot draw a rolling 30 days, so it must not offer it"
+        )
+        page.select_option("#view-select", "agenda")
+        page.wait_for_timeout(400)
+        assert not page.eval_on_selector("#range-select option[value=rolling30]", "el => el.hidden")
     finally:
         context.close()
 
@@ -280,7 +295,8 @@ def test_a_phone_lands_on_the_day_view(browser, live_server):
     """What is happening today is what you open a calendar on a phone to find."""
     context, page = _calendar(browser, live_server)
     try:
-        assert page.input_value("#view-select") == "day"
+        assert page.input_value("#view-select") == "calendar"
+        assert page.input_value("#range-select") == "day"
     finally:
         context.close()
 
@@ -288,9 +304,38 @@ def test_a_phone_lands_on_the_day_view(browser, live_server):
 def test_the_month_grid_renders_on_a_phone(browser, live_server):
     context, page = _calendar(browser, live_server)
     try:
-        page.select_option("#view-select", "month")
+        page.select_option("#range-select", "month")
         page.wait_for_selector(".calendar-grid", state="visible")
         assert page.is_visible(".calendar-grid")
+    finally:
+        context.close()
+
+
+def test_the_month_cell_shows_event_text_on_a_phone(browser, live_server):
+    """A date and a dot is a heat map: it says Tuesday is busy without saying
+    with what, so checking any one day cost a tap and a round trip.
+
+    The rows are real targets, not inert text. Making them inert would only
+    block the pointer — they are <button>s, so they would stay in the tab
+    order and still fire on Enter, leaving a control a keyboard can reach and
+    a finger cannot. The generic 44px sweep covers the measurement; this pins
+    the behaviour that the text is there and the row is genuinely tappable.
+    """
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#range-select", "month")
+        page.wait_for_selector(".calendar-grid", state="visible")
+        event = page.query_selector(".calendar-day .calendar-event")
+        if event is None:
+            return  # No seeded events this month; nothing to assert about.
+        assert event.is_visible(), "month cells must carry event text on a phone"
+        assert event.inner_text().strip(), "the row must carry text, not just a dot"
+        assert (
+            page.eval_on_selector(
+                ".calendar-day .calendar-event", "el => getComputedStyle(el).pointerEvents"
+            )
+            != "none"
+        ), "an event row that is a <button> must be tappable, not keyboard-only"
     finally:
         context.close()
 
@@ -298,7 +343,7 @@ def test_the_month_grid_renders_on_a_phone(browser, live_server):
 def test_the_week_starts_on_sunday(browser, live_server):
     context, page = _calendar(browser, live_server)
     try:
-        page.select_option("#view-select", "month")
+        page.select_option("#range-select", "month")
         page.wait_for_selector(".calendar-weekday")
         labels = page.eval_on_selector_all(
             ".calendar-weekday", "els => els.map(e => e.textContent.trim())"
@@ -310,20 +355,109 @@ def test_the_week_starts_on_sunday(browser, live_server):
 
 
 def test_the_arrows_move_by_the_selected_slice(browser, live_server):
-    """Prev/Next must mean a day in Day view and a week in Week view."""
+    """Prev/Next must mean a day at Range=Day and a week at Range=Week.
+
+    The label reads from `.calendar-range-title`, which now sits on top of the
+    content rather than in the page header: a caption three controls away from
+    the grid it names was too quiet, and print hides `.page-header-meta`
+    entirely, so a printed calendar carried no date at all.
+    """
     context, page = _calendar(browser, live_server)
     try:
-        page.select_option("#view-select", "day")
+        page.select_option("#range-select", "day")
         page.wait_for_timeout(400)
-        first = page.inner_text("#range-label")
+        first = page.inner_text(".calendar-range-title")
         page.click("#btn-next")
         page.wait_for_timeout(500)
-        assert page.inner_text("#range-label") != first
+        assert page.inner_text(".calendar-range-title") != first
 
-        page.select_option("#view-select", "week")
+        page.select_option("#range-select", "week")
         page.wait_for_timeout(500)
-        week_label = page.inner_text("#range-label")
+        week_label = page.inner_text(".calendar-range-title")
         assert "–" in week_label, f"a week is a range, got {week_label!r}"
+    finally:
+        context.close()
+
+
+def test_the_range_title_leads_the_content_in_every_mode(browser, live_server):
+    """One heading, always in the same place. It used to live in the page
+    header, so switching View moved it — the inconsistency this replaces."""
+    context, page = _calendar(browser, live_server)
+    try:
+        assert page.query_selector("#range-label") is None, (
+            "the page-header caption is gone; the title leads the content instead"
+        )
+        for view, rng in [
+            ("calendar", "month"),
+            ("calendar", "week"),
+            ("calendar", "day"),
+            ("agenda", "month"),
+            ("agenda", "rolling30"),
+        ]:
+            page.select_option("#view-select", view)
+            page.wait_for_timeout(300)
+            page.select_option("#range-select", rng)
+            page.wait_for_timeout(500)
+            title = page.query_selector("#calendar-view > .calendar-range-title")
+            assert title is not None, f"{view}+{rng} has no range title"
+            assert title.inner_text().strip(), f"{view}+{rng} has an empty range title"
+            assert page.eval_on_selector(
+                "#calendar-view > .calendar-range-title",
+                "el => el === el.parentElement.firstElementChild",
+            ), f"{view}+{rng} must lead with its title"
+    finally:
+        context.close()
+
+
+def test_a_day_view_is_titled_once_and_says_when_it_is_today(browser, live_server):
+    """A Day range names exactly one date, so the title is where that is said.
+
+    Agenda dropped its own day heading, which repeated the title an inch below,
+    and the heading's "Today" marker moved up rather than being lost. Calendar
+    already marks today structurally, but both Day views carry the words so
+    they cannot disagree. Week and Month name a span, and today is not a span.
+    """
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#view-select", "agenda")
+        page.wait_for_timeout(400)
+        page.select_option("#range-select", "day")
+        page.wait_for_timeout(600)
+        page.click("#btn-today")
+        page.wait_for_timeout(600)
+
+        assert page.query_selector(".agenda-heading") is None, (
+            "Agenda + Day must not repeat the date the title already carries"
+        )
+        title = page.inner_text(".calendar-range-title")
+        assert "Today" in title.title(), f"the Today marker must move to the title, got {title!r}"
+
+        # Every other range still separates its days.
+        page.select_option("#range-select", "week")
+        page.wait_for_timeout(600)
+        headings = page.query_selector_all(".agenda-heading")
+        assert headings, "Agenda + Week still needs headings to separate days"
+        assert "Today" not in page.inner_text(".calendar-range-title").title(), (
+            "the marker belongs to the single-day case only"
+        )
+
+        # Both Day views say it, since both name exactly one date.
+        page.select_option("#view-select", "calendar")
+        page.wait_for_timeout(400)
+        page.select_option("#range-select", "day")
+        page.wait_for_timeout(600)
+        page.click("#btn-today")
+        page.wait_for_timeout(600)
+        assert "Today" in page.inner_text(".calendar-range-title").title(), (
+            "Calendar + Day names one date too, so it carries the marker as well"
+        )
+
+        # ...and only when that date really is today.
+        page.click("#btn-next")
+        page.wait_for_timeout(600)
+        assert "Today" not in page.inner_text(".calendar-range-title").title(), (
+            "the marker must follow the anchor, not the range"
+        )
     finally:
         context.close()
 
@@ -336,7 +470,7 @@ def test_add_event_defaults_to_the_day_on_screen(browser, live_server):
     """
     context, page = _calendar(browser, live_server)
     try:
-        page.select_option("#view-select", "day")
+        page.select_option("#range-select", "day")
         page.wait_for_timeout(400)
         page.click("#btn-next")
         page.wait_for_timeout(500)
@@ -525,5 +659,261 @@ def test_a_label_centres_the_control_it_wraps(browser, live_server, page):
         single_line = [r for r in rows if r["rowHeight"] <= r["controlHeight"] + TARGET_MIN]
         off_centre = [r for r in single_line if abs(r["offset"]) > 1]
         assert not off_centre, f"{page} has off-centre controls: {off_centre[:4]}"
+    finally:
+        context.close()
+
+
+# --- Time-grid geometry -------------------------------------------------------
+#
+# The grid's arithmetic had no test until now, and every defect found in it was
+# found by eye: a half-hour event that read as three quarters of one, a block
+# inflated to the hit-area floor, a floored body sitting on top of its
+# neighbour. Those are all `paintGeometry` and `layoutColumns`, so they are what
+# these pin.
+#
+# Assertions are in **minutes**, never pixels. The hour row is a token and may
+# move; "a fifteen-minute event has a fifteen-minute tab" is the rule itself.
+# Occurrences are injected and `render()` called directly, so the input is exact
+# and the arithmetic is not being tested through the seed data.
+
+_MEASURE = """
+(spec) => {
+    mode = spec.mode;
+    range = spec.range;
+    anchor = new Date(spec.year, spec.month - 1, spec.day);
+    occurrences = spec.occurrences.map(o => ({
+        uid: o.title, source: 'native', title: o.title, description: '', location: '',
+        all_day: !!o.all_day, start: '', end: '',
+        start_date: o.start_date, end_date: o.end_date,
+        time_label: o.time_label || '', end_time_label: o.end_time_label || '',
+        dates: o.dates, calendar_id: 1, calendar_label: '',
+        member: 'Mom', member_color: '#4a6741', attendees: [],
+        event_id: 1, occurrence_date: null, recurring: false,
+        editable: true, notify_minutes_before: null,
+    }));
+    render();
+    const hourEl = document.querySelector('.calendar-timegrid-hour');
+    const hour = hourEl.getBoundingClientRect().height;
+    const min = px => Math.round((px / hour) * 60 * 100) / 100;
+    const blocks = [...document.querySelectorAll('.calendar-timegrid-event')].map(b => {
+        const col = b.parentElement.getBoundingClientRect();
+        const r = b.getBoundingClientRect();
+        const tab = b.querySelector('.calendar-timegrid-event-tab');
+        return {
+            title: b.querySelector('.calendar-event-title').textContent,
+            startMin: min(r.top - col.top),
+            blockMin: min(r.height),
+            tabMin: tab ? min(tab.getBoundingClientRect().height) : null,
+            widthPct: Math.round((r.width / col.width) * 100),
+            leftPct: Math.round(((r.left - col.left) / col.width) * 100),
+            colIndex: [...b.parentElement.parentElement.children].indexOf(b.parentElement),
+        };
+    });
+    const colW = document.querySelector('.calendar-timegrid-col').getBoundingClientRect().width;
+    const bars = [...document.querySelectorAll('.calendar-timegrid-allday-event')].map(el => ({
+        title: el.querySelector('.calendar-event-title').textContent,
+        gridColumn: el.style.gridColumn,
+        widthInColumns: Math.round((el.getBoundingClientRect().width / colW) * 10) / 10,
+    }));
+    return { blocks, bars };
+}
+"""
+
+DAY = "2026-09-02"  # A Wednesday, clear of anything the seed puts on the calendar.
+
+
+def _label(hhmm):
+    hour, minute = hhmm
+    return f"{hour % 12 or 12}:{minute:02d} {'AM' if hour < 12 else 'PM'}"
+
+
+def _timed(title, start, end, day=DAY, end_day=None):
+    """One timed occurrence, in the shape `/api/events` returns."""
+    return {
+        "title": title,
+        "all_day": False,
+        "time_label": _label(start),
+        "end_time_label": _label(end),
+        "start_date": day,
+        "end_date": end_day or day,
+        "dates": [day] if end_day is None else [day, end_day],
+    }
+
+
+def _measure(page, occurrences, *, mode="calendar", range_="day", day=DAY):
+    year, month, dom = (int(part) for part in day.split("-"))
+    return page.evaluate(
+        _MEASURE,
+        {
+            "mode": mode,
+            "range": range_,
+            "year": year,
+            "month": month,
+            "day": dom,
+            "occurrences": occurrences,
+        },
+    )
+
+
+def _grid(browser, live_server):
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    page.goto(live_server + "/calendar", wait_until="networkidle")
+    page.wait_for_selector("#calendar-view")
+    return context, page
+
+
+def test_block_heights_round_to_five_minutes_with_a_thirty_minute_floor(browser, live_server):
+    """The body is never under thirty minutes; above that it is proportional.
+
+    Rounding happens *before* the short test, which is why twenty-eight minutes
+    becomes thirty and loses its tab: the block is then drawn to scale and has
+    nothing left to reconcile.
+    """
+    context, page = _grid(browser, live_server)
+    try:
+        # Spaced two hours apart so each is its own cluster and keeps full width.
+        result = _measure(
+            page,
+            [
+                _timed("One", (8, 0), (8, 1)),
+                _timed("Six", (10, 0), (10, 6)),
+                _timed("TwentyTwo", (12, 0), (12, 22)),
+                _timed("TwentyEight", (14, 0), (14, 28)),
+                _timed("Thirty", (16, 0), (16, 30)),
+                _timed("FortySeven", (18, 0), (18, 47)),
+                _timed("Ninety", (20, 0), (21, 30)),
+            ],
+        )
+        got = {b["title"]: (b["blockMin"], b["tabMin"]) for b in result["blocks"]}
+        assert got == {
+            "One": (30, 5),  # rounds up to the 5-minute tab floor
+            "Six": (30, 5),  # 6 → 5
+            "TwentyTwo": (30, 20),  # 22 → 20
+            "TwentyEight": (30, None),  # 28 → 30, so not short: no tab
+            "Thirty": (30, None),
+            "FortySeven": (45, None),  # 47 → 45, drawn to scale
+            "Ninety": (90, None),
+        }
+    finally:
+        context.close()
+
+
+def test_starts_snap_to_five_minutes(browser, live_server):
+    """The grid is a five-minute lattice in both axes, not just in height."""
+    context, page = _grid(browser, live_server)
+    try:
+        result = _measure(page, [_timed("Odd start", (17, 47), (18, 15))])
+        block = result["blocks"][0]
+        assert block["startMin"] == 17 * 60 + 45, "17:47 must be drawn at 17:45"
+        assert block["blockMin"] == 30, "28 minutes rounds to 30"
+    finally:
+        context.close()
+
+
+def test_a_floored_body_pushes_its_neighbour_aside_rather_than_covering_it(browser, live_server):
+    """Packing is on the painted rectangle, not the true span.
+
+    A 15-minute event at 3:45 is drawn thirty minutes tall, so it runs into a
+    4:00 event. Packed on true spans the two merely touch, and the surplus sat
+    on top of the later block and covered ~42% of its own title.
+    """
+    context, page = _grid(browser, live_server)
+    try:
+        result = _measure(
+            page,
+            [_timed("Pickup", (15, 45), (16, 0)), _timed("Retro", (16, 0), (17, 0))],
+        )
+        by = {b["title"]: b for b in result["blocks"]}
+        assert by["Pickup"]["widthPct"] == 50
+        assert by["Retro"]["widthPct"] == 50
+        assert by["Pickup"]["leftPct"] != by["Retro"]["leftPct"], "they must not stack"
+        assert by["Pickup"]["tabMin"] == 15, "the tab still reports the true length"
+    finally:
+        context.close()
+
+
+def test_an_event_with_room_after_it_keeps_the_whole_column(browser, live_server):
+    """Only genuinely colliding paint is split — the rule must not over-cluster."""
+    context, page = _grid(browser, live_server)
+    try:
+        result = _measure(
+            page,
+            [_timed("Pickup", (15, 45), (16, 0)), _timed("Later", (17, 0), (18, 0))],
+        )
+        assert [b["widthPct"] for b in result["blocks"]] == [100, 100]
+    finally:
+        context.close()
+
+
+def test_three_overlapping_events_each_take_a_third(browser, live_server):
+    """n events sharing a span take 1/n each; that is what makes a collision
+    visible rather than something you work out from two timestamps."""
+    context, page = _grid(browser, live_server)
+    try:
+        result = _measure(
+            page,
+            [
+                _timed("Dentist", (10, 0), (11, 0)),
+                _timed("Standup", (10, 15), (10, 45)),
+                _timed("Piano", (10, 30), (11, 30)),
+            ],
+        )
+        assert sorted(b["widthPct"] for b in result["blocks"]) == [33, 33, 33]
+        assert len({b["leftPct"] for b in result["blocks"]}) == 3, "each needs its own column"
+    finally:
+        context.close()
+
+
+def test_an_event_crossing_midnight_is_drawn_on_both_days(browser, live_server):
+    """To the bottom of the first day and from the top of the next.
+
+    Drawing it once, on the day it started, is how a 9 PM–5 AM shift disappears
+    from tomorrow.
+    """
+    context, page = _grid(browser, live_server)
+    try:
+        result = _measure(
+            page,
+            [_timed("Night shift", (21, 0), (5, 0), day="2026-08-31", end_day="2026-09-01")],
+            range_="week",
+            day="2026-08-31",
+        )
+        blocks = sorted(result["blocks"], key=lambda b: b["colIndex"])
+        assert len(blocks) == 2, "a midnight crossing is two rectangles"
+        assert blocks[0]["startMin"] == 21 * 60
+        assert blocks[0]["blockMin"] == 180, "9 PM to midnight"
+        assert blocks[1]["startMin"] == 0
+        assert blocks[1]["blockMin"] == 300, "midnight to 5 AM"
+        assert blocks[1]["colIndex"] == blocks[0]["colIndex"] + 1, "and on consecutive days"
+    finally:
+        context.close()
+
+
+def test_an_all_day_event_spans_every_column_it_covers(browser, live_server):
+    """All-day events leave the time axis entirely. A Mon–Wed trip is one bar
+    across three columns, not three disconnected chips."""
+    context, page = _grid(browser, live_server)
+    try:
+        result = _measure(
+            page,
+            [
+                {
+                    "title": "Grandma visiting",
+                    "all_day": True,
+                    "start_date": "2026-08-31",
+                    "end_date": "2026-09-02",
+                    "dates": ["2026-08-31", "2026-09-01", "2026-09-02"],
+                }
+            ],
+            range_="week",
+            day="2026-08-31",
+        )
+        assert len(result["bars"]) == 1, "one event, one bar"
+        bar = result["bars"][0]
+        # The week starts Sunday, so Mon–Wed is columns 2–4 of the subgrid.
+        assert bar["gridColumn"] == "2 / 5"
+        assert bar["widthInColumns"] >= 2.5, f"the bar must span three days, got {bar}"
+        assert not result["blocks"], "an all-day event must not enter the time axis"
     finally:
         context.close()

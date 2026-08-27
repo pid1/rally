@@ -92,3 +92,47 @@ def test_modals_are_opened_only_through_the_shared_helper():
     assert not offenders, (
         f"modals must open with showModalOverlay() and close with hideModalOverlay(): {offenders}"
     )
+
+
+def test_calendar_offers_view_mode_and_range_as_separate_controls():
+    """One dropdown could not say "a week, drawn as a calendar".
+
+    `View` and `Range` are orthogonal — the renderer and the slice of time —
+    and conflating them is why `Day` and `Week` both rendered agenda lists for
+    as long as they existed. The two selectors are the whole feature, so the
+    markup carrying them is worth pinning.
+    """
+    html = (TEMPLATES / "calendar.html").read_text()
+    assert 'id="view-select"' in html
+    assert 'id="range-select"' in html
+    for option in ('value="calendar"', 'value="agenda"'):
+        assert option in html, f"the View selector is missing {option}"
+    for option in ('value="day"', 'value="week"', 'value="month"', 'value="rolling30"'):
+        assert option in html, f"the Range selector is missing {option}"
+
+
+def test_calendar_renders_a_time_grid_and_not_only_lists():
+    """The grid is what a list cannot be: duration as height, overlap as position."""
+    html = (TEMPLATES / "calendar.html").read_text()
+    assert "function timeGridHtml()" in html
+    assert "function layoutColumns(" in html, "overlapping events must split the column"
+    assert "calendar-timegrid-allday" in html, "all-day events need their own band"
+
+
+def test_calendar_agenda_iterates_the_selected_window():
+    """The agenda looped a hard-coded 30 days regardless of the view, and only
+    showed fewer for Day and Week as a side effect of the narrower fetch. With
+    real ranges that is a warm cache away from rendering 30 headings on a day.
+    """
+    html = (TEMPLATES / "calendar.html").read_text()
+    body = html.split("function agendaHtml()", 1)[1].split("function ", 1)[0]
+    assert "rangeDayCount()" in body
+    assert "AGENDA_DAYS" not in body, "the agenda must not loop a fixed day count"
+
+
+def test_calendar_has_no_dead_viewport_override():
+    """`applyViewportView()` was a stub returning False, still called from
+    init() and wired to a matchMedia listener. Width picks the landing view and
+    is not consulted again."""
+    html = (TEMPLATES / "calendar.html").read_text()
+    assert "applyViewportView" not in html
