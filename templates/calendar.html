@@ -40,19 +40,27 @@
                     <button class="btn" id="btn-add-event">Add Event</button>
                 </div>
             </div>
-            <div class="page-header-meta">
-                <span id="range-label"></span>
-            </div>
         </header>
 
         <div class="toolbar">
-            <div class="toolbar-group">
+            <div class="toolbar-group toolbar-group--pair">
                 <span class="toolbar-label" id="view-label">View</span>
                 <select id="view-select" class="select toolbar-control" aria-labelledby="view-label">
+                    <option value="calendar">Calendar</option>
+                    <option value="agenda">Agenda</option>
+                </select>
+            </div>
+            <!-- View is the renderer, Range is the slice of time. They were one
+                 control, which is why Day and Week both rendered lists: there
+                 was no way to say "a week, drawn as a calendar". `Next 30 days`
+                 is the old rolling agenda window and exists in Agenda only. -->
+            <div class="toolbar-group toolbar-group--pair">
+                <span class="toolbar-label" id="range-select-label">Range</span>
+                <select id="range-select" class="select toolbar-control" aria-labelledby="range-select-label">
                     <option value="day">Day</option>
                     <option value="week">Week</option>
                     <option value="month">Month</option>
-                    <option value="agenda">Agenda</option>
+                    <option value="rolling30">Next 30 days</option>
                 </select>
             </div>
             <div class="toolbar-group" id="period-group">
@@ -217,12 +225,20 @@
         let familyMembers = [];
         let occurrences = [];
         let selectedMembers = new Set();
-        /* A phone lands on Day: the month grid is reachable but "what is
-           happening today" is what you open a calendar on a phone to find out.
-           Desktop keeps Month, where the grid has room to be useful. */
-        let view = window.matchMedia('(max-width: 767px)').matches ? 'day' : 'month';
-        // The first of the displayed month (month view), the first displayed
-        // day (day/week/agenda). One anchor for every view keeps Prev/Next
+        /* Two orthogonal choices, not one. `mode` is the renderer — a grid or
+           a list — and `range` is how much time it covers. Conflating them is
+           what made Day and Week render agenda lists: the dropdown had no way
+           to express "a week, drawn as a calendar".
+
+           A phone lands on Calendar + Day: the month grid is reachable but
+           "what is happening today" is what you open a calendar on a phone to
+           find out. Desktop lands on Month, where the grid has room to be
+           useful. Neither is remembered — see the note on init(). */
+        const NARROW = '(max-width: 767px)';
+        let mode = 'calendar';
+        let range = window.matchMedia(NARROW).matches ? 'day' : 'month';
+        // The first of the displayed month (month range), the first displayed
+        // day (day/week/rolling). One anchor for every range keeps Prev/Next
         // honest.
         let anchor = startOfMonth(new Date());
         let editingEvent = null;      // Full event record while the modal is open
@@ -231,6 +247,20 @@
 
         const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const AGENDA_DAYS = 30;
+        // Ranges Calendar can draw. `rolling30` is a list-only idea: a grid of
+        // 30 arbitrary days starting on a Wednesday is not a calendar.
+        const CALENDAR_RANGES = ['day', 'week', 'month'];
+        const MINUTES_PER_DAY = 24 * 60;
+        // The grid is drawn on a five-minute lattice: both starts and heights
+        // snap to it, which is the resolution a calendar is read at anyway.
+        const SNAP_MINUTES = 5;
+        // A body is never shorter than this, so it always has room for a line
+        // of text and a 44px target. At --timegrid-hour: 5.5rem that is exactly
+        // 44px, which is why the hour row is that tall.
+        const MIN_BODY_MINUTES = 30;
+        // ...and a tab never shorter than this, or a one-minute event would
+        // have nothing to show at all.
+        const MIN_TAB_MINUTES = 5;
 
         // --- Date helpers. Everything is a local YYYY-MM-DD string; the API
         // speaks the same language, so no timezone maths happens in the browser.
@@ -277,24 +307,39 @@
             return new Date(date.getFullYear(), date.getMonth(), date.getDate());
         }
 
-        /* Each view is a different slice of time over the same data, so the
-           window is the only thing that varies. Day and Week reuse the agenda
-           renderer, which already groups by day — a seven-column time grid
-           would be a different component for no gain on a phone. */
+        /* The window every renderer and the fetch agree on. `end` is exclusive.
+
+           Month is the one range whose window depends on the mode: a grid has
+           to square itself off, so it draws the 42-day block containing the
+           month, while a list has no reason to carry the leading and trailing
+           days that block adds. */
         function currentRange() {
-            if (view === 'day') {
+            if (range === 'day') {
                 const start = startOfDay(anchor);
                 return { start, end: addDays(start, 1) };
             }
-            if (view === 'week') {
+            if (range === 'week') {
                 const start = startOfWeek(anchor);
                 return { start, end: addDays(start, 7) };
             }
-            if (view === 'agenda') {
-                return { start: anchor, end: addDays(anchor, AGENDA_DAYS) };
+            if (range === 'rolling30') {
+                return { start: startOfDay(anchor), end: addDays(startOfDay(anchor), AGENDA_DAYS) };
             }
-            const start = gridStart(anchor);
-            return { start, end: addDays(start, 42) };
+            if (mode === 'calendar') {
+                const start = gridStart(anchor);
+                return { start, end: addDays(start, 42) };
+            }
+            const start = startOfMonth(anchor);
+            return { start, end: new Date(start.getFullYear(), start.getMonth() + 1, 1) };
+        }
+
+        /* How many days the window covers. The agenda used to loop a hard-coded
+           30 regardless of the view and only rendered fewer days as a side
+           effect of the narrower fetch; with real ranges that is a bug waiting
+           for a warm cache. */
+        function rangeDayCount() {
+            const { start, end } = currentRange();
+            return Math.round((startOfDay(end) - startOfDay(start)) / 86400000);
         }
 
         function escapeHtml(text) {
@@ -314,8 +359,9 @@
         }
 
         async function fetchOccurrences() {
-            const range = currentRange();
-            const params = new URLSearchParams({ start: isoDate(range.start), end: isoDate(range.end) });
+            // `shown`, not `range`: that name is the Range selector's value now.
+            const shown = currentRange();
+            const params = new URLSearchParams({ start: isoDate(shown.start), end: isoDate(shown.end) });
             selectedMembers.forEach(name => params.append('member', name));
             const response = await fetch(`/api/events?${params.toString()}`);
             if (!response.ok) throw new Error('Failed to load events');
@@ -355,37 +401,62 @@
 
         // --- Rendering
 
+        /* Three renderers over one window. Month is the only range where the
+           two modes disagree about the component; Day and Week differ only in
+           column count, which is why they are one function. */
+        function bodyHtml() {
+            // The heading rides with the content rather than the page header,
+            // so it stays attached to what it names — in every mode, and in
+            // print, where `.page-header-meta` is hidden and a calendar came
+            // off the printer with no date on it. It leads the empty state too:
+            // "Nothing scheduled this month" needs to say which month.
+            // Day names exactly one date, so its title is the place to say
+            // that the date is today — in either mode. Agenda reached this by
+            // dropping its own day heading, which said the same thing an inch
+            // lower; Calendar already marks today structurally, with the
+            // `is-today` rule on the day label and the now line, but the two
+            // Day views should not disagree about whether they say it in words.
+            // Week and Month name a span, and "today" is not a span.
+            const marksToday = range === 'day' && isoDate(anchor) === todayIso();
+            const title = `<h3 class="calendar-range-title">${escapeHtml(rangeLabel())}`
+                + `${marksToday ? ' · Today' : ''}</h3>`;
+            const body = mode === 'agenda' ? agendaHtml()
+                : range === 'month' ? monthHtml()
+                : timeGridHtml();
+            return title + body;
+        }
+
         function render() {
-            document.getElementById('range-label').textContent = rangeLabel();
             const container = document.getElementById('calendar-view');
-            container.innerHTML = view === 'month' ? monthHtml() : agendaHtml();
+            container.innerHTML = bodyHtml();
             container.querySelectorAll('[data-occurrence]').forEach(node => {
                 node.addEventListener('click', () => openOccurrence(Number(node.dataset.occurrence)));
             });
             container.querySelectorAll('[data-agenda-date]').forEach(node => {
                 node.addEventListener('click', () => {
                     // Tapping a day drills into that day rather than opening a
-                    // popover: there is exactly one modal chassis, and Day is
-                    // now a real view rather than a 30-day list starting there.
-                    view = 'day';
+                    // popover: there is exactly one modal chassis. The mode is
+                    // left alone — drilling in from a grid should keep you in
+                    // the grid, and from a list, in the list.
+                    setRange('day');
                     anchor = parseIso(node.dataset.agendaDate);
-                    document.getElementById('view-select').value = 'day';
                     load();
                 });
             });
+            scrollGridToFirstInterest();
         }
 
         function rangeLabel() {
-            if (view === 'agenda') {
-                const end = addDays(anchor, AGENDA_DAYS - 1);
+            if (range === 'rolling30') {
+                const end = addDays(startOfDay(anchor), AGENDA_DAYS - 1);
                 return `${anchor.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
             }
-            if (view === 'day') {
+            if (range === 'day') {
                 return startOfDay(anchor).toLocaleDateString(undefined, {
                     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
                 });
             }
-            if (view === 'week') {
+            if (range === 'week') {
                 const start = startOfWeek(anchor);
                 const end = addDays(start, 6);
                 const left = start.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
@@ -445,15 +516,13 @@
                 // The day number opens that day's agenda — the same move
                 // "+N more" makes, offered on every day rather than only the
                 // crowded ones.
-                // The dots live inside the day button rather than in their own
-                // buttons, so a phone has exactly one target per cell. On
-                // desktop they are hidden and the event rows below carry the
-                // detail instead.
-                const dots = dayEvents.length
-                    ? `<span class="calendar-day-dots">${dayEvents.slice(0, 4).map(dotFor).join('')}</span>`
-                    : '';
+                // No dots. They were the phone's whole answer to "who is busy
+                // today" back when the cell could not carry event text; now
+                // that every row carries a name, a row of dots above the rows
+                // says the same thing twice and reads as clutter — worst in a
+                // crowded cell, which is exactly where it survived longest.
                 html += `<button type="button" class="calendar-day-open" data-agenda-date="${iso}">`
-                    + `<span class="calendar-day-number">${day.getDate()}</span>${dots}</button>`;
+                    + `<span class="calendar-day-number">${day.getDate()}</span></button>`;
                 shown.forEach(occurrence => {
                     const index = occurrences.indexOf(occurrence);
                     const label = occurrence.all_day ? '' : `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`;
@@ -467,16 +536,298 @@
             return html + '</div></div>';
         }
 
+        /* --- Time grid (Calendar + Day/Week)
+
+           Day and Week are the same component with one column or seven. The
+           grid is what a list cannot be: duration is height and adjacency is
+           position, so an overlap is visible rather than something you work
+           out by reading two timestamps and subtracting. */
+
+        /* "5:30 PM" → 1050. Times are read back off the server-rendered labels
+           rather than derived from the UTC instant, because those labels are
+           already in the family's configured zone and the rest of the page
+           reads them. Doing the arithmetic in the browser instead would put
+           the blocks somewhere the labels beside them disagree with, for
+           anybody travelling. */
+        function minutesFromLabel(label) {
+            const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((label || '').trim());
+            if (!match) return null;
+            const hours = (Number(match[1]) % 12) + (match[3].toUpperCase() === 'PM' ? 12 : 0);
+            return hours * 60 + Number(match[2]);
+        }
+
+        /* The slice of one date an occurrence covers, in minutes from midnight.
+           An event crossing midnight runs to the bottom of the first day and
+           from the top of the next; drawing it once, on the day it started, is
+           how a 9 PM–1 AM shift disappears from tomorrow. */
+        function timedSpanOn(occurrence, iso) {
+            const isFirst = occurrence.start_date === iso;
+            const isLast = occurrence.end_date === iso;
+            const start = isFirst ? minutesFromLabel(occurrence.time_label) : 0;
+            const end = isLast ? minutesFromLabel(occurrence.end_time_label) : MINUTES_PER_DAY;
+            if (start === null || end === null) return null;
+            // An event ending at midnight is dated to the following day as
+            // well, where it would draw a zero-height sliver at the top of a
+            // day it does not really touch.
+            if (!isFirst && end <= 0) return null;
+            return { start, end: Math.max(end, start) };
+        }
+
+        function snapToFive(minutes) {
+            return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+        }
+
+        /* Everything about where a block is painted, decided once.
+
+           Layout and rendering both read this, so the columns are packed
+           against the same rectangle that ends up on screen — the two drifting
+           apart is what let a floored body sit on top of its neighbour.
+
+           `minutes` is the body: at least MIN_BODY_MINUTES, proportional above
+           that. `tabMinutes` is the event's own rounded length, which is what
+           the tab reports when the body is bigger than the event. A 28-minute
+           event rounds to 30 and is therefore not short — it is drawn as one
+           plain block, no tab. */
+        function paintGeometry(span) {
+            const rounded = Math.max(MIN_TAB_MINUTES, snapToFive(span.end - span.start));
+            return {
+                start: snapToFive(span.start),
+                minutes: Math.max(MIN_BODY_MINUTES, rounded),
+                tabMinutes: rounded,
+                short: rounded < MIN_BODY_MINUTES,
+            };
+        }
+
+        /* Side-by-side placement. Overlapping events are clustered
+           transitively, then each takes the first column free at its start
+           time and every event in the cluster is sized 1/n. Events that merely
+           touch — one ending exactly as the next begins — are separate
+           clusters and each keeps the full width.
+
+           Packing is done on the **rendered** extent, not the true one. A block
+           shorter than the floor is painted taller than it lasts, and packing
+           on the true span let that surplus sit on top of the next event and
+           cover ~42% of its own title. Measuring what is painted is also what
+           makes the answer stable: a 30-minute event covers 38.6 minutes of
+           axis on a desktop and 47.1 on a phone, and both now cluster
+           correctly. The tab still reports the true duration, so a pair split
+           this way reads as "adjacent and both need room", not as a conflict. */
+        function layoutColumns(items) {
+            const sorted = items
+                .map(item => ({ ...item, extentEnd: item.paint.start + item.paint.minutes }))
+                .sort((a, b) =>
+                    a.paint.start - b.paint.start
+                    || b.extentEnd - a.extentEnd
+                    || a.occurrence.title.localeCompare(b.occurrence.title));
+
+            let cluster = [];
+            let clusterEnd = -1;
+            const flush = () => {
+                const columnEnds = [];
+                cluster.forEach(item => {
+                    let index = columnEnds.findIndex(end => end <= item.paint.start);
+                    if (index === -1) {
+                        index = columnEnds.length;
+                        columnEnds.push(0);
+                    }
+                    columnEnds[index] = item.extentEnd;
+                    item.column = index;
+                });
+                cluster.forEach(item => { item.columns = columnEnds.length; });
+                cluster = [];
+            };
+
+            sorted.forEach(item => {
+                if (cluster.length && item.paint.start >= clusterEnd) {
+                    flush();
+                    clusterEnd = -1;
+                }
+                cluster.push(item);
+                clusterEnd = cluster.length === 1 ? item.extentEnd : Math.max(clusterEnd, item.extentEnd);
+            });
+            if (cluster.length) flush();
+            return sorted;
+        }
+
+        function gridDays() {
+            const { start } = currentRange();
+            const days = [];
+            for (let i = 0; i < rangeDayCount(); i++) days.push(addDays(start, i));
+            return days;
+        }
+
+        /* The all-day band, pinned above the scrolling hours. A Thu–Sun trip is
+           one bar across four columns rather than four disconnected chips,
+           which is the only reason the band is worth its vertical space — and
+           why it collapses entirely on a week that has none. */
+        function allDayBandHtml(days) {
+            const isos = days.map(isoDate);
+            const bars = [];
+            occurrences.forEach((occurrence, index) => {
+                if (!occurrence.all_day) return;
+                const covered = isos.map((iso, i) => occurrence.dates.includes(iso) ? i : -1).filter(i => i >= 0);
+                if (!covered.length) return;
+                const first = covered[0];
+                const last = covered[covered.length - 1];
+                bars.push(
+                    `<button type="button" class="calendar-timegrid-allday-event${occurrence.editable ? '' : ' is-external'}"`
+                    + ` data-occurrence="${index}" title="${escapeHtml(occurrence.title)}"`
+                    + ` style="grid-column: ${first + 1} / ${last + 2}">`
+                    + `${dotFor(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`
+                );
+            });
+            if (!bars.length) return '';
+            return '<div class="calendar-timegrid-allday">'
+                + '<div class="calendar-timegrid-gutter-cell">All day</div>'
+                + `<div class="calendar-timegrid-allday-track">${bars.join('')}</div>`
+                + '</div>';
+        }
+
+        function hourGutterHtml() {
+            let html = '<div class="calendar-timegrid-gutter">';
+            for (let hour = 0; hour < 24; hour++) {
+                // Midnight carries no label: the row is the top of the grid and
+                // a "12 AM" there reads as a value rather than a boundary.
+                const label = hour === 0 ? ''
+                    : `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? 'AM' : 'PM'}`;
+                html += `<div class="calendar-timegrid-hour"><span>${label}</span></div>`;
+            }
+            return html + '</div>';
+        }
+
+        function timeGridHtml() {
+            const days = gridDays();
+            const today = todayIso();
+
+            let head = '<div class="calendar-timegrid-head"><div class="calendar-timegrid-gutter-cell"></div>';
+            days.forEach(day => {
+                const iso = isoDate(day);
+                head += `<div class="calendar-timegrid-daylabel${iso === today ? ' is-today' : ''}">`
+                    + `<span class="calendar-timegrid-dayname">${WEEKDAYS[day.getDay()]}</span>`
+                    + `<span class="calendar-timegrid-daynum">${day.getDate()}</span></div>`;
+            });
+            head += '</div>';
+
+            // 7 AM unless something starts earlier, in which case an hour ahead
+            // of it. A grid that opens with its first event scrolled off the
+            // top is the one failure the component cannot recover from itself.
+            let earliest = 7 * 60;
+            let columns = '';
+            days.forEach(day => {
+                const iso = isoDate(day);
+                const items = [];
+                occurrencesOn(iso).forEach(occurrence => {
+                    if (occurrence.all_day) return;
+                    const span = timedSpanOn(occurrence, iso);
+                    if (span) items.push({ occurrence, span, paint: paintGeometry(span) });
+                });
+                // Only events that *begin* on their day move the opening
+                // scroll. A block continuing over midnight starts at 00:00 by
+                // definition, and letting it vote pins every week containing
+                // one night shift to the top of the grid.
+                items.forEach(item => {
+                    if (item.occurrence.start_date !== iso) return;
+                    earliest = Math.min(earliest, item.paint.start);
+                });
+
+                let blocks = '';
+                layoutColumns(items).forEach(item => {
+                    const index = occurrences.indexOf(item.occurrence);
+                    const width = 100 / item.columns;
+                    // Member colour rides the left edge rather than a dot. A
+                    // dot costs 8px plus a gap out of a block that may be 40px
+                    // wide in a three-way overlap, and it buys nothing the
+                    // edge does not already say.
+                    const colour = item.occurrence.member_color || '';
+                    const paint = item.paint;
+
+                    /* An event under MIN_BODY_MINUTES cannot be drawn to scale
+                       and stay usable: at 30 minutes the body is already only
+                       44px, which is one line of text and exactly the hit-area
+                       floor. So it is drawn as two shapes rather than one — a
+                       narrow tab down the left at the event's own rounded
+                       length, and a body beside it at the 30-minute minimum.
+                       Duration reads off the tab; the words and the tap target
+                       live in the body. Together they are exactly the column
+                       width, so a short event takes no more room than any
+                       other.
+
+                       At or above 30 minutes there is nothing to reconcile:
+                       the body is already proportional, so no tab is drawn. */
+                    const short = paint.short;
+                    const style = `top:${(paint.start / MINUTES_PER_DAY) * 100}%;`
+                        + `height:${(paint.minutes / MINUTES_PER_DAY) * 100}%;`
+                        + `left:${item.column * width}%;width:${width}%;`
+                        + (colour && !short ? `border-left-color:${escapeHtml(colour)};` : '');
+                    const time = item.occurrence.start_date === iso
+                        ? item.occurrence.time_label
+                        : 'Continues';
+                    const label = `<span class="calendar-event-title">${escapeHtml(item.occurrence.title)}</span>`
+                        + `<span class="calendar-timegrid-event-time">${escapeHtml(time)}</span>`;
+                    // The tab is measured off the hour, not off the button: the
+                    // button is the body's 30 minutes, so a percentage of it
+                    // would describe the minimum rather than the event.
+                    const inner = short
+                        ? `<span class="calendar-timegrid-event-tab" style="height:calc(var(--timegrid-hour) * ${(paint.tabMinutes / 60).toFixed(4)})`
+                            + `${colour ? `;background:${escapeHtml(colour)}` : ''}"></span>`
+                            + `<span class="calendar-timegrid-event-body">${label}</span>`
+                        : label;
+                    blocks += `<button type="button" class="calendar-timegrid-event${short ? ' is-short' : ''}${item.occurrence.editable ? '' : ' is-external'}"`
+                        + ` data-occurrence="${index}" style="${style}"`
+                        + ` title="${escapeHtml(`${time} · ${item.occurrence.title}`)}">`
+                        + inner
+                        + '</button>';
+                });
+
+                // The now line uses the browser's clock, as `todayIso()` and
+                // the `is-today` rule already do. It is drawn as a hairline,
+                // never a fill, for the same reason the month grid marks today
+                // that way: colour on this page means a family member.
+                if (iso === today) {
+                    const now = new Date();
+                    const minutes = now.getHours() * 60 + now.getMinutes();
+                    blocks += `<div class="calendar-timegrid-now" style="top:${(minutes / MINUTES_PER_DAY) * 100}%"></div>`;
+                }
+
+                columns += `<div class="calendar-timegrid-col${iso === today ? ' is-today' : ''}">${blocks}</div>`;
+            });
+
+            const scrollTo = Math.max(0, earliest - 60);
+            // `--multi` is the many-columns case, which is the only one whose
+            // day headings are width-starved. Day has one column and all the
+            // room it needs, so it must not inherit the narrow treatment.
+            const multi = days.length > 1 ? ' calendar-timegrid--multi' : '';
+            return `<div class="calendar-timegrid${multi}" style="--timegrid-cols:${days.length}">`
+                + head
+                + allDayBandHtml(days)
+                + `<div class="calendar-timegrid-scroll" data-scroll-minutes="${scrollTo}">`
+                + `<div class="calendar-timegrid-body">${hourGutterHtml()}${columns}</div>`
+                + '</div></div>';
+        }
+
+        function scrollGridToFirstInterest() {
+            const scroller = document.querySelector('.calendar-timegrid-scroll');
+            if (!scroller) return;
+            const minutes = Number(scroller.dataset.scrollMinutes || 0);
+            scroller.scrollTop = scroller.scrollHeight * (minutes / MINUTES_PER_DAY);
+        }
+
         function agendaHtml() {
             const rows = [];
-            for (let i = 0; i < AGENDA_DAYS; i++) {
-                const day = addDays(anchor, i);
+            const { start: windowStart } = currentRange();
+            for (let i = 0; i < rangeDayCount(); i++) {
+                const day = addDays(windowStart, i);
                 const iso = isoDate(day);
                 const dayEvents = occurrencesOn(iso);
                 if (!dayEvents.length) continue;  // Empty days are omitted.
 
+                // One day in the window means the range title has already said
+                // which day it is; a heading here would repeat it an inch below.
                 const heading = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-                let html = `<div class="agenda-day"><div class="agenda-heading">${escapeHtml(heading)}${iso === todayIso() ? ' · Today' : ''}</div>`;
+                const headingHtml = range === 'day'
+                    ? ''
+                    : `<div class="agenda-heading">${escapeHtml(heading)}${iso === todayIso() ? ' · Today' : ''}</div>`;
+                let html = `<div class="agenda-day">${headingHtml}`;
                 dayEvents.forEach(occurrence => {
                     const index = occurrences.indexOf(occurrence);
                     const time = occurrence.all_day
@@ -498,8 +849,9 @@
             if (!rows.length) {
                 // The empty state names the slice you are actually looking at;
                 // "this stretch" reads oddly when the stretch is one day.
-                const empty = view === 'day' ? 'Nothing scheduled on this day.'
-                    : view === 'week' ? 'Nothing scheduled this week.'
+                const empty = range === 'day' ? 'Nothing scheduled on this day.'
+                    : range === 'week' ? 'Nothing scheduled this week.'
+                    : range === 'month' ? 'Nothing scheduled this month.'
                     : 'Nothing scheduled in this stretch.';
                 return `<div class="container-empty-state">${empty}</div>`;
             }
@@ -633,8 +985,8 @@
            day is. */
         function defaultEventDate() {
             const now = new Date();
-            if (view === 'day') return isoDate(startOfDay(anchor));
-            if (view === 'month') {
+            if (range === 'day') return isoDate(startOfDay(anchor));
+            if (range === 'month') {
                 // Measured against the anchored month, not the 42-cell grid:
                 // the grid shows a few days either side, and being handed
                 // August 31st while reading September is the same wrong answer.
@@ -642,10 +994,13 @@
                     && now.getMonth() === anchor.getMonth();
                 return sameMonth ? todayIso() : isoDate(startOfMonth(anchor));
             }
-            const range = currentRange();
+            // Named `shown` — plain `range` is the selector's value now, and
+            // shadowing it here would put the two `range ===` tests above in
+            // the temporal dead zone of this very declaration.
+            const shown = currentRange();
             const today = startOfDay(now);
-            if (today >= range.start && today < range.end) return todayIso();
-            return isoDate(startOfDay(range.start));
+            if (today >= shown.start && today < shown.end) return todayIso();
+            return isoDate(startOfDay(shown.start));
         }
 
         function openAddEventModal(dateIso) {
@@ -898,17 +1253,40 @@
             }
         }
 
+        /* Prev/Next move by whatever the Range selector says, in both modes. */
         function shift(direction) {
-            if (view === 'day') {
+            if (range === 'day') {
                 anchor = addDays(startOfDay(anchor), direction);
-            } else if (view === 'week') {
+            } else if (range === 'week') {
                 anchor = addDays(startOfWeek(anchor), direction * 7);
-            } else if (view === 'agenda') {
-                anchor = addDays(anchor, direction * AGENDA_DAYS);
+            } else if (range === 'rolling30') {
+                anchor = addDays(startOfDay(anchor), direction * AGENDA_DAYS);
             } else {
                 anchor = new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1);
             }
             load();
+        }
+
+        /* The start of the slice of `range` that contains `base`. */
+        function anchorFor(base) {
+            if (range === 'month') return startOfMonth(base);
+            if (range === 'week') return startOfWeek(base);
+            return startOfDay(base);
+        }
+
+        /* Calendar cannot draw `Next 30 days`, so switching into it falls back
+           to Month — the nearest thing a grid offers to a long look ahead. */
+        function syncRangeOptions() {
+            const select = document.getElementById('range-select');
+            const rolling = select.querySelector('option[value="rolling30"]');
+            rolling.hidden = mode === 'calendar';
+            if (mode === 'calendar' && !CALENDAR_RANGES.includes(range)) range = 'month';
+            select.value = range;
+        }
+
+        function setRange(next) {
+            range = next;
+            syncRangeOptions();
         }
 
         function toggleOtherDropdown(e) {
@@ -1020,29 +1398,32 @@
         document.getElementById('btn-prev').addEventListener('click', () => shift(-1));
         document.getElementById('btn-next').addEventListener('click', () => shift(1));
         document.getElementById('btn-today').addEventListener('click', () => {
-            const now = new Date();
-            anchor = view === 'month' ? startOfMonth(now)
-                : view === 'week' ? startOfWeek(now)
-                : view === 'day' ? startOfDay(now)
-                : now;
+            anchor = anchorFor(new Date());
             load();
         });
 
+        /* Switching the renderer keeps the date you were looking at. Going from
+           a week in the grid to a week in the list should hand you the same
+           week — the mode is a question about presentation, not about when. */
         document.getElementById('view-select').addEventListener('change', (event) => {
-            view = event.target.value;
+            mode = event.target.value;
+            syncRangeOptions();
+            anchor = anchorFor(anchor);
+            load();
+        });
+
+        document.getElementById('range-select').addEventListener('change', (event) => {
+            range = event.target.value;
             // Re-anchor to the slice that contains where you already were, so
             // switching Month → Day while looking at August lands on a day in
             // August rather than snapping to the 1st. Switching while looking
             // at the current period lands on today, which is what you want
             // almost every time.
+            const now = new Date();
             const inCurrentPeriod =
-                anchor.getFullYear() === new Date().getFullYear() &&
-                anchor.getMonth() === new Date().getMonth();
-            const base = inCurrentPeriod ? new Date() : anchor;
-            anchor = view === 'month' ? startOfMonth(base)
-                : view === 'week' ? startOfWeek(base)
-                : view === 'day' ? startOfDay(base)
-                : base;
+                anchor.getFullYear() === now.getFullYear() &&
+                anchor.getMonth() === now.getMonth();
+            anchor = anchorFor(inCurrentPeriod ? now : anchor);
             load();
         });
 
@@ -1061,31 +1442,19 @@
             load();
         });
 
-        /* The month grid is hidden below 768px — seven columns cannot carry a
-           44px tap target at that width — so the page must not start in a view
-           that would render nothing. */
-        const NARROW = '(max-width: 767px)';
+        /* Every mode and range is reachable at every width, and nothing here
+           overrides the user's choice once the page is up: `NARROW` picks the
+           landing view and is not consulted again. A width change mid-session
+           is a rotated phone or a dragged window, not a request to be moved to
+           a different view.
 
-        /* Every view is now reachable at every width. The month grid used to be
-           hidden below 768px because seven columns could not carry a 44px tap
-           target — but that was measured at 320px. At 390px the page column is
-           358px, which is 51px per column, and at 360px it is 47px. So the grid
-           earns its place on a phone provided the cells carry a date and dots
-           rather than event text; the CSS does that, and the container scrolls
-           within itself on anything narrower than 340px rather than pushing the
-           body sideways. */
-        function applyViewportView() {
-            return false;
-        }
-
-        window.matchMedia(NARROW).addEventListener('change', () => {
-            if (applyViewportView()) load();
-        });
-
+           Deliberately not persisted. Which calendar you want is a function of
+           why you opened it — a remembered Day view is exactly wrong for the
+           Sunday planning session that is the main event of the week. */
         (async function init() {
-            document.getElementById('view-select').value = view;
-            if (view !== 'month') anchor = new Date();
-            applyViewportView();
+            document.getElementById('view-select').value = mode;
+            syncRangeOptions();
+            anchor = anchorFor(new Date());
             await fetchFamilyMembers();
             await load();
             // After the calendar is on screen, not before: freshness is a

@@ -1447,12 +1447,26 @@ body.is-dragging {
  * - A day that overflows offers "+N more" and switches to that day's agenda.
  *   A popover would be a second modal chassis, and there is exactly one.
  */
-.calendar-toolbar-title {
+/* The name of whatever slice is on screen, sitting on top of the grid it
+   names — every Calendar range, so the heading does not move when you change
+   Range. It was a muted line of body text up in the page header, three
+   controls away from the thing it labelled: fine as a caption, too quiet for
+   the words that say what you are looking at. `--text-lg` is the h3 step,
+   below the `--text-xl` page title, so the hierarchy reads CALENDAR → AUGUST
+   2026 → grid.
+
+   No `nowrap`. The month is two short words, but Day runs to "WEDNESDAY,
+   SEPTEMBER 30, 2026" — about 400px uppercase at this tracking, against 358px
+   of page on a 390px phone. It has to be allowed to wrap.
+
+   (This rule began as `.calendar-toolbar-title`, defined but referenced by no
+   template — dead since the toolbar stopped carrying a title.) */
+.calendar-range-title {
     font-family: var(--font-display);
     font-size: var(--text-lg);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wider);
-    white-space: nowrap;
+    line-height: var(--leading-tight);
 }
 
 .calendar-grid {
@@ -1462,11 +1476,6 @@ body.is-dragging {
     border-right: 0;
     border-bottom: 0;
     background: var(--surface);
-}
-
-/* Only a phone shows these; the desktop grid has room for event rows. */
-.calendar-day-dots {
-    display: none;
 }
 
 .calendar-weekday {
@@ -1615,6 +1624,298 @@ body.is-dragging {
     background: var(--surface-sunken);
     font-size: var(--text-sm);
     color: var(--ink-muted);
+}
+
+/* Time grid: Calendar + Day and Calendar + Week.
+ *
+ * The second genuinely new layout primitive on this page, and it exists for
+ * one reason the month grid and the agenda cannot serve: duration is height
+ * and adjacency is position, so a collision is visible rather than something
+ * you derive from two timestamps. Day and Week are one component with
+ * `--timegrid-cols` set to 1 or 7.
+ *
+ * Three rules keep it inside the design system:
+ *
+ * - Hour lines are a repeating gradient, not 24 empty elements per column.
+ *   Seven columns of 24 divs is 168 nodes that carry no information.
+ * - No block renders below --target-min. A 15-minute event is 14px at this
+ *   hour height, which is neither readable nor hittable; it grows to the floor
+ *   and overhangs its true end. The hit-area rule wins over literal accuracy.
+ * - Today and now are rules, never fills — the same reason the month grid
+ *   marks today with a hairline. Colour on this page means a family member.
+ */
+.calendar-timegrid {
+    /* 88px an hour, which makes 30 minutes exactly 44px. That is not a
+       coincidence: 30 minutes is the shortest a body may be, and 44px is the
+       hit-area floor, so the two are pinned to each other. At the old 3.5rem a
+       half-hour block was 28px and had to be inflated to stay tappable, which
+       is what made it read as three quarters of an hour. A day is 2112px and
+       scrolls inside the grid. */
+    --timegrid-hour: 5.5rem;
+    --timegrid-gutter: 3.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+}
+
+/* One track definition, shared by the header, the all-day band and the body,
+   so the columns cannot drift apart.
+
+   The min-width is the hit-area rule stated as geometry: a block in this grid
+   is a real target, so a column may never be narrower than --target-min. Seven
+   columns need 348px, and a 390px phone has 358px of page — it fits, but only
+   just, and below that the grid scrolls inside itself rather than shipping a
+   target nobody can hit or pushing the body sideways. Same resolution the
+   month grid reached. */
+.calendar-timegrid-head,
+.calendar-timegrid-allday,
+.calendar-timegrid-body {
+    display: grid;
+    grid-template-columns: var(--timegrid-gutter) repeat(var(--timegrid-cols), minmax(0, 1fr));
+    min-width: calc(var(--timegrid-gutter) + var(--timegrid-cols) * var(--target-min));
+}
+
+.calendar-timegrid-head {
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-sunken);
+}
+
+.calendar-timegrid-gutter-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: var(--space-1) var(--space-2);
+    border-right: 1px solid var(--rule);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+
+.calendar-timegrid-daylabel {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-1);
+    border-right: 1px solid var(--rule);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--ink-muted);
+}
+
+.calendar-timegrid-daylabel.is-today {
+    box-shadow: inset 0 2px 0 0 var(--ink);
+    color: var(--ink);
+}
+
+.calendar-timegrid-daynum {
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+}
+
+/* Collapses to nothing when the window holds no all-day events: a normal week
+   should not pay vertical space for a band it is not using. */
+.calendar-timegrid-allday {
+    border-bottom: 1px solid var(--rule);
+}
+
+.calendar-timegrid-allday-track {
+    display: grid;
+    grid-column: 2 / -1;
+    grid-template-columns: subgrid;
+    gap: var(--space-1);
+    padding: var(--space-1);
+}
+
+.calendar-timegrid-allday-event {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--target-min);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--rule);
+    background: var(--surface-sunken);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    text-align: left;
+    cursor: pointer;
+}
+
+.calendar-timegrid-allday-event.is-external {
+    font-style: italic;
+}
+
+.calendar-timegrid-scroll {
+    overflow-y: auto;
+    max-height: 70vh;
+}
+
+.calendar-timegrid-body {
+    position: relative;
+    height: calc(24 * var(--timegrid-hour));
+}
+
+.calendar-timegrid-gutter {
+    border-right: 1px solid var(--rule);
+}
+
+/* The label sits astride its line rather than inside its row: an hour label is
+   a boundary between hours, not a name for the space below it. */
+.calendar-timegrid-hour {
+    display: flex;
+    justify-content: flex-end;
+    height: var(--timegrid-hour);
+    padding-right: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--ink-subtle);
+    transform: translateY(-0.5em);
+}
+
+.calendar-timegrid-col {
+    position: relative;
+    /* A 30-minute body on an event starting at 11:50 PM would otherwise paint
+       past the bottom of the day and out of the grid. */
+    overflow: hidden;
+    border-right: 1px solid var(--rule);
+    background-image: repeating-linear-gradient(
+        to bottom,
+        var(--rule-subtle) 0 1px,
+        transparent 1px var(--timegrid-hour)
+    );
+}
+
+.calendar-timegrid-col.is-today {
+    background-color: var(--surface-sunken);
+}
+
+.calendar-timegrid-event {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow: hidden;
+    min-height: var(--target-min);
+    padding: var(--space-1);
+    border: 1px solid var(--rule);
+    border-left: 2px solid var(--ink);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    line-height: var(--leading-tight);
+    text-align: left;
+    cursor: pointer;
+    container-type: inline-size;
+}
+
+.calendar-timegrid-event:hover {
+    background: var(--surface-sunken);
+}
+
+.calendar-timegrid-event.is-external {
+    font-style: italic;
+}
+
+/* Short events: a tab at the true height, a body at the readable one.
+ *
+ * A 15-minute event is 14px at this hour height. Floored to --target-min it
+ * became a 36–44px box that claimed to run until 4:23 — the view's whole
+ * premise is that height is duration, and the floor made the shortest events
+ * lie by 2.5×, inventing collisions with whatever started on the hour.
+ *
+ * So the box stops being one rectangle. The button keeps the floored height
+ * and the full column width but paints nothing itself; inside it, a narrow tab
+ * runs down the left at the event's real height, and the body sits beside it
+ * carrying the text and the tap target. The tab is what you read duration off,
+ * the body is what you read and hit. Both are inside the button, so it is
+ * still one control, and tab + body is exactly the column width.
+ */
+.calendar-timegrid-event.is-short {
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
+/* The colour moves from the left border to the tab, which is the same
+   affordance in a more useful shape: it says who, and how long. */
+.calendar-timegrid-event-tab {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--space-2);
+    background: var(--ink);
+}
+
+.calendar-timegrid-event-body {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: var(--space-1);
+    border: 1px solid var(--rule);
+    background: var(--surface);
+}
+
+.calendar-timegrid-event.is-short:hover .calendar-timegrid-event-body {
+    background: var(--surface-sunken);
+}
+
+/* Titles wrap here instead of truncating. The shared `.calendar-event-title`
+   is `nowrap` + ellipsis because a month cell and an all-day bar are each one
+   fixed line — but a grid block is as tall as its event, and spending an hour
+   of height on "Soccer pra…" throws away the one thing this view has that a
+   list does not.
+
+   The block is the only clipper: it sets `overflow: hidden`, and a flex item
+   keeps its content height rather than squashing, so a title longer than its
+   block is cut at the block's edge and never spills into the hour above or
+   below. `anywhere` breaks an unbroken word — a long URL in a title would
+   otherwise push the block sideways instead of wrapping. */
+.calendar-timegrid-event .calendar-event-title {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.calendar-timegrid-event-time {
+    color: var(--ink-muted);
+}
+
+/* A narrow block drops the *time*, not the title. In a time grid the block's
+   position already says when it is — that is the whole point of the component
+   — so the time is the redundant half and the title is the only thing left
+   carrying information. This is the opposite of the month cell's compact
+   form, where there is no time axis to read the position against.
+
+   Below that, the padding goes too: at three-way-overlap widths the 4px each
+   side is two more characters of title. */
+@container (max-width: 5.5rem) {
+    .calendar-timegrid-event-time {
+        display: none;
+    }
+}
+
+@container (max-width: 3.5rem) {
+    .calendar-timegrid-event {
+        padding: 0;
+    }
+}
+
+.calendar-timegrid-now {
+    position: absolute;
+    right: 0;
+    left: 0;
+    border-top: 1px solid var(--ink);
+    pointer-events: none;
 }
 
 /* Agenda: the same list-row vocabulary as Tasks and the Meal Planner. */
@@ -2016,12 +2317,75 @@ code {
         overflow-x: auto;
     }
 
+    /* Every millimetre of the gutter is a millimetre off seven day columns.
+       "10 AM" at --text-xs needs 40px, not 56, and the 16 it gives back is
+       what puts a 390px phone over the 44px-per-column line. */
+    .calendar-timegrid {
+        --timegrid-gutter: 2.5rem;
+        /* Side borders would land on the bezel and read as a cropped box
+           rather than an edge-to-edge one, now that the grid is full-bleed
+           below. The top and bottom rules still close it. */
+        border-right: 0;
+        border-left: 0;
+    }
+
+    /* "10 AM" is the widest label and wants 34px; the 2.5rem gutter less an
+       8px pad leaves 32, so that one hour of the twenty-four wrapped onto two
+       lines. The 4px comes off the padding rather than the gutter, so the day
+       columns keep every pixel the full-bleed rule just won them. */
+    .calendar-timegrid-hour {
+        padding-right: var(--space-1);
+    }
+
+    /* Full-bleed on a phone. The page gutter is --page-pad-x on `body`, so
+       cancelling it on both sides puts the grid edge to edge and hands the
+       whole 32px to the day columns — 45px to 50px each in a week, which is a
+       tenth more room for the thing the screen is actually for. Only the grids
+       break out; the range title and the legend stay on the text column, which
+       is where the eye expects a heading to start. */
+    .calendar-timegrid,
+    .calendar-grid-scroll {
+        margin-right: calc(-1 * var(--page-pad-x));
+        margin-left: calc(-1 * var(--page-pad-x));
+    }
+
+
+    /* "SUN 23" on one line needs about 56px; a week column on a 390px phone is
+       45px, so the date was the half that got clipped — the half that says
+       which day you are looking at. Stacked, each half gets the full column.
+       Week only: Day has one wide column and reads better on a single line. */
+    .calendar-timegrid--multi .calendar-timegrid-daylabel {
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+        padding: var(--space-1) 0;
+        line-height: var(--leading-tight);
+    }
+
     /* The one label a phone can spare. "Prev / Today / Next" describes itself,
        and adding the View selector above it put the first event below the fold
        — the exact regression #139 fixed. Every other label still stacks above
        its chips, by rule. */
     #period-label {
         display: none;
+    }
+
+    /* Two selectors where there was one is two more stacked rows, which is #139
+       all over again. `--pair` groups share a row instead: View and Range are
+       short, related, and read naturally side by side. Everything else in the
+       toolbar keeps the full width it had. The two columns are declared on the
+       `.toolbar` rule further down this block, which already owns the phone
+       toolbar's gap. */
+    .toolbar > * {
+        grid-column: 1 / -1;
+    }
+
+    .toolbar-group--pair {
+        grid-column: span 1;
+    }
+
+    .toolbar-group--pair .select {
+        width: 100%;
     }
 
     .calendar-grid {
@@ -2035,7 +2399,17 @@ code {
 
     /* The cell carries no padding of its own: the button must fill it, or a
        51px column becomes a 42px target and the hit-area rule is missed by
-       exactly the padding. */
+       exactly the padding.
+
+       The cell grows to fit its events instead of collapsing to one tap
+       target. A grid of dates and dots is a heat map — it says Tuesday is busy
+       without saying with what, so reading any single day costs a tap and a
+       round trip. Vertical scroll is free on a phone and information is not.
+
+       Height comes from content, not a fixed floor: a week with nothing in it
+       stays one row tall rather than reserving three rows of blank cell, and
+       grid already levels the seven cells of a week that does have something.
+       The 44px minimum stays for the day button, which is the only target. */
     .calendar-day {
         min-height: var(--target-min);
         padding: 0;
@@ -2051,18 +2425,37 @@ code {
         padding: var(--space-1) 0;
     }
 
-    /* One target per cell. The event rows are real buttons, so leaving them
-       visible would put six 8px targets inside a 44px one; the dots inside the
-       day button say who, and the day view says what. */
-    .calendar-event,
-    .calendar-more {
+    /* Event rows come back as text, and as *real targets* — they are given the
+       full 44px rather than made inert.
+
+       The rule they were hidden under said several 8px targets in a 44px cell
+       is worse than no targets, and that was right when the cell was locked to
+       one target-height. It is not right now the cell grows to fit: at 44px
+       each the rows clear the hit-area floor honestly, and tapping an event
+       opens that event, as it does on a desktop.
+
+       Making them inert instead — `pointer-events: none` — was the wrong
+       trade. It only blocks the pointer: the elements are still <button>s, so
+       they stay in the tab order and still fire on Enter, which leaves a
+       control that a keyboard can reach and a finger cannot. */
+    .calendar-event {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        gap: 0 var(--space-1);
+        min-height: var(--target-min);
+        padding: var(--space-1);
+    }
+
+    .calendar-event .calendar-dot {
         display: none;
     }
 
-    .calendar-day-dots {
+    .calendar-more {
         display: flex;
-        gap: var(--space-1);
-        justify-content: center;
+        align-items: center;
+        min-height: var(--target-min);
+        padding: 0 var(--space-1);
     }
 
     .agenda-time {
@@ -2111,6 +2504,7 @@ code {
     }
 
     .toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--space-3);
     }
 

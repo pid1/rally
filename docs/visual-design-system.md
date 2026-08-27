@@ -221,6 +221,14 @@ Two suites, cheapest first.
 | focus rings are not clipped inside modals | E5 |
 | no horizontal overflow | — |
 
+The calendar's time grid adds a second kind: **geometry tests** that inject
+occurrences, call `render()`, and assert the result in *minutes* rather than
+pixels — a fifteen-minute event has a fifteen-minute tab, a floored body pushes
+its neighbour aside instead of covering it, an event crossing midnight is drawn
+on both days. The hour row is a token and may move; the rules are what hold.
+They were written after the fact, because every defect in that arithmetic had
+been found by eye instead.
+
 They are geometric rather than pixel-based on purpose: when one fails it says which rule broke and by how much, which a screenshot diff cannot. The suite skips itself when Playwright is absent, so `uv run pytest` stays fast and browser-free for anyone not working on the design system.
 
 To run it locally:

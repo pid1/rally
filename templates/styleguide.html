@@ -239,9 +239,14 @@
                 Today is marked with a rule, never a fill: the palette is greyscale, so the
                 only colour on the page is the family-member dots and a filled cell would
                 shout over them. A day that overflows offers &ldquo;+N more&rdquo; and switches
-                to that day&rsquo;s agenda &mdash; a popover would be a second modal chassis. Below 768px the grid does not
-                render at all: seven columns leave 42px per day, and no styling makes that
-                carry a 44px target, so the calendar page shows the agenda instead.
+                to that day&rsquo;s agenda &mdash; a popover would be a second modal chassis.
+                The grid renders at every width. It was once hidden below 768px on a
+                measurement of 42px per column, but that was taken at 320px; re-measured, a
+                390px phone gives 51px and the grid earns its place. On a phone the cell
+                grows to fit its events and the rows carry text rather than dots, each row a
+                target in its own right &mdash; an event row that cannot be 44px must not be
+                a target at all, and <code>pointer-events: none</code> is not that: it stops
+                the finger and leaves the keyboard.
             </p>
             <div class="calendar-grid">
                 <div class="calendar-weekday">Mon</div>
@@ -273,6 +278,95 @@
                         <span class="calendar-event-title">Book club</span>
                     </button>
                     <button type="button" class="calendar-more">+2 more</button>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="card-header">Calendar time grid</div>
+            <p class="page-note">
+                Day and Week are one component with the column count set to 1 or 7. It exists
+                for what a list cannot say: duration is height and adjacency is position, so a
+                collision is visible rather than arithmetic. Three rules hold it together.
+            </p>
+            <p class="page-note">
+                <strong>The hour is 5.5rem so that thirty minutes is exactly 44px.</strong> The
+                shortest a body may be and the hit-area floor are pinned to each other; that
+                is the whole reason for the value. Starts and heights snap to five minutes.
+            </p>
+            <p class="page-note">
+                <strong>An event under thirty minutes is two shapes, not one.</strong> A tab
+                down the left carries the event&rsquo;s real length and the member colour; the
+                body beside it holds the words at the thirty-minute minimum. Inflating the
+                whole block instead made a quarter-hour claim three quarters of one. Tab plus
+                body is exactly the column width, and both sit inside one button, so it stays
+                a single target.
+            </p>
+            <p class="page-note">
+                <strong>Columns are packed on the painted rectangle</strong>, not the true
+                span &mdash; otherwise a floored body sits on top of the next event and covers
+                its own title. All-day events leave the time axis entirely and span the band
+                above it. Today is a rule and the now line is a hairline, for the same reason
+                the month grid marks today that way.
+            </p>
+            <div class="calendar-timegrid" style="--timegrid-cols:3">
+                <div class="calendar-timegrid-head">
+                    <div class="calendar-timegrid-gutter-cell"></div>
+                    <div class="calendar-timegrid-daylabel"><span class="calendar-timegrid-dayname">Mon</span><span class="calendar-timegrid-daynum">1</span></div>
+                    <div class="calendar-timegrid-daylabel is-today"><span class="calendar-timegrid-dayname">Tue</span><span class="calendar-timegrid-daynum">2</span></div>
+                    <div class="calendar-timegrid-daylabel"><span class="calendar-timegrid-dayname">Wed</span><span class="calendar-timegrid-daynum">3</span></div>
+                </div>
+                <div class="calendar-timegrid-allday">
+                    <div class="calendar-timegrid-gutter-cell">All day</div>
+                    <div class="calendar-timegrid-allday-track">
+                        <button type="button" class="calendar-timegrid-allday-event" style="grid-column: 2 / 4">
+                            <span class="calendar-dot"></span>
+                            <span class="calendar-event-title">Grandma visiting</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- The live grid is a full 24-hour canvas; this sample is a
+                     four-hour window, so the body height is overridden to match
+                     and every percentage below is read against 240 minutes. -->
+                <div class="calendar-timegrid-scroll">
+                    <div class="calendar-timegrid-body" style="height:calc(4 * var(--timegrid-hour))">
+                        <div class="calendar-timegrid-gutter">
+                            <div class="calendar-timegrid-hour"><span>9 AM</span></div>
+                            <div class="calendar-timegrid-hour"><span>10 AM</span></div>
+                            <div class="calendar-timegrid-hour"><span>11 AM</span></div>
+                            <div class="calendar-timegrid-hour"><span>12 PM</span></div>
+                        </div>
+                        <div class="calendar-timegrid-col">
+                            <button type="button" class="calendar-timegrid-event" style="top:0%;height:25%;left:0%;width:100%;">
+                                <span class="calendar-event-title">Standup</span>
+                                <span class="calendar-timegrid-event-time">9:00 AM</span>
+                            </button>
+                        </div>
+                        <div class="calendar-timegrid-col is-today">
+                            <button type="button" class="calendar-timegrid-event is-short" style="top:25%;height:12.5%;left:0%;width:100%;">
+                                <span class="calendar-timegrid-event-tab" style="height:calc(var(--timegrid-hour) * 0.25)"></span>
+                                <span class="calendar-timegrid-event-body">
+                                    <span class="calendar-event-title">School pickup</span>
+                                    <span class="calendar-timegrid-event-time">10:00 AM</span>
+                                </span>
+                            </button>
+                            <button type="button" class="calendar-timegrid-event" style="top:37.5%;height:25%;left:0%;width:100%;">
+                                <span class="calendar-event-title">Dentist</span>
+                                <span class="calendar-timegrid-event-time">10:30 AM</span>
+                            </button>
+                            <div class="calendar-timegrid-now" style="top:56%"></div>
+                        </div>
+                        <div class="calendar-timegrid-col">
+                            <button type="button" class="calendar-timegrid-event" style="top:12.5%;height:37.5%;left:0%;width:50%;">
+                                <span class="calendar-event-title">Soccer practice</span>
+                                <span class="calendar-timegrid-event-time">9:30 AM</span>
+                            </button>
+                            <button type="button" class="calendar-timegrid-event is-external" style="top:25%;height:25%;left:50%;width:50%;">
+                                <span class="calendar-event-title">Vendor call</span>
+                                <span class="calendar-timegrid-event-time">10:00 AM</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
