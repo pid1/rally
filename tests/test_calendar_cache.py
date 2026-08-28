@@ -12,9 +12,10 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from rally import member_colors
 from rally.calendars import cache as calendar_cache
 from rally.calendars.occurrence import Occurrence
-from rally.models import CalendarCache
+from rally.models import CalendarCache, FamilyMember
 
 TZ = ZoneInfo("America/Chicago")
 
@@ -280,6 +281,58 @@ class TestSyncing:
         assert len(db_session.query(CalendarCache).one().occurrences) == 1
         # The conditional header must actually have been sent.
         assert mock_requests.calls[-1]["kwargs"]["headers"]["If-None-Match"] == 'W/"v1"'
+
+    def _recolor(self, db_session, color):
+        member = db_session.query(FamilyMember).filter_by(name="Jon").one()
+        member.color = color
+        db_session.commit()
+        return color
+
+    def test_a_304_picks_up_a_new_member_color(self, db_session, ics_calendar, mock_requests):
+        """A member's color is ours, not the feed's, so the paths that skip
+        re-expansion must still revisit it. Otherwise a calendar nobody edits
+        upstream pins the old dot forever — and Refresh lands here too, so
+        there is no way out of it from the UI."""
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        row = db_session.query(CalendarCache).one()
+        row.etag = 'W/"v1"'
+        db_session.commit()
+        recolored = self._recolor(db_session, member_colors.PALETTE[1].value)
+
+        mock_requests.set_response(status_code=304, text="")
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["unchanged"] == 1, "the feed did not change; only our color did"
+        stored = db_session.query(CalendarCache).one().occurrences
+        assert [o["member_color"] for o in stored] == [recolored]
+
+    def test_an_unchanged_body_picks_up_a_new_member_color(
+        self, db_session, ics_calendar, mock_requests
+    ):
+        """The same guarantee on the fingerprint path, which is the one that
+        actually fires here — neither production feed sends a validator."""
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        recolored = self._recolor(db_session, member_colors.PALETTE[1].value)
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["unchanged"] == 1
+        stored = db_session.query(CalendarCache).one().occurrences
+        assert [o["member_color"] for o in stored] == [recolored]
+
+    def test_a_stable_color_leaves_the_blob_alone(self, db_session, ics_calendar, mock_requests):
+        """The guard on the restamp. Without it a warm cache would rewrite
+        every stored occurrence every fifteen minutes to no effect."""
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        row = db_session.query(CalendarCache).one()
+        before = row.occurrences
+        owner = db_session.query(FamilyMember).filter_by(name="Jon").one()
+
+        assert calendar_cache._restamp_member_color(row, owner) is False
+        assert row.occurrences is before, "an unchanged color must not reassign the column"
 
     def test_a_failure_keeps_the_previous_occurrences(
         self, db_session, ics_calendar, mock_requests

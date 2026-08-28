@@ -309,6 +309,31 @@ def _fetch_one(
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "label": label}
 
 
+def _restamp_member_color(row: CalendarCache, owner: FamilyMember | None) -> bool:
+    """Rewrite the owner's current color onto already-stored occurrences.
+
+    The unchanged paths skip expansion, which is the whole point of them — but
+    the stored dicts carry whatever color the owner had when they were last
+    expanded. A member who picks a new color would otherwise keep the old dot
+    until the feed itself happened to change, which for a quiet calendar is
+    never: the guard those paths test is the *feed's* content, and nothing
+    about it moves when the change was on this side.
+
+    Returns whether anything moved, so the overwhelmingly common case — nobody
+    changed a color — stays a no-op rather than rewriting the whole blob every
+    fifteen minutes.
+    """
+    color = owner.color if owner else None
+    stored = row.occurrences or []
+    if all(occurrence.get("member_color") == color for occurrence in stored):
+        return False
+    # `occurrences` is a plain JSON column with no mutation tracking, so
+    # patching the dicts in place would never reach the database. The list has
+    # to be reassigned.
+    row.occurrences = [{**occurrence, "member_color": color} for occurrence in stored]
+    return True
+
+
 def sync_calendars(
     db: Session, local_tz: ZoneInfo, *, calendar_ids: list[int] | None = None
 ) -> dict:
@@ -362,7 +387,7 @@ def sync_calendars(
     synced = unchanged = failed = 0
     now = now_utc()
 
-    for cal, _owner in targets:
+    for cal, owner in targets:
         outcome = results.get(cal.id) or {"ok": False, "error": "no result"}
         row = rows.get(cal.id)
         if row is None:
@@ -384,6 +409,7 @@ def sync_calendars(
             continue
 
         if outcome.get("unchanged"):
+            _restamp_member_color(row, owner)
             row.fetched_at = now
             if outcome.get("sync_tokens") is not None:
                 row.sync_tokens = outcome["sync_tokens"]
@@ -394,7 +420,10 @@ def sync_calendars(
 
         digest = outcome.get("body_hash")
         if digest and row.content_hash == digest and row.occurrences:
-            # Body identical to last time: skip the expansion entirely.
+            # Body identical to last time: skip the expansion entirely. The
+            # owner's color is still re-resolved — it is ours, not the feed's,
+            # and this is the one path that would otherwise never revisit it.
+            _restamp_member_color(row, owner)
             row.fetched_at = now
             row.last_error = None
             row.failure_count = 0
