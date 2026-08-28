@@ -69,7 +69,7 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
     db.commit()
 
     # Nothing is written when the caller says nothing: a new member starts on
-    # the catalogue's defaults, which is everything on except shopping
+    # the catalog's defaults, which is everything on except shopping
     # additions.
     if member.notifications:
         notification_prefs.set_preferences(db, db_member.id, member.notifications)

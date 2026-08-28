@@ -42,7 +42,7 @@ def resolve_event_times(
     all_day: bool,
     tzid: str,
 ) -> dict:
-    """Normalise a submitted start/end pair into stored columns.
+    """Normalize a submitted start/end pair into stored columns.
 
     Returns the four values the row carries: the exclusive UTC instants and the
     inclusive local dates. For an all-day event the submitted ``end`` is the

@@ -81,7 +81,7 @@ def test_colours_are_defined_only_as_tokens():
     """C4 — components reference roles; literals live in :root alone."""
     body = re.sub(r"url\([^)]*\)", "", DECLARATIONS_ONLY)
     literals = re.findall(r"#[0-9a-fA-F]{3,8}\b", body)
-    assert not literals, f"raw colours outside the token block: {sorted(set(literals))}"
+    assert not literals, f"raw colors outside the token block: {sorted(set(literals))}"
 
 
 def test_type_sizes_are_defined_only_as_tokens():

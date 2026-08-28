@@ -786,7 +786,7 @@ def test_home_location_reaches_the_system_prompt(frozen_now):
 
 
 def test_home_block_is_omitted_when_unset(frozen_now):
-    """An empty labelled section invites the model to invent a value."""
+    """An empty labeled section invites the model to invent a value."""
     frozen_now(FROZEN)
     gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
 
@@ -841,7 +841,7 @@ def test_overdue_prep_reaches_the_user_prompt(frozen_now):
 
 
 def test_the_section_is_omitted_when_nothing_is_overdue(frozen_now):
-    """An empty labelled section invites the model to comment on it anyway."""
+    """An empty labeled section invites the model to comment on it anyway."""
     frozen_now(FROZEN)
     gen = _prep_gen("")
 

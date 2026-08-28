@@ -54,7 +54,7 @@ def _pref(db_session, member, kind, enabled):
     db_session.commit()
 
 
-# --- The catalogue -------------------------------------------------------------
+# --- The catalog -------------------------------------------------------------
 
 
 def test_the_catalogue_covers_every_kind_rally_sends():
@@ -270,7 +270,7 @@ def test_overview_reports_an_install_wide_switch_that_is_off(db_session, make_me
 #
 # Migrations are ordinarily verified by running them, but this one carries the
 # rule the whole feature rests on — it writes **no rows**, so upgrading changes
-# nobody's behaviour — and that is worth an assertion rather than a habit.
+# nobody's behavior — and that is worth an assertion rather than a habit.
 
 
 def _load_migration():

@@ -15,7 +15,7 @@ from rally.prep_review import (
     PrepReviewError,
     build_user_prompt,
     gather_inputs,
-    normalise,
+    normalize,
     run_review,
 )
 
@@ -131,22 +131,22 @@ class TestGrounding:
         assert "assumptions" in p
 
 
-# --- Normalising a response ----------------------------------------------------
+# --- Normalizing a response ----------------------------------------------------
 
 
 class TestNormalise:
     def test_drops_gaps_without_an_item(self):
-        out = normalise({"gaps": [{"item": ""}, {"item": "Radio"}]})
+        out = normalize({"gaps": [{"item": ""}, {"item": "Radio"}]})
         assert [g["item"] for g in out["gaps"]] == ["Radio"]
 
     def test_coerces_an_unknown_priority(self):
         assert (
-            normalise({"gaps": [{"item": "X", "priority": "urgent"}]})["gaps"][0]["priority"]
+            normalize({"gaps": [{"item": "X", "priority": "urgent"}]})["gaps"][0]["priority"]
             == "medium"
         )
 
     def test_sorts_high_priority_first(self):
-        out = normalise(
+        out = normalize(
             {
                 "gaps": [
                     {"item": "Low", "priority": "low"},
@@ -158,17 +158,17 @@ class TestNormalise:
         assert [g["item"] for g in out["gaps"]] == ["High", "Med", "Low"]
 
     def test_caps_a_runaway_response(self):
-        out = normalise({"gaps": [{"item": f"g{n}"} for n in range(200)]})
+        out = normalize({"gaps": [{"item": f"g{n}"} for n in range(200)]})
         assert len(out["gaps"]) == prep_review.MAX_GAPS
 
     def test_ignores_unrecognised_shapes(self):
-        out = normalise({"gaps": ["not a dict", {"item": "Radio"}], "strengths": "not a list"})
+        out = normalize({"gaps": ["not a dict", {"item": "Radio"}], "strengths": "not a list"})
         assert [g["item"] for g in out["gaps"]] == ["Radio"]
         assert out["strengths"] == []
 
     def test_rejects_a_non_object(self):
         with pytest.raises(PrepReviewError):
-            normalise(["nope"])
+            normalize(["nope"])
 
 
 # --- Running a review ----------------------------------------------------------

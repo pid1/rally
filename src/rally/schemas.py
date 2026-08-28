@@ -554,7 +554,7 @@ class EventBase(BaseModel):
     wrong produces an event that is quietly an hour out. ``start``/``end`` are
     ``YYYY-MM-DD`` for an all-day event and ``YYYY-MM-DDTHH:MM`` otherwise, and
     an all-day ``end`` is the **inclusive** last day, matching what the field
-    is labelled.
+    is labeled.
     """
 
     title: str
@@ -711,7 +711,7 @@ class NotificationKindOverview(BaseModel):
 
 
 class NotificationOverviewResponse(BaseModel):
-    """Every kind Rally sends, in catalogue order.
+    """Every kind Rally sends, in catalog order.
 
     ``token_configured`` sits at the top because it is the first of the five
     gates: with no application token nothing sends at all, and a list of

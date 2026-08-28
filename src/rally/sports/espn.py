@@ -1,6 +1,6 @@
 """ESPN adapter: schedules and standings for football, hockey and racing.
 
-ESPN's site API is undocumented, and several of its behaviours produce a
+ESPN's site API is undocumented, and several of its behaviors produce a
 silent, plausible-looking wrong answer rather than an error. Each guard below
 exists because of one of them — see the comments, and issue #135.
 """

@@ -1,13 +1,13 @@
 /* Rally stylesheet.
 
-   Organised in layers, not by page: tokens, base, layout primitives,
+   Organized in layers, not by page: tokens, base, layout primitives,
    components, then the handful of genuinely page-specific rules. A rule's
    position tells you its blast radius. See docs/visual-design-system.md.
 
    Two rules hold everywhere:
    - Values come from the token scale. A literal px or rem in a component is a
      bug unless it is a hairline or an optical nudge, and says so.
-   - Text colours are --ink, --ink-muted or --ink-subtle. --rule and
+   - Text colors are --ink, --ink-muted or --ink-subtle. --rule and
      --rule-subtle are hairlines and never carry text: they fail WCAG AA.
 */
 
@@ -41,7 +41,7 @@
     --leading-tight: 1.3;
     --leading-normal: 1.7;
 
-    /* Colour by role. Greys stay private primitives below. */
+    /* Color by role. Grays stay private primitives below. */
     --ink: #1a1a1a;          /* primary text, strong rules          */
     --ink-muted: #666666;    /* secondary text — 5.74:1 on surface  */
     --ink-subtle: #767676;   /* tertiary text — 4.54:1 on surface   */
@@ -53,7 +53,7 @@
     --inverse: #ffffff;      /* text on --ink                       */
 
     /* Semantic state, used only by Preparedness. This is the one place the
-       palette leaves greyscale, because the meaning *is* the message: an
+       palette leaves grayscale, because the meaning *is* the message: an
        expired water filter has to read as different in kind, not merely in
        wording. Both pass WCAG AA on --surface. Do not spend these on
        decoration. */
@@ -414,7 +414,7 @@ nav a.active,
 
 /* Reads as text, so it aligns like text: no horizontal padding, or its
    underline would start inset from the column edge it sits against. Spacing
-   from its neighbours comes from the parent's gap. */
+   from its neighbors comes from the parent's gap. */
 .btn--quiet {
     border-color: transparent;
     background: none;
@@ -966,7 +966,7 @@ label.weekday-label,
 /* A row is top-aligned so that the controls beside a title line up with the
    *title*, and any second line — a note, a purchase time, a due date — runs on
    beneath them. When there is no second line there is nothing to run on, and
-   top-alignment just leaves a single line of text sitting ~8px above the centre
+   top-alignment just leaves a single line of text sitting ~8px above the center
    of the 44px controls next to it.
 
    Keyed off the content block having a second child rather than off a note
@@ -976,8 +976,8 @@ label.weekday-label,
 }
 
 /* The title's bottom margin exists to separate it from that second line. With
-   no second line it is trailing space inside the centred block, which pushes
-   the text back off-centre by half of it. */
+   no second line it is trailing space inside the centered block, which pushes
+   the text back off-center by half of it. */
 .editable-item:not(:has(.editable-item-content > * + *)) .editable-item-title {
     margin-bottom: 0;
 }
@@ -1380,7 +1380,7 @@ label.weekday-label,
     color: var(--ink);
 }
 
-/* Store group heading: the identity carrier, since stores have no colour —
+/* Store group heading: the identity carrier, since stores have no color —
    Rally is grayscale/e-ink first. */
 .shopping-group-header {
     display: flex;
@@ -1498,8 +1498,8 @@ body.is-dragging {
  * The month grid is the first genuinely new layout primitive since the design
  * system audit, so it earns a note. Two rules keep it inside the system:
  *
- * - Today is marked with a rule, never a fill. The palette is greyscale and
- *   the only colour on the page is the family-member dots; a filled cell
+ * - Today is marked with a rule, never a fill. The palette is grayscale and
+ *   the only color on the page is the family-member dots; a filled cell
  *   fights them and wins, which makes the wrong thing loudest.
  * - A day that overflows offers "+N more" and switches to that day's agenda.
  *   A popover would be a second modal chassis, and there is exactly one.
@@ -1507,7 +1507,7 @@ body.is-dragging {
 /* The name of whatever slice is on screen, sitting on top of the grid it
    names — every Calendar range, so the heading does not move when you change
    Range. It was a muted line of body text up in the page header, three
-   controls away from the thing it labelled: fine as a caption, too quiet for
+   controls away from the thing it labeled: fine as a caption, too quiet for
    the words that say what you are looking at. `--text-lg` is the h3 step,
    below the `--text-xl` page title, so the hierarchy reads CALENDAR → AUGUST
    2026 → grid.
@@ -1635,7 +1635,7 @@ body.is-dragging {
     font-style: italic;
 }
 
-/* The one carrier of member identity, so it is the one place colour appears.
+/* The one carrier of member identity, so it is the one place color appears.
    `inline-block` is load-bearing: in the agenda the dot sits inside a text
    line rather than a flex row, and width/height do not apply to a plain
    inline element — it would silently render as nothing. */
@@ -1699,7 +1699,7 @@ body.is-dragging {
  *   hour height, which is neither readable nor hittable; it grows to the floor
  *   and overhangs its true end. The hit-area rule wins over literal accuracy.
  * - Today and now are rules, never fills — the same reason the month grid
- *   marks today with a hairline. Colour on this page means a family member.
+ *   marks today with a hairline. Color on this page means a family member.
  */
 .calendar-timegrid {
     /* 88px an hour, which makes 30 minutes exactly 44px. That is not a
@@ -1898,7 +1898,7 @@ body.is-dragging {
     background: none;
 }
 
-/* The colour moves from the left border to the tab, which is the same
+/* The color moves from the left border to the tab, which is the same
    affordance in a more useful shape: it says who, and how long. */
 .calendar-timegrid-event-tab {
     position: absolute;

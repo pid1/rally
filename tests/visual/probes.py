@@ -34,7 +34,7 @@ MEASURE_JS = r"""
     space: ['1','2','3','4','5','6','7','8'].map(n => token(`--space-${n}`)),
     text: ['xs','sm','base','lg','xl','display'].map(n => token(`--text-${n}`)),
     textPx: ['xs','sm','base','lg','xl','display'].map(n => toPx(token(`--text-${n}`))),
-    colours: ['ink','ink-strong','ink-muted','ink-subtle','rule','rule-subtle',
+    colors: ['ink','ink-strong','ink-muted','ink-subtle','rule','rule-subtle',
               'surface','surface-sunken','inverse',
               'state-due','state-overdue'].map(n => token(`--${n}`)),
     targetMin: toPx(token('--target-min')),
@@ -91,7 +91,7 @@ MEASURE_JS = r"""
       groups.push({
         label: label.textContent.trim(),
         chipCount: chips.length,
-        // Inline iff the label's vertical centre falls inside the first chip.
+        // Inline iff the label's vertical center falls inside the first chip.
         labelInline: lb.y + lb.h / 2 >= first.y && lb.y + lb.h / 2 <= first.bottom,
       });
     }
@@ -165,13 +165,13 @@ MEASURE_JS = r"""
   };
 
   out.fontSizes = {};
-  out.colours = {};
+  out.colors = {};
   out.contrast = [];
   for (const el of document.querySelectorAll('body *')) {
     if (!visible(el)) continue;
     const cs = getComputedStyle(el);
     out.fontSizes[cs.fontSize] = (out.fontSizes[cs.fontSize] || 0) + 1;
-    out.colours[cs.color] = (out.colours[cs.color] || 0) + 1;
+    out.colors[cs.color] = (out.colors[cs.color] || 0) + 1;
 
     // Only elements holding their own run of real text, so single-glyph
     // decorations (empty stars, dropdown carets) are not treated as copy.
@@ -185,7 +185,7 @@ MEASURE_JS = r"""
     out.contrast.push({
       cls: (el.className || '').toString().slice(0, 50),
       tag: el.tagName.toLowerCase(),
-      colour: cs.color,
+      color: cs.color,
       fontSize: cs.fontSize,
       ratio: Math.round(ratio * 100) / 100,
       text: own.slice(0, 40),

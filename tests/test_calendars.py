@@ -5,7 +5,7 @@ exists at all:
 
 1. **The four defects the old dict-based read path made unavoidable.** Each has
    a test named after it, and each fails against the code this replaced.
-2. **Timezone and DST behaviour**, which is the whole of calendaring wearing a
+2. **Timezone and DST behavior**, which is the whole of calendaring wearing a
    different hat. Every case below produces a silently wrong answer rather than
    an error when it is got wrong.
 3. Recurrence expansion and per-occurrence overrides.

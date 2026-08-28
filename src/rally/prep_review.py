@@ -110,7 +110,7 @@ genuinely find none — that is a valid and useful answer."""
 def build_inventory_text(db: Session) -> tuple[str, int]:
     """The full inventory as text, grouped by location.
 
-    Every item is shown. Sampling or summarising here would directly cause the
+    Every item is shown. Sampling or summarizing here would directly cause the
     hallucination the grounding rules exist to prevent: the model cannot check a
     list it was not given.
     """
@@ -186,7 +186,7 @@ def gather_inputs(db: Session) -> ReviewInputs:
 def build_user_prompt(inputs: ReviewInputs) -> str:
     """Assemble the review request.
 
-    Sections that have no value are labelled as unknown rather than omitted.
+    Sections that have no value are labeled as unknown rather than omitted.
     An absent section would let the model quietly fill the hole; an explicit
     "not recorded" is what the grounding rules point at when they require an
     entry in ``assumptions``.
@@ -209,7 +209,7 @@ INVENTORY ({inputs.item_count} items):
 Review this inventory and identify what is missing. Follow the grounding rules exactly."""
 
 
-# ── Normalising the response ─────────────────────────────────────────────────
+# ── Normalizing the response ─────────────────────────────────────────────────
 
 
 def _clean_str(value, limit: int = 500) -> str:
@@ -225,11 +225,11 @@ def _clean_list(value, limit: int = MAX_LIST) -> list[str]:
     return [v for v in out if v][:limit]
 
 
-def normalise(payload: dict) -> dict:
+def normalize(payload: dict) -> dict:
     """Coerce a model response into the shape the UI renders.
 
     The model is asked for a specific schema and usually returns it, but the UI
-    must not break on the day it does not. Anything unrecognised is dropped
+    must not break on the day it does not. Anything unrecognized is dropped
     rather than passed through — a review is read by a person deciding what to
     buy, so a half-parsed field is worse than a missing one.
     """
@@ -316,7 +316,7 @@ def run_review(db: Session, *, llm=None) -> PrepReview:
         raise PrepReviewError(f"The review call failed: {exc}") from exc
 
     payload = _parse(raw)
-    review = PrepReview(data=normalise(payload), model=model or None, item_count=inputs.item_count)
+    review = PrepReview(data=normalize(payload), model=model or None, item_count=inputs.item_count)
     db.add(review)
     db.commit()
     db.refresh(review)

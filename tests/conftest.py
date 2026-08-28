@@ -273,7 +273,7 @@ def make_event(db_session: Session, make_native_calendar):
 
     Times go through the same ``resolve_event_times`` the API uses, so a test
     never hand-computes a UTC instant — hand-computed instants are how a test
-    ends up asserting the bug rather than the behaviour.
+    ends up asserting the bug rather than the behavior.
     """
     from rally.calendars.inputs import resolve_event_times
 

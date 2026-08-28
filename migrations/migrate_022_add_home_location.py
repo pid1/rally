@@ -4,7 +4,7 @@
 Purely additive — one settings row, seeded empty. Nothing reads a missing row
 differently from an empty one (``home_location()`` returns "" either way), so
 this exists to make the field visible and editable on the settings page from
-the first load rather than to change behaviour.
+the first load rather than to change behavior.
 
 Safe to run multiple times (idempotent).
 """

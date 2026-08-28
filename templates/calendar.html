@@ -548,7 +548,7 @@
            already in the family's configured zone and the rest of the page
            reads them. Doing the arithmetic in the browser instead would put
            the blocks somewhere the labels beside them disagree with, for
-           anybody travelling. */
+           anybody traveling. */
         function minutesFromLabel(label) {
             const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((label || '').trim());
             if (!match) return null;
@@ -581,7 +581,7 @@
 
            Layout and rendering both read this, so the columns are packed
            against the same rectangle that ends up on screen — the two drifting
-           apart is what let a floored body sit on top of its neighbour.
+           apart is what let a floored body sit on top of its neighbor.
 
            `minutes` is the body: at least MIN_BODY_MINUTES, proportional above
            that. `tabMinutes` is the event's own rounded length, which is what
@@ -734,11 +734,11 @@
                 layoutColumns(items).forEach(item => {
                     const index = occurrences.indexOf(item.occurrence);
                     const width = 100 / item.columns;
-                    // Member colour rides the left edge rather than a dot. A
+                    // Member color rides the left edge rather than a dot. A
                     // dot costs 8px plus a gap out of a block that may be 40px
                     // wide in a three-way overlap, and it buys nothing the
                     // edge does not already say.
-                    const colour = item.occurrence.member_color || '';
+                    const color = item.occurrence.member_color || '';
                     const paint = item.paint;
 
                     /* An event under MIN_BODY_MINUTES cannot be drawn to scale
@@ -758,7 +758,7 @@
                     const style = `top:${(paint.start / MINUTES_PER_DAY) * 100}%;`
                         + `height:${(paint.minutes / MINUTES_PER_DAY) * 100}%;`
                         + `left:${item.column * width}%;width:${width}%;`
-                        + (colour && !short ? `border-left-color:${escapeHtml(colour)};` : '');
+                        + (color && !short ? `border-left-color:${escapeHtml(color)};` : '');
                     const time = item.occurrence.start_date === iso
                         ? item.occurrence.time_label
                         : 'Continues';
@@ -769,7 +769,7 @@
                     // would describe the minimum rather than the event.
                     const inner = short
                         ? `<span class="calendar-timegrid-event-tab" style="height:calc(var(--timegrid-hour) * ${(paint.tabMinutes / 60).toFixed(4)})`
-                            + `${colour ? `;background:${escapeHtml(colour)}` : ''}"></span>`
+                            + `${color ? `;background:${escapeHtml(color)}` : ''}"></span>`
                             + `<span class="calendar-timegrid-event-body">${label}</span>`
                         : label;
                     blocks += `<button type="button" class="calendar-timegrid-event${short ? ' is-short' : ''}${item.occurrence.editable ? '' : ' is-external'}"`
@@ -782,7 +782,7 @@
                 // The now line uses the browser's clock, as `todayIso()` and
                 // the `is-today` rule already do. It is drawn as a hairline,
                 // never a fill, for the same reason the month grid marks today
-                // that way: colour on this page means a family member.
+                // that way: color on this page means a family member.
                 if (iso === today) {
                     const now = new Date();
                     const minutes = now.getHours() * 60 + now.getMinutes();

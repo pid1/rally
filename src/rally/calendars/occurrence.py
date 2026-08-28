@@ -1,6 +1,6 @@
 """The one event shape every calendar source produces and every consumer reads.
 
-Before this module, calendar events travelled between the ICS reader, the
+Before this module, calendar events traveled between the ICS reader, the
 CalDAV reader and the generator as a bare dict whose ``time`` was already
 *formatted for display* (``"7:00 PM CDT"``). That shape made four bugs
 unavoidable rather than merely possible:
@@ -154,7 +154,7 @@ def local_midnight_utc(day: date, tz: ZoneInfo) -> datetime:
 
 
 def to_utc(value: datetime, tz: ZoneInfo) -> datetime:
-    """Normalise a datetime to UTC, treating a naive one as local wall time.
+    """Normalize a datetime to UTC, treating a naive one as local wall time.
 
     ICS calls a naive datetime a *floating* time — one that means the same
     clock reading wherever it is read. Rally has exactly one place, so the

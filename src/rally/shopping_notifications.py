@@ -42,7 +42,7 @@ from rally.utils.timezone import ensure_utc, now_utc
 # Settings keys. ``shopping_notify_watermark`` is internal bookkeeping and is
 # never surfaced in the UI, exactly like ``shopping_last_purge_date`` and
 # ``prep_last_digest_date``.
-ENABLED_KEY = "shopping_notify_enabled"  # absent means off; also in the KINDS catalogue
+ENABLED_KEY = "shopping_notify_enabled"  # absent means off; also in the KINDS catalog
 SETTLE_KEY = "shopping_notify_settle_minutes"
 WATERMARK_KEY = "shopping_notify_watermark"
 LAST_CHECK_KEY = "shopping_notify_last_check_at"
@@ -196,7 +196,7 @@ def _added_since(db: Session, mark: datetime) -> list[ShoppingItem]:
 def scan_once(db: Session, now: datetime | None = None) -> ShoppingNotifyResult:
     """Announce the batch of additions that has finished settling. Never raises.
 
-    Pure over the database plus a clock, so the whole behaviour is testable
+    Pure over the database plus a clock, so the whole behavior is testable
     without a scheduler: the caller decides what "now" is.
 
     The watermark advances when the batch has been *dealt with* — announced, or

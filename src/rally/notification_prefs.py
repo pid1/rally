@@ -24,8 +24,8 @@ kind where the preference and the audience rule are the same thing, because a
 shopping list has no attendees to narrow.
 
 **An absent row means the kind's default.** The row only exists once somebody
-has expressed a preference, so upgrading changes nobody's behaviour and the
-defaults stay a property of the catalogue rather than of the database.
+has expressed a preference, so upgrading changes nobody's behavior and the
+defaults stay a property of the catalog rather than of the database.
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 
 This logic existed twice — ``SummaryGenerator._is_event_declined`` and a
 standalone copy in ``caldav_client`` written to avoid a circular import. Two
-copies of a heuristic is two sets of behaviour the moment one is fixed, and
+copies of a heuristic is two sets of behavior the moment one is fixed, and
 this one has already been fixed once for Outlook.
 """
 
@@ -21,7 +21,7 @@ def is_event_declined(component, owner_email: str | None = None) -> bool:
 
     Signals, across providers:
 
-    - ``STATUS:CANCELLED`` — the organiser withdrew it.
+    - ``STATUS:CANCELLED`` — the organizer withdrew it.
     - ``PARTSTAT=DECLINED`` on the owner's own attendee line (Google, Apple).
     - ``X-MICROSOFT-CDO-BUSYSTATUS:FREE`` alongside a declined attendee
       (Outlook/Exchange).

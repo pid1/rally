@@ -56,7 +56,7 @@ def test_every_entry_clears_non_text_contrast_on_both_surfaces():
 def test_entries_stay_separable_with_color_removed():
     """The monochrome e-ink property, and the reason the palette stops at five.
 
-    Rally is greyscale first: on a panel with no color, luminance is the entire
+    Rally is grayscale first: on a panel with no color, luminance is the entire
     identity signal. Adjacent entries hold at least 1.2x so five members remain
     five distinguishable grays.
     """
