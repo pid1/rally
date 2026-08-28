@@ -28,9 +28,9 @@ You can fold in more if you want it: your open shopping list, anything overdue i
 
 ### A calendar the whole family shares
 
-Rally holds your family's own events and shows them beside the calendars you already use, whether that's Google, iCloud, or any ICS feed. There are day, week, month and agenda views, colour-coded by person, with recurring events and per-occurrence edits (just this Tuesday, or every Tuesday from now on).
+Rally holds your family's own events and shows them beside the calendars you already use, whether that's Google, iCloud, or any ICS feed. There are day, week, month and agenda views, color-coded by person, with recurring events and per-occurrence edits (just this Tuesday, or every Tuesday from now on).
 
-![The Rally calendar in month view, colour-coded by family member](docs/screenshots/readme-calendar.png)
+![The Rally calendar in month view, color-coded by family member](docs/screenshots/readme-calendar.png)
 
 When somebody adds, moves or cancels an event, the people on that event get a push notification. The household doesn't. Reminders work the same way: put a lead time on an event and only its attendees hear about it.
 
@@ -52,7 +52,7 @@ Track what is in the kit, where it lives, and when it needs replacing. A replace
 
 ### On a phone
 
-Every page is built for a phone first and scales up to a wall display. The design is greyscale and typographic, so it also reads well on e-ink.
+Every page is built for a phone first and scales up to a wall display. The design is grayscale and typographic, so it also reads well on e-ink.
 
 <img src="docs/screenshots/readme-mobile.png" alt="Rally on a phone" width="320">
 

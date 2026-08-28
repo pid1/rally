@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from rally import notification_prefs
+from rally import member_colors, notification_prefs
 
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
@@ -13,9 +13,32 @@ UNSET = object()
 # Family Members
 
 
+def _check_member_color(value: str | None) -> str | None:
+    """Reject any color outside the closed palette.
+
+    A format check is not enough here: ``#ffffff`` is well-formed and invisible
+    against the page. The palette's promise is that any two members are
+    distinguishable on any display Rally runs on, and that only holds while the
+    set is closed — so the enum lives at the API boundary rather than in the UI,
+    which is not the only writer.
+    """
+    if value is None:
+        return value
+    if not member_colors.is_palette_color(value):
+        known = ", ".join(member_colors.MEMBER_COLORS)
+        raise ValueError(f"Unknown member color: {value}. Known: {known}")
+    return value
+
+
 class FamilyMemberBase(BaseModel):
     name: str
-    color: str = "#333333"
+    # Validated on the way *in* (see FamilyMemberCreate / FamilyMemberUpdate),
+    # never on the way out. FamilyMemberResponse inherits this, and a response
+    # schema that rejected stored data would make one legacy row take down the
+    # whole endpoint — including the Settings page that is the only way to
+    # repair it. Migration 029 is what moves stored values onto the palette;
+    # reads report whatever is actually there.
+    color: str = member_colors.DEFAULT_COLOR
     # Pushover profile. A member without a key is simply never notified — that
     # is the default, not an error state.
     pushover_user_key: str | None = None
@@ -42,6 +65,11 @@ class FamilyMemberCreate(FamilyMemberBase):
     # Omitted means "the defaults" — everything on except shopping additions.
     notifications: dict[str, bool] | None = None
 
+    @field_validator("color")
+    @classmethod
+    def check_color(cls, value):
+        return _check_member_color(value)
+
     @field_validator("notifications")
     @classmethod
     def check_notification_kinds(cls, values):
@@ -56,6 +84,11 @@ class FamilyMemberUpdate(BaseModel):
     # A *partial* map: kinds left out keep whatever they resolve to today.
     # UNSET means "not provided", the same distinction the fields above draw.
     notifications: dict[str, bool] | None = UNSET
+
+    @field_validator("color")
+    @classmethod
+    def check_color(cls, value):
+        return _check_member_color(value)
 
     @field_validator("notifications")
     @classmethod
@@ -521,7 +554,7 @@ class EventBase(BaseModel):
     wrong produces an event that is quietly an hour out. ``start``/``end`` are
     ``YYYY-MM-DD`` for an all-day event and ``YYYY-MM-DDTHH:MM`` otherwise, and
     an all-day ``end`` is the **inclusive** last day, matching what the field
-    is labelled.
+    is labeled.
     """
 
     title: str
@@ -678,7 +711,7 @@ class NotificationKindOverview(BaseModel):
 
 
 class NotificationOverviewResponse(BaseModel):
-    """Every kind Rally sends, in catalogue order.
+    """Every kind Rally sends, in catalog order.
 
     ``token_configured`` sits at the top because it is the first of the five
     gates: with no application token nothing sends at all, and a list of

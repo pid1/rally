@@ -28,7 +28,7 @@ Rally reads the National Weather Service DWML feed. Paste your forecast URL into
 
 ## Calendars
 
-Add calendars under Settings → **Calendars**, each linked to a family member so its events carry that person's colour.
+Add calendars under Settings → **Calendars**, each linked to a family member so its events carry that person's color.
 
 Every family member also gets a **Rally-owned calendar** automatically. Events you create in Rally live there. External calendars are read-only.
 
@@ -47,7 +47,7 @@ Every family member also gets a **Rally-owned calendar** automatically. Events y
 1. Enable Two-Factor Authentication at [appleid.apple.com](https://appleid.apple.com)
 2. Go to [appleid.apple.com/account/manage](https://appleid.apple.com/account/manage)
 3. Under "Sign-In and Security", choose **App-Specific Passwords**
-4. Generate one labelled `Rally` and copy it
+4. Generate one labeled `Rally` and copy it
 5. In Rally, add a calendar of type **Apple iCloud CalDAV** with your Apple ID and that password
 
 External calendars are fetched in the background and served from a cache, so pages render immediately. `calendar_sync_interval_minutes` (default 15) sets how stale that cache may get. The calendar page says how old the data is, and names any feed it could not reach.

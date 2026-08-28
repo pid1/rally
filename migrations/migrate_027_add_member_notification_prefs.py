@@ -3,7 +3,7 @@
 
 Per-family-member control over each kind of notification Rally sends. Purely
 additive, and it writes **no rows**: an absent row means the kind's default, so
-upgrading changes nobody's behaviour. Shipping the feature is not the same as
+upgrading changes nobody's behavior. Shipping the feature is not the same as
 turning it on.
 
 The unique index on `(family_member_id, kind)` is what makes the API's

@@ -37,7 +37,7 @@ class RecurrenceError(ValueError):
 
 
 def validate_rrule(rrule: str | None) -> str | None:
-    """Normalise and validate an RRULE body, or raise ``RecurrenceError``.
+    """Normalize and validate an RRULE body, or raise ``RecurrenceError``.
 
     Accepts the value with or without the ``RRULE:`` prefix, since both forms
     turn up in the wild and the difference is not worth surfacing to a caller.

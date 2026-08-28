@@ -79,7 +79,7 @@ def test_modals_are_opened_only_through_the_shared_helper():
     signals more content below. Nineteen call sites across four templates set
     `.style.display` directly instead, so those modals reopened wherever they
     were last left — Add Item came back scrolled past its own first label — and
-    their fade state was whatever it happened to be. The behaviour has to be
+    their fade state was whatever it happened to be. The behavior has to be
     the same for every modal, which means one way in and one way out.
     """
     direct = re.compile(r"getElementById\(['\"][a-z-]*modal-overlay['\"]\)\.style\.display")

@@ -62,6 +62,7 @@ All commands should be run inside `devenv shell`.
 | `dev-status` | Check status of background processes | No |
 | `dev-logs` | View last 50 lines of dev logs | No |
 | `demo` | Fresh seeded demo instance on port 8100, in its own `demo.db` | Yes |
+| `screenshots` | Regenerate `docs/screenshots` from a seeded throwaway database | No |
 
 #### Quality & Testing
 
@@ -408,14 +409,15 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `018_add_sports_watchlist` - Add `followed_teams` and `sports_event_notices` tables, plus the unique index on `sports_event_notices.event_key` (records which notable upcoming events have already been announced, so one is mentioned once rather than every morning for two weeks)
 - `020_add_native_calendaring` - Add the `events`, `event_attendees`, `event_overrides` and `event_notifications` tables plus their indexes (the unique index on `event_notifications` *is* the reminder send-once guarantee), add `pushover_user_key` / `pushover_device` to `family_members`, and seed one `cal_type='native'` calendar per existing family member. Purely additive
 - `021_add_preparedness` - Add the `prep_locations`, `prep_items` and `prep_refresh_notices` tables plus their indexes (the unique index on `prep_refresh_notices.notice_key` *is* the refresh announce-once guarantee), and seed the `prep_notify_enabled` / `prep_notify_time` / `prep_default_remind_days` settings rows. Purely additive
-- `022_add_home_location` - Seed an empty `home_location` settings row. Purely additive; `home_location()` treats a missing row and an empty one identically, so this exists to make the field visible on the settings page from the first load rather than to change behaviour
+- `022_add_home_location` - Seed an empty `home_location` settings row. Purely additive; `home_location()` treats a missing row and an empty one identically, so this exists to make the field visible on the settings page from the first load rather than to change behavior
 - `023_add_prep_reviews` - Add the `prep_reviews` table (stored LLM reviews of the preparedness inventory). Purely additive
 - `024_add_calendar_cache` - Add the `calendar_cache` table plus its unique index on `calendar_id` (one cache row per calendar; the index is what makes the sync's get-or-create safe), and seed `calendar_sync_interval_minutes` at 15. Purely additive; the table starts empty and the first sync fills it
 - `025_add_caldav_sync_tokens` - Add `calendar_cache.sync_tokens` (one RFC 6578 sync token per server-side CalDAV calendar). Purely additive; NULL means "no baseline yet" and the next sync captures one
 - `019_add_llm_max_tokens` - Backfill `max_tokens`/`max_tokens_mode` (`4000`/`"custom"`) into every `llm_settings_history` row's JSON value that lacks them (unparseable rows are skipped, not rewritten), and seed the `llm_anthropic_max_tokens`, `llm_local_max_tokens`, and `llm_anthropic_max_tokens_mode` settings keys when absent. The backfilled value matches prior behavior exactly, so this migration changes nothing observable by itself
 - `026_add_shopping_sort_order` - Add `shopping_items.sort_order`, the per-store hand-arranged position behind drag-to-reorder. Backfilled per store group in the order the list already read (`completed ASC, created_at DESC, id ASC`), so no existing list visibly moves
-- `027_add_member_notification_prefs` - Add the `member_notification_prefs` table plus its index and the unique index on `(family_member_id, kind)`. Purely additive and it writes **no rows**: an absent row means the kind's default, so upgrading changes nobody's behaviour — shipping the feature is not the same as turning it on
+- `027_add_member_notification_prefs` - Add the `member_notification_prefs` table plus its index and the unique index on `(family_member_id, kind)`. Purely additive and it writes **no rows**: an absent row means the kind's default, so upgrading changes nobody's behavior — shipping the feature is not the same as turning it on
 - `028_add_recurring_todo_start_date` - Add `recurring_todos.start_date`, the day a series' first instance is due. Purely additive and writes no rows: `NULL` means "start from today", which is what every existing template already does
+- `029_member_color_palette` - Move every `family_members.color` onto the closed palette (`rally.member_colors`). No schema change; the column already existed as unvalidated hex that no screen could set, so in practice every member sat on the old `#333333` default and the calendar drew four members as four identical near-black dots. Colors are handed out by `id ASC`, cycling, which is the same rule `POST /api/family` uses — whatever a hand-set color meant is deliberately not preserved, because reading intent out of an arbitrary hex is guesswork a five-entry palette cannot honor anyway. A member **already** on a palette color is left alone, which is both what makes it idempotent and what stops a container restart from overwriting a color somebody chose after the first run. The palette is duplicated in the migration rather than imported, per the self-contained rule above
 
 ### Running Migrations
 
@@ -560,12 +562,13 @@ rally/
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
 │   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan, add/change/remove notices
-│   ├── notification_prefs.py # The KINDS catalogue and the one place that decides who hears what
+│   ├── notification_prefs.py # The KINDS catalog and the one place that decides who hears what
+│   ├── member_colors.py  # The closed family-member color palette and its constraints
 │   ├── todo_notifications.py # The push that goes to a task's assignee when it lands on their list
 │   ├── shopping_notifications.py # Batched "added to the shopping list" pushes, behind a settle window
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
-│   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalising
+│   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalizing
 │   ├── calendars/        # One normalized event shape for every calendar source
 │   │   └── cache.py      # Cached external occurrences + the concurrent background sync
 │   │   ├── occurrence.py # The Occurrence dataclass + timezone/DST helpers
@@ -597,7 +600,7 @@ rally/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists
-│   └── meal_edit_modal.js   # Shared meal add/edit modal behaviour
+│   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
 ├── templates/
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── calendar.html        # Month and agenda calendar views
@@ -609,6 +612,8 @@ rally/
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
 ├── agent_voice.txt.example # Example AI agent voice/tone profile
+├── scripts/
+│   └── capture_screenshots.py # Regenerates docs/screenshots from a seeded throwaway DB
 ├── migrations/            # Database migration scripts
 │   ├── migrate_add_due_date.py        # Migration 001: add due_date to todos
 │   ├── migrate_add_family_members.py  # Migration 002: add family_members, calendars, assigned_to
@@ -626,6 +631,7 @@ rally/
 │   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
 │   ├── migrate_026_add_shopping_sort_order.py # Migration 026: add shopping_items.sort_order
 │   ├── migrate_028_add_recurring_todo_start_date.py # Migration 028: add recurring_todos.start_date
+│   ├── migrate_029_member_color_palette.py # Migration 029: move members onto the closed color palette
 │   ├── migrate_018_add_sports_watchlist.py # Migration 018: add followed_teams, sports_event_notices tables
 │   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
 │   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
@@ -641,7 +647,7 @@ rally/
 │   ├── voice-shortcuts.md # Siri / Apple Shortcuts for the shopping list
 │   ├── backup.md         # Offsite encrypted backup (Unraid + Cloudflare R2)
 │   ├── visual-design-system.md # Design system audit, tokens, and enforcement
-│   └── screenshots/      # README screenshots, taken from a seeded `demo` instance
+│   └── screenshots/      # README screenshots, regenerated by the `screenshots` script
 ├── data/                 # Mounted in container (not in git)
 │   ├── config.toml       # API keys, URLs, coordinates (optional if using Settings UI)
 │   ├── context.txt       # Family context for LLM
@@ -707,7 +713,12 @@ rally/
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
 - ✅ Navigation between Dashboard, Todos, Dinner Planner, and Settings
 - ✅ Family members - Full CRUD API and UI
-  - Color-coded identities for each family member
+  - Color-coded identities for each family member, from a **closed palette** of five (`src/rally/member_colors.py`, `--member-*` in the stylesheet)
+    - Rally is grayscale and e-ink first, so a member's color is the only color-carrying channel in the app. The palette is a fixed set rather than free hex because one arbitrary value can defeat the guarantee the set exists for: that any two members are distinguishable on any display Rally runs on
+    - Three constraints, in priority order — **monochrome e-ink separability** (adjacent entries >=1.24x apart in relative luminance, so five members stay five distinct grays with color removed entirely), **WCAG 1.4.11 non-text contrast** (3:1 on both `--surface` and `--surface-sunken`; a dot is a UI component, not text), and **color e-ink gamut** (hues >=53 degrees apart, near primaries a Spectra/Kaleido panel reproduces). Five is what those constraints allow, not a preference: six compress the spacing to 1.20x and eight to 1.15x
+    - Validated on the way **in** (`FamilyMemberCreate` / `FamilyMemberUpdate` reject anything else with a 422) and never on the way out. `FamilyMemberResponse` reports whatever is stored, because a response schema that rejected a legacy row would take down `/api/family` — including the Settings page that is the only way to repair it
+    - `POST /api/family` assigns the first unused entry when the caller says nothing about color, so a family never has to think about it to get distinct dots. Beyond five members the palette cycles
+    - Set from Settings as a row of five swatches; there is no free-form color input, and `tests/test_member_colors.py` fails if the stylesheet and the module ever disagree about a value
   - Used for calendar ownership and todo assignment
 - ✅ Calendar management - Full CRUD API and UI
   - Add ICS calendar feeds linked to family members
@@ -718,7 +729,7 @@ rally/
   - `stem_concept_enabled` ("true"/"false") toggles the STEM Concept of the Day feature (Learning section)
   - `shopping_list_in_summary_enabled` ("true"/"false", default "false") folds open shopping items into the daily summary (Shopping List section)
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
-  - `home_location` (free text, e.g. "Highland Village, TX") is the family's home, sent to the LLM as its own `HOME:` block alongside `FAMILY CONTEXT`. First-party rather than prose inside the context so other views can read it structurally. An unset value omits the whole block — a labelled section with nothing after it invites the model to invent one
+  - `home_location` (free text, e.g. "Highland Village, TX") is the family's home, sent to the LLM as its own `HOME:` block alongside `FAMILY CONTEXT`. First-party rather than prose inside the context so other views can read it structurally. An unset value omits the whole block — a labeled section with nothing after it invites the model to invent one
   - `calendar_sync_interval_minutes` (default "15") is how stale a cached external calendar may get before the background sync refreshes it
   - `prep_overdue_in_summary_enabled` ("true"/"false", default **"true"**) folds preparedness stock that is past its refresh date into the daily summary. Defaults on, unlike the shopping and sports toggles: those add a standing block that costs tokens every day, whereas this one is normally empty and omits itself entirely, so it only costs anything on the days it matters
   - `prep_review_enabled` ("true"/"false", default **"false"**) adds the `Review` button to `/preparedness`. Off by default because it is a real LLM call and is only useful once a reasonable amount of stock has been entered
@@ -819,13 +830,13 @@ rally/
   - The generator still fetches **live** (`use_cache` defaults to False): a briefing built from a cache that had been failing silently for a day would be wrong, and it is the one caller with nobody watching
 - ✅ Overdue preparedness stock in the daily summary (toggle in Settings → Preparedness, default on)
   - `load_overdue_prep_items()` lists only genuinely **overdue** items, never "due soon". The Pushover digest already announces the approach once per refresh date; the briefing is the standing nag for the ones nobody dealt with, and repeating every upcoming refresh would be noise
-  - The section and its guideline are both omitted when nothing is overdue — an empty labelled section invites the model to comment on it anyway
+  - The section and its guideline are both omitted when nothing is overdue — an empty labeled section invites the model to comment on it anyway
   - The guideline states the section is the complete list of overdue items, so the model cannot pad it, and tells it to keep the mention to one line of housekeeping rather than the theme of the day
   - **Read-only with respect to `prep_refresh_notices`.** A summary run must never disturb the digest's announce-once guarantee; there is a test asserting the notice count is unchanged
 - ✅ Preparedness AI review (`prep_review.py`, toggle in Settings → Preparedness) - Asks the configured LLM what the kit is missing
   - Sees the **entire** inventory, family members, the active family context (which is where ages come from — there is no age column) and the home location from #147
   - **Groundedness is the whole design.** Asking what is *absent* is the prompt shape most likely to produce invention, so the model is told the inventory is the only evidence of what the family owns, warned not to flag a category the list already covers under different words, and required to put anything it does not know — unstated ages, unset home — into an `assumptions` field rather than guessing. Absent inputs are passed as an explicit `(not recorded)` so there is no silent hole to fill
-  - Responses are normalised before storage: unknown priorities coerce to `medium`, gaps without an item are dropped, and the list is capped — a review is read by someone deciding what to buy, so a half-parsed field is worse than a missing one
+  - Responses are normalized before storage: unknown priorities coerce to `medium`, gaps without an item are dropped, and the list is capped — a review is read by someone deciding what to buy, so a half-parsed field is worse than a missing one
   - Snapshotted into `prep_reviews` and read back on view, following `DashboardSnapshot`. The response carries `stale` so a review of 38 items is visibly stale once you hold 44
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
@@ -835,14 +846,14 @@ rally/
   - Robust against server timezone settings
 - ✅ Environment mode detection (dev/production)
 - ✅ Elegant grayscale design with serif typography
-- ✅ Static CSS stylesheet (`static/styles.css`), organised in token/base/primitive/component layers
+- ✅ Static CSS stylesheet (`static/styles.css`), organized in token/base/primitive/component layers
 - ✅ Design system: tokens, layout primitives, one button family, one modal chassis (`docs/visual-design-system.md`, `/styleguide`)
 - ✅ Design-system regression tests: static stylesheet lint plus a Playwright suite (`tests/test_stylesheet.py`, `tests/visual/`)
 - ✅ uv-based dependency management
 
 ## Design System
 
-`static/styles.css` is organised in layers — tokens, base, layout primitives,
+`static/styles.css` is organized in layers — tokens, base, layout primitives,
 components, page-specific, responsive — in that order. A rule's position tells
 you its blast radius. Full rationale and the audit that produced it:
 `docs/visual-design-system.md`. Live reference: `/styleguide`.
@@ -852,6 +863,11 @@ When touching the UI:
 - **Use tokens, never literals.** `var(--space-4)`, `var(--text-sm)`,
   `var(--ink-muted)`. A raw px or hex in a component is a bug unless it is a
   1px hairline. `tests/test_stylesheet.py` fails the build otherwise.
+- **Member color is the one color on a page.** `--member-*` is a closed
+  five-entry palette (`src/rally/member_colors.py`); never add a sixth or hand
+  a component a raw member color. The spacing between entries is a luminance
+  ladder, not an aesthetic choice — it is what keeps members apart on a
+  monochrome e-ink panel.
 - **Text is `--ink`, `--ink-muted` or `--ink-subtle`.** `--rule` and
   `--rule-subtle` are hairlines and fail WCAG AA as text.
 - **Buttons are `.btn` plus `--secondary`, `--quiet`, `--sm`.** Do not add a
@@ -887,14 +903,14 @@ visual suite (above) before shipping a layout change.
 - `/dashboard` - Serves the generated daily summary from cached snapshot (shows error if missing)
 - `/calendar` - **Two orthogonal controls**: `View` picks the renderer — `Calendar` or `Agenda` — and `Range` picks the slice of time. They used to be one dropdown, which is why `Day` and `Week` both rendered agenda lists: there was no way to say "a week, drawn as a calendar". **The week starts Sunday.** Prev/Today/Next move by the selected *range* in both modes
   - `Calendar` + `Day`/`Week` is a **time grid** — hour gutter, one column per day, blocks positioned and sized by start and duration. Day and Week are the same component with `--timegrid-cols` set to 1 or 7. Overlapping events cluster transitively and each takes `1/n` of the column, which is what makes a collision visible rather than something you derive from two timestamps. All-day events sit in a band pinned above the scrolling hours, spanning every column they cover. A timed event crossing midnight draws twice — to the bottom of the first day, from the top of the next. The grid opens scrolled to 7 AM, or an hour before the earliest event that *starts* in the window (a midnight continuation does not vote, or every week containing a night shift pins to the top)
-  - Block times are parsed back off the server-rendered `time_label` / `end_time_label` rather than derived from the UTC instant, because those labels are already in the family's configured zone. Doing the arithmetic in the browser would put blocks where the labels beside them disagree, for anybody travelling
+  - Block times are parsed back off the server-rendered `time_label` / `end_time_label` rather than derived from the UTC instant, because those labels are already in the family's configured zone. Doing the arithmetic in the browser would put blocks where the labels beside them disagree, for anybody traveling
   - `Calendar` + `Month` is the existing month grid. `Agenda` + any range is the existing day-grouped list. `Next 30 days` is the old rolling agenda window, kept as a first-class range and offered in `Agenda` only — a grid of 30 arbitrary days starting on a Wednesday is not a calendar. Switching to `Calendar` while on it falls back to `Month`
   - **Month's window depends on the mode**: the grid draws the 42-day block containing the month because it has to square itself off; the list uses the calendar month, having no reason to carry the leading and trailing days
   - **Nothing is persisted.** Desktop lands on `Calendar` + `Month`, a phone on `Calendar` + `Day`, and width is not consulted again after load. Which calendar you want is a function of why you opened it — a remembered `Day` view is exactly wrong for the Sunday planning session
-  - Every mode and range is reachable at every width. The month grid renders on a phone with **event text stacked in the cell**, not just a date and dots: a heat map says Tuesday is busy without saying with what, so reading any day cost a tap and a round trip. Cell height comes from content, so an empty week stays one row tall. **No dots in the cell**: they were the phone's entire answer to "who is busy today" when the cell could not carry text, and once every row carries a name they repeat it — worst in a crowded cell, where they sat above three rows *and* a `+N more`. `.calendar-day-dots` is gone from both the markup and the stylesheet; `.calendar-dot` still carries member colour in the desktop rows, the agenda, the all-day band and the legend. Those rows are **real targets at `--target-min`**, not inert text: the old rule (one target per cell) was right when the cell was locked to one target-height, but the cell grows to fit now, so the rows clear the floor honestly and tapping an event opens it. `pointer-events: none` was tried and is wrong — it blocks only the pointer, leaving a `<button>` a keyboard can reach and a finger cannot
+  - Every mode and range is reachable at every width. The month grid renders on a phone with **event text stacked in the cell**, not just a date and dots: a heat map says Tuesday is busy without saying with what, so reading any day cost a tap and a round trip. Cell height comes from content, so an empty week stays one row tall. **No dots in the cell**: they were the phone's entire answer to "who is busy today" when the cell could not carry text, and once every row carries a name they repeat it — worst in a crowded cell, where they sat above three rows *and* a `+N more`. `.calendar-day-dots` is gone from both the markup and the stylesheet; `.calendar-dot` still carries member color in the desktop rows, the agenda, the all-day band and the legend. Those rows are **real targets at `--target-min`**, not inert text: the old rule (one target per cell) was right when the cell was locked to one target-height, but the cell grows to fit now, so the rows clear the floor honestly and tapping an event opens it. `pointer-events: none` was tried and is wrong — it blocks only the pointer, leaving a `<button>` a keyboard can reach and a finger cannot
   - **The grid is drawn on a five-minute lattice.** Starts and heights both snap to five minutes (`snapToFive`), which is the resolution a calendar is read at. `paintGeometry()` decides all of it in one place — start, body height, tab height — and both `layoutColumns` and the renderer read it, so the columns are packed against the same rectangle that reaches the screen
   - **A body is never shorter than 30 minutes**, and proportional above that. **`--timegrid-hour` is 5.5rem so that 30 minutes is exactly 44px** — the shortest body and the hit-area floor are pinned to each other, which is the whole reason for that value. A day is 2112px and scrolls inside the grid. At the old 3.5rem a half-hour block was 28px and had to be inflated to stay tappable, which is what made it read as three quarters of an hour
-  - **An event under 30 minutes gets a tab** (`.is-short`): a `--space-2`-wide strip down the left at the event's own rounded length, carrying the member colour, with the body beside it at the 30-minute minimum. Duration reads off the tab; the words and the tap target live in the body. Tab + body is exactly the column width, and both sit inside one button, so it stays a single 44px control. At or above 30 minutes there is nothing to reconcile and no tab is drawn — the colour goes back to the left border
+  - **An event under 30 minutes gets a tab** (`.is-short`): a `--space-2`-wide strip down the left at the event's own rounded length, carrying the member color, with the body beside it at the 30-minute minimum. Duration reads off the tab; the words and the tap target live in the body. Tab + body is exactly the column width, and both sit inside one button, so it stays a single 44px control. At or above 30 minutes there is nothing to reconcile and no tab is drawn — the color goes back to the left border
   - **Rounding is applied before the short test**, so a 28-minute event rounds to 30 and is *not* short. A tab is never shorter than 5 minutes, so a one-minute event still shows one (7.3px)
   - **Packing is on the painted rectangle, not the true span.** A 15-minute event at 3:45 paints to 4:15, so it and a 4:00 event sit side by side rather than the first covering the second's title. Isolated events keep the full width — only genuinely colliding paint is split
   - **The grids are full-bleed on a phone.** `--page-pad-x` lives on `body`, so `.calendar-timegrid` and `.calendar-grid-scroll` cancel it with negative side margins and run edge to edge, handing the whole 32px to the day columns: a week column goes 45px → **50px** and a month cell 51px → **56px**. Only the grids break out — the range title and the legend stay on the text column, where a heading is expected to start. The grid's side borders are dropped there, since a rule on the bezel reads as a cropped box rather than an edge-to-edge one
@@ -961,8 +977,9 @@ visual suite (above) before shipping a layout change.
   - `DELETE /api/dinner-plans/{id}` - Delete plan
 - `/api/family` - Family member CRUD endpoints. Every response carries `notifications: {kind: bool}` — **resolved** values with the defaults already filled in, so no client has to know what the defaults are
   - `GET /api/family` - List all family members
-  - `POST /api/family` - Create new family member. Accepts an optional `notifications` map; omitting it starts the member on the catalogue defaults (everything on except `shopping_added`)
+  - `POST /api/family` - Create new family member. Accepts an optional `notifications` map; omitting it starts the member on the catalog defaults (everything on except `shopping_added`)
   - `GET /api/family/{id}` - Get specific family member
+  - `POST /api/family` / `PUT /api/family/{id}` - `color` must be one of `rally.member_colors.MEMBER_COLORS`; anything else is a `422`, including a well-formed but unlisted value like `#ffffff`. Omitting it on create assigns the first unused palette entry; omitting it on update leaves the stored value alone. Responses are **not** validated against the palette — a legacy row is reported as it is, rather than failing the endpoint that Settings needs to repair it
   - `PUT /api/family/{id}` - Update family member. `notifications` is a **partial** map — kinds left out keep what they resolve to today, and an unknown kind is `422` rather than a stored preference nothing will ever read
   - `DELETE /api/family/{id}` - Delete family member. **Deletes their `member_notification_prefs` rows first** — nothing enforces the reference, the same reason deleting an event cascades its own attendees by hand
 - `/api/followed-teams` - Sports watchlist subscriptions (teams and racing series)
@@ -1008,7 +1025,7 @@ visual suite (above) before shipping a layout change.
   - `POST /api/preparedness/items` - Create. On `interval` mode with no date, the first refresh is seeded as today + interval — a new item is assumed fresh today
   - `PUT /api/preparedness/items/{id}` - Partial update via the `UNSET` sentinel. The mode/field triangle is re-validated against the **merged** state, so a patch that only flips the mode still has to leave a coherent item behind
   - `POST /api/preparedness/items/{id}/refresh` - Mark refreshed. An `interval` item re-anchors on the *actual* refresh date; a spent `date` item becomes unscheduled rather than inventing a date Rally cannot know
-  - `GET /api/preparedness/go-list` - Grouped JSON, honours `?location=`
+  - `GET /api/preparedness/go-list` - Grouped JSON, honors `?location=`
   - `GET /api/preparedness/go-list/export?format=md|csv|pdf` - Download as an attachment
   - `POST /api/preparedness/digest/run?dry_run=true` - Run the digest now. Defaults to a dry run — the honest way to answer "is this working" without waiting until morning or burning the notice rows that suppress a real send
   - `GET /api/preparedness/digest/log` - Recent announcements, newest first
@@ -1087,7 +1104,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `ShoppingItemHistory` - Permanent, deduplicated record of every name ever added (name_key = trimmed + casefolded), with the display casing, the most recently used store_id, a `times_added` counter and `last_added_at`. Powers autocomplete and deliberately survives the purchased-item purge
 - `PrepLocation` - A place preparedness stock lives (Garage shelf, Truck, Bug-out bag). Names unique case-insensitively; the catch-all is `location_id IS NULL`, never a seeded row. `sort_order` is physical walking order — a go list is packed in the order you walk it, and alphabetical is the wrong order for that
 - `PrepItem` - Preparedness stock with a free-text `quantity`, optional location and notes, and an optional refresh schedule (`refresh_mode` none/date/interval, `refresh_interval_months`, `next_refresh_date`, `remind_days_before`, `last_refreshed_on`). `next_refresh_date` is stored and indexed rather than derived — it is the only column the digest reads
-- `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimisation
+- `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimization
 - `MemberNotificationPref` - One family member's answer for one kind of notification (`event_reminder`, `event_change`, `task_assignment`, `prep_refresh`, `shopping_added`), unique on `(family_member_id, kind)`. **An absent row means the kind's default** — the row only exists once somebody has expressed a preference, the same discipline `todo_notify_enabled` follows. A preference only ever *narrows* the kind's audience rule; it can never add somebody to an audience they were not already in
 - `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 

@@ -56,12 +56,26 @@
         </section>
 
         <section>
-            <div class="card-header">Colour roles</div>
+            <div class="card-header">Color roles</div>
             <p class="page-note">
                 Text uses ink, ink-muted or ink-subtle only. The rule tokens are hairlines
                 and fail contrast as text.
             </p>
-            <div id="sg-colour"></div>
+            <div id="sg-color"></div>
+        </section>
+
+        <section>
+            <div class="card-header">Member colors</div>
+            <p class="page-note">
+                The closed palette behind family member identity, ordered darkest first.
+                Five entries, because that is how many fit between "dark enough to read as
+                black at 8px" and 3:1 on the sunken surface while staying at least 1.24&times;
+                apart in luminance. The second row is the same palette with color removed:
+                monochrome e-ink is the display this spacing exists for, and five distinct
+                grays there is the property that matters.
+            </p>
+            <div id="sg-member-colors"></div>
+            <div id="sg-member-colors-gray" style="filter:grayscale(1);"></div>
         </section>
 
         <section>
@@ -236,8 +250,8 @@
         <section>
             <div class="card-header">Calendar month grid</div>
             <p class="page-note">
-                Today is marked with a rule, never a fill: the palette is greyscale, so the
-                only colour on the page is the family-member dots and a filled cell would
+                Today is marked with a rule, never a fill: the palette is grayscale, so the
+                only color on the page is the family-member dots and a filled cell would
                 shout over them. A day that overflows offers &ldquo;+N more&rdquo; and switches
                 to that day&rsquo;s agenda &mdash; a popover would be a second modal chassis.
                 The grid renders at every width. It was once hidden below 768px on a
@@ -296,7 +310,7 @@
             </p>
             <p class="page-note">
                 <strong>An event under thirty minutes is two shapes, not one.</strong> A tab
-                down the left carries the event&rsquo;s real length and the member colour; the
+                down the left carries the event&rsquo;s real length and the member color; the
                 body beside it holds the words at the thirty-minute minimum. Inflating the
                 whole block instead made a quarter-hour claim three quarters of one. Tab plus
                 body is exactly the column width, and both sit inside one button, so it stays
@@ -374,7 +388,7 @@
         <section>
             <div class="card-header">Preparedness state and rows</div>
             <p class="page-note">
-                The one place the palette leaves greyscale. State is encoded in colour
+                The one place the palette leaves grayscale. State is encoded in color
                 <em>and</em> in words, because the meaning is the message: an expired water filter
                 has to read as different in kind, not merely in wording. These pills report — they
                 do not filter — so they are deliberately not <code>.filter-chip</code>.
@@ -496,7 +510,7 @@
             </div>`;
         });
 
-        swatchRows('sg-colour',
+        swatchRows('sg-color',
             ['ink', 'ink-strong', 'ink-muted', 'ink-subtle', 'rule', 'rule-subtle', 'surface-sunken'],
             name => {
                 const value = root.getPropertyValue(`--${name}`).trim();
@@ -508,6 +522,29 @@
                     </div>
                 </div>`;
             });
+
+        const memberPalette = [
+            {% for entry in member_palette %}
+            { token: '{{ entry.token }}', label: '{{ entry.label }}' }{{ "," if not loop.last }}
+            {% endfor %}
+        ];
+
+        // Same discipline as the scales above: the value is read back out of
+        // the cascade, so this page cannot show a palette the stylesheet has
+        // stopped declaring.
+        function memberSwatch(entry) {
+            const value = root.getPropertyValue(entry.token).trim();
+            return `<div class="editable-item">
+                <div style="width:2.75rem;align-self:stretch;background:${value};border:1px solid var(--rule);"></div>
+                <div class="editable-item-content">
+                    <div class="editable-item-title">${entry.label}</div>
+                    <div class="editable-item-description">${entry.token} &middot; ${value}</div>
+                </div>
+            </div>`;
+        }
+
+        swatchRows('sg-member-colors', memberPalette, memberSwatch);
+        swatchRows('sg-member-colors-gray', memberPalette, memberSwatch);
 
         function toggleOtherDropdown(e) {
             e.stopPropagation();

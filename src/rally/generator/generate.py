@@ -220,7 +220,7 @@ class SummaryGenerator:
         """Every calendar occurrence in the next 7 days, from every source.
 
         The work lives in ``rally.calendars`` now: Rally-owned events, ICS
-        feeds and CalDAV accounts all normalise to the same ``Occurrence``
+        feeds and CalDAV accounts all normalize to the same ``Occurrence``
         shape, and merging, deduplicating and ordering happen once, there.
         Four bugs used to live in the code this replaced — string-sorted times,
         all-day events rendered as midnight, a dedupe key that dropped the
@@ -1086,7 +1086,7 @@ class SummaryGenerator:
         )
 
         # An unset home location omits the whole block rather than sending an
-        # empty one: a labelled section with nothing after it invites the model
+        # empty one: a labeled section with nothing after it invites the model
         # to fill it in.
         home_block = f"\nHOME:\nThe family lives in {home}.\n" if home else ""
 
@@ -1153,7 +1153,7 @@ Do NOT include any HTML in your response. Plain text only for all values."""
         if self.shopping_list_in_summary_enabled:
             shopping_section = f"\n\nSHOPPING LIST (open items):\n{shopping_items}"
 
-        # Omitted entirely when nothing is overdue. An empty labelled section
+        # Omitted entirely when nothing is overdue. An empty labeled section
         # would invite the model to comment on it anyway.
         prep_section = ""
         if overdue_prep:

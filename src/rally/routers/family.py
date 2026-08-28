@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from rally import notification_prefs
+from rally import member_colors, notification_prefs
 from rally.database import get_db
 from rally.models import Calendar, FamilyMember
 from rally.schemas import UNSET, FamilyMemberCreate, FamilyMemberResponse, FamilyMemberUpdate
@@ -32,10 +32,23 @@ def list_family_members(db: Session = Depends(get_db)):
 
 @router.post("", response_model=FamilyMemberResponse, status_code=201)
 def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_db)):
-    """Create a new family member."""
+    """Create a new family member.
+
+    A caller who says nothing about color gets the first palette entry nobody
+    is using. The schema has a default, so "omitted" and "sent the default" are
+    only distinguishable through ``model_fields_set`` — and they mean different
+    things here: a family should never have to think about color to end up with
+    distinct dots, which is the failure this whole feature exists to prevent.
+    """
+    if "color" in member.model_fields_set:
+        color = member.color
+    else:
+        taken = [value for (value,) in db.query(FamilyMember.color).all()]
+        color = member_colors.next_unused(taken)
+
     db_member = FamilyMember(
         name=member.name,
-        color=member.color,
+        color=color,
         pushover_user_key=(member.pushover_user_key or None),
         pushover_device=(member.pushover_device or None),
     )
@@ -56,7 +69,7 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
     db.commit()
 
     # Nothing is written when the caller says nothing: a new member starts on
-    # the catalogue's defaults, which is everything on except shopping
+    # the catalog's defaults, which is everything on except shopping
     # additions.
     if member.notifications:
         notification_prefs.set_preferences(db, db_member.id, member.notifications)

@@ -101,10 +101,12 @@ def seed():
         db.add(snapshot)
 
         # Create sample family members
-        mom = FamilyMember(name="Mom", color="#4a6741")
-        dad = FamilyMember(name="Dad", color="#5b4a8a")
-        emma = FamilyMember(name="Emma", color="#8a4a5b")
-        jake = FamilyMember(name="Jake", color="#4a708a")
+        # Palette entries, not free hex: the seed has to produce rows the API
+        # would accept, or a fresh `demo` instance is born failing validation.
+        mom = FamilyMember(name="Mom", color="#3b8c61")
+        dad = FamilyMember(name="Dad", color="#8859b1")
+        emma = FamilyMember(name="Emma", color="#af2c3d")
+        jake = FamilyMember(name="Jake", color="#315277")
         for member in [mom, dad, emma, jake]:
             db.add(member)
         db.flush()  # Get IDs assigned
@@ -248,7 +250,7 @@ def seed():
 
         # Recurring templates, so /todo's Recurring section is not an empty
         # state on a fresh install. `last_generated_date` is left unset: the
-        # first page load generates today's instances, which is the behaviour
+        # first page load generates today's instances, which is the behavior
         # worth seeing rather than a row that looks inert.
         recurring_todos = [
             RecurringTodo(

@@ -47,7 +47,7 @@ def test_filter_labels_are_placed_by_rule_not_by_chip_count(measure, page, viewp
 
     Stacked below 768px, inline at and above it. Before the rebuild this was
     emergent: three chips sat inline and four did not, so Meal History showed
-    both behaviours in one toolbar and adding a family member relaid out a page.
+    both behaviors in one toolbar and adding a family member relaid out a page.
     """
     toolbar = measure(page, viewport)["toolbar"]
     assert toolbar, f"{page} has no toolbar"
@@ -159,7 +159,7 @@ def test_type_sizes_come_from_the_scale(measure, page, viewport):
 
 @pytest.mark.parametrize("page", ALL_PAGES)
 def test_colours_come_from_the_palette(measure, page):
-    """C4 — every rendered text colour is a palette role."""
+    """C4 — every rendered text color is a palette role."""
     data = measure(page, "desktop")
 
     def norm(value: str) -> tuple[int, ...]:
@@ -168,16 +168,16 @@ def test_colours_come_from_the_palette(measure, page):
             return tuple(int(v[i : i + 2], 16) for i in (0, 2, 4))
         return tuple(int(float(n)) for n in __import__("re").findall(r"\d+(?:\.\d+)?", value)[:3])
 
-    allowed = {norm(c) for c in data["tokens"]["colours"]}
-    used = {norm(c) for c in data["colours"]}
-    assert used <= allowed, f"{page} renders off-palette colours: {sorted(used - allowed)}"
+    allowed = {norm(c) for c in data["tokens"]["colors"]}
+    used = {norm(c) for c in data["colors"]}
+    assert used <= allowed, f"{page} renders off-palette colors: {sorted(used - allowed)}"
 
 
 @pytest.mark.parametrize("page", ALL_PAGES)
 def test_text_meets_wcag_aa_contrast(measure, page):
     """C5 — no run of text falls below 4.5:1.
 
-    #999999 was used as a text colour in ten rules at 2.85:1, carrying real
+    #999999 was used as a text color in ten rules at 2.85:1, carrying real
     information: purchase dates, "Not yet rated", the paused state on
     recurring tasks.
     """
@@ -194,7 +194,7 @@ def test_every_modal_uses_the_shared_chassis(measure, page):
     """
     for modal in measure(page, "desktop")["modals"]:
         # The verification dialog is the documented exception: no title, no
-        # form, a single centred status block.
+        # form, a single centered status block.
         if not modal["hasTitle"]:
             continue
         assert modal["hasScroll"] and modal["hasBody"], (
@@ -319,7 +319,7 @@ def test_the_month_cell_shows_event_text_on_a_phone(browser, live_server):
     block the pointer — they are <button>s, so they would stay in the tab
     order and still fire on Enter, leaving a control a keyboard can reach and
     a finger cannot. The generic 44px sweep covers the measurement; this pins
-    the behaviour that the text is there and the row is genuinely tappable.
+    the behavior that the text is there and the row is genuinely tappable.
     """
     context, page = _calendar(browser, live_server)
     try:
@@ -655,10 +655,10 @@ def test_a_label_centres_the_control_it_wraps(browser, live_server, page):
         if not rows:
             pytest.skip(f"{page} has no label-wrapped checkboxes")
         # A row taller than its control has wrapped onto more than one line;
-        # centring a control against a paragraph is not what this measures.
+        # centering a control against a paragraph is not what this measures.
         single_line = [r for r in rows if r["rowHeight"] <= r["controlHeight"] + TARGET_MIN]
         off_centre = [r for r in single_line if abs(r["offset"]) > 1]
-        assert not off_centre, f"{page} has off-centre controls: {off_centre[:4]}"
+        assert not off_centre, f"{page} has off-center controls: {off_centre[:4]}"
     finally:
         context.close()
 
@@ -668,7 +668,7 @@ def test_a_label_centres_the_control_it_wraps(browser, live_server, page):
 # The grid's arithmetic had no test until now, and every defect found in it was
 # found by eye: a half-hour event that read as three quarters of one, a block
 # inflated to the hit-area floor, a floored body sitting on top of its
-# neighbour. Those are all `paintGeometry` and `layoutColumns`, so they are what
+# neighbor. Those are all `paintGeometry` and `layoutColumns`, so they are what
 # these pin.
 #
 # Assertions are in **minutes**, never pixels. The hour row is a token and may

@@ -2,7 +2,7 @@
 
 Covers the local-midnight visibility boundary (mirroring test_completed_todos.py),
 the 30-day retention purge and its once-per-local-day gate, store CRUD and the
-reassign-on-delete behaviour, item create/dedupe/update semantics, store-by-name
+reassign-on-delete behavior, item create/dedupe/update semantics, store-by-name
 resolution for scripted clients, the history-backed suggestions endpoints, and
 the hand-arranged ordering behind drag-to-reorder.
 """

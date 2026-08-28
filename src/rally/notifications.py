@@ -705,7 +705,7 @@ def _already_sent(db: Session, event_id: int, occurrence_date: str, member_ids: 
 def check_due_reminders(db: Session, now: datetime | None = None) -> int:
     """Send every reminder whose moment has arrived. Returns the count sent.
 
-    Pure over the database plus a clock, so the whole behaviour is testable
+    Pure over the database plus a clock, so the whole behavior is testable
     without a scheduler: the caller decides what "now" is.
     """
     now = (now or now_utc()).astimezone(UTC)

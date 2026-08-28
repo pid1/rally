@@ -95,7 +95,7 @@ def content_fingerprint(text: str) -> str:
     return digest.hexdigest()
 
 
-# ── Serialisation ────────────────────────────────────────────────────────────
+# ── Serialization ────────────────────────────────────────────────────────────
 
 
 def occurrence_to_dict(occ: Occurrence) -> dict:

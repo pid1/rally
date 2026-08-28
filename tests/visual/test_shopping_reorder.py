@@ -1,6 +1,6 @@
 """Drag-to-reorder on the shopping list, driven through a real browser.
 
-This is behaviour rather than geometry, so it does not read the design-system
+This is behavior rather than geometry, so it does not read the design-system
 probe — but it needs the same seeded server and the same Chromium, and there is
 no cheaper way to test it. A drag is pointer capture, hit testing against
 `elementFromPoint`, and a commit that reads the DOM back; none of that survives
@@ -96,13 +96,13 @@ def grip(page, name):
     return row(page, name).locator(".drag-handle")
 
 
-def centre(box) -> tuple[float, float]:
+def center(box) -> tuple[float, float]:
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
 def drag_to(page, name, x, y):
     """Press the grip, travel to (x, y) in steps, release."""
-    start_x, start_y = centre(grip(page, name).bounding_box())
+    start_x, start_y = center(grip(page, name).bounding_box())
     page.mouse.move(start_x, start_y)
     page.mouse.down()
     # In steps, not one jump: the drag only begins past a 5px threshold, and the
@@ -156,7 +156,7 @@ def test_dragging_a_row_onto_another_store_moves_it_there(shopping, live_server)
 
 def test_escape_abandons_a_drag(shopping):
     before = groups(shopping)
-    start_x, start_y = centre(grip(shopping, "Batteries").bounding_box())
+    start_x, start_y = center(grip(shopping, "Batteries").bounding_box())
     target = shopping.locator(
         '.shopping-group:has(.shopping-group-name:text-is("Costco"))'
     ).bounding_box()
@@ -245,7 +245,7 @@ def test_a_touch_drag_reorders_on_a_phone(browser, live_server):
         page.wait_for_timeout(200)
 
         start = groups(page)["Trader Joe's"]
-        start_x, start_y = centre(grip(page, "Almond milk").bounding_box())
+        start_x, start_y = center(grip(page, "Almond milk").bounding_box())
         end_x, end_y = below(page, "Frozen dumplings")
 
         cdp = context.new_cdp_session(page)

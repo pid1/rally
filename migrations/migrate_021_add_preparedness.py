@@ -109,7 +109,7 @@ def migrate():
             print("✓ Created prep_refresh_notices")
 
         # The unique index IS the announce-once guarantee, not merely an
-        # optimisation: without it a retry could double-announce.
+        # optimization: without it a retry could double-announce.
         cursor.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS ix_prep_refresh_notices_key
             ON prep_refresh_notices(notice_key)

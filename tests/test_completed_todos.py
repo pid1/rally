@@ -1,7 +1,7 @@
 """Tests for ``GET /api/todos/completed`` — the previously-completed-tasks API.
 
 Covers the keyword search added in #90 plus the pre-existing filtering, sorting,
-and pagination behaviour that search rides on.
+and pagination behavior that search rides on.
 
 The completed page shows todos completed *before* today's local-midnight cutoff.
 Seed data uses two fixed reference points so tests stay deterministic regardless
@@ -154,7 +154,7 @@ def test_total_reflects_all_matches_across_pages(client, make_todo):
     assert second["has_more"] is False
 
 
-# --- Pre-existing completed-endpoint behaviour ---------------------------------
+# --- Pre-existing completed-endpoint behavior ---------------------------------
 
 
 def test_excludes_todos_completed_today(client, make_todo):

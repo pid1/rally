@@ -22,7 +22,7 @@ Grouped by cause, not by page. This is the state before the rebuild; each findin
 
 ### A. Page frame and vertical rhythm
 
-**A1. Every content page has a 2px horizontal jog on desktop.** At ≥1024px the body content box is 804px wide (`max-width: 900px` minus `padding: 64px 48px`), but `.section-container` caps itself at `max-width: 800px` and centres, insetting 2px on each side. Measured left edges on all six content pages: `.header`, `nav`, `footer` at x=318; `.section-container`, `.header-container`, `.filter-toolbar`, `.list-container` at x=320. The rule under the wordmark is 4px wider than the rule under the page title, on every page. Two nested max-widths are one too many.
+**A1. Every content page has a 2px horizontal jog on desktop.** At ≥1024px the body content box is 804px wide (`max-width: 900px` minus `padding: 64px 48px`), but `.section-container` caps itself at `max-width: 800px` and centers, insetting 2px on each side. Measured left edges on all six content pages: `.header`, `nav`, `footer` at x=318; `.section-container`, `.header-container`, `.filter-toolbar`, `.list-container` at x=320. The rule under the wordmark is 4px wider than the rule under the page title, on every page. Two nested max-widths are one too many.
 
 **A2. The gap between the page title and the toolbar is three different sizes.** Measured from the bottom of the `.header-container` rule to the top of `.filter-toolbar`: 32px on Meal Planner and Meal History; 61.2px on Tasks, Completed Tasks and Shopping; 92.3px on Purchased Items. The difference is whether the page happens to have a `.view-switch` link and a `.page-note`, which sit as loose siblings contributing their own margins instead of belonging to a defined header block.
 
@@ -61,7 +61,7 @@ This is the single largest source of visible inconsistency, and it is where the 
 | Meal History | Rating | 3 | **yes** |
 | Shopping | Store | 3 | **yes** |
 
-Meal History exhibits both behaviours *in the same toolbar*: "Meal Type" above its chips, "Rating" beside its chips, "Sort" beside its select. Adding a family member or a store silently changes the layout of the page.
+Meal History exhibits both behaviors *in the same toolbar*: "Meal Type" above its chips, "Rating" beside its chips, "Sort" beside its select. Adding a family member or a store silently changes the layout of the page.
 
 **B2. "Clear Filters" lands wherever the preceding chips end.** It is a child of whichever `.toolbar-group` each template happened to put it in, so it has no fixed slot. Measured x-position and row at 1440px:
 
@@ -77,13 +77,13 @@ Between Meal Planner and Meal History — two views of the same feature, reached
 
 **B3. `.filter-clear` styles two unrelated kinds of action.** It is both the reset control ("Clear Filters", "Clear Search") and a navigation control ("Manage stores", which opens a modal). Identical appearance, entirely different consequence, sitting side by side in the Shopping toolbar.
 
-**B4. Three treatments for "quiet, link-like control".** `.view-switch` (0.9rem), `.filter-clear` (0.85rem), `.btn-ghost` (0.9rem) — all underlined grey text, all different padding, no rule for which to use.
+**B4. Three treatments for "quiet, link-like control".** `.view-switch` (0.9rem), `.filter-clear` (0.85rem), `.btn-ghost` (0.9rem) — all underlined gray text, all different padding, no rule for which to use.
 
 **B5. The toolbar is the heaviest block on mobile.** Measured heights at 390px: 110px (Shopping) to 370px (Completed Tasks). The Completed Tasks toolbar alone is 44% of the viewport.
 
 ### C. Tokens: there is no shared vocabulary
 
-**C1. 17 distinct `font-size` declarations**, nine of them inside the 0.7–1.1rem band (0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1) — differences too small to read as intentional but each individually specified. Rendered desktop pages use 11 distinct computed sizes. `:root` declares colours and two font families; there are no type or spacing tokens at all.
+**C1. 17 distinct `font-size` declarations**, nine of them inside the 0.7–1.1rem band (0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1) — differences too small to read as intentional but each individually specified. Rendered desktop pages use 11 distinct computed sizes. `:root` declares colors and two font families; there are no type or spacing tokens at all.
 
 **C2. 18 distinct spacing values**, including the one-offs 5px, 14px, 26px and 28px. There is no 4px or 8px grid to snap to.
 
@@ -91,13 +91,13 @@ Between Meal Planner and Meal History — two views of the same feature, reached
 
 **C4. The palette is named by appearance, not role.** `--charcoal`, `--dark-gray`, `--medium-gray`, `--light-gray`, `--pale-gray`, `--silver`, `--off-white`. Nothing in the name says "this is a border", "this is secondary text", or "this is a sunken surface", so there is no way to reason about a change, and no path to a dark or e-ink variant.
 
-**C5. `--light-gray` (#999999) fails WCAG AA as a text colour and is used as one in 10 rules.** Contrast on white is **2.85:1**, below the 4.5:1 minimum for body text and below even the 3:1 large-text minimum. It carries real information: `.shopping-completed-at`, `.no-review-text`, `.recurring-paused`, `.recurring-meta`, `.todo-meta`, `.todo-completed-date`, `.shopping-group-count`. For reference: `--medium-gray` #666 is 5.74:1 and passes.
+**C5. `--light-gray` (#999999) fails WCAG AA as a text color and is used as one in 10 rules.** Contrast on white is **2.85:1**, below the 4.5:1 minimum for body text and below even the 3:1 large-text minimum. It carries real information: `.shopping-completed-at`, `.no-review-text`, `.recurring-paused`, `.recurring-meta`, `.todo-meta`, `.todo-completed-date`, `.shopping-group-count`. For reference: `--medium-gray` #666 is 5.74:1 and passes.
 
 **C6. Four sizes for one heading idea.** Uppercase, letter-spaced, serif headings exist at 1rem (`.shopping-group-name`), 1.1rem (`.card-header`), 1.3rem (`.modal-content h3`) and 1.5rem (`h2`) — four steps with no scale relating them.
 
 ### D. Components
 
-**D1. Two primary buttons, both labelled "Save", both on the Settings page.** `.btn-save` (padding 10px 24px, 1rem) is used by Settings' nine inline forms; `.btn-primary` (padding 8px 16px, 0.9rem) is used by all 11 modals — including the four modals that open *from* Settings. Measured: **80×43 at 16px** versus **61×37 at 14.4px**. Same word, two controls, one page. Note which one is correct: `.btn-save` at 43px nearly meets the 44px touch target that `.btn-primary` misses by seven.
+**D1. Two primary buttons, both labeled "Save", both on the Settings page.** `.btn-save` (padding 10px 24px, 1rem) is used by Settings' nine inline forms; `.btn-primary` (padding 8px 16px, 0.9rem) is used by all 11 modals — including the four modals that open *from* Settings. Measured: **80×43 at 16px** versus **61×37 at 14.4px**. Same word, two controls, one page. Note which one is correct: `.btn-save` at 43px nearly meets the 44px touch target that `.btn-primary` misses by seven.
 
 **D2. The modal chassis is split in two.** Five modals (task, recurring, item, stores) use `.modal-scroll` + `.modal-body` and get the scroll-fade affordance and a body that flexes. Six (meal, review, member, calendar, team) do not, and fall back to `.modal-content { overflow: auto }`. At 390px the Add Team modal fills 89.8% of the viewport and the Add Meal modal 88%, both with no fade to signal that content continues.
 
@@ -131,15 +131,15 @@ The reason it was not uniform is that only some modals opened through the helper
 
 **F2. Dead rules.** The entire `.plan-*` family (`.plan-card`, `.plan-date`, `.plan-content`, `.plan-actions`, `.plan-meta`, `.plan-meta-row`) is unused — Meal Planner now renders `.editable-item`. Also unused: `.assignee-badge`, `.todo-meta`, `.member-badge`, `.settings-actions`, `.settings-status`, `.history-card-meta`, `.form-actions`.
 
-**F3. Organised by page, not by layer.** One flat 1,723-line file where a global rule and a shopping-only rule sit at the same level, so there is no signal about blast radius when editing.
+**F3. Organized by page, not by layer.** One flat 1,723-line file where a global rule and a shopping-only rule sit at the same level, so there is no signal about blast radius when editing.
 
 ## The system, as built
 
-Five layers, smallest first. `static/styles.css` is now organised in exactly this order, so a rule's position tells you its blast radius.
+Five layers, smallest first. `static/styles.css` is now organized in exactly this order, so a rule's position tells you its blast radius.
 
 ### 1. Tokens
 
-Raw greys stay as private primitives; everything else references a role. Every token override — the responsive page padding, the touch target — lives in this layer too, so the scales have one home.
+Raw grays stay as private primitives; everything else references a role. Every token override — the responsive page padding, the touch target — lives in this layer too, so the scales have one home.
 
 ```css
 /* space — one 4px-based scale, replacing 18 ad hoc values */
@@ -150,7 +150,7 @@ Raw greys stay as private primitives; everything else references a role. Every t
 --text-xs: 0.75rem;  --text-sm: 0.875rem; --text-base: 1rem;
 --text-lg: 1.25rem;  --text-xl: 1.5rem;   --text-display: 3rem;
 
-/* colour by role, not appearance */
+/* color by role, not appearance */
 --ink: #1a1a1a;          /* primary text, strong rules   */
 --ink-muted: #666666;    /* secondary text — 5.74:1      */
 --ink-subtle: #767676;   /* tertiary text — 4.54:1       */
@@ -162,9 +162,28 @@ Raw greys stay as private primitives; everything else references a role. Every t
 --inverse: #ffffff;      /* text on --ink                */
 
 --target-min: 2.25rem;   /* 2.75rem under (pointer: coarse) and below 768px */
+
+/* family member identity — the only color on a calendar page */
+--member-ink-blue: #315277;  --member-crimson: #af2c3d;  --member-violet: #8859b1;
+--member-forest: #3b8c61;    --member-amber: #a38b43;
 ```
 
-The one substantive colour change: `--ink-subtle` (#767676) replaced `--light-gray` (#999999) everywhere it carried text, clearing WCAG AA at 4.54:1. #999 no longer exists.
+The member palette is the second place the system leaves grayscale, and the
+only one a family sees every day. It is a **closed** set of five, validated in
+`rally.member_colors` and asserted against these tokens by
+`tests/test_member_colors.py`, because its value is a guarantee rather than a
+selection: any two members are distinguishable on any display Rally runs on.
+
+Five is what the constraints allow, not a preference. Ordered darkest first,
+adjacent entries sit **at least 1.24x apart in relative luminance** — that
+spacing, not hue, is what keeps five members apart on a monochrome e-ink panel,
+where color is discarded entirely. Six entries compress it to 1.20x and eight
+to 1.15x. Every entry clears 3:1 on both `--surface` and `--surface-sunken`
+(WCAG 1.4.11: a dot is a UI component, not text), and hues sit at least 53
+degrees apart near primaries a color e-ink panel reproduces — a layer such a
+display adds on top of a set that already works without it.
+
+The one substantive color change: `--ink-subtle` (#767676) replaced `--light-gray` (#999999) everywhere it carried text, clearing WCAG AA at 4.54:1. #999 no longer exists.
 
 Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated uppercase sizes collapsed to three related ones (C6): `.shopping-group-name` at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
 
@@ -198,7 +217,7 @@ The one deliberate shape change.
 
 Two suites, cheapest first.
 
-**`tests/test_stylesheet.py`** — static, no browser, runs in the ordinary test job. Asserts that no selector is declared twice in the same context, that no rule suppresses the focus ring, and that colours, type sizes and spacing are taken from tokens rather than typed. It earned its place immediately: it caught a stale duplicate `.toolbar-search` rule that was silently overriding the new grid, and a second `:root` block in the same media query.
+**`tests/test_stylesheet.py`** — static, no browser, runs in the ordinary test job. Asserts that no selector is declared twice in the same context, that no rule suppresses the focus ring, and that colors, type sizes and spacing are taken from tokens rather than typed. It earned its place immediately: it caught a stale duplicate `.toolbar-search` rule that was silently overriding the new grid, and a second `:root` block in the same media query.
 
 `tests/test_pages.py` carries one static rule of the same kind for the markup: no template may set `display` on a modal overlay by hand, because that is how nineteen call sites came to skip the scroll reset and the fade (D7).
 
@@ -212,7 +231,7 @@ Two suites, cheapest first.
 | filter labels are placed by rule, not chip count | B1 |
 | Clear Filters occupies one fixed slot on every page | B2 |
 | type sizes come from the scale | C1 |
-| colours come from the palette | C4 |
+| colors come from the palette | C4 |
 | text meets WCAG AA contrast | C5 |
 | every modal uses the shared chassis | D2 |
 | every modal reopens at the top | D7 |
@@ -224,7 +243,7 @@ Two suites, cheapest first.
 The calendar's time grid adds a second kind: **geometry tests** that inject
 occurrences, call `render()`, and assert the result in *minutes* rather than
 pixels — a fifteen-minute event has a fifteen-minute tab, a floored body pushes
-its neighbour aside instead of covering it, an event crossing midnight is drawn
+its neighbor aside instead of covering it, an event crossing midnight is drawn
 on both days. The hour row is a token and may move; the rules are what hold.
 They were written after the fact, because every defect in that arithmetic had
 been found by eye instead.
@@ -265,5 +284,5 @@ uv run pytest tests/visual -v
 - **The density pass tightened spacing and the nav; it did not touch the wordmark's identity.** On mobile the four stacked full-width nav buttons became a 2×2 grid and the wordmark stepped down one size on the type scale. That was enough to bring every page's first content row above the fold, so nothing more aggressive was needed.
 - **`/styleguide` ships in production.** It is unlinked from the nav, and a styleguide that only exists in development stops matching what production looks like.
 - **No screenshot baselines in the repo.** The geometry assertions and the stylesheet lint cover the failures worth catching, and they explain themselves when they break. Baselines would add churn and a binary diff for every intentional change.
-- **The verification dialog keeps a variant.** `.modal-content--narrow` with no scroll wrapper: it has no title and no form, just a centred status block. The test exempts titleless modals rather than pretending the variant does not exist.
+- **The verification dialog keeps a variant.** `.modal-content--narrow` with no scroll wrapper: it has no title and no form, just a centered status block. The test exempts titleless modals rather than pretending the variant does not exist.
 - **`/dashboard` still has no `h2`.** The wordmark and today's date above it are already the page title. It uses the same `.page`/`.stack` primitives as everywhere else; only the redundant heading is omitted.

@@ -15,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from rally import member_colors
 from rally.database import Base
 from rally.utils.timezone import now_utc
 
@@ -26,7 +27,10 @@ class FamilyMember(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
-    color: Mapped[str] = mapped_column(String(7), default="#333333")  # Hex color for UI
+    # One of rally.member_colors.MEMBER_COLORS — a closed palette, not free hex.
+    # The default is the darkest entry so a member created by a path that skips
+    # auto-assignment is still legible rather than the old near-black #333333.
+    color: Mapped[str] = mapped_column(String(7), default=member_colors.DEFAULT_COLOR)
     calendar_key: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )  # Deprecated, kept for migration compat
@@ -360,7 +364,7 @@ class MemberNotificationPref(Base):
     **An absent row means the kind's default** — the same discipline
     ``todo_notify_enabled`` follows, where the row only exists once somebody
     has expressed a preference. So installing this feature changes nobody's
-    behaviour, and a kind added later inherits its own default for free rather
+    behavior, and a kind added later inherits its own default for free rather
     than needing a backfill.
 
     A preference can only ever *narrow* what somebody already receives: it is
