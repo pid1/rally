@@ -109,6 +109,16 @@ uv run python -m rally.cli
 uv run uvicorn rally.main:app --port 8100
 ```
 
+The screenshots in `docs/screenshots/` are regenerated from that same seed by
+`screenshots` (`scripts/capture_screenshots.py`), which seeds a temporary
+database, serves it on its own port and captures every image at a fixed
+viewport. Run it after any change that alters what a page looks like. Two
+images are deliberately outside it: `demo-poster.png` is the thumbnail for a
+walkthrough video hosted on a GitHub release, so refreshing it would advertise
+a UI the video does not show, and `event-notify.png` shows the notify control
+rather than its result banner, because producing that banner means really
+pushing to Pushover.
+
 The sample family is Mom, Dad, Emma and Jake. The data is anchored to the day you run it, so the calendar always has this week's events in it and the preparedness list always has something overdue. The screenshots in this repository and the walkthrough video in the README were both recorded against it.
 
 ## Database migrations

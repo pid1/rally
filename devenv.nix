@@ -108,6 +108,15 @@ in
       uv run --directory . uvicorn rally.main:app --host 0.0.0.0 --port 8100
     '';
 
+    # Regenerate docs/screenshots from a freshly seeded throwaway database.
+    # Framing lives in the script rather than in whoever last held the mouse,
+    # which is why the old hand-cropped set drifted. Documented in
+    # docs/development.md.
+    screenshots.exec = ''
+      cd ${config.env.DEVENV_ROOT}
+      uv run --directory . python scripts/capture_screenshots.py "$@"
+    '';
+
     # Quality commands (NOTE: currently checks app/ which doesn't exist yet)
     lint.exec = "uv run ruff check .";
     lint-fix.exec = "uv run ruff check . --fix";
@@ -164,6 +173,7 @@ in
     echo "Interactive commands (block until killed):"
     echo "  dev              - Start Rally dev server (port 8000)"
     echo "  demo             - Fresh seeded demo instance (port 8100, own database)"
+    echo "  screenshots      - Regenerate docs/screenshots (throwaway database)"
     echo ""
     echo "Background commands (for agents/scripts):"
     echo "  dev-start        - Start FastAPI in background"
