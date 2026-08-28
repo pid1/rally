@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
+from rally import member_colors
 from rally.database import init_db
 from rally.routers import (
     dashboard,
@@ -139,8 +140,16 @@ def go_list_page(request: Request):
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request):
-    """Serve the settings page."""
-    return templates.TemplateResponse("settings.html", {"request": request})
+    """Serve the settings page.
+
+    The member color palette is rendered into the page rather than fetched:
+    it is static configuration rather than state, and server-rendering it means
+    the swatches are in the first paint. That matters on a display that repaints
+    as slowly as e-ink.
+    """
+    return templates.TemplateResponse(
+        "settings.html", {"request": request, "member_palette": member_colors.PALETTE}
+    )
 
 
 @app.get("/styleguide", response_class=HTMLResponse)
@@ -153,4 +162,6 @@ def styleguide_page(request: Request):
     a page the family visits — but it ships, because a styleguide that only
     exists in development stops matching what production actually looks like.
     """
-    return templates.TemplateResponse("styleguide.html", {"request": request})
+    return templates.TemplateResponse(
+        "styleguide.html", {"request": request, "member_palette": member_colors.PALETTE}
+    )

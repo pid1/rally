@@ -60,6 +60,22 @@
     --state-due: #8a5a06;
     --state-overdue: #9b3222;
 
+    /* Family member identities. The second place the palette leaves grayscale,
+       and the only color the calendar carries. These are a closed set chosen
+       for the two displays Rally actually runs on: a color e-ink panel with a
+       narrow gamut, and a monochrome one that renders them as gray. Hues sit on
+       primaries e-ink reproduces, but nothing depends on hue being resolved —
+       the >=1.24x luminance spacing is what keeps five members apart when
+       color is lost entirely, and it is why there are five rather than eight.
+       All clear 3:1 on --surface and --surface-sunken. Ordered darkest first;
+       the order is the ladder. Mirrored by rally.member_colors, which validates
+       against them — tests/test_member_colors.py fails if the two drift. */
+    --member-ink-blue: #315277;
+    --member-crimson: #af2c3d;
+    --member-violet: #8859b1;
+    --member-forest: #3b8c61;
+    --member-amber: #a38b43;
+
     --font-display: 'Playfair Display', 'Georgia', serif;
     --font-body: 'Crimson Text', 'Georgia', serif;
 
@@ -681,6 +697,47 @@ nav a.active,
 .form-group textarea {
     resize: vertical;
     min-height: 6rem;
+}
+
+/* Member color swatches. A closed palette rendered as radio-equivalent
+   buttons: five entries is few enough to show them all, and showing them all
+   is the point — the family is choosing an identity, not filling in a value.
+
+   Selection is a ring rather than a color change, because the swatch *is* a
+   color and repainting it to show state would be indistinguishable from
+   picking a different one. It is also the reason each swatch carries a
+   visible-on-focus outline from the base layer and an aria-label naming the
+   color: on a monochrome panel these are five grays. */
+.color-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.color-swatch {
+    width: var(--target-min);
+    height: var(--target-min);
+    padding: 0;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+}
+
+.color-swatch-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    /* The one place a component carries no color of its own: the value is the
+       member's, written inline from the palette the server rendered. */
+    background: var(--swatch-color);
+}
+
+/* The ring sits outside the swatch so it never covers the color it marks. */
+.color-swatch[aria-pressed="true"] {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--ink);
 }
 
 /* A field that is shown but cannot be changed — a recurring task's start date

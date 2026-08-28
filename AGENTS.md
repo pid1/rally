@@ -416,6 +416,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `026_add_shopping_sort_order` - Add `shopping_items.sort_order`, the per-store hand-arranged position behind drag-to-reorder. Backfilled per store group in the order the list already read (`completed ASC, created_at DESC, id ASC`), so no existing list visibly moves
 - `027_add_member_notification_prefs` - Add the `member_notification_prefs` table plus its index and the unique index on `(family_member_id, kind)`. Purely additive and it writes **no rows**: an absent row means the kind's default, so upgrading changes nobody's behaviour — shipping the feature is not the same as turning it on
 - `028_add_recurring_todo_start_date` - Add `recurring_todos.start_date`, the day a series' first instance is due. Purely additive and writes no rows: `NULL` means "start from today", which is what every existing template already does
+- `029_member_color_palette` - Move every `family_members.color` onto the closed palette (`rally.member_colors`). No schema change; the column already existed as unvalidated hex that no screen could set, so in practice every member sat on the old `#333333` default and the calendar drew four members as four identical near-black dots. Colours are handed out by `id ASC`, cycling, which is the same rule `POST /api/family` uses — whatever a hand-set color meant is deliberately not preserved, because reading intent out of an arbitrary hex is guesswork a five-entry palette cannot honor anyway. A member **already** on a palette color is left alone, which is both what makes it idempotent and what stops a container restart from overwriting a color somebody chose after the first run. The palette is duplicated in the migration rather than imported, per the self-contained rule above
 
 ### Running Migrations
 
@@ -561,6 +562,7 @@ rally/
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
 │   ├── notifications.py  # Pushover transport, recipient resolution, due-reminder scan, add/change/remove notices
 │   ├── notification_prefs.py # The KINDS catalogue and the one place that decides who hears what
+│   ├── member_colors.py  # The closed family-member color palette and its constraints
 │   ├── todo_notifications.py # The push that goes to a task's assignee when it lands on their list
 │   ├── shopping_notifications.py # Batched "added to the shopping list" pushes, behind a settle window
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
@@ -626,6 +628,7 @@ rally/
 │   ├── migrate_017_add_shopping_lists.py # Migration 017: add shopping list tables
 │   ├── migrate_026_add_shopping_sort_order.py # Migration 026: add shopping_items.sort_order
 │   ├── migrate_028_add_recurring_todo_start_date.py # Migration 028: add recurring_todos.start_date
+│   ├── migrate_029_member_color_palette.py # Migration 029: move members onto the closed color palette
 │   ├── migrate_018_add_sports_watchlist.py # Migration 018: add followed_teams, sports_event_notices tables
 │   ├── migrate_019_add_llm_max_tokens.py # Migration 019: backfill per-provider LLM max tokens settings
 │   ├── migrate_020_add_native_calendaring.py # Migration 020: event tables, Pushover columns, native calendars
@@ -707,7 +710,12 @@ rally/
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
 - ✅ Navigation between Dashboard, Todos, Dinner Planner, and Settings
 - ✅ Family members - Full CRUD API and UI
-  - Color-coded identities for each family member
+  - Color-coded identities for each family member, from a **closed palette** of five (`src/rally/member_colors.py`, `--member-*` in the stylesheet)
+    - Rally is grayscale and e-ink first, so a member's color is the only color-carrying channel in the app. The palette is a fixed set rather than free hex because one arbitrary value can defeat the guarantee the set exists for: that any two members are distinguishable on any display Rally runs on
+    - Three constraints, in priority order — **monochrome e-ink separability** (adjacent entries >=1.24x apart in relative luminance, so five members stay five distinct grays with color removed entirely), **WCAG 1.4.11 non-text contrast** (3:1 on both `--surface` and `--surface-sunken`; a dot is a UI component, not text), and **color e-ink gamut** (hues >=53 degrees apart, near primaries a Spectra/Kaleido panel reproduces). Five is what those constraints allow, not a preference: six compress the spacing to 1.20x and eight to 1.15x
+    - Validated on the way **in** (`FamilyMemberCreate` / `FamilyMemberUpdate` reject anything else with a 422) and never on the way out. `FamilyMemberResponse` reports whatever is stored, because a response schema that rejected a legacy row would take down `/api/family` — including the Settings page that is the only way to repair it
+    - `POST /api/family` assigns the first unused entry when the caller says nothing about color, so a family never has to think about it to get distinct dots. Beyond five members the palette cycles
+    - Set from Settings as a row of five swatches; there is no free-form color input, and `tests/test_member_colors.py` fails if the stylesheet and the module ever disagree about a value
   - Used for calendar ownership and todo assignment
 - ✅ Calendar management - Full CRUD API and UI
   - Add ICS calendar feeds linked to family members
@@ -852,6 +860,11 @@ When touching the UI:
 - **Use tokens, never literals.** `var(--space-4)`, `var(--text-sm)`,
   `var(--ink-muted)`. A raw px or hex in a component is a bug unless it is a
   1px hairline. `tests/test_stylesheet.py` fails the build otherwise.
+- **Member color is the one color on a page.** `--member-*` is a closed
+  five-entry palette (`src/rally/member_colors.py`); never add a sixth or hand
+  a component a raw member color. The spacing between entries is a luminance
+  ladder, not an aesthetic choice — it is what keeps members apart on a
+  monochrome e-ink panel.
 - **Text is `--ink`, `--ink-muted` or `--ink-subtle`.** `--rule` and
   `--rule-subtle` are hairlines and fail WCAG AA as text.
 - **Buttons are `.btn` plus `--secondary`, `--quiet`, `--sm`.** Do not add a
@@ -963,6 +976,7 @@ visual suite (above) before shipping a layout change.
   - `GET /api/family` - List all family members
   - `POST /api/family` - Create new family member. Accepts an optional `notifications` map; omitting it starts the member on the catalogue defaults (everything on except `shopping_added`)
   - `GET /api/family/{id}` - Get specific family member
+  - `POST /api/family` / `PUT /api/family/{id}` - `color` must be one of `rally.member_colors.MEMBER_COLORS`; anything else is a `422`, including a well-formed but unlisted value like `#ffffff`. Omitting it on create assigns the first unused palette entry; omitting it on update leaves the stored value alone. Responses are **not** validated against the palette — a legacy row is reported as it is, rather than failing the endpoint that Settings needs to repair it
   - `PUT /api/family/{id}` - Update family member. `notifications` is a **partial** map — kinds left out keep what they resolve to today, and an unknown kind is `422` rather than a stored preference nothing will ever read
   - `DELETE /api/family/{id}` - Delete family member. **Deletes their `member_notification_prefs` rows first** — nothing enforces the reference, the same reason deleting an event cascades its own attendees by hand
 - `/api/followed-teams` - Sports watchlist subscriptions (teams and racing series)

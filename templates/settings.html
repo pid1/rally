@@ -377,6 +377,18 @@
                     <input type="text" id="member-name" placeholder="Name" required>
                 </div>
                 <div class="form-group">
+                    <label id="member-color-label">Color</label>
+                    <div class="color-swatches" role="group" aria-labelledby="member-color-label" id="member-color-swatches">
+                        {% for entry in member_palette %}
+                        <button type="button" class="color-swatch" data-color="{{ entry.value }}"
+                                aria-pressed="false" aria-label="{{ entry.label }}" title="{{ entry.label }}">
+                            <span class="color-swatch-fill" style="--swatch-color: var({{ entry.token }})"></span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <small>Shown on the calendar next to this person's events.</small>
+                </div>
+                <div class="form-group">
                     <label>Pushover User Key (optional)</label>
                     <input type="text" id="member-pushover-key" placeholder="e.g. uQiRzpo4DXghDmr9QzzfQu27cmVRsG">
                     <small>Found on the Pushover dashboard. Leave blank and this person is simply never notified.</small>
@@ -619,7 +631,7 @@
             container.innerHTML = familyMembers.map(member => `
                 <div class="editable-item" data-id="${member.id}">
                     <div class="editable-item-content">
-                        <div class="editable-item-title">${escapeHtml(member.name)}</div>
+                        <div class="editable-item-title"><span class="calendar-dot" style="background:${escapeHtml(member.color)}"></span>${escapeHtml(member.name)}</div>
                         <div class="assignee-label">${member.pushover_user_key ? 'Push notifications on' : 'No Pushover key'}</div>
                     </div>
                     <div class="editable-item-actions">
@@ -740,6 +752,48 @@
             return values;
         }
 
+        // ── Member color ──
+        //
+        // The palette is server-rendered, so these read the swatches rather
+        // than carrying a second copy of the list that could drift from
+        // rally.member_colors.
+
+        function memberColorSwatches() {
+            return [...document.querySelectorAll('#member-color-swatches .color-swatch')];
+        }
+
+        // The same rule POST /api/family applies, mirrored here so the form
+        // shows what it is about to do instead of leaving it to the server.
+        function firstUnusedMemberColor(excludeId) {
+            const taken = new Set(
+                familyMembers.filter(m => m.id !== excludeId)
+                             .map(m => (m.color || '').toLowerCase())
+            );
+            const swatches = memberColorSwatches();
+            const free = swatches.find(s => !taken.has(s.dataset.color.toLowerCase()));
+            return (free || swatches[0]).dataset.color;
+        }
+
+        // A stored value outside the palette can only come from a hand-edited
+        // database — the migration and the API enum rule it out otherwise. It
+        // resolves to an unused entry so saving repairs the row, rather than
+        // showing nothing selected and posting a null.
+        function selectMemberColor(color) {
+            const swatches = memberColorSwatches();
+            const wanted = (color || '').toLowerCase();
+            let chosen = swatches.find(s => s.dataset.color.toLowerCase() === wanted);
+            if (!chosen) {
+                const fallback = firstUnusedMemberColor(editingMemberId).toLowerCase();
+                chosen = swatches.find(s => s.dataset.color.toLowerCase() === fallback);
+            }
+            swatches.forEach(s => s.setAttribute('aria-pressed', String(s === chosen)));
+        }
+
+        function selectedMemberColor() {
+            const on = document.querySelector('#member-color-swatches .color-swatch[aria-pressed="true"]');
+            return on ? on.dataset.color : null;
+        }
+
         function openAddMemberModal() {
             editingMemberId = null;
             document.getElementById('member-modal-title').textContent = 'Add Family Member';
@@ -747,6 +801,9 @@
             document.getElementById('member-id').value = '';
             // Testing a key that has not been saved yet would test nothing.
             document.getElementById('btn-test-member-pushover').style.display = 'none';
+            // form.reset() does not clear aria-pressed, so the selection is set
+            // explicitly rather than left showing the last member edited.
+            selectMemberColor(firstUnusedMemberColor(null));
             renderMemberNotifyOptions(null);
             showModalOverlay('member-modal-overlay');
         }
@@ -763,6 +820,7 @@
             document.getElementById('member-pushover-device').value = member.pushover_device || '';
             document.getElementById('btn-test-member-pushover').style.display =
                 member.pushover_user_key ? '' : 'none';
+            selectMemberColor(member.color);
             renderMemberNotifyOptions(member);
             showModalOverlay('member-modal-overlay');
         }
@@ -1423,6 +1481,11 @@
 
         // Family member modal
         document.getElementById('btn-add-member').addEventListener('click', openAddMemberModal);
+
+        document.getElementById('member-color-swatches').addEventListener('click', (e) => {
+            const swatch = e.target.closest('.color-swatch');
+            if (swatch) selectMemberColor(swatch.dataset.color);
+        });
         document.getElementById('btn-cancel-member').addEventListener('click', closeMemberModal);
 
         document.getElementById('member-modal-overlay').addEventListener('click', (e) => {
@@ -1437,6 +1500,7 @@
 
             const data = {
                 name: document.getElementById('member-name').value,
+                color: selectedMemberColor(),
                 pushover_user_key: document.getElementById('member-pushover-key').value.trim() || null,
                 pushover_device: document.getElementById('member-pushover-device').value.trim() || null,
                 notifications: collectMemberNotifications()

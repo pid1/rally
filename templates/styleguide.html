@@ -65,6 +65,20 @@
         </section>
 
         <section>
+            <div class="card-header">Member colors</div>
+            <p class="page-note">
+                The closed palette behind family member identity, ordered darkest first.
+                Five entries, because that is how many fit between "dark enough to read as
+                black at 8px" and 3:1 on the sunken surface while staying at least 1.24&times;
+                apart in luminance. The second row is the same palette with color removed:
+                monochrome e-ink is the display this spacing exists for, and five distinct
+                grays there is the property that matters.
+            </p>
+            <div id="sg-member-colors"></div>
+            <div id="sg-member-colors-gray" style="filter:grayscale(1);"></div>
+        </section>
+
+        <section>
             <div class="card-header">Headings</div>
             <h2>Page title — h2</h2>
             <h3>Section and modal title — h3</h3>
@@ -508,6 +522,29 @@
                     </div>
                 </div>`;
             });
+
+        const memberPalette = [
+            {% for entry in member_palette %}
+            { token: '{{ entry.token }}', label: '{{ entry.label }}' }{{ "," if not loop.last }}
+            {% endfor %}
+        ];
+
+        // Same discipline as the scales above: the value is read back out of
+        // the cascade, so this page cannot show a palette the stylesheet has
+        // stopped declaring.
+        function memberSwatch(entry) {
+            const value = root.getPropertyValue(entry.token).trim();
+            return `<div class="editable-item">
+                <div style="width:2.75rem;align-self:stretch;background:${value};border:1px solid var(--rule);"></div>
+                <div class="editable-item-content">
+                    <div class="editable-item-title">${entry.label}</div>
+                    <div class="editable-item-description">${entry.token} &middot; ${value}</div>
+                </div>
+            </div>`;
+        }
+
+        swatchRows('sg-member-colors', memberPalette, memberSwatch);
+        swatchRows('sg-member-colors-gray', memberPalette, memberSwatch);
 
         function toggleOtherDropdown(e) {
             e.stopPropagation();

@@ -162,9 +162,28 @@ Raw greys stay as private primitives; everything else references a role. Every t
 --inverse: #ffffff;      /* text on --ink                */
 
 --target-min: 2.25rem;   /* 2.75rem under (pointer: coarse) and below 768px */
+
+/* family member identity — the only color on a calendar page */
+--member-ink-blue: #315277;  --member-crimson: #af2c3d;  --member-violet: #8859b1;
+--member-forest: #3b8c61;    --member-amber: #a38b43;
 ```
 
-The one substantive colour change: `--ink-subtle` (#767676) replaced `--light-gray` (#999999) everywhere it carried text, clearing WCAG AA at 4.54:1. #999 no longer exists.
+The member palette is the second place the system leaves grayscale, and the
+only one a family sees every day. It is a **closed** set of five, validated in
+`rally.member_colors` and asserted against these tokens by
+`tests/test_member_colors.py`, because its value is a guarantee rather than a
+selection: any two members are distinguishable on any display Rally runs on.
+
+Five is what the constraints allow, not a preference. Ordered darkest first,
+adjacent entries sit **at least 1.24x apart in relative luminance** — that
+spacing, not hue, is what keeps five members apart on a monochrome e-ink panel,
+where color is discarded entirely. Six entries compress it to 1.20x and eight
+to 1.15x. Every entry clears 3:1 on both `--surface` and `--surface-sunken`
+(WCAG 1.4.11: a dot is a UI component, not text), and hues sit at least 53
+degrees apart near primaries a color e-ink panel reproduces — a layer such a
+display adds on top of a set that already works without it.
+
+The one substantive color change: `--ink-subtle` (#767676) replaced `--light-gray` (#999999) everywhere it carried text, clearing WCAG AA at 4.54:1. #999 no longer exists.
 
 Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated uppercase sizes collapsed to three related ones (C6): `.shopping-group-name` at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
 

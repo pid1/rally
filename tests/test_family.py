@@ -1,19 +1,48 @@
 """Tests for the family members router — CRUD, ordering, and notifications."""
 
+from rally import member_colors
 from rally.models import FamilyMember, MemberNotificationPref
 from rally.notification_prefs import EVENT_CHANGE, SHOPPING_ADDED, defaults
 
 
-def test_create_defaults_color(client):
+def test_create_assigns_first_unused_palette_color(client):
     body = client.post("/api/family", json={"name": "Dad"}).json()
     assert body["name"] == "Dad"
-    assert body["color"] == "#333333"
+    assert body["color"] == member_colors.PALETTE[0].value
     assert body["id"] > 0
 
 
-def test_create_with_color(client):
-    body = client.post("/api/family", json={"name": "Mom", "color": "#ff0000"}).json()
-    assert body["color"] == "#ff0000"
+def test_create_walks_the_palette_rather_than_repeating(client):
+    """Nobody should have to think about color to end up with distinct dots."""
+    for name in ("A", "B", "C"):
+        client.post("/api/family", json={"name": name})
+
+    colors = [m["color"] for m in client.get("/api/family").json()]
+
+    assert colors == list(member_colors.MEMBER_COLORS[:3])
+    assert len(set(colors)) == 3
+
+
+def test_create_cycles_once_the_palette_is_exhausted(client):
+    for name in "ABCDEF":
+        client.post("/api/family", json={"name": name})
+
+    colors = [m["color"] for m in client.get("/api/family").json()]
+
+    assert len(colors) == 6
+    assert colors[5] == member_colors.PALETTE[0].value
+
+
+def test_create_with_explicit_palette_color(client):
+    chosen = member_colors.PALETTE[2].value
+    body = client.post("/api/family", json={"name": "Mom", "color": chosen}).json()
+    assert body["color"] == chosen
+
+
+def test_create_rejects_a_color_outside_the_palette(client):
+    """A format check would let #ffffff through; it is invisible on the page."""
+    for bad in ("#ffffff", "#333333", "not-a-color"):
+        assert client.post("/api/family", json={"name": "Mom", "color": bad}).status_code == 422
 
 
 def test_list_ordered_by_name(client):
@@ -33,14 +62,28 @@ def test_get_found_and_404(client):
 
 
 def test_update_fields(client):
-    member = client.post("/api/family", json={"name": "Dad", "color": "#111111"}).json()
+    first, second = member_colors.PALETTE[0].value, member_colors.PALETTE[1].value
+    member = client.post("/api/family", json={"name": "Dad", "color": first}).json()
 
-    body = client.put(
-        f"/api/family/{member['id']}", json={"name": "Daddy", "color": "#222222"}
-    ).json()
+    body = client.put(f"/api/family/{member['id']}", json={"name": "Daddy", "color": second}).json()
 
     assert body["name"] == "Daddy"
-    assert body["color"] == "#222222"
+    assert body["color"] == second
+
+
+def test_update_rejects_a_color_outside_the_palette(client):
+    member = client.post("/api/family", json={"name": "Dad"}).json()
+
+    assert client.put(f"/api/family/{member['id']}", json={"color": "#ffffff"}).status_code == 422
+
+
+def test_update_without_color_leaves_it_alone(client):
+    """Editing a Pushover key must never disturb a member's identity color."""
+    member = client.post("/api/family", json={"name": "Dad"}).json()
+
+    body = client.put(f"/api/family/{member['id']}", json={"name": "Daddy"}).json()
+
+    assert body["color"] == member["color"]
 
 
 def test_update_404(client):
