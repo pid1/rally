@@ -1,267 +1,382 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally - Preparedness</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Preparedness</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Preparedness</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn active" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness" class="active">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button
+          class="nav-dropdown-btn active"
+          onclick="toggleOtherDropdown(event)"
+        >
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness" class="active">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Inventory</h2>
-                <div class="page-header-actions">
-                    <button class="btn btn--secondary" id="btn-review" style="display:none">Review</button>
-                    <button class="btn" id="btn-add-item">Add Item</button>
-                </div>
-            </div>
-            <div class="page-header-meta">
-                <a class="link-quiet" href="/go-list">View go list</a>
-                <!-- Location management is navigation, not a filter. It sits in
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Inventory</h2>
+          <div class="page-header-actions">
+            <button
+              class="btn btn--secondary"
+              id="btn-review"
+              style="display: none"
+            >
+              Review
+            </button>
+            <button class="btn" id="btn-add-item">Add Item</button>
+          </div>
+        </div>
+        <div class="page-header-meta">
+          <a class="link-quiet" href="/go-list">View go list</a>
+          <!-- Location management is navigation, not a filter. It sits in
                      the Location toolbar group beside the chips it manages,
                      exactly as `Manage stores` does on /shopping. -->
-                <button type="button" class="btn btn--quiet" id="btn-manage-locations">Manage locations</button>
-            </div>
-        </header>
-
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="location-label">Location</span>
-                <div class="filter-chips" id="filter-location-chips" role="group" aria-labelledby="location-label"></div>
-            </div>
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="status-label">Status</span>
-                <div class="filter-chips" id="filter-status-chips" role="group" aria-labelledby="status-label">
-                    <button type="button" class="filter-chip" data-status="overdue">Overdue</button>
-                    <button type="button" class="filter-chip" data-status="due">Due soon</button>
-                    <button type="button" class="filter-chip" data-status="ok">OK</button>
-                </div>
-            </div>
-            <div class="toolbar-search">
-                <label class="toolbar-label" for="search-input">Search</label>
-                <div class="toolbar-search-controls">
-                    <input type="text" id="search-input" class="search-input"
-                           placeholder="Name or notes" autocomplete="off">
-                </div>
-            </div>
-            <div class="toolbar-reset">
-                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
-            </div>
+          <button
+            type="button"
+            class="btn btn--quiet"
+            id="btn-manage-locations"
+          >
+            Manage locations
+          </button>
         </div>
+      </header>
 
-        <div id="review-panel"></div>
-
-        <div id="groups-container">
-            <div class="container-loading-state">Loading inventory…</div>
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="location-label">Location</span>
+          <div
+            class="filter-chips"
+            id="filter-location-chips"
+            role="group"
+            aria-labelledby="location-label"
+          ></div>
         </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="status-label">Status</span>
+          <div
+            class="filter-chips"
+            id="filter-status-chips"
+            role="group"
+            aria-labelledby="status-label"
+          >
+            <button type="button" class="filter-chip" data-status="overdue">
+              Overdue
+            </button>
+            <button type="button" class="filter-chip" data-status="due">
+              Due soon
+            </button>
+            <button type="button" class="filter-chip" data-status="ok">
+              OK
+            </button>
+          </div>
+        </div>
+        <div class="toolbar-search">
+          <label class="toolbar-label" for="search-input">Search</label>
+          <div class="toolbar-search-controls">
+            <input
+              type="text"
+              id="search-input"
+              class="search-input"
+              placeholder="Name or notes"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+        <div class="toolbar-reset">
+          <button type="button" class="btn btn--quiet" id="filter-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      <div id="review-panel"></div>
+
+      <div id="groups-container">
+        <div class="container-loading-state">Loading inventory…</div>
+      </div>
     </div>
 
     <!-- Add/edit item. One modal, two modes, following todo.html exactly. -->
     <div class="modal-overlay" id="item-modal-overlay">
-        <div class="modal-content">
-            <h3 id="item-modal-title">Add Item</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
-                <form id="item-form" autocomplete="off">
-                    <div class="form-group">
-                        <label for="item-name">Name</label>
-                        <input type="text" id="item-name" placeholder="What is it?" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="item-quantity">Quantity</label>
-                        <input type="text" id="item-quantity" placeholder="e.g. 3 cases">
-                        <small>Free text — whatever reads right on a shelf.</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="item-location">Location</label>
-                        <select id="item-location">
-                            <option value="">Unassigned</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="item-notes">Notes</label>
-                        <textarea id="item-notes" rows="3" placeholder="Anything worth remembering"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="item-mode">Refresh schedule</label>
-                        <select id="item-mode">
-                            <option value="none">No refresh schedule</option>
-                            <option value="date">On a specific date</option>
-                            <option value="interval">Every N months</option>
-                        </select>
-                    </div>
-                    <div class="form-group" id="group-date" style="display:none">
-                        <label for="item-date">Refresh on</label>
-                        <input type="date" id="item-date">
-                    </div>
-                    <div class="form-group" id="group-interval" style="display:none">
-                        <label for="item-interval">Every (months)</label>
-                        <input type="number" id="item-interval" min="1" step="1" value="6">
-                    </div>
-                    <div class="form-group" id="group-interval-date" style="display:none">
-                        <label for="item-interval-start">Next refresh on</label>
-                        <input type="date" id="item-interval-start">
-                        <small>Leave blank and the first refresh is scheduled that many months from today.</small>
-                    </div>
-                    <div class="form-group" id="group-remind" style="display:none">
-                        <label for="item-remind">Remind this many days early</label>
-                        <input type="number" id="item-remind" min="0" step="1" placeholder="14">
-                        <small>Blank uses the household default from Settings. 0 means the day itself.</small>
-                    </div>
-                </form>
-                <div class="modal-actions">
-                    <button type="submit" form="item-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
-                </div>
+      <div class="modal-content">
+        <h3 id="item-modal-title">Add Item</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
+            <form id="item-form" autocomplete="off">
+              <div class="form-group">
+                <label for="item-name">Name</label>
+                <input
+                  type="text"
+                  id="item-name"
+                  placeholder="What is it?"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="item-quantity">Quantity</label>
+                <input
+                  type="text"
+                  id="item-quantity"
+                  placeholder="e.g. 3 cases"
+                />
+                <small>Free text — whatever reads right on a shelf.</small>
+              </div>
+              <div class="form-group">
+                <label for="item-location">Location</label>
+                <select id="item-location">
+                  <option value="">Unassigned</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="item-notes">Notes</label>
+                <textarea
+                  id="item-notes"
+                  rows="3"
+                  placeholder="Anything worth remembering"
+                ></textarea>
+              </div>
+              <div class="form-group">
+                <label for="item-mode">Refresh schedule</label>
+                <select id="item-mode">
+                  <option value="none">No refresh schedule</option>
+                  <option value="date">On a specific date</option>
+                  <option value="interval">Every N months</option>
+                </select>
+              </div>
+              <div class="form-group" id="group-date" style="display: none">
+                <label for="item-date">Refresh on</label>
+                <input type="date" id="item-date" />
+              </div>
+              <div class="form-group" id="group-interval" style="display: none">
+                <label for="item-interval">Every (months)</label>
+                <input
+                  type="number"
+                  id="item-interval"
+                  min="1"
+                  step="1"
+                  value="6"
+                />
+              </div>
+              <div
+                class="form-group"
+                id="group-interval-date"
+                style="display: none"
+              >
+                <label for="item-interval-start">Next refresh on</label>
+                <input type="date" id="item-interval-start" />
+                <small
+                  >Leave blank and the first refresh is scheduled that many
+                  months from today.</small
+                >
+              </div>
+              <div class="form-group" id="group-remind" style="display: none">
+                <label for="item-remind">Remind this many days early</label>
+                <input
+                  type="number"
+                  id="item-remind"
+                  min="0"
+                  step="1"
+                  placeholder="14"
+                />
+                <small
+                  >Blank uses the household default from Settings. 0 means the
+                  day itself.</small
+                >
+              </div>
+            </form>
+            <div class="modal-actions">
+              <button type="submit" form="item-form" class="btn">Save</button>
+              <button
+                type="button"
+                class="btn btn--secondary"
+                id="btn-cancel-item"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn btn--secondary modal-delete"
+                id="btn-delete-item"
+                style="display: none"
+              >
+                Delete
+              </button>
             </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Manage locations -->
     <div class="modal-overlay" id="location-modal-overlay">
-        <div class="modal-content">
-            <h3>Manage Locations</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
-                <form id="location-add-form" class="form-group">
-                    <label for="location-add-name">Add a location</label>
-                    <div class="store-manage-row">
-                        <input type="text" id="location-add-name" placeholder="Location name" required>
-                        <button type="submit" class="btn btn--sm">Add</button>
-                    </div>
-                    <small>Locations are listed in the order you walk them, not alphabetically.</small>
-                </form>
-                <div id="location-manage-list"></div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn--secondary" id="btn-close-locations">Done</button>
-                </div>
+      <div class="modal-content">
+        <h3>Manage Locations</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
+            <form id="location-add-form" class="form-group">
+              <label for="location-add-name">Add a location</label>
+              <div class="store-manage-row">
+                <input
+                  type="text"
+                  id="location-add-name"
+                  placeholder="Location name"
+                  required
+                />
+                <button type="submit" class="btn btn--sm">Add</button>
+              </div>
+              <small
+                >Locations are listed in the order you walk them, not
+                alphabetically.</small
+              >
+            </form>
+            <div id="location-manage-list"></div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn--secondary"
+                id="btn-close-locations"
+              >
+                Done
+              </button>
             </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <script src="/static/modal.js?v={{ css_version }}"></script>
     <script>
-        // ── State ──
-        let items = [];
-        let locations = [];
-        let selectedLocations = new Set();   // chip values: location ids as strings, or 'unassigned'
-        let selectedStatus = null;
-        let editingItemId = null;
-        let searchTerm = '';
+      // ── State ──
+      let items = [];
+      let locations = [];
+      let selectedLocations = new Set(); // chip values: location ids as strings, or 'unassigned'
+      let selectedStatus = null;
+      let editingItemId = null;
+      let searchTerm = "";
 
-        const UNASSIGNED = 'unassigned';
-        const REFRESH_MS = 60000;   // multi-device sync + the local-midnight rollover
+      const UNASSIGNED = "unassigned";
+      const REFRESH_MS = 60000; // multi-device sync + the local-midnight rollover
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : text;
-            return div.innerHTML;
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text == null ? "" : text;
+        return div.innerHTML;
+      }
+
+      // textContent → innerHTML leaves quotes alone, which is fine in a text
+      // node but would break out of a quoted attribute.
+      function escapeAttr(text) {
+        return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+
+      // ── API ──
+      function itemsQuery() {
+        const p = new URLSearchParams();
+        selectedLocations.forEach((v) => p.append("location", v));
+        if (selectedStatus) p.set("status", selectedStatus);
+        if (searchTerm) p.set("search", searchTerm);
+        p.set("sort", "location");
+        return p.toString();
+      }
+
+      async function fetchLocations() {
+        const r = await fetch("/api/preparedness/locations");
+        locations = r.ok ? await r.json() : [];
+      }
+
+      async function fetchItems() {
+        const r = await fetch("/api/preparedness/items?" + itemsQuery());
+        items = r.ok ? await r.json() : [];
+      }
+
+      async function saveItem(data) {
+        const url = editingItemId
+          ? `/api/preparedness/items/${editingItemId}`
+          : "/api/preparedness/items";
+        const r = await fetch(url, {
+          method: editingItemId ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(body.detail || "Could not save this item.");
         }
+        return r.json();
+      }
 
-        // textContent → innerHTML leaves quotes alone, which is fine in a text
-        // node but would break out of a quoted attribute.
-        function escapeAttr(text) {
-            return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        }
+      async function markRefreshed(id) {
+        await fetch(`/api/preparedness/items/${id}/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        await load();
+      }
 
-        // ── API ──
-        function itemsQuery() {
-            const p = new URLSearchParams();
-            selectedLocations.forEach(v => p.append('location', v));
-            if (selectedStatus) p.set('status', selectedStatus);
-            if (searchTerm) p.set('search', searchTerm);
-            p.set('sort', 'location');
-            return p.toString();
-        }
+      // ── Rendering ──
+      function statusPill(item) {
+        if (item.status === "overdue")
+          return '<span class="pill pill--overdue">Overdue</span>';
+        if (item.status === "due")
+          return '<span class="pill pill--due">Due soon</span>';
+        if (item.next_refresh_date)
+          return '<span class="pill pill--ok">OK</span>';
+        return "";
+      }
 
-        async function fetchLocations() {
-            const r = await fetch('/api/preparedness/locations');
-            locations = r.ok ? await r.json() : [];
-        }
+      function scheduleText(item) {
+        if (!item.next_refresh_date) return "No refresh scheduled";
+        const d = item.next_refresh_date;
+        if (item.status === "overdue") return `Overdue since ${d}`;
+        if (item.days_until === 0) return `Refresh today (${d})`;
+        if (item.days_until === 1) return `Refresh tomorrow (${d})`;
+        return `Refresh ${d} · ${item.days_until} days`;
+      }
 
-        async function fetchItems() {
-            const r = await fetch('/api/preparedness/items?' + itemsQuery());
-            items = r.ok ? await r.json() : [];
-        }
-
-        async function saveItem(data) {
-            const url = editingItemId
-                ? `/api/preparedness/items/${editingItemId}`
-                : '/api/preparedness/items';
-            const r = await fetch(url, {
-                method: editingItemId ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-            if (!r.ok) {
-                const body = await r.json().catch(() => ({}));
-                throw new Error(body.detail || 'Could not save this item.');
-            }
-            return r.json();
-        }
-
-        async function markRefreshed(id) {
-            await fetch(`/api/preparedness/items/${id}/refresh`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
-            });
-            await load();
-        }
-
-        // ── Rendering ──
-        function statusPill(item) {
-            if (item.status === 'overdue') return '<span class="pill pill--overdue">Overdue</span>';
-            if (item.status === 'due') return '<span class="pill pill--due">Due soon</span>';
-            if (item.next_refresh_date) return '<span class="pill pill--ok">OK</span>';
-            return '';
-        }
-
-        function scheduleText(item) {
-            if (!item.next_refresh_date) return 'No refresh scheduled';
-            const d = item.next_refresh_date;
-            if (item.status === 'overdue') return `Overdue since ${d}`;
-            if (item.days_until === 0) return `Refresh today (${d})`;
-            if (item.days_until === 1) return `Refresh tomorrow (${d})`;
-            return `Refresh ${d} · ${item.days_until} days`;
-        }
-
-        function renderRow(item) {
-            const overdue = item.status === 'overdue' ? ' prep-row--overdue' : '';
-            const qty = item.quantity ? `<span class="prep-qty"> — ${escapeHtml(item.quantity)}</span>` : '';
-            const notes = item.notes ? `<div class="prep-notes">${escapeHtml(item.notes)}</div>` : '';
-            const refreshBtn = item.next_refresh_date
-                ? `<button type="button" class="btn btn--quiet btn--sm" data-refresh="${item.id}">Refreshed</button>`
-                : '';
-            return `
+      function renderRow(item) {
+        const overdue = item.status === "overdue" ? " prep-row--overdue" : "";
+        const qty = item.quantity
+          ? `<span class="prep-qty"> — ${escapeHtml(item.quantity)}</span>`
+          : "";
+        const notes = item.notes
+          ? `<div class="prep-notes">${escapeHtml(item.notes)}</div>`
+          : "";
+        const refreshBtn = item.next_refresh_date
+          ? `<button type="button" class="btn btn--quiet btn--sm" data-refresh="${item.id}">Refreshed</button>`
+          : "";
+        return `
                 <div class="prep-row${overdue}">
                     <div class="prep-main">
                         <div class="prep-name">${escapeHtml(item.name)}${qty}</div>
@@ -276,397 +391,510 @@
                         <button type="button" class="btn btn--quiet btn--sm" data-edit="${item.id}">Edit</button>
                     </div>
                 </div>`;
+      }
+
+      function filtersActive() {
+        return (
+          selectedLocations.size > 0 ||
+          selectedStatus !== null ||
+          searchTerm !== ""
+        );
+      }
+
+      function renderGroups() {
+        const container = document.getElementById("groups-container");
+        if (!items.length) {
+          // An empty inventory and an over-filtered one are different
+          // problems with different fixes. Telling somebody on a fresh
+          // install that nothing matches their filters — when they have
+          // set none — sends them looking for a filter to clear.
+          const message = filtersActive()
+            ? "Nothing matches these filters."
+            : "No items yet. Add your first one to start tracking what you have.";
+          container.innerHTML = `<div class="container-empty-state">${message}</div>`;
+          return;
         }
 
-        function filtersActive() {
-            return selectedLocations.size > 0 || selectedStatus !== null || searchTerm !== '';
-        }
+        const byLocation = new Map();
+        items.forEach((i) => {
+          const key =
+            i.location_id === null ? UNASSIGNED : String(i.location_id);
+          if (!byLocation.has(key)) byLocation.set(key, []);
+          byLocation.get(key).push(i);
+        });
 
-        function renderGroups() {
-            const container = document.getElementById('groups-container');
-            if (!items.length) {
-                // An empty inventory and an over-filtered one are different
-                // problems with different fixes. Telling somebody on a fresh
-                // install that nothing matches their filters — when they have
-                // set none — sends them looking for a filter to clear.
-                const message = filtersActive()
-                    ? 'Nothing matches these filters.'
-                    : 'No items yet. Add your first one to start tracking what you have.';
-                container.innerHTML = `<div class="container-empty-state">${message}</div>`;
-                return;
-            }
+        // Locations in walking order, the catch-all last.
+        const order = locations.map((l) => String(l.id));
+        order.push(UNASSIGNED);
 
-            const byLocation = new Map();
-            items.forEach(i => {
-                const key = i.location_id === null ? UNASSIGNED : String(i.location_id);
-                if (!byLocation.has(key)) byLocation.set(key, []);
-                byLocation.get(key).push(i);
-            });
-
-            // Locations in walking order, the catch-all last.
-            const order = locations.map(l => String(l.id));
-            order.push(UNASSIGNED);
-
-            let html = '';
-            order.forEach(key => {
-                const rows = byLocation.get(key);
-                if (!rows || !rows.length) return;
-                const name = key === UNASSIGNED
-                    ? 'Unassigned'
-                    : (locations.find(l => String(l.id) === key) || {}).name || 'Unassigned';
-                const attention = rows.filter(r => r.status !== 'ok').length;
-                const flag = attention ? ` · ${attention} need attention` : '';
-                html += `
+        let html = "";
+        order.forEach((key) => {
+          const rows = byLocation.get(key);
+          if (!rows || !rows.length) return;
+          const name =
+            key === UNASSIGNED
+              ? "Unassigned"
+              : (locations.find((l) => String(l.id) === key) || {}).name ||
+                "Unassigned";
+          const attention = rows.filter((r) => r.status !== "ok").length;
+          const flag = attention ? ` · ${attention} need attention` : "";
+          html += `
                     <div class="prep-group">
                         <div class="prep-group-header">
                             <h3>${escapeHtml(name)}</h3>
-                            <span class="prep-group-count">${rows.length} item${rows.length === 1 ? '' : 's'}${flag}</span>
+                            <span class="prep-group-count">${rows.length} item${rows.length === 1 ? "" : "s"}${flag}</span>
                         </div>
-                        ${rows.map(renderRow).join('')}
+                        ${rows.map(renderRow).join("")}
                     </div>`;
-            });
-            container.innerHTML = html;
+        });
+        container.innerHTML = html;
+      }
+
+      function renderLocationChips() {
+        // A location earns a chip when it has an item in the current fetch,
+        // or when it is currently selected — the second clause prevents a
+        // filter that cannot be seen or undone. Same rule as the store
+        // chips on /shopping; there is no "All" chip because no selection
+        // is already the unfiltered state.
+        const present = new Set(
+          items.map((i) =>
+            i.location_id === null ? UNASSIGNED : String(i.location_id),
+          ),
+        );
+        selectedLocations.forEach((v) => present.add(v));
+
+        let html = "";
+        locations.forEach((l) => {
+          const key = String(l.id);
+          if (!present.has(key)) return;
+          const on = selectedLocations.has(key) ? " active" : "";
+          html += `<button type="button" class="filter-chip${on}" data-location="${key}">${escapeHtml(l.name)}</button>`;
+        });
+        if (present.has(UNASSIGNED)) {
+          const on = selectedLocations.has(UNASSIGNED) ? " active" : "";
+          html += `<button type="button" class="filter-chip${on}" data-location="${UNASSIGNED}">Unassigned</button>`;
         }
+        document.getElementById("filter-location-chips").innerHTML = html;
+      }
 
-        function renderLocationChips() {
-            // A location earns a chip when it has an item in the current fetch,
-            // or when it is currently selected — the second clause prevents a
-            // filter that cannot be seen or undone. Same rule as the store
-            // chips on /shopping; there is no "All" chip because no selection
-            // is already the unfiltered state.
-            const present = new Set(items.map(i => i.location_id === null ? UNASSIGNED : String(i.location_id)));
-            selectedLocations.forEach(v => present.add(v));
+      function renderStatusChips() {
+        document
+          .querySelectorAll("#filter-status-chips .filter-chip")
+          .forEach((chip) => {
+            chip.classList.toggle(
+              "active",
+              chip.dataset.status === selectedStatus,
+            );
+          });
+      }
 
-            let html = '';
-            locations.forEach(l => {
-                const key = String(l.id);
-                if (!present.has(key)) return;
-                const on = selectedLocations.has(key) ? ' active' : '';
-                html += `<button type="button" class="filter-chip${on}" data-location="${key}">${escapeHtml(l.name)}</button>`;
-            });
-            if (present.has(UNASSIGNED)) {
-                const on = selectedLocations.has(UNASSIGNED) ? ' active' : '';
-                html += `<button type="button" class="filter-chip${on}" data-location="${UNASSIGNED}">Unassigned</button>`;
-            }
-            document.getElementById('filter-location-chips').innerHTML = html;
+      async function load() {
+        await Promise.all([fetchLocations(), fetchItems()]);
+        renderGroups();
+        renderLocationChips();
+        renderStatusChips();
+      }
+
+      // ── Item modal ──
+      function syncModeFields() {
+        const mode = document.getElementById("item-mode").value;
+        document.getElementById("group-date").style.display =
+          mode === "date" ? "" : "none";
+        document.getElementById("group-interval").style.display =
+          mode === "interval" ? "" : "none";
+        document.getElementById("group-interval-date").style.display =
+          mode === "interval" ? "" : "none";
+        document.getElementById("group-remind").style.display =
+          mode === "none" ? "none" : "";
+        const scroll = document.querySelector(
+          "#item-modal-overlay .modal-scroll",
+        );
+        if (scroll && window.updateModalFade) window.updateModalFade(scroll);
+      }
+
+      function fillLocationSelect(selected) {
+        const sel = document.getElementById("item-location");
+        sel.innerHTML =
+          '<option value="">Unassigned</option>' +
+          locations
+            .map(
+              (l) => `<option value="${l.id}">${escapeHtml(l.name)}</option>`,
+            )
+            .join("");
+        sel.value = selected == null ? "" : String(selected);
+      }
+
+      function openAddModal() {
+        editingItemId = null;
+        document.getElementById("item-modal-title").textContent = "Add Item";
+        document.getElementById("item-form").reset();
+        // The location select reads Unassigned on every open, ignoring the
+        // active chips — matching openAddModal() on /todo and /shopping.
+        fillLocationSelect(null);
+        document.getElementById("item-mode").value = "none";
+        document.getElementById("item-interval").value = "6";
+        document.getElementById("btn-delete-item").style.display = "none";
+        syncModeFields();
+        showModalOverlay("item-modal-overlay");
+      }
+
+      function openEditModal(item) {
+        editingItemId = item.id;
+        document.getElementById("item-modal-title").textContent = "Edit Item";
+        document.getElementById("item-name").value = item.name;
+        document.getElementById("item-quantity").value = item.quantity || "";
+        document.getElementById("item-notes").value = item.notes || "";
+        fillLocationSelect(item.location_id);
+        document.getElementById("item-mode").value = item.refresh_mode;
+        document.getElementById("item-date").value =
+          item.refresh_mode === "date" ? item.next_refresh_date || "" : "";
+        document.getElementById("item-interval").value =
+          item.refresh_interval_months || 6;
+        document.getElementById("item-interval-start").value =
+          item.refresh_mode === "interval" ? item.next_refresh_date || "" : "";
+        document.getElementById("item-remind").value =
+          item.remind_days_before == null ? "" : item.remind_days_before;
+        document.getElementById("btn-delete-item").style.display = "";
+        syncModeFields();
+        showModalOverlay("item-modal-overlay");
+      }
+
+      function readModal() {
+        const mode = document.getElementById("item-mode").value;
+        const remindRaw = document.getElementById("item-remind").value.trim();
+        const data = {
+          name: document.getElementById("item-name").value.trim(),
+          quantity:
+            document.getElementById("item-quantity").value.trim() || null,
+          notes: document.getElementById("item-notes").value.trim() || null,
+          location_id: document.getElementById("item-location").value
+            ? parseInt(document.getElementById("item-location").value, 10)
+            : null,
+          refresh_mode: mode,
+          refresh_interval_months: null,
+          next_refresh_date: null,
+          remind_days_before:
+            mode === "none" || remindRaw === ""
+              ? null
+              : parseInt(remindRaw, 10),
+        };
+        if (mode === "date") {
+          data.next_refresh_date =
+            document.getElementById("item-date").value || null;
+        } else if (mode === "interval") {
+          data.refresh_interval_months =
+            parseInt(document.getElementById("item-interval").value, 10) || 1;
+          data.next_refresh_date =
+            document.getElementById("item-interval-start").value || null;
         }
+        return data;
+      }
 
-        function renderStatusChips() {
-            document.querySelectorAll('#filter-status-chips .filter-chip').forEach(chip => {
-                chip.classList.toggle('active', chip.dataset.status === selectedStatus);
-            });
-        }
-
-        async function load() {
-            await Promise.all([fetchLocations(), fetchItems()]);
-            renderGroups();
-            renderLocationChips();
-            renderStatusChips();
-        }
-
-        // ── Item modal ──
-        function syncModeFields() {
-            const mode = document.getElementById('item-mode').value;
-            document.getElementById('group-date').style.display = mode === 'date' ? '' : 'none';
-            document.getElementById('group-interval').style.display = mode === 'interval' ? '' : 'none';
-            document.getElementById('group-interval-date').style.display = mode === 'interval' ? '' : 'none';
-            document.getElementById('group-remind').style.display = mode === 'none' ? 'none' : '';
-            const scroll = document.querySelector('#item-modal-overlay .modal-scroll');
-            if (scroll && window.updateModalFade) window.updateModalFade(scroll);
-        }
-
-        function fillLocationSelect(selected) {
-            const sel = document.getElementById('item-location');
-            sel.innerHTML = '<option value="">Unassigned</option>' +
-                locations.map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`).join('');
-            sel.value = selected == null ? '' : String(selected);
-        }
-
-        function openAddModal() {
-            editingItemId = null;
-            document.getElementById('item-modal-title').textContent = 'Add Item';
-            document.getElementById('item-form').reset();
-            // The location select reads Unassigned on every open, ignoring the
-            // active chips — matching openAddModal() on /todo and /shopping.
-            fillLocationSelect(null);
-            document.getElementById('item-mode').value = 'none';
-            document.getElementById('item-interval').value = '6';
-            document.getElementById('btn-delete-item').style.display = 'none';
-            syncModeFields();
-            showModalOverlay('item-modal-overlay');
-        }
-
-        function openEditModal(item) {
-            editingItemId = item.id;
-            document.getElementById('item-modal-title').textContent = 'Edit Item';
-            document.getElementById('item-name').value = item.name;
-            document.getElementById('item-quantity').value = item.quantity || '';
-            document.getElementById('item-notes').value = item.notes || '';
-            fillLocationSelect(item.location_id);
-            document.getElementById('item-mode').value = item.refresh_mode;
-            document.getElementById('item-date').value =
-                item.refresh_mode === 'date' ? (item.next_refresh_date || '') : '';
-            document.getElementById('item-interval').value = item.refresh_interval_months || 6;
-            document.getElementById('item-interval-start').value =
-                item.refresh_mode === 'interval' ? (item.next_refresh_date || '') : '';
-            document.getElementById('item-remind').value =
-                item.remind_days_before == null ? '' : item.remind_days_before;
-            document.getElementById('btn-delete-item').style.display = '';
-            syncModeFields();
-            showModalOverlay('item-modal-overlay');
-        }
-
-        function readModal() {
-            const mode = document.getElementById('item-mode').value;
-            const remindRaw = document.getElementById('item-remind').value.trim();
-            const data = {
-                name: document.getElementById('item-name').value.trim(),
-                quantity: document.getElementById('item-quantity').value.trim() || null,
-                notes: document.getElementById('item-notes').value.trim() || null,
-                location_id: document.getElementById('item-location').value
-                    ? parseInt(document.getElementById('item-location').value, 10)
-                    : null,
-                refresh_mode: mode,
-                refresh_interval_months: null,
-                next_refresh_date: null,
-                remind_days_before: mode === 'none' || remindRaw === '' ? null : parseInt(remindRaw, 10),
-            };
-            if (mode === 'date') {
-                data.next_refresh_date = document.getElementById('item-date').value || null;
-            } else if (mode === 'interval') {
-                data.refresh_interval_months = parseInt(document.getElementById('item-interval').value, 10) || 1;
-                data.next_refresh_date = document.getElementById('item-interval-start').value || null;
-            }
-            return data;
-        }
-
-        // ── Location modal ──
-        function renderLocationManageList() {
-            const html = locations.map(l => `
+      // ── Location modal ──
+      function renderLocationManageList() {
+        const html = locations
+          .map(
+            (l) => `
                 <div class="prep-row">
                     <div class="prep-main"><div class="prep-name">${escapeHtml(l.name)}</div></div>
                     <div class="prep-actions">
                         <button type="button" class="btn btn--quiet btn--sm" data-rename="${l.id}" data-name="${escapeAttr(l.name)}">Rename</button>
                         <button type="button" class="btn btn--quiet btn--sm" data-remove="${l.id}">Delete</button>
                     </div>
-                </div>`).join('');
-            document.getElementById('location-manage-list').innerHTML =
-                html || '<div class="container-empty-state">No locations yet.</div>';
-        }
+                </div>`,
+          )
+          .join("");
+        document.getElementById("location-manage-list").innerHTML =
+          html || '<div class="container-empty-state">No locations yet.</div>';
+      }
 
-        // ── Wiring ──
-        document.getElementById('btn-add-item').addEventListener('click', openAddModal);
-        document.getElementById('btn-cancel-item').addEventListener('click', () => hideModalOverlay('item-modal-overlay'));
-        document.getElementById('item-mode').addEventListener('change', syncModeFields);
+      // ── Wiring ──
+      document
+        .getElementById("btn-add-item")
+        .addEventListener("click", openAddModal);
+      document
+        .getElementById("btn-cancel-item")
+        .addEventListener("click", () =>
+          hideModalOverlay("item-modal-overlay"),
+        );
+      document
+        .getElementById("item-mode")
+        .addEventListener("change", syncModeFields);
 
-        document.getElementById('item-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = readModal();
-            if (!data.name) return;
-            try {
-                await saveItem(data);
-                hideModalOverlay('item-modal-overlay');
-                await load();
-            } catch (err) {
-                alert(err.message);
+      document
+        .getElementById("item-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const data = readModal();
+          if (!data.name) return;
+          try {
+            await saveItem(data);
+            hideModalOverlay("item-modal-overlay");
+            await load();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+
+      document
+        .getElementById("btn-delete-item")
+        .addEventListener("click", async () => {
+          if (!editingItemId) return;
+          if (!confirm("Delete this item?")) return;
+          await fetch(`/api/preparedness/items/${editingItemId}`, {
+            method: "DELETE",
+          });
+          hideModalOverlay("item-modal-overlay");
+          await load();
+        });
+
+      document
+        .getElementById("groups-container")
+        .addEventListener("click", async (e) => {
+          const edit = e.target.closest("[data-edit]");
+          if (edit) {
+            const item = items.find(
+              (i) => i.id === parseInt(edit.dataset.edit, 10),
+            );
+            if (item) openEditModal(item);
+            return;
+          }
+          const refresh = e.target.closest("[data-refresh]");
+          if (refresh)
+            await markRefreshed(parseInt(refresh.dataset.refresh, 10));
+        });
+
+      document
+        .getElementById("filter-location-chips")
+        .addEventListener("click", async (e) => {
+          const chip = e.target.closest("[data-location]");
+          if (!chip) return;
+          const key = chip.dataset.location;
+          if (selectedLocations.has(key)) selectedLocations.delete(key);
+          else selectedLocations.add(key);
+          await load();
+        });
+
+      document
+        .getElementById("filter-status-chips")
+        .addEventListener("click", async (e) => {
+          const chip = e.target.closest("[data-status]");
+          if (!chip) return;
+          selectedStatus =
+            selectedStatus === chip.dataset.status ? null : chip.dataset.status;
+          await load();
+        });
+
+      let searchTimer = null;
+      document.getElementById("search-input").addEventListener("input", (e) => {
+        clearTimeout(searchTimer);
+        const value = e.target.value.trim();
+        searchTimer = setTimeout(async () => {
+          searchTerm = value;
+          await load();
+        }, 200);
+      });
+
+      document
+        .getElementById("filter-clear")
+        .addEventListener("click", async () => {
+          selectedLocations.clear();
+          selectedStatus = null;
+          searchTerm = "";
+          document.getElementById("search-input").value = "";
+          await load();
+        });
+
+      document
+        .getElementById("btn-manage-locations")
+        .addEventListener("click", () => {
+          renderLocationManageList();
+          showModalOverlay("location-modal-overlay");
+        });
+      document
+        .getElementById("btn-close-locations")
+        .addEventListener("click", () =>
+          hideModalOverlay("location-modal-overlay"),
+        );
+
+      document
+        .getElementById("location-add-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const input = document.getElementById("location-add-name");
+          const name = input.value.trim();
+          if (!name) return;
+          const r = await fetch("/api/preparedness/locations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, sort_order: locations.length + 1 }),
+          });
+          if (r.status === 409) {
+            alert("A location with that name already exists.");
+            return;
+          }
+          input.value = "";
+          await load();
+          renderLocationManageList();
+        });
+
+      document
+        .getElementById("location-manage-list")
+        .addEventListener("click", async (e) => {
+          const rename = e.target.closest("[data-rename]");
+          if (rename) {
+            const next = prompt("Rename location", rename.dataset.name);
+            if (!next || !next.trim()) return;
+            const r = await fetch(
+              `/api/preparedness/locations/${rename.dataset.rename}`,
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: next.trim() }),
+              },
+            );
+            if (r.status === 409) {
+              alert("A location with that name already exists.");
+              return;
             }
-        });
-
-        document.getElementById('btn-delete-item').addEventListener('click', async () => {
-            if (!editingItemId) return;
-            if (!confirm('Delete this item?')) return;
-            await fetch(`/api/preparedness/items/${editingItemId}`, { method: 'DELETE' });
-            hideModalOverlay('item-modal-overlay');
             await load();
-        });
-
-        document.getElementById('groups-container').addEventListener('click', async (e) => {
-            const edit = e.target.closest('[data-edit]');
-            if (edit) {
-                const item = items.find(i => i.id === parseInt(edit.dataset.edit, 10));
-                if (item) openEditModal(item);
-                return;
-            }
-            const refresh = e.target.closest('[data-refresh]');
-            if (refresh) await markRefreshed(parseInt(refresh.dataset.refresh, 10));
-        });
-
-        document.getElementById('filter-location-chips').addEventListener('click', async (e) => {
-            const chip = e.target.closest('[data-location]');
-            if (!chip) return;
-            const key = chip.dataset.location;
-            if (selectedLocations.has(key)) selectedLocations.delete(key);
-            else selectedLocations.add(key);
-            await load();
-        });
-
-        document.getElementById('filter-status-chips').addEventListener('click', async (e) => {
-            const chip = e.target.closest('[data-status]');
-            if (!chip) return;
-            selectedStatus = selectedStatus === chip.dataset.status ? null : chip.dataset.status;
-            await load();
-        });
-
-        let searchTimer = null;
-        document.getElementById('search-input').addEventListener('input', (e) => {
-            clearTimeout(searchTimer);
-            const value = e.target.value.trim();
-            searchTimer = setTimeout(async () => { searchTerm = value; await load(); }, 200);
-        });
-
-        document.getElementById('filter-clear').addEventListener('click', async () => {
-            selectedLocations.clear();
-            selectedStatus = null;
-            searchTerm = '';
-            document.getElementById('search-input').value = '';
-            await load();
-        });
-
-        document.getElementById('btn-manage-locations').addEventListener('click', () => {
             renderLocationManageList();
-            showModalOverlay('location-modal-overlay');
-        });
-        document.getElementById('btn-close-locations').addEventListener('click', () => hideModalOverlay('location-modal-overlay'));
-
-        document.getElementById('location-add-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('location-add-name');
-            const name = input.value.trim();
-            if (!name) return;
-            const r = await fetch('/api/preparedness/locations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, sort_order: locations.length + 1 }),
-            });
-            if (r.status === 409) { alert('A location with that name already exists.'); return; }
-            input.value = '';
+            return;
+          }
+          const remove = e.target.closest("[data-remove]");
+          if (remove) {
+            if (!confirm("Delete this location? Its items move to Unassigned."))
+              return;
+            await fetch(
+              `/api/preparedness/locations/${remove.dataset.remove}`,
+              { method: "DELETE" },
+            );
             await load();
             renderLocationManageList();
+          }
         });
 
-        document.getElementById('location-manage-list').addEventListener('click', async (e) => {
-            const rename = e.target.closest('[data-rename]');
-            if (rename) {
-                const next = prompt('Rename location', rename.dataset.name);
-                if (!next || !next.trim()) return;
-                const r = await fetch(`/api/preparedness/locations/${rename.dataset.rename}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: next.trim() }),
-                });
-                if (r.status === 409) { alert('A location with that name already exists.'); return; }
-                await load();
-                renderLocationManageList();
-                return;
-            }
-            const remove = e.target.closest('[data-remove]');
-            if (remove) {
-                if (!confirm('Delete this location? Its items move to Unassigned.')) return;
-                await fetch(`/api/preparedness/locations/${remove.dataset.remove}`, { method: 'DELETE' });
-                await load();
-                renderLocationManageList();
-            }
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
         });
+      });
 
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
-        });
+      // ── AI review ──
+      //
+      // Reading is free and never calls the model; only the button does. A
+      // stored review is shown with its date and an explicit staleness note
+      // rather than being silently refreshed, so nobody acts on a review of
+      // an inventory they have since changed.
+      let reviewEnabled = false;
 
-        // ── AI review ──
-        //
-        // Reading is free and never calls the model; only the button does. A
-        // stored review is shown with its date and an explicit staleness note
-        // rather than being silently refreshed, so nobody acts on a review of
-        // an inventory they have since changed.
-        let reviewEnabled = false;
+      function priorityPill(priority) {
+        const tone =
+          priority === "high" ? "overdue" : priority === "low" ? "ok" : "due";
+        return `<span class="pill pill--${tone}">${escapeHtml(priority)}</span>`;
+      }
 
-        function priorityPill(priority) {
-            const tone = priority === 'high' ? 'overdue' : (priority === 'low' ? 'ok' : 'due');
-            return `<span class="pill pill--${tone}">${escapeHtml(priority)}</span>`;
+      function renderReview(payload) {
+        const panel = document.getElementById("review-panel");
+        if (!payload) {
+          panel.innerHTML = "";
+          return;
         }
 
-        function renderReview(payload) {
-            const panel = document.getElementById('review-panel');
-            if (!payload) { panel.innerHTML = ''; return; }
+        const r = payload.review || {};
+        const when = new Date(payload.created_at).toLocaleString();
+        const stale = payload.stale
+          ? `<p class="page-note">Reviewed when you had ${payload.item_count} items; you now have ${payload.current_item_count}. Run it again for an up-to-date answer.</p>`
+          : "";
 
-            const r = payload.review || {};
-            const when = new Date(payload.created_at).toLocaleString();
-            const stale = payload.stale
-                ? `<p class="page-note">Reviewed when you had ${payload.item_count} items; you now have ${payload.current_item_count}. Run it again for an up-to-date answer.</p>`
-                : '';
-
-            const gaps = (r.gaps || []).map(g => `
+        const gaps = (r.gaps || [])
+          .map(
+            (g) => `
                 <div class="prep-row">
                     <div class="prep-main">
                         <div class="prep-name">${escapeHtml(g.item)}</div>
                         <div class="prep-meta">
                             ${priorityPill(g.priority)}
-                            ${g.category ? `<span>${escapeHtml(g.category)}</span>` : ''}
+                            ${g.category ? `<span>${escapeHtml(g.category)}</span>` : ""}
                         </div>
-                        ${g.why ? `<div class="prep-notes">${escapeHtml(g.why)}</div>` : ''}
+                        ${g.why ? `<div class="prep-notes">${escapeHtml(g.why)}</div>` : ""}
                     </div>
-                </div>`).join('');
+                </div>`,
+          )
+          .join("");
 
-            const list = (items, title) => (items && items.length)
-                ? `<div class="prep-notes"><strong>${title}:</strong> ${items.map(escapeHtml).join(' · ')}</div>`
-                : '';
+        const list = (items, title) =>
+          items && items.length
+            ? `<div class="prep-notes"><strong>${title}:</strong> ${items.map(escapeHtml).join(" · ")}</div>`
+            : "";
 
-            panel.innerHTML = `
+        panel.innerHTML = `
                 <div class="prep-group">
                     <div class="prep-group-header">
                         <h3>What might be missing</h3>
-                        <span class="prep-group-count">${(r.gaps || []).length} suggestion${(r.gaps || []).length === 1 ? '' : 's'} · ${when}</span>
+                        <span class="prep-group-count">${(r.gaps || []).length} suggestion${(r.gaps || []).length === 1 ? "" : "s"} · ${when}</span>
                     </div>
                     ${stale}
-                    ${r.assessment ? `<p>${escapeHtml(r.assessment)}</p>` : ''}
+                    ${r.assessment ? `<p>${escapeHtml(r.assessment)}</p>` : ""}
                     ${gaps || '<div class="container-empty-state">No gaps found.</div>'}
-                    ${list(r.strengths, 'Already strong')}
-                    ${list(r.assumptions, 'Assumed')}
-                    ${r.notes ? `<div class="prep-notes">${escapeHtml(r.notes)}</div>` : ''}
+                    ${list(r.strengths, "Already strong")}
+                    ${list(r.assumptions, "Assumed")}
+                    ${r.notes ? `<div class="prep-notes">${escapeHtml(r.notes)}</div>` : ""}
                     <p class="page-note">A second pair of eyes, not an authority — check an official list such as ready.gov for anything that matters.</p>
                 </div>`;
+      }
+
+      async function loadReview() {
+        const settings = await fetch("/api/settings").then((r) =>
+          r.ok ? r.json() : { settings: {} },
+        );
+        const s = settings.settings || {};
+        document.getElementById("item-remind").placeholder =
+          s.prep_default_remind_days || "14";
+        reviewEnabled = s.prep_review_enabled === "true";
+        document.getElementById("btn-review").style.display = reviewEnabled
+          ? ""
+          : "none";
+        if (!reviewEnabled) {
+          renderReview(null);
+          return;
         }
 
-        async function loadReview() {
-            const settings = await fetch('/api/settings').then(r => r.ok ? r.json() : { settings: {} });
-            const s = settings.settings || {};
-            document.getElementById('item-remind').placeholder = s.prep_default_remind_days || '14';
-            reviewEnabled = s.prep_review_enabled === 'true';
-            document.getElementById('btn-review').style.display = reviewEnabled ? '' : 'none';
-            if (!reviewEnabled) { renderReview(null); return; }
+        const r = await fetch("/api/preparedness/review");
+        renderReview(r.ok ? await r.json() : null);
+      }
 
-            const r = await fetch('/api/preparedness/review');
-            renderReview(r.ok ? await r.json() : null);
-        }
-
-        document.getElementById('btn-review').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-review');
-            const panel = document.getElementById('review-panel');
-            btn.disabled = true;
-            panel.innerHTML = '<div class="container-loading-state">Reviewing your inventory…</div>';
-            try {
-                const r = await fetch('/api/preparedness/review', { method: 'POST' });
-                const body = await r.json();
-                if (!r.ok) {
-                    panel.innerHTML = `<div class="container-empty-state">${escapeHtml(body.detail || 'The review failed.')}</div>`;
-                    return;
-                }
-                renderReview(body);
-            } finally {
-                btn.disabled = false;
+      document
+        .getElementById("btn-review")
+        .addEventListener("click", async () => {
+          const btn = document.getElementById("btn-review");
+          const panel = document.getElementById("review-panel");
+          btn.disabled = true;
+          panel.innerHTML =
+            '<div class="container-loading-state">Reviewing your inventory…</div>';
+          try {
+            const r = await fetch("/api/preparedness/review", {
+              method: "POST",
+            });
+            const body = await r.json();
+            if (!r.ok) {
+              panel.innerHTML = `<div class="container-empty-state">${escapeHtml(body.detail || "The review failed.")}</div>`;
+              return;
             }
+            renderReview(body);
+          } finally {
+            btn.disabled = false;
+          }
         });
 
-        load();
-        loadReview();
-        setInterval(load, REFRESH_MS);
+      load();
+      loadReview();
+      setInterval(load, REFRESH_MS);
     </script>
-</body>
+  </body>
 </html>

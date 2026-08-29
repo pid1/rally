@@ -1,334 +1,422 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally - Shopping List</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Shopping List</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Shopping List</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping" class="active">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping" class="active">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Shopping List</h2>
-                <div class="page-header-actions">
-                    <button class="btn" id="btn-add-item">Add Item</button>
-                </div>
-            </div>
-            <div class="page-header-meta">
-                <a class="link-quiet" href="/shopping/purchased">View purchased items</a>
-                <!-- Store management is navigation, not a filter. It sat in the
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Shopping List</h2>
+          <div class="page-header-actions">
+            <button class="btn" id="btn-add-item">Add Item</button>
+          </div>
+        </div>
+        <div class="page-header-meta">
+          <a class="link-quiet" href="/shopping/purchased"
+            >View purchased items</a
+          >
+          <!-- Store management is navigation, not a filter. It sat in the
                      filter bar looking identical to Clear Filters, which resets. -->
-                <button type="button" class="btn btn--quiet" id="btn-manage-stores">Manage stores</button>
-            </div>
-        </header>
-
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="store-label">Store</span>
-                <div class="filter-chips" id="filter-store-chips" role="group" aria-labelledby="store-label"></div>
-            </div>
-            <div class="toolbar-reset">
-                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
-            </div>
+          <button type="button" class="btn btn--quiet" id="btn-manage-stores">
+            Manage stores
+          </button>
         </div>
+      </header>
 
-        <div id="groups-container">
-            <div class="container-loading-state">Loading shopping list…</div>
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="store-label">Store</span>
+          <div
+            class="filter-chips"
+            id="filter-store-chips"
+            role="group"
+            aria-labelledby="store-label"
+          ></div>
         </div>
+        <div class="toolbar-reset">
+          <button type="button" class="btn btn--quiet" id="filter-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
 
-        <!-- Reordering is otherwise a purely visual event: a screen reader
+      <div id="groups-container">
+        <div class="container-loading-state">Loading shopping list…</div>
+      </div>
+
+      <!-- Reordering is otherwise a purely visual event: a screen reader
              following the grip button hears nothing when the row moves. -->
-        <div class="sr-only" id="reorder-status" role="status" aria-live="polite"></div>
+      <div
+        class="sr-only"
+        id="reorder-status"
+        role="status"
+        aria-live="polite"
+      ></div>
     </div>
 
     <!-- Modal for adding and editing an item — one modal, two modes, exactly as
          todo.html does it. The Item field stays first so the autocomplete menu
          has the whole form beneath it to drop over. -->
     <div class="modal-overlay" id="item-modal-overlay">
-        <div class="modal-content">
-            <h3 id="item-modal-title">Add Item</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
-                <form id="item-form" autocomplete="off">
-                    <div class="form-group">
-                        <label>Item</label>
-                        <div class="autocomplete-wrap">
-                            <input type="text" id="item-name" placeholder="Item name"
-                                   role="combobox" aria-expanded="false" aria-autocomplete="list"
-                                   aria-controls="suggestion-menu" required>
-                            <div class="autocomplete-menu" id="suggestion-menu" role="listbox"></div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Note (optional)</label>
-                        <textarea id="item-note" placeholder="Quantity, brand, anything else" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Store</label>
-                        <select id="item-store">
-                            <option value="">Anywhere</option>
-                        </select>
-                    </div>
-                </form>
-                <div class="modal-actions">
-                    <button type="submit" form="item-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
+      <div class="modal-content">
+        <h3 id="item-modal-title">Add Item</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
+            <form id="item-form" autocomplete="off">
+              <div class="form-group">
+                <label>Item</label>
+                <div class="autocomplete-wrap">
+                  <input
+                    type="text"
+                    id="item-name"
+                    placeholder="Item name"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-autocomplete="list"
+                    aria-controls="suggestion-menu"
+                    required
+                  />
+                  <div
+                    class="autocomplete-menu"
+                    id="suggestion-menu"
+                    role="listbox"
+                  ></div>
                 </div>
+              </div>
+              <div class="form-group">
+                <label>Note (optional)</label>
+                <textarea
+                  id="item-note"
+                  placeholder="Quantity, brand, anything else"
+                  rows="3"
+                ></textarea>
+              </div>
+              <div class="form-group">
+                <label>Store</label>
+                <select id="item-store">
+                  <option value="">Anywhere</option>
+                </select>
+              </div>
+            </form>
+            <div class="modal-actions">
+              <button type="submit" form="item-form" class="btn">Save</button>
+              <button
+                type="button"
+                class="btn btn--secondary"
+                id="btn-cancel-item"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn btn--secondary modal-delete"
+                id="btn-delete-item"
+                style="display: none"
+              >
+                Delete
+              </button>
             </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Modal for managing stores -->
     <div class="modal-overlay" id="store-modal-overlay">
-        <div class="modal-content">
-            <h3>Manage Stores</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
-                <form id="store-add-form" class="form-group">
-                    <label>Add a store</label>
-                    <div class="store-manage-row">
-                        <input type="text" id="store-add-name" placeholder="Store name" required>
-                        <button type="submit" class="btn btn--sm">Add</button>
-                    </div>
-                </form>
-                <div id="store-manage-list"></div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn--secondary" id="btn-close-stores">Done</button>
-                </div>
+      <div class="modal-content">
+        <h3>Manage Stores</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
+            <form id="store-add-form" class="form-group">
+              <label>Add a store</label>
+              <div class="store-manage-row">
+                <input
+                  type="text"
+                  id="store-add-name"
+                  placeholder="Store name"
+                  required
+                />
+                <button type="submit" class="btn btn--sm">Add</button>
+              </div>
+            </form>
+            <div id="store-manage-list"></div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn--secondary"
+                id="btn-close-stores"
+              >
+                Done
+              </button>
             </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <script src="/static/drag_reorder.js?v={{ css_version }}"></script>
     <script>
-        // ── State ──
-        let items = [];
-        let stores = [];
-        let selectedStores = new Set();   // chip values: store ids as strings, or 'anywhere'
-        let editingItemId = null;
+      // ── State ──
+      let items = [];
+      let stores = [];
+      let selectedStores = new Set(); // chip values: store ids as strings, or 'anywhere'
+      let editingItemId = null;
 
-        const ANYWHERE = 'anywhere';
-        const REFRESH_MS = 60000;   // multi-device sync + the local-midnight rollover
+      const ANYWHERE = "anywhere";
+      const REFRESH_MS = 60000; // multi-device sync + the local-midnight rollover
 
-        const nameInput = document.getElementById('item-name');
-        const storeSelect = document.getElementById('item-store');
-        const suggestionMenu = document.getElementById('suggestion-menu');
-        const modalBody = document.querySelector('#item-modal-overlay .modal-body');
+      const nameInput = document.getElementById("item-name");
+      const storeSelect = document.getElementById("item-store");
+      const suggestionMenu = document.getElementById("suggestion-menu");
+      const modalBody = document.querySelector(
+        "#item-modal-overlay .modal-body",
+      );
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // textContent → innerHTML leaves quotes alone, which is fine in a text
+      // node but would break out of a quoted attribute. Store and item names
+      // are user-supplied, so attribute positions need the stricter escape.
+      function escapeAttr(text) {
+        return escapeHtml(text).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+
+      function storeName(storeId) {
+        const store = stores.find((s) => s.id === storeId);
+        return store ? store.name : null;
+      }
+
+      // ── API ──
+      async function fetchStores() {
+        const response = await fetch("/api/shopping/stores");
+        stores = await response.json();
+        renderStoreOptions();
+      }
+
+      async function fetchItems() {
+        const response = await fetch("/api/shopping/items");
+        items = await response.json();
+        renderItems();
+      }
+
+      async function createItem(data) {
+        const response = await fetch("/api/shopping/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to add item");
+        return response.json();
+      }
+
+      async function updateItem(id, data) {
+        const response = await fetch(`/api/shopping/items/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to update item");
+        return response.json();
+      }
+
+      async function deleteItem(id) {
+        const response = await fetch(`/api/shopping/items/${id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) throw new Error("Failed to delete item");
+      }
+
+      // One call carries both halves of a drop — which store the item now
+      // belongs to, and the whole destination group in its new order — so a
+      // move across stores can never half-apply.
+      async function reorderItems(storeId, itemIds) {
+        const response = await fetch("/api/shopping/items/reorder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ store_id: storeId, item_ids: itemIds }),
+        });
+        if (!response.ok) throw new Error("Failed to save the new order");
+      }
+
+      // ── Store select + filter chips ──
+      //
+      // The select lists every store — chips describe what is on the list, the
+      // select describes where an item can go, and filing the first item at a
+      // store you just created has to work.
+      function renderStoreOptions() {
+        const previous = storeSelect.value;
+        storeSelect.innerHTML =
+          '<option value="">Anywhere</option>' +
+          stores
+            .map(
+              (s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`,
+            )
+            .join("");
+        // Keep a selection alive across a store list refresh.
+        if (
+          previous &&
+          storeSelect.querySelector(`option[value="${previous}"]`)
+        ) {
+          storeSelect.value = previous;
+        }
+      }
+
+      // Chips describe the list, not the store table: a store earns a chip when
+      // it has an item on screen, or when it is currently selected. The second
+      // clause is load-bearing — tick off the last Costco item while filtered
+      // to Costco and without it the chip vanishes with the filter still on.
+      function renderStoreChips() {
+        const chips = document.getElementById("filter-store-chips");
+        const present = new Set(items.map(chipValueForItem));
+        const parts = [];
+        stores.forEach((s) => {
+          const value = String(s.id);
+          if (present.has(value) || selectedStores.has(value)) {
+            parts.push(
+              `<button type="button" class="filter-chip" data-value="${value}">${escapeHtml(s.name)}</button>`,
+            );
+          }
+        });
+        if (present.has(ANYWHERE) || selectedStores.has(ANYWHERE)) {
+          parts.push(
+            `<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`,
+          );
         }
 
-        // textContent → innerHTML leaves quotes alone, which is fine in a text
-        // node but would break out of a quoted attribute. Store and item names
-        // are user-supplied, so attribute positions need the stricter escape.
-        function escapeAttr(text) {
-            return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        // First-run discovery, without a pop-in or a second overlay: the
+        // "Manage stores" button is already sitting right beside this hint.
+        if (stores.length === 0 && selectedStores.size === 0) {
+          chips.innerHTML =
+            '<span class="filter-hint">No stores yet — everything lands under "Anywhere".</span>';
+          return;
         }
 
-        function storeName(storeId) {
-            const store = stores.find(s => s.id === storeId);
-            return store ? store.name : null;
+        chips.innerHTML = parts.join("");
+        syncChipState();
+      }
+
+      function syncChipState() {
+        document
+          .querySelectorAll("#filter-store-chips .filter-chip")
+          .forEach((chip) => {
+            chip.classList.toggle(
+              "active",
+              selectedStores.has(chip.dataset.value),
+            );
+          });
+      }
+
+      function clearFilters() {
+        selectedStores.clear();
+        renderItems();
+      }
+
+      // ── Rendering ──
+      function chipValueForItem(item) {
+        return item.store_id ? String(item.store_id) : ANYWHERE;
+      }
+
+      function visibleItems() {
+        if (selectedStores.size === 0) return items;
+        return items.filter((item) =>
+          selectedStores.has(chipValueForItem(item)),
+        );
+      }
+
+      function groupLabel(value) {
+        if (value === ANYWHERE) return "Anywhere";
+        return storeName(parseInt(value, 10)) || "Anywhere";
+      }
+
+      function renderItems() {
+        const container = document.getElementById("groups-container");
+        // The chip set derives from the items, so it is rebuilt here — the
+        // one function on every path that can change what is on the list.
+        renderStoreChips();
+        const visible = visibleItems();
+
+        const groups = new Map();
+        visible.forEach((item) => {
+          const key = chipValueForItem(item);
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(item);
+        });
+
+        // An explicitly filtered store renders even when empty, so filtering
+        // to it reads as "nothing here" rather than as a vanished group.
+        selectedStores.forEach((value) => {
+          if (!groups.has(value)) groups.set(value, []);
+        });
+
+        // Named stores alphabetically, the catch-all last.
+        const keys = [...groups.keys()].sort((a, b) => {
+          if (a === ANYWHERE) return 1;
+          if (b === ANYWHERE) return -1;
+          return groupLabel(a).localeCompare(groupLabel(b));
+        });
+
+        // Only reachable with no items and no filters: a selected filter
+        // always contributes its own (possibly empty) group above.
+        if (keys.length === 0) {
+          container.innerHTML =
+            '<div class="container-empty-state">Nothing on the list yet. Click "Add Item" to get started.</div>';
+          return;
         }
 
-        // ── API ──
-        async function fetchStores() {
-            const response = await fetch('/api/shopping/stores');
-            stores = await response.json();
-            renderStoreOptions();
-        }
-
-        async function fetchItems() {
-            const response = await fetch('/api/shopping/items');
-            items = await response.json();
-            renderItems();
-        }
-
-        async function createItem(data) {
-            const response = await fetch('/api/shopping/items', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to add item');
-            return response.json();
-        }
-
-        async function updateItem(id, data) {
-            const response = await fetch(`/api/shopping/items/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to update item');
-            return response.json();
-        }
-
-        async function deleteItem(id) {
-            const response = await fetch(`/api/shopping/items/${id}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error('Failed to delete item');
-        }
-
-        // One call carries both halves of a drop — which store the item now
-        // belongs to, and the whole destination group in its new order — so a
-        // move across stores can never half-apply.
-        async function reorderItems(storeId, itemIds) {
-            const response = await fetch('/api/shopping/items/reorder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ store_id: storeId, item_ids: itemIds })
-            });
-            if (!response.ok) throw new Error('Failed to save the new order');
-        }
-
-        // ── Store select + filter chips ──
-        //
-        // The select lists every store — chips describe what is on the list, the
-        // select describes where an item can go, and filing the first item at a
-        // store you just created has to work.
-        function renderStoreOptions() {
-            const previous = storeSelect.value;
-            storeSelect.innerHTML = '<option value="">Anywhere</option>' + stores.map(s =>
-                `<option value="${s.id}">${escapeHtml(s.name)}</option>`
-            ).join('');
-            // Keep a selection alive across a store list refresh.
-            if (previous && storeSelect.querySelector(`option[value="${previous}"]`)) {
-                storeSelect.value = previous;
-            }
-        }
-
-        // Chips describe the list, not the store table: a store earns a chip when
-        // it has an item on screen, or when it is currently selected. The second
-        // clause is load-bearing — tick off the last Costco item while filtered
-        // to Costco and without it the chip vanishes with the filter still on.
-        function renderStoreChips() {
-            const chips = document.getElementById('filter-store-chips');
-            const present = new Set(items.map(chipValueForItem));
-            const parts = [];
-            stores.forEach(s => {
-                const value = String(s.id);
-                if (present.has(value) || selectedStores.has(value)) {
-                    parts.push(`<button type="button" class="filter-chip" data-value="${value}">${escapeHtml(s.name)}</button>`);
-                }
-            });
-            if (present.has(ANYWHERE) || selectedStores.has(ANYWHERE)) {
-                parts.push(`<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`);
-            }
-
-            // First-run discovery, without a pop-in or a second overlay: the
-            // "Manage stores" button is already sitting right beside this hint.
-            if (stores.length === 0 && selectedStores.size === 0) {
-                chips.innerHTML = '<span class="filter-hint">No stores yet — everything lands under "Anywhere".</span>';
-                return;
-            }
-
-            chips.innerHTML = parts.join('');
-            syncChipState();
-        }
-
-        function syncChipState() {
-            document.querySelectorAll('#filter-store-chips .filter-chip').forEach(chip => {
-                chip.classList.toggle('active', selectedStores.has(chip.dataset.value));
-            });
-        }
-
-        function clearFilters() {
-            selectedStores.clear();
-            renderItems();
-        }
-
-        // ── Rendering ──
-        function chipValueForItem(item) {
-            return item.store_id ? String(item.store_id) : ANYWHERE;
-        }
-
-        function visibleItems() {
-            if (selectedStores.size === 0) return items;
-            return items.filter(item => selectedStores.has(chipValueForItem(item)));
-        }
-
-        function groupLabel(value) {
-            if (value === ANYWHERE) return 'Anywhere';
-            return storeName(parseInt(value, 10)) || 'Anywhere';
-        }
-
-        function renderItems() {
-            const container = document.getElementById('groups-container');
-            // The chip set derives from the items, so it is rebuilt here — the
-            // one function on every path that can change what is on the list.
-            renderStoreChips();
-            const visible = visibleItems();
-
-            const groups = new Map();
-            visible.forEach(item => {
-                const key = chipValueForItem(item);
-                if (!groups.has(key)) groups.set(key, []);
-                groups.get(key).push(item);
-            });
-
-            // An explicitly filtered store renders even when empty, so filtering
-            // to it reads as "nothing here" rather than as a vanished group.
-            selectedStores.forEach(value => {
-                if (!groups.has(value)) groups.set(value, []);
-            });
-
-            // Named stores alphabetically, the catch-all last.
-            const keys = [...groups.keys()].sort((a, b) => {
-                if (a === ANYWHERE) return 1;
-                if (b === ANYWHERE) return -1;
-                return groupLabel(a).localeCompare(groupLabel(b));
-            });
-
-            // Only reachable with no items and no filters: a selected filter
-            // always contributes its own (possibly empty) group above.
-            if (keys.length === 0) {
-                container.innerHTML =
-                    '<div class="container-empty-state">Nothing on the list yet. Click "Add Item" to get started.</div>';
-                return;
-            }
-
-            // Header and rows are wrapped together so a group is one element:
-            // a drop can then be aimed at the whole block, heading included,
-            // and an empty group is still a target you can drag the last item
-            // of a store back into.
-            container.innerHTML = keys.map(key => {
-                const groupItems = [...groups.get(key)].sort(compareItems);
-                const openCount = groupItems.filter(i => !i.completed).length;
-                const countLabel = `${openCount} item${openCount === 1 ? '' : 's'}`;
-                const rows = groupItems.length === 0
-                    ? '<div class="container-empty-state">Nothing here right now.</div>'
-                    : groupItems.map(renderItemRow).join('');
-                return `
+        // Header and rows are wrapped together so a group is one element:
+        // a drop can then be aimed at the whole block, heading included,
+        // and an empty group is still a target you can drag the last item
+        // of a store back into.
+        container.innerHTML = keys
+          .map((key) => {
+            const groupItems = [...groups.get(key)].sort(compareItems);
+            const openCount = groupItems.filter((i) => !i.completed).length;
+            const countLabel = `${openCount} item${openCount === 1 ? "" : "s"}`;
+            const rows =
+              groupItems.length === 0
+                ? '<div class="container-empty-state">Nothing here right now.</div>'
+                : groupItems.map(renderItemRow).join("");
+            return `
                     <section class="shopping-group" data-group="${escapeAttr(key)}">
                         <div class="shopping-group-header">
                             <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
@@ -338,466 +426,541 @@
                         <div class="list-container">${rows}</div>
                     </section>
                 `;
-            }).join('');
-        }
+          })
+          .join("");
+      }
 
-        // The order the server sorts by, restated so the client never renders a
-        // different one: open items first in their hand-arranged order, then the
-        // purchased block newest-first. `sort_order` is deliberately ignored for
-        // purchased rows — see `_list_ordering` in routers/shopping.py.
-        function compareItems(a, b) {
-            if (a.completed !== b.completed) return a.completed ? 1 : -1;
-            if (!a.completed && a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
-            return new Date(b.created_at) - new Date(a.created_at);
-        }
+      // The order the server sorts by, restated so the client never renders a
+      // different one: open items first in their hand-arranged order, then the
+      // purchased block newest-first. `sort_order` is deliberately ignored for
+      // purchased rows — see `_list_ordering` in routers/shopping.py.
+      function compareItems(a, b) {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        if (!a.completed && a.sort_order !== b.sort_order)
+          return a.sort_order - b.sort_order;
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
 
-        // Every item renders inside its store's group, so the store is already
-        // named by the heading directly above — repeating it on the row is pure
-        // duplication. Add it back only if items ever render ungrouped.
-        function renderItemRow(item) {
-            const completedHtml = item.completed
-                ? `<div class="shopping-completed-at">${escapeHtml(formatCompletedAgo(item.completed_at))}</div>`
-                : '';
-            return `
-                <div class="editable-item ${item.completed ? 'completed' : ''}" data-id="${item.id}">
+      // Every item renders inside its store's group, so the store is already
+      // named by the heading directly above — repeating it on the row is pure
+      // duplication. Add it back only if items ever render ungrouped.
+      function renderItemRow(item) {
+        const completedHtml = item.completed
+          ? `<div class="shopping-completed-at">${escapeHtml(formatCompletedAgo(item.completed_at))}</div>`
+          : "";
+        return `
+                <div class="editable-item ${item.completed ? "completed" : ""}" data-id="${item.id}">
                     <div class="todo-checkbox">
-                        <input type="checkbox" ${item.completed ? 'checked' : ''}
+                        <input type="checkbox" ${item.completed ? "checked" : ""}
                                aria-label="Mark ${escapeAttr(item.name)} as purchased"
                                onchange="toggleComplete(${item.id}, this.checked)">
                     </div>
                     <div class="editable-item-content">
                         <div class="editable-item-title">${escapeHtml(item.name)}</div>
-                        ${item.note ? `<div class="editable-item-description">${escapeHtml(item.note)}</div>` : ''}
+                        ${item.note ? `<div class="editable-item-description">${escapeHtml(item.note)}</div>` : ""}
                         ${completedHtml}
                     </div>
                     <div class="editable-item-actions">
                         <button class="btn btn--sm" onclick="openEditModal(${item.id})">Edit</button>
-                        ${item.completed ? '' : `
+                        ${
+                          item.completed
+                            ? ""
+                            : `
                         <button type="button" class="btn drag-handle"
                                 aria-label="Reorder ${escapeAttr(item.name)}"
                                 title="Drag to reorder or move to another store. Arrow keys work too.">
                             <span aria-hidden="true">⠿</span>
-                        </button>`}
+                        </button>`
+                        }
                     </div>
                 </div>
             `;
+      }
+
+      // completed_at serializes without a "Z" for values SQLite hands back
+      // naive, and new Date("2026-08-07T18:00:00") is parsed as *local* time by
+      // JS — so append the zone when it's missing.
+      function formatCompletedAgo(value) {
+        if (!value) return "";
+        const date = new Date(
+          value.endsWith("Z") || value.includes("+") ? value : value + "Z",
+        );
+        if (isNaN(date)) return "";
+        const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+        if (minutes < 1) return "Completed just now";
+        if (minutes < 60) return `Completed ${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `Completed ${hours}h ago`;
+        return `Completed ${Math.floor(hours / 24)}d ago`;
+      }
+
+      // ── Autocomplete ──
+      //
+      // Queried server-side (the history corpus is permanent and grows with the
+      // family's vocabulary), so this needs the two classic per-keystroke
+      // guards: a debounce, and a sequence number that drops replies which
+      // arrive after a newer one has already been applied.
+      let suggestions = [];
+      let activeSuggestion = -1;
+      let suggestionSeq = 0;
+      let suggestionTimer = null;
+
+      function closeSuggestions() {
+        suggestions = [];
+        activeSuggestion = -1;
+        suggestionMenu.classList.remove("open");
+        suggestionMenu.innerHTML = "";
+        nameInput.setAttribute("aria-expanded", "false");
+      }
+
+      function scheduleSuggestions() {
+        clearTimeout(suggestionTimer);
+        suggestionTimer = setTimeout(fetchSuggestions, 150);
+      }
+
+      async function fetchSuggestions() {
+        const query = nameInput.value.trim();
+        if (!query) {
+          closeSuggestions();
+          return;
         }
-
-        // completed_at serializes without a "Z" for values SQLite hands back
-        // naive, and new Date("2026-08-07T18:00:00") is parsed as *local* time by
-        // JS — so append the zone when it's missing.
-        function formatCompletedAgo(value) {
-            if (!value) return '';
-            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
-            if (isNaN(date)) return '';
-            const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
-            if (minutes < 1) return 'Completed just now';
-            if (minutes < 60) return `Completed ${minutes}m ago`;
-            const hours = Math.floor(minutes / 60);
-            if (hours < 24) return `Completed ${hours}h ago`;
-            return `Completed ${Math.floor(hours / 24)}d ago`;
+        const seq = ++suggestionSeq;
+        try {
+          const response = await fetch(
+            `/api/shopping/suggestions?q=${encodeURIComponent(query)}`,
+          );
+          if (!response.ok) return;
+          const data = await response.json();
+          if (seq !== suggestionSeq) return; // a newer keystroke already answered
+          suggestions = data;
+          activeSuggestion = -1;
+          renderSuggestions();
+        } catch (error) {
+          console.error("Error fetching suggestions:", error);
         }
+      }
 
-        // ── Autocomplete ──
-        //
-        // Queried server-side (the history corpus is permanent and grows with the
-        // family's vocabulary), so this needs the two classic per-keystroke
-        // guards: a debounce, and a sequence number that drops replies which
-        // arrive after a newer one has already been applied.
-        let suggestions = [];
-        let activeSuggestion = -1;
-        let suggestionSeq = 0;
-        let suggestionTimer = null;
-
-        function closeSuggestions() {
-            suggestions = [];
-            activeSuggestion = -1;
-            suggestionMenu.classList.remove('open');
-            suggestionMenu.innerHTML = '';
-            nameInput.setAttribute('aria-expanded', 'false');
+      function renderSuggestions() {
+        if (suggestions.length === 0) {
+          closeSuggestions();
+          return;
         }
-
-        function scheduleSuggestions() {
-            clearTimeout(suggestionTimer);
-            suggestionTimer = setTimeout(fetchSuggestions, 150);
-        }
-
-        async function fetchSuggestions() {
-            const query = nameInput.value.trim();
-            if (!query) {
-                closeSuggestions();
-                return;
-            }
-            const seq = ++suggestionSeq;
-            try {
-                const response = await fetch(`/api/shopping/suggestions?q=${encodeURIComponent(query)}`);
-                if (!response.ok) return;
-                const data = await response.json();
-                if (seq !== suggestionSeq) return;   // a newer keystroke already answered
-                suggestions = data;
-                activeSuggestion = -1;
-                renderSuggestions();
-            } catch (error) {
-                console.error('Error fetching suggestions:', error);
-            }
-        }
-
-        function renderSuggestions() {
-            if (suggestions.length === 0) {
-                closeSuggestions();
-                return;
-            }
-            // .modal-body is a scroll box, so the menu cannot spill outside it the
-            // way it spilled down the page. Scrolling the name field near the top
-            // gives the (height-capped) menu room to open below it.
-            modalBody.scrollTop = 0;
-            suggestionMenu.innerHTML = suggestions.map((s, index) => {
-                const store = s.store_id ? storeName(s.store_id) : null;
-                return `
-                    <div class="autocomplete-option ${index === activeSuggestion ? 'active' : ''}"
+        // .modal-body is a scroll box, so the menu cannot spill outside it the
+        // way it spilled down the page. Scrolling the name field near the top
+        // gives the (height-capped) menu room to open below it.
+        modalBody.scrollTop = 0;
+        suggestionMenu.innerHTML = suggestions
+          .map((s, index) => {
+            const store = s.store_id ? storeName(s.store_id) : null;
+            return `
+                    <div class="autocomplete-option ${index === activeSuggestion ? "active" : ""}"
                          role="option" aria-selected="${index === activeSuggestion}" data-index="${index}">
                         <span class="autocomplete-name">${escapeHtml(s.name)}</span>
-                        ${store ? `<span class="autocomplete-store">${escapeHtml(store)}</span>` : ''}
+                        ${store ? `<span class="autocomplete-store">${escapeHtml(store)}</span>` : ""}
                         <button type="button" class="autocomplete-dismiss" data-dismiss="${s.id}"
                                 aria-label="Forget ${escapeAttr(s.name)}">×</button>
                     </div>
                 `;
-            }).join('');
-            suggestionMenu.classList.add('open');
-            nameInput.setAttribute('aria-expanded', 'true');
+          })
+          .join("");
+        suggestionMenu.classList.add("open");
+        nameInput.setAttribute("aria-expanded", "true");
+      }
+
+      function highlightSuggestion(index) {
+        activeSuggestion = index;
+        suggestionMenu
+          .querySelectorAll(".autocomplete-option")
+          .forEach((el, i) => {
+            el.classList.toggle("active", i === index);
+            el.setAttribute("aria-selected", String(i === index));
+          });
+        const active = suggestionMenu.querySelector(
+          ".autocomplete-option.active",
+        );
+        if (active) active.scrollIntoView({ block: "nearest" });
+      }
+
+      function acceptSuggestion(index) {
+        const suggestion = suggestions[index];
+        if (!suggestion) return;
+        nameInput.value = suggestion.name;
+        // Store affinity only fills a blank: an explicit choice — including one
+        // inherited from an active single-store filter — always wins, so
+        // autocomplete can never silently move an item to another store.
+        if (
+          storeSelect.value === "" &&
+          suggestion.store_id != null &&
+          storeSelect.querySelector(`option[value="${suggestion.store_id}"]`)
+        ) {
+          storeSelect.value = String(suggestion.store_id);
         }
+        // The note is deliberately not restored: notes are trip-specific, and
+        // a silently attached stale one is worse than retyping.
+        closeSuggestions();
+        nameInput.focus();
+      }
 
-        function highlightSuggestion(index) {
-            activeSuggestion = index;
-            suggestionMenu.querySelectorAll('.autocomplete-option').forEach((el, i) => {
-                el.classList.toggle('active', i === index);
-                el.setAttribute('aria-selected', String(i === index));
-            });
-            const active = suggestionMenu.querySelector('.autocomplete-option.active');
-            if (active) active.scrollIntoView({ block: 'nearest' });
+      async function forgetSuggestion(historyId) {
+        try {
+          await fetch(`/api/shopping/suggestions/${historyId}`, {
+            method: "DELETE",
+          });
+          suggestions = suggestions.filter((s) => s.id !== historyId);
+          activeSuggestion = -1;
+          renderSuggestions();
+        } catch (error) {
+          console.error("Error removing suggestion:", error);
         }
+      }
 
-        function acceptSuggestion(index) {
-            const suggestion = suggestions[index];
-            if (!suggestion) return;
-            nameInput.value = suggestion.name;
-            // Store affinity only fills a blank: an explicit choice — including one
-            // inherited from an active single-store filter — always wins, so
-            // autocomplete can never silently move an item to another store.
-            if (storeSelect.value === '' && suggestion.store_id != null
-                && storeSelect.querySelector(`option[value="${suggestion.store_id}"]`)) {
-                storeSelect.value = String(suggestion.store_id);
-            }
-            // The note is deliberately not restored: notes are trip-specific, and
-            // a silently attached stale one is worse than retyping.
-            closeSuggestions();
-            nameInput.focus();
-        }
+      // Autocomplete is wired only in add mode: editing an existing item is a
+      // correction, not a lookup, and a dropdown covering the fields you are
+      // trying to fix is noise.
+      nameInput.addEventListener("input", () => {
+        if (editingItemId) return;
+        scheduleSuggestions();
+      });
 
-        async function forgetSuggestion(historyId) {
-            try {
-                await fetch(`/api/shopping/suggestions/${historyId}`, { method: 'DELETE' });
-                suggestions = suggestions.filter(s => s.id !== historyId);
-                activeSuggestion = -1;
-                renderSuggestions();
-            } catch (error) {
-                console.error('Error removing suggestion:', error);
-            }
-        }
-
-        // Autocomplete is wired only in add mode: editing an existing item is a
-        // correction, not a lookup, and a dropdown covering the fields you are
-        // trying to fix is noise.
-        nameInput.addEventListener('input', () => {
-            if (editingItemId) return;
-            scheduleSuggestions();
-        });
-
-        nameInput.addEventListener('keydown', (e) => {
-            const open = suggestionMenu.classList.contains('open');
-            if (e.key === 'ArrowDown' && open) {
-                e.preventDefault();
-                highlightSuggestion((activeSuggestion + 1) % suggestions.length);
-            } else if (e.key === 'ArrowUp' && open) {
-                e.preventDefault();
-                highlightSuggestion((activeSuggestion - 1 + suggestions.length) % suggestions.length);
-            } else if (e.key === 'Enter') {
-                // Enter with nothing highlighted submits what was typed, verbatim —
-                // autocomplete must never block adding a genuinely new item.
-                if (open && activeSuggestion >= 0) {
-                    e.preventDefault();
-                    acceptSuggestion(activeSuggestion);
-                }
-            } else if (e.key === 'Escape') {
-                closeSuggestions();
-            }
-        });
-
-        nameInput.addEventListener('blur', () => {
-            // Delayed so a click on an option lands before the menu closes.
-            setTimeout(closeSuggestions, 150);
-        });
-
-        suggestionMenu.addEventListener('mousedown', (e) => e.preventDefault());
-
-        suggestionMenu.addEventListener('click', (e) => {
-            const dismiss = e.target.closest('.autocomplete-dismiss');
-            if (dismiss) {
-                e.preventDefault();
-                e.stopPropagation();
-                forgetSuggestion(parseInt(dismiss.dataset.dismiss, 10));
-                return;
-            }
-            const option = e.target.closest('.autocomplete-option');
-            if (option) acceptSuggestion(parseInt(option.dataset.index, 10));
-        });
-
-        // ── Item actions ──
-        async function toggleComplete(id, completed) {
-            try {
-                await updateItem(id, { completed });
-                await fetchItems();
-            } catch (error) {
-                console.error('Error updating item:', error);
-                alert('Failed to update item');
-                await fetchItems();   // refresh to revert the checkbox
-            }
-        }
-
-        // Store reads "Anywhere" on every open, whatever the chips say — matching
-        // openAddModal() on /todo, which resets the assignee and ignores the
-        // active filter. Preselecting the filtered store was genuinely useful;
-        // operating exactly like Tasks is worth more.
-        function openAddModal() {
-            editingItemId = null;
-            document.getElementById('item-modal-title').textContent = 'Add Item';
-            document.getElementById('item-form').reset();
-            storeSelect.value = '';
-            document.getElementById('btn-delete-item').style.display = 'none';
-            closeSuggestions();
-            showModalOverlay('item-modal-overlay');
-            nameInput.focus();
-        }
-
-        function openEditModal(id) {
-            const item = items.find(i => i.id === id);
-            if (!item) return;
-            editingItemId = id;
-            document.getElementById('item-modal-title').textContent = 'Edit Item';
-            nameInput.value = item.name;
-            document.getElementById('item-note').value = item.note || '';
-            storeSelect.value = item.store_id ? String(item.store_id) : '';
-            document.getElementById('btn-delete-item').style.display = '';
-            closeSuggestions();
-            showModalOverlay('item-modal-overlay');
-        }
-
-        function closeItemModal() {
-            hideModalOverlay('item-modal-overlay');
-            closeSuggestions();
-            editingItemId = null;
-        }
-
-        // Save closes the modal in both modes. Adding a second item means opening
-        // it again — the same trade every other add button in Rally makes.
-        document.getElementById('item-form').addEventListener('submit', async (e) => {
+      nameInput.addEventListener("keydown", (e) => {
+        const open = suggestionMenu.classList.contains("open");
+        if (e.key === "ArrowDown" && open) {
+          e.preventDefault();
+          highlightSuggestion((activeSuggestion + 1) % suggestions.length);
+        } else if (e.key === "ArrowUp" && open) {
+          e.preventDefault();
+          highlightSuggestion(
+            (activeSuggestion - 1 + suggestions.length) % suggestions.length,
+          );
+        } else if (e.key === "Enter") {
+          // Enter with nothing highlighted submits what was typed, verbatim —
+          // autocomplete must never block adding a genuinely new item.
+          if (open && activeSuggestion >= 0) {
             e.preventDefault();
-            const name = nameInput.value.trim();
-            if (!name) return;
-            const storeValue = storeSelect.value;
-            const storeId = storeValue ? parseInt(storeValue, 10) : null;
-            const note = document.getElementById('item-note').value || null;
-            try {
-                if (editingItemId) {
-                    await updateItem(editingItemId, { name, note, store_id: storeId });
-                } else {
-                    await createItem({ name, note, store_id: storeId });
-                }
-                closeItemModal();
-                await fetchItems();
-            } catch (error) {
-                console.error('Error saving item:', error);
-                alert('Failed to save item');
+            acceptSuggestion(activeSuggestion);
+          }
+        } else if (e.key === "Escape") {
+          closeSuggestions();
+        }
+      });
+
+      nameInput.addEventListener("blur", () => {
+        // Delayed so a click on an option lands before the menu closes.
+        setTimeout(closeSuggestions, 150);
+      });
+
+      suggestionMenu.addEventListener("mousedown", (e) => e.preventDefault());
+
+      suggestionMenu.addEventListener("click", (e) => {
+        const dismiss = e.target.closest(".autocomplete-dismiss");
+        if (dismiss) {
+          e.preventDefault();
+          e.stopPropagation();
+          forgetSuggestion(parseInt(dismiss.dataset.dismiss, 10));
+          return;
+        }
+        const option = e.target.closest(".autocomplete-option");
+        if (option) acceptSuggestion(parseInt(option.dataset.index, 10));
+      });
+
+      // ── Item actions ──
+      async function toggleComplete(id, completed) {
+        try {
+          await updateItem(id, { completed });
+          await fetchItems();
+        } catch (error) {
+          console.error("Error updating item:", error);
+          alert("Failed to update item");
+          await fetchItems(); // refresh to revert the checkbox
+        }
+      }
+
+      // Store reads "Anywhere" on every open, whatever the chips say — matching
+      // openAddModal() on /todo, which resets the assignee and ignores the
+      // active filter. Preselecting the filtered store was genuinely useful;
+      // operating exactly like Tasks is worth more.
+      function openAddModal() {
+        editingItemId = null;
+        document.getElementById("item-modal-title").textContent = "Add Item";
+        document.getElementById("item-form").reset();
+        storeSelect.value = "";
+        document.getElementById("btn-delete-item").style.display = "none";
+        closeSuggestions();
+        showModalOverlay("item-modal-overlay");
+        nameInput.focus();
+      }
+
+      function openEditModal(id) {
+        const item = items.find((i) => i.id === id);
+        if (!item) return;
+        editingItemId = id;
+        document.getElementById("item-modal-title").textContent = "Edit Item";
+        nameInput.value = item.name;
+        document.getElementById("item-note").value = item.note || "";
+        storeSelect.value = item.store_id ? String(item.store_id) : "";
+        document.getElementById("btn-delete-item").style.display = "";
+        closeSuggestions();
+        showModalOverlay("item-modal-overlay");
+      }
+
+      function closeItemModal() {
+        hideModalOverlay("item-modal-overlay");
+        closeSuggestions();
+        editingItemId = null;
+      }
+
+      // Save closes the modal in both modes. Adding a second item means opening
+      // it again — the same trade every other add button in Rally makes.
+      document
+        .getElementById("item-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const name = nameInput.value.trim();
+          if (!name) return;
+          const storeValue = storeSelect.value;
+          const storeId = storeValue ? parseInt(storeValue, 10) : null;
+          const note = document.getElementById("item-note").value || null;
+          try {
+            if (editingItemId) {
+              await updateItem(editingItemId, {
+                name,
+                note,
+                store_id: storeId,
+              });
+            } else {
+              await createItem({ name, note, store_id: storeId });
             }
+            closeItemModal();
+            await fetchItems();
+          } catch (error) {
+            console.error("Error saving item:", error);
+            alert("Failed to save item");
+          }
         });
 
-        document.getElementById('btn-add-item').addEventListener('click', openAddModal);
+      document
+        .getElementById("btn-add-item")
+        .addEventListener("click", openAddModal);
 
-        document.getElementById('btn-delete-item').addEventListener('click', async () => {
-            if (!editingItemId) return;
-            if (!confirm('Delete this item?')) return;
-            try {
-                await deleteItem(editingItemId);
-                closeItemModal();
-                await fetchItems();
-            } catch (error) {
-                console.error('Error deleting item:', error);
-                alert('Failed to delete item');
-            }
+      document
+        .getElementById("btn-delete-item")
+        .addEventListener("click", async () => {
+          if (!editingItemId) return;
+          if (!confirm("Delete this item?")) return;
+          try {
+            await deleteItem(editingItemId);
+            closeItemModal();
+            await fetchItems();
+          } catch (error) {
+            console.error("Error deleting item:", error);
+            alert("Failed to delete item");
+          }
         });
 
-        document.getElementById('btn-cancel-item').addEventListener('click', closeItemModal);
-        document.getElementById('item-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'item-modal-overlay') closeItemModal();
+      document
+        .getElementById("btn-cancel-item")
+        .addEventListener("click", closeItemModal);
+      document
+        .getElementById("item-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "item-modal-overlay") closeItemModal();
         });
 
-        // ── Manage stores ──
-        function renderStoreManageList() {
-            const list = document.getElementById('store-manage-list');
-            if (stores.length === 0) {
-                list.innerHTML = '<div class="container-empty-state">No stores yet. Items you add land under "Anywhere".</div>';
-                return;
-            }
-            list.innerHTML = stores.map(s => `
+      // ── Manage stores ──
+      function renderStoreManageList() {
+        const list = document.getElementById("store-manage-list");
+        if (stores.length === 0) {
+          list.innerHTML =
+            '<div class="container-empty-state">No stores yet. Items you add land under "Anywhere".</div>';
+          return;
+        }
+        list.innerHTML = stores
+          .map(
+            (s) => `
                 <div class="store-manage-row" data-id="${s.id}">
                     <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
                     <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
                     <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
                 </div>
-            `).join('');
-        }
+            `,
+          )
+          .join("");
+      }
 
-        document.getElementById('store-manage-list').addEventListener('click', async (e) => {
-            const button = e.target.closest('button[data-action]');
-            if (!button) return;
-            const row = button.closest('.store-manage-row');
-            const storeId = parseInt(row.dataset.id, 10);
+      document
+        .getElementById("store-manage-list")
+        .addEventListener("click", async (e) => {
+          const button = e.target.closest("button[data-action]");
+          if (!button) return;
+          const row = button.closest(".store-manage-row");
+          const storeId = parseInt(row.dataset.id, 10);
 
-            if (button.dataset.action === 'rename') {
-                const name = row.querySelector('input').value.trim();
-                if (!name) return;
-                const response = await fetch(`/api/shopping/stores/${storeId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
-                });
-                if (!response.ok) {
-                    alert(response.status === 409 ? 'A store with that name already exists.' : 'Failed to rename store.');
-                    return;
-                }
-            } else {
-                const store = stores.find(s => s.id === storeId);
-                const label = store ? store.name : 'this store';
-                if (!confirm(`Delete ${label}? Its items move to "Anywhere" — nothing is lost.`)) return;
-                const response = await fetch(`/api/shopping/stores/${storeId}`, { method: 'DELETE' });
-                if (!response.ok) {
-                    alert('Failed to delete store.');
-                    return;
-                }
-                selectedStores.delete(String(storeId));
-            }
-
-            await fetchStores();
-            renderStoreManageList();
-            await fetchItems();
-        });
-
-        document.getElementById('store-add-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('store-add-name');
-            const name = input.value.trim();
+          if (button.dataset.action === "rename") {
+            const name = row.querySelector("input").value.trim();
             if (!name) return;
-            const response = await fetch('/api/shopping/stores', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
+            const response = await fetch(`/api/shopping/stores/${storeId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name }),
             });
             if (!response.ok) {
-                alert(response.status === 409 ? 'A store with that name already exists.' : 'Failed to add store.');
-                return;
+              alert(
+                response.status === 409
+                  ? "A store with that name already exists."
+                  : "Failed to rename store.",
+              );
+              return;
             }
-            input.value = '';
-            await fetchStores();
-            renderStoreManageList();
-        });
-
-        document.getElementById('btn-manage-stores').addEventListener('click', () => {
-            renderStoreManageList();
-            showModalOverlay('store-modal-overlay');
-        });
-
-        function closeStoreModal() {
-            hideModalOverlay('store-modal-overlay');
-        }
-
-        document.getElementById('btn-close-stores').addEventListener('click', closeStoreModal);
-        document.getElementById('store-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'store-modal-overlay') closeStoreModal();
-        });
-
-        // ── Toolbar ──
-        document.getElementById('filter-store-chips').addEventListener('click', (e) => {
-            const chip = e.target.closest('.filter-chip');
-            if (!chip) return;
-            const value = chip.dataset.value;
-            if (selectedStores.has(value)) {
-                selectedStores.delete(value);
-            } else {
-                selectedStores.add(value);
-            }
-            renderItems();
-        });
-
-        document.getElementById('filter-clear').addEventListener('click', clearFilters);
-
-        // ── Drag to reorder ──
-        //
-        // The group key is the chip value the rest of this page already speaks:
-        // a store id as a string, or ANYWHERE for the catch-all.
-        const dragging = initDragReorder({
-            container: document.getElementById('groups-container'),
-            groupSelector: '.shopping-group',
-            listSelector: '.list-container',
-            itemSelector: '.editable-item',
-            handleSelector: '.drag-handle',
-            canDrag: (row) => !row.classList.contains('completed'),
-            groupKey: (group) => group.dataset.group,
-            groupLabel: (group) => groupLabel(group.dataset.group),
-            itemLabel: (row) => row.querySelector('.editable-item-title').textContent,
-            announce: (message) => {
-                document.getElementById('reorder-status').textContent = message;
-            },
-            onReorder: async (key, itemIds) => {
-                try {
-                    await reorderItems(key === ANYWHERE ? null : parseInt(key, 10), itemIds);
-                } catch (error) {
-                    console.error('Error reordering items:', error);
-                    alert('Failed to save the new order');
-                }
-                // Refetch either way: on success to pick up the store change,
-                // and on failure to put the list back the way the server has it
-                // rather than leaving a move on screen that was never saved.
-                await fetchItems();
-            }
-        });
-
-        // ── Initialize ──
-        fetchStores().then(fetchItems);
-
-        // A plain refetch, not an expiry sweep: the visibility boundary is local
-        // midnight and is decided server-side, so the client only has to ask again.
-        // It is skipped mid-drag, because re-rendering the list would delete the
-        // row out of the user's hand.
-        setInterval(() => {
-            if (dragging && dragging.isDragging()) return;
-            fetchStores().then(fetchItems);
-        }, REFRESH_MS);
-
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
+          } else {
+            const store = stores.find((s) => s.id === storeId);
+            const label = store ? store.name : "this store";
+            if (
+              !confirm(
+                `Delete ${label}? Its items move to "Anywhere" — nothing is lost.`,
+              )
+            )
+              return;
+            const response = await fetch(`/api/shopping/stores/${storeId}`, {
+              method: "DELETE",
             });
+            if (!response.ok) {
+              alert("Failed to delete store.");
+              return;
+            }
+            selectedStores.delete(String(storeId));
+          }
+
+          await fetchStores();
+          renderStoreManageList();
+          await fetchItems();
         });
+
+      document
+        .getElementById("store-add-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const input = document.getElementById("store-add-name");
+          const name = input.value.trim();
+          if (!name) return;
+          const response = await fetch("/api/shopping/stores", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          if (!response.ok) {
+            alert(
+              response.status === 409
+                ? "A store with that name already exists."
+                : "Failed to add store.",
+            );
+            return;
+          }
+          input.value = "";
+          await fetchStores();
+          renderStoreManageList();
+        });
+
+      document
+        .getElementById("btn-manage-stores")
+        .addEventListener("click", () => {
+          renderStoreManageList();
+          showModalOverlay("store-modal-overlay");
+        });
+
+      function closeStoreModal() {
+        hideModalOverlay("store-modal-overlay");
+      }
+
+      document
+        .getElementById("btn-close-stores")
+        .addEventListener("click", closeStoreModal);
+      document
+        .getElementById("store-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "store-modal-overlay") closeStoreModal();
+        });
+
+      // ── Toolbar ──
+      document
+        .getElementById("filter-store-chips")
+        .addEventListener("click", (e) => {
+          const chip = e.target.closest(".filter-chip");
+          if (!chip) return;
+          const value = chip.dataset.value;
+          if (selectedStores.has(value)) {
+            selectedStores.delete(value);
+          } else {
+            selectedStores.add(value);
+          }
+          renderItems();
+        });
+
+      document
+        .getElementById("filter-clear")
+        .addEventListener("click", clearFilters);
+
+      // ── Drag to reorder ──
+      //
+      // The group key is the chip value the rest of this page already speaks:
+      // a store id as a string, or ANYWHERE for the catch-all.
+      const dragging = initDragReorder({
+        container: document.getElementById("groups-container"),
+        groupSelector: ".shopping-group",
+        listSelector: ".list-container",
+        itemSelector: ".editable-item",
+        handleSelector: ".drag-handle",
+        canDrag: (row) => !row.classList.contains("completed"),
+        groupKey: (group) => group.dataset.group,
+        groupLabel: (group) => groupLabel(group.dataset.group),
+        itemLabel: (row) =>
+          row.querySelector(".editable-item-title").textContent,
+        announce: (message) => {
+          document.getElementById("reorder-status").textContent = message;
+        },
+        onReorder: async (key, itemIds) => {
+          try {
+            await reorderItems(
+              key === ANYWHERE ? null : parseInt(key, 10),
+              itemIds,
+            );
+          } catch (error) {
+            console.error("Error reordering items:", error);
+            alert("Failed to save the new order");
+          }
+          // Refetch either way: on success to pick up the store change,
+          // and on failure to put the list back the way the server has it
+          // rather than leaving a move on screen that was never saved.
+          await fetchItems();
+        },
+      });
+
+      // ── Initialize ──
+      fetchStores().then(fetchItems);
+
+      // A plain refetch, not an expiry sweep: the visibility boundary is local
+      // midnight and is decided server-side, so the client only has to ask again.
+      // It is skipped mid-drag, because re-rendering the list would delete the
+      // row out of the user's hand.
+      setInterval(() => {
+        if (dragging && dragging.isDragging()) return;
+        fetchStores().then(fetchItems);
+      }, REFRESH_MS);
+
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
+        });
+      });
     </script>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
     <script src="/static/modal.js?v={{ css_version }}"></script>
-</body>
+  </body>
 </html>

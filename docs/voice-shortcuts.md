@@ -4,15 +4,15 @@ The shopping API is designed so an Apple Shortcut, and therefore Siri, can add a
 
 Create a Shortcut with a single **Get Contents of URL** action:
 
-| Field | Value |
-|---|---|
-| URL | `http://<your-rally-host>:8000/api/shopping/items` |
-| Method | `POST` |
-| Request Body | `JSON` |
-| `name` (Text) | Ask Each Time, or a Dictated Text variable |
-| `store` (Text) | e.g. `Costco`, optional |
+| Field          | Value                                              |
+| -------------- | -------------------------------------------------- |
+| URL            | `http://<your-rally-host>:8000/api/shopping/items` |
+| Method         | `POST`                                             |
+| Request Body   | `JSON`                                             |
+| `name` (Text)  | Ask Each Time, or a Dictated Text variable         |
+| `store` (Text) | e.g. `Costco`, optional                            |
 
-Name it something like "Add to shopping list", then say *"Hey Siri, add to shopping list."*
+Name it something like "Add to shopping list", then say _"Hey Siri, add to shopping list."_
 
 Two details make this hold up in a kitchen:
 

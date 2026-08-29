@@ -1,118 +1,131 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally — {{date}}</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{css_version}}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{css_version}}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle" id="current-date">{{date}}</div>
+      <h1>Rally</h1>
+      <div class="subtitle" id="current-date">{{date}}</div>
     </header>
 
     <nav>
-        <a href="/dashboard" class="active">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <!-- The dashboard is the one page with no <h2>: the wordmark and today's
          date above are already its title, so a second one would only repeat
          them. It uses the same .page/.stack primitives as everywhere else. -->
     <div class="page stack">
-    <!-- Greeting -->
-    <div class="greeting">{{greeting}}</div>
+      <!-- Greeting -->
+      <div class="greeting">{{greeting}}</div>
 
-    <!-- Briefing Section -->
-    {{briefing_section}}
+      <!-- Briefing Section -->
+      {{briefing_section}}
 
-    <!-- Content Container and Cards -->
-    <div class="dashboard-grid">
+      <!-- Content Container and Cards -->
+      <div class="dashboard-grid">
         <section class="card">
-            <div class="card-header">Weather &amp; Preparedness</div>
-            <div class="card-content">{{weather_summary}}</div>
+          <div class="card-header">Weather &amp; Preparedness</div>
+          <div class="card-content">{{weather_summary}}</div>
         </section>
 
         <section class="card card--featured">
-            <div class="card-header">Today's Schedule</div>
-            <div class="card-content">{{schedule}}</div>
+          <div class="card-header">Today's Schedule</div>
+          <div class="card-content">{{schedule}}</div>
         </section>
 
         {{stem_section}}
-    </div>
+      </div>
     </div>
 
     <footer>
-        Last updated <span id="timestamp">{{timestamp}}</span>
-        · <a href="/settings">Settings</a>
+      Last updated <span id="timestamp">{{timestamp}}</span> ·
+      <a href="/settings">Settings</a>
     </footer>
 
     <script>
-        // Format current date in user's local timezone
-        (function() {
-            const dateElement = document.getElementById('current-date');
-            const today = new Date();
-            const formatted = today.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            dateElement.textContent = formatted;
-        })();
-        
-        // Format timestamp in user's local timezone
-        (function() {
-            const timestampElement = document.getElementById('timestamp');
-            const utcTimestamp = '{{timestamp_utc}}';
-            
-            if (utcTimestamp && utcTimestamp !== '') {
-                try {
-                    const date = new Date(utcTimestamp);
-                    const formatted = date.toLocaleString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true
-                    });
-                    timestampElement.textContent = formatted;
-                } catch (e) {
-                    // Fallback to server-formatted time if parsing fails
-                    console.error('Failed to parse timestamp:', e);
-                }
-            }
-        })();
-        
-        // Auto-refresh every 30 minutes
-        setTimeout(function() { location.reload(); }, 30 * 60 * 1000);
-
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
+      // Format current date in user's local timezone
+      (function () {
+        const dateElement = document.getElementById("current-date");
+        const today = new Date();
+        const formatted = today.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
         });
+        dateElement.textContent = formatted;
+      })();
+
+      // Format timestamp in user's local timezone
+      (function () {
+        const timestampElement = document.getElementById("timestamp");
+        const utcTimestamp = "{{timestamp_utc}}";
+
+        if (utcTimestamp && utcTimestamp !== "") {
+          try {
+            const date = new Date(utcTimestamp);
+            const formatted = date.toLocaleString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            });
+            timestampElement.textContent = formatted;
+          } catch (e) {
+            // Fallback to server-formatted time if parsing fails
+            console.error("Failed to parse timestamp:", e);
+          }
+        }
+      })();
+
+      // Auto-refresh every 30 minutes
+      setTimeout(
+        function () {
+          location.reload();
+        },
+        30 * 60 * 1000,
+      );
+
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
+        });
+      });
     </script>
-</body>
+  </body>
 </html>

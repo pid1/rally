@@ -1,110 +1,202 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally — Meal History</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Meal History</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Meal History</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn active" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history" class="active">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button
+          class="nav-dropdown-btn active"
+          onclick="toggleOtherDropdown(event)"
+        >
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history" class="active">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Meal History</h2>
-            </div>
-        </header>
-
-        <!-- Filter/sort toolbar (filters first, sort last, reset in its own slot) -->
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="meal-type-label">Meal Type</span>
-                <div class="filter-chips" id="meal-type-filters" role="group" aria-labelledby="meal-type-label">
-                    <button type="button" class="filter-chip" data-meal="Breakfast">Breakfast</button>
-                    <button type="button" class="filter-chip" data-meal="Lunch">Lunch</button>
-                    <button type="button" class="filter-chip" data-meal="Dinner">Dinner</button>
-                    <button type="button" class="filter-chip" data-meal="Snacks">Snacks</button>
-                </div>
-            </div>
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="rating-label">Rating</span>
-                <div class="filter-chips" id="rating-filters" role="group" aria-labelledby="rating-label">
-                    <button type="button" class="filter-chip" data-min="5">5 Stars</button>
-                    <button type="button" class="filter-chip" data-min="4">4+ Stars</button>
-                    <button type="button" class="filter-chip" data-min="3">3+ Stars</button>
-                </div>
-            </div>
-            <div class="toolbar-group">
-                <label class="toolbar-label" for="sort-select">Sort</label>
-                <select id="sort-select" class="select toolbar-control">
-                    <option value="rating_desc">Highest Rated</option>
-                    <option value="date_desc">Most Recent</option>
-                    <option value="date_asc">Oldest First</option>
-                </select>
-            </div>
-            <div class="toolbar-reset">
-                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
-            </div>
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Meal History</h2>
         </div>
+      </header>
 
-        <div class="list-container" id="history-list">
-            <div class="container-loading-state">Loading meal history...</div>
+      <!-- Filter/sort toolbar (filters first, sort last, reset in its own slot) -->
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="meal-type-label">Meal Type</span>
+          <div
+            class="filter-chips"
+            id="meal-type-filters"
+            role="group"
+            aria-labelledby="meal-type-label"
+          >
+            <button type="button" class="filter-chip" data-meal="Breakfast">
+              Breakfast
+            </button>
+            <button type="button" class="filter-chip" data-meal="Lunch">
+              Lunch
+            </button>
+            <button type="button" class="filter-chip" data-meal="Dinner">
+              Dinner
+            </button>
+            <button type="button" class="filter-chip" data-meal="Snacks">
+              Snacks
+            </button>
+          </div>
         </div>
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="rating-label">Rating</span>
+          <div
+            class="filter-chips"
+            id="rating-filters"
+            role="group"
+            aria-labelledby="rating-label"
+          >
+            <button type="button" class="filter-chip" data-min="5">
+              5 Stars
+            </button>
+            <button type="button" class="filter-chip" data-min="4">
+              4+ Stars
+            </button>
+            <button type="button" class="filter-chip" data-min="3">
+              3+ Stars
+            </button>
+          </div>
+        </div>
+        <div class="toolbar-group">
+          <label class="toolbar-label" for="sort-select">Sort</label>
+          <select id="sort-select" class="select toolbar-control">
+            <option value="rating_desc">Highest Rated</option>
+            <option value="date_desc">Most Recent</option>
+            <option value="date_asc">Oldest First</option>
+          </select>
+        </div>
+        <div class="toolbar-reset">
+          <button type="button" class="btn btn--quiet" id="filter-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      <div class="list-container" id="history-list">
+        <div class="container-loading-state">Loading meal history...</div>
+      </div>
     </div>
 
     <!-- Review modal -->
     <div class="modal-overlay" id="review-modal-overlay">
-        <div class="modal-content">
-            <h3 id="review-modal-title">Add Review</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
+      <div class="modal-content">
+        <h3 id="review-modal-title">Add Review</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
             <form id="review-form">
-                <input type="hidden" id="review-plan-id">
-                <div class="form-group">
-                    <label>Rating</label>
-                    <div class="star-rating-input" id="star-rating-input" role="radiogroup" aria-label="Meal rating">
-                        <span class="star" data-value="1" tabindex="0" role="radio" aria-checked="false" aria-label="1 star">&#9734;</span>
-                        <span class="star" data-value="2" tabindex="0" role="radio" aria-checked="false" aria-label="2 stars">&#9734;</span>
-                        <span class="star" data-value="3" tabindex="0" role="radio" aria-checked="false" aria-label="3 stars">&#9734;</span>
-                        <span class="star" data-value="4" tabindex="0" role="radio" aria-checked="false" aria-label="4 stars">&#9734;</span>
-                        <span class="star" data-value="5" tabindex="0" role="radio" aria-checked="false" aria-label="5 stars">&#9734;</span>
-                    </div>
+              <input type="hidden" id="review-plan-id" />
+              <div class="form-group">
+                <label>Rating</label>
+                <div
+                  class="star-rating-input"
+                  id="star-rating-input"
+                  role="radiogroup"
+                  aria-label="Meal rating"
+                >
+                  <span
+                    class="star"
+                    data-value="1"
+                    tabindex="0"
+                    role="radio"
+                    aria-checked="false"
+                    aria-label="1 star"
+                    >&#9734;</span
+                  >
+                  <span
+                    class="star"
+                    data-value="2"
+                    tabindex="0"
+                    role="radio"
+                    aria-checked="false"
+                    aria-label="2 stars"
+                    >&#9734;</span
+                  >
+                  <span
+                    class="star"
+                    data-value="3"
+                    tabindex="0"
+                    role="radio"
+                    aria-checked="false"
+                    aria-label="3 stars"
+                    >&#9734;</span
+                  >
+                  <span
+                    class="star"
+                    data-value="4"
+                    tabindex="0"
+                    role="radio"
+                    aria-checked="false"
+                    aria-label="4 stars"
+                    >&#9734;</span
+                  >
+                  <span
+                    class="star"
+                    data-value="5"
+                    tabindex="0"
+                    role="radio"
+                    aria-checked="false"
+                    aria-label="5 stars"
+                    >&#9734;</span
+                  >
                 </div>
-                <div class="form-group">
-                    <label>Review <small>(optional)</small></label>
-                    <textarea id="review-text" placeholder="How was this meal?" rows="4"></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button type="submit" class="btn">Save Review</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-review">Cancel</button>
-                </div>
+              </div>
+              <div class="form-group">
+                <label>Review <small>(optional)</small></label>
+                <textarea
+                  id="review-text"
+                  placeholder="How was this meal?"
+                  rows="4"
+                ></textarea>
+              </div>
+              <div class="modal-actions">
+                <button type="submit" class="btn">Save Review</button>
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  id="btn-cancel-review"
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
-            </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Shared meal add/edit modal (see templates/_meal_edit_modal.html) -->
@@ -113,122 +205,123 @@
     <script src="/static/modal.js?v={{ css_version }}"></script>
     <script src="/static/meal_edit_modal.js?v={{ css_version }}"></script>
     <script>
-        // State
-        let historyPlans = [];
-        let familyMembers = [];
-        let currentSort = 'rating_desc';
-        let currentMinRating = '';
-        let selectedMealTypes = new Set();
-        let defaultMealType = 'Dinner';
-        let localTimezone = 'UTC';
-        let mealModal = null;  // shared MealEditModal instance
+      // State
+      let historyPlans = [];
+      let familyMembers = [];
+      let currentSort = "rating_desc";
+      let currentMinRating = "";
+      let selectedMealTypes = new Set();
+      let defaultMealType = "Dinner";
+      let localTimezone = "UTC";
+      let mealModal = null; // shared MealEditModal instance
 
-        // Star rating state
-        let selectedRating = 0;
+      // Star rating state
+      let selectedRating = 0;
 
-        // Family member helpers
-        async function fetchFamilyMembers() {
-            const response = await fetch('/api/family');
-            familyMembers = await response.json();
+      // Family member helpers
+      async function fetchFamilyMembers() {
+        const response = await fetch("/api/family");
+        familyMembers = await response.json();
+      }
+
+      // Settings — needed by the shared edit modal (default meal type, and the
+      // timezone that decides whether an edited date lands on the planner).
+      async function fetchSettings() {
+        try {
+          const response = await fetch("/api/settings");
+          const data = await response.json();
+          const s = data.settings || {};
+          defaultMealType = s.meal_default_type || "Dinner";
+          localTimezone = s.local_timezone || "UTC";
+        } catch (_) {
+          defaultMealType = "Dinner";
+        }
+      }
+
+      function getMemberById(id) {
+        return familyMembers.find((m) => m.id === id);
+      }
+
+      // Format date for display
+      function formatDate(dateStr) {
+        const date = new Date(dateStr + "T00:00:00");
+        return date.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Build star display HTML
+      function renderStars(rating) {
+        if (!rating) return '<span class="no-review-text">Not yet rated</span>';
+        let html = '<span class="star-rating">';
+        for (let i = 1; i <= 5; i++) {
+          html += `<span class="star${i <= rating ? " filled" : ""}">&#9733;</span>`;
+        }
+        html += "</span>";
+        return html;
+      }
+
+      // API calls
+      async function fetchHistory() {
+        const params = new URLSearchParams({ sort: currentSort });
+        if (currentMinRating) {
+          params.set("min_rating", currentMinRating);
+        }
+        selectedMealTypes.forEach((t) => params.append("meal_type", t));
+        const response = await fetch(`/api/dinner-plans/history?${params}`);
+        historyPlans = await response.json();
+        renderHistory();
+      }
+
+      async function saveReview(planId, rating, review) {
+        const body = {};
+        if (rating > 0) body.rating = rating;
+        if (review) body.review = review;
+
+        const response = await fetch(`/api/dinner-plans/${planId}/review`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) throw new Error("Failed to save review");
+        return response.json();
+      }
+
+      // Render
+      function renderHistory() {
+        const container = document.getElementById("history-list");
+
+        if (historyPlans.length === 0) {
+          const filtersActive = selectedMealTypes.size > 0 || currentMinRating;
+          container.innerHTML = filtersActive
+            ? '<div class="container-empty-state">No meals match the current filters.</div>'
+            : '<div class="container-empty-state">No meal history yet. Past meals will appear here once you have some plans behind you.</div>';
+          return;
         }
 
-        // Settings — needed by the shared edit modal (default meal type, and the
-        // timezone that decides whether an edited date lands on the planner).
-        async function fetchSettings() {
-            try {
-                const response = await fetch('/api/settings');
-                const data = await response.json();
-                const s = data.settings || {};
-                defaultMealType = s.meal_default_type || 'Dinner';
-                localTimezone = s.local_timezone || 'UTC';
-            } catch (_) {
-                defaultMealType = 'Dinner';
-            }
-        }
+        container.innerHTML = historyPlans
+          .map((plan) => {
+            const mealType = plan.meal_type || "Dinner";
+            const reviewHtml = plan.review
+              ? `<div class="history-card-review">${escapeHtml(plan.review)}</div>`
+              : "";
 
-        function getMemberById(id) {
-            return familyMembers.find(m => m.id === id);
-        }
-
-        // Format date for display
-        function formatDate(dateStr) {
-            const date = new Date(dateStr + 'T00:00:00');
-            return date.toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-            });
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Build star display HTML
-        function renderStars(rating) {
-            if (!rating) return '<span class="no-review-text">Not yet rated</span>';
-            let html = '<span class="star-rating">';
-            for (let i = 1; i <= 5; i++) {
-                html += `<span class="star${i <= rating ? ' filled' : ''}">&#9733;</span>`;
-            }
-            html += '</span>';
-            return html;
-        }
-
-        // API calls
-        async function fetchHistory() {
-            const params = new URLSearchParams({ sort: currentSort });
-            if (currentMinRating) {
-                params.set('min_rating', currentMinRating);
-            }
-            selectedMealTypes.forEach(t => params.append('meal_type', t));
-            const response = await fetch(`/api/dinner-plans/history?${params}`);
-            historyPlans = await response.json();
-            renderHistory();
-        }
-
-        async function saveReview(planId, rating, review) {
-            const body = {};
-            if (rating > 0) body.rating = rating;
-            if (review) body.review = review;
-
-            const response = await fetch(`/api/dinner-plans/${planId}/review`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            if (!response.ok) throw new Error('Failed to save review');
-            return response.json();
-        }
-
-        // Render
-        function renderHistory() {
-            const container = document.getElementById('history-list');
-
-            if (historyPlans.length === 0) {
-                const filtersActive = selectedMealTypes.size > 0 || currentMinRating;
-                container.innerHTML = filtersActive
-                    ? '<div class="container-empty-state">No meals match the current filters.</div>'
-                    : '<div class="container-empty-state">No meal history yet. Past meals will appear here once you have some plans behind you.</div>';
-                return;
-            }
-
-            container.innerHTML = historyPlans.map(plan => {
-                const mealType = plan.meal_type || 'Dinner';
-                const reviewHtml = plan.review
-                    ? `<div class="history-card-review">${escapeHtml(plan.review)}</div>`
-                    : '';
-
-                const ratingRow = `<div class="history-card-rating-row">
+            const ratingRow = `<div class="history-card-rating-row">
                     ${renderStars(plan.rating)}
-                    <button class="btn btn--sm" onclick="openReviewModal(${plan.id})">${plan.rating ? 'Edit Review' : 'Add Review'}</button>
+                    <button class="btn btn--sm" onclick="openReviewModal(${plan.id})">${plan.rating ? "Edit Review" : "Add Review"}</button>
                     <button class="btn btn--sm" onclick="openEditModal(${plan.id})">Edit</button>
                 </div>`;
 
-                return `
+            return `
                     <div class="history-card" data-id="${plan.id}">
                         <div class="history-card-header">
                             <div class="history-card-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
@@ -238,180 +331,204 @@
                         ${reviewHtml}
                     </div>
                 `;
-            }).join('');
-        }
+          })
+          .join("");
+      }
 
-        // Edit modal — the shared MealEditModal (static/meal_edit_modal.js) owns
-        // the edit/delete behavior. Editing a meal's date onto the planner
-        // (today or later) discards its rating/review after a confirm prompt.
-        function openEditModal(planId) {
-            mealModal.openEdit(historyPlans.find(p => p.id === planId));
-        }
+      // Edit modal — the shared MealEditModal (static/meal_edit_modal.js) owns
+      // the edit/delete behavior. Editing a meal's date onto the planner
+      // (today or later) discards its rating/review after a confirm prompt.
+      function openEditModal(planId) {
+        mealModal.openEdit(historyPlans.find((p) => p.id === planId));
+      }
 
-        // Review modal
-        function openReviewModal(planId) {
-            const plan = historyPlans.find(p => p.id === planId);
-            if (!plan) return;
+      // Review modal
+      function openReviewModal(planId) {
+        const plan = historyPlans.find((p) => p.id === planId);
+        if (!plan) return;
 
-            document.getElementById('review-plan-id').value = planId;
-            document.getElementById('review-modal-title').textContent =
-                plan.rating ? 'Edit Review' : 'Add Review';
-            document.getElementById('review-text').value = plan.review || '';
+        document.getElementById("review-plan-id").value = planId;
+        document.getElementById("review-modal-title").textContent = plan.rating
+          ? "Edit Review"
+          : "Add Review";
+        document.getElementById("review-text").value = plan.review || "";
 
-            // Set star rating
-            selectedRating = plan.rating || 0;
-            updateStarDisplay();
+        // Set star rating
+        selectedRating = plan.rating || 0;
+        updateStarDisplay();
 
-            showModalOverlay('review-modal-overlay');
-        }
+        showModalOverlay("review-modal-overlay");
+      }
 
-        function closeReviewModal() {
-            hideModalOverlay('review-modal-overlay');
-            selectedRating = 0;
-        }
+      function closeReviewModal() {
+        hideModalOverlay("review-modal-overlay");
+        selectedRating = 0;
+      }
 
-        function updateStarDisplay() {
-            const stars = document.querySelectorAll('#star-rating-input .star');
-            stars.forEach(star => {
-                const val = parseInt(star.dataset.value);
-                const isSelected = val <= selectedRating;
-                star.classList.toggle('filled', isSelected);
-                star.textContent = isSelected ? '\u2605' : '\u2606';
-                star.setAttribute('aria-checked', isSelected ? 'true' : 'false');
-            });
-        }
+      function updateStarDisplay() {
+        const stars = document.querySelectorAll("#star-rating-input .star");
+        stars.forEach((star) => {
+          const val = parseInt(star.dataset.value);
+          const isSelected = val <= selectedRating;
+          star.classList.toggle("filled", isSelected);
+          star.textContent = isSelected ? "\u2605" : "\u2606";
+          star.setAttribute("aria-checked", isSelected ? "true" : "false");
+        });
+      }
 
-        // Star rating interaction
-        document.querySelectorAll('#star-rating-input .star').forEach(star => {
-            star.addEventListener('click', function() {
-                selectedRating = parseInt(this.dataset.value);
-                updateStarDisplay();
-            });
-
-            star.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    selectedRating = parseInt(this.dataset.value);
-                    updateStarDisplay();
-                }
-            });
-
-            star.addEventListener('mouseenter', function() {
-                const hoverVal = parseInt(this.dataset.value);
-                document.querySelectorAll('#star-rating-input .star').forEach(s => {
-                    const val = parseInt(s.dataset.value);
-                    const isHover = val <= hoverVal && val > selectedRating;
-                    s.classList.toggle('hover', isHover);
-                    if (isHover) {
-                        s.textContent = '\u2605';
-                    } else if (val > selectedRating) {
-                        s.textContent = '\u2606';
-                    }
-                });
-            });
-
-            star.addEventListener('mouseleave', function() {
-                document.querySelectorAll('#star-rating-input .star').forEach(s => {
-                    const val = parseInt(s.dataset.value);
-                    s.classList.remove('hover');
-                    s.textContent = val <= selectedRating ? '\u2605' : '\u2606';
-                });
-            });
+      // Star rating interaction
+      document.querySelectorAll("#star-rating-input .star").forEach((star) => {
+        star.addEventListener("click", function () {
+          selectedRating = parseInt(this.dataset.value);
+          updateStarDisplay();
         });
 
-        // Sort/filter handlers
-        document.getElementById('sort-select').addEventListener('change', function() {
-            currentSort = this.value;
-            fetchHistory();
-        });
-
-        // Meal type: multi-select (any of the selected types).
-        document.getElementById('meal-type-filters').addEventListener('click', function(e) {
-            const chip = e.target.closest('.filter-chip');
-            if (!chip) return;
-
-            const meal = chip.dataset.meal;
-            if (selectedMealTypes.has(meal)) {
-                selectedMealTypes.delete(meal);
-                chip.classList.remove('active');
-            } else {
-                selectedMealTypes.add(meal);
-                chip.classList.add('active');
-            }
-            fetchHistory();
-        });
-
-        // Rating: single-select; clicking the active chip clears it.
-        document.getElementById('rating-filters').addEventListener('click', function(e) {
-            const chip = e.target.closest('.filter-chip');
-            if (!chip) return;
-
-            const alreadyActive = chip.classList.contains('active');
-            document.querySelectorAll('#rating-filters .filter-chip').forEach(c => c.classList.remove('active'));
-            if (alreadyActive) {
-                currentMinRating = '';
-            } else {
-                chip.classList.add('active');
-                currentMinRating = chip.dataset.min;
-            }
-            fetchHistory();
-        });
-
-        document.getElementById('filter-clear').addEventListener('click', function() {
-            selectedMealTypes.clear();
-            currentMinRating = '';
-            currentSort = 'rating_desc';
-            document.getElementById('sort-select').value = currentSort;
-            document.querySelectorAll('.toolbar .filter-chip').forEach(c => c.classList.remove('active'));
-            fetchHistory();
-        });
-
-        // Modal events
-        document.getElementById('btn-cancel-review').addEventListener('click', closeReviewModal);
-        document.getElementById('review-modal-overlay').addEventListener('click', function(e) {
-            if (e.target.id === 'review-modal-overlay') closeReviewModal();
-        });
-
-        document.getElementById('review-form').addEventListener('submit', async function(e) {
+        star.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            const planId = parseInt(document.getElementById('review-plan-id').value);
-            const reviewText = document.getElementById('review-text').value.trim();
+            selectedRating = parseInt(this.dataset.value);
+            updateStarDisplay();
+          }
+        });
 
-            try {
-                await saveReview(planId, selectedRating, reviewText || null);
-                closeReviewModal();
-                await fetchHistory();
-            } catch (error) {
-                console.error('Error saving review:', error);
-                alert('Failed to save review');
+        star.addEventListener("mouseenter", function () {
+          const hoverVal = parseInt(this.dataset.value);
+          document.querySelectorAll("#star-rating-input .star").forEach((s) => {
+            const val = parseInt(s.dataset.value);
+            const isHover = val <= hoverVal && val > selectedRating;
+            s.classList.toggle("hover", isHover);
+            if (isHover) {
+              s.textContent = "\u2605";
+            } else if (val > selectedRating) {
+              s.textContent = "\u2606";
             }
+          });
         });
 
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
+        star.addEventListener("mouseleave", function () {
+          document.querySelectorAll("#star-rating-input .star").forEach((s) => {
+            const val = parseInt(s.dataset.value);
+            s.classList.remove("hover");
+            s.textContent = val <= selectedRating ? "\u2605" : "\u2606";
+          });
+        });
+      });
+
+      // Sort/filter handlers
+      document
+        .getElementById("sort-select")
+        .addEventListener("change", function () {
+          currentSort = this.value;
+          fetchHistory();
         });
 
-        // Initialize — settings and family members load before the modal and list
-        Promise.all([fetchSettings(), fetchFamilyMembers()]).then(() => {
-            mealModal = new MealEditModal({
-                getFamilyMembers: () => familyMembers,
-                getDefaultMealType: () => defaultMealType,
-                getTimezone: () => localTimezone,
-                onSaved: fetchHistory,
-            });
-            fetchHistory();
+      // Meal type: multi-select (any of the selected types).
+      document
+        .getElementById("meal-type-filters")
+        .addEventListener("click", function (e) {
+          const chip = e.target.closest(".filter-chip");
+          if (!chip) return;
+
+          const meal = chip.dataset.meal;
+          if (selectedMealTypes.has(meal)) {
+            selectedMealTypes.delete(meal);
+            chip.classList.remove("active");
+          } else {
+            selectedMealTypes.add(meal);
+            chip.classList.add("active");
+          }
+          fetchHistory();
         });
+
+      // Rating: single-select; clicking the active chip clears it.
+      document
+        .getElementById("rating-filters")
+        .addEventListener("click", function (e) {
+          const chip = e.target.closest(".filter-chip");
+          if (!chip) return;
+
+          const alreadyActive = chip.classList.contains("active");
+          document
+            .querySelectorAll("#rating-filters .filter-chip")
+            .forEach((c) => c.classList.remove("active"));
+          if (alreadyActive) {
+            currentMinRating = "";
+          } else {
+            chip.classList.add("active");
+            currentMinRating = chip.dataset.min;
+          }
+          fetchHistory();
+        });
+
+      document
+        .getElementById("filter-clear")
+        .addEventListener("click", function () {
+          selectedMealTypes.clear();
+          currentMinRating = "";
+          currentSort = "rating_desc";
+          document.getElementById("sort-select").value = currentSort;
+          document
+            .querySelectorAll(".toolbar .filter-chip")
+            .forEach((c) => c.classList.remove("active"));
+          fetchHistory();
+        });
+
+      // Modal events
+      document
+        .getElementById("btn-cancel-review")
+        .addEventListener("click", closeReviewModal);
+      document
+        .getElementById("review-modal-overlay")
+        .addEventListener("click", function (e) {
+          if (e.target.id === "review-modal-overlay") closeReviewModal();
+        });
+
+      document
+        .getElementById("review-form")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+          const planId = parseInt(
+            document.getElementById("review-plan-id").value,
+          );
+          const reviewText = document
+            .getElementById("review-text")
+            .value.trim();
+
+          try {
+            await saveReview(planId, selectedRating, reviewText || null);
+            closeReviewModal();
+            await fetchHistory();
+          } catch (error) {
+            console.error("Error saving review:", error);
+            alert("Failed to save review");
+          }
+        });
+
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
+        });
+      });
+
+      // Initialize — settings and family members load before the modal and list
+      Promise.all([fetchSettings(), fetchFamilyMembers()]).then(() => {
+        mealModal = new MealEditModal({
+          getFamilyMembers: () => familyMembers,
+          getDefaultMealType: () => defaultMealType,
+          getTimezone: () => localTimezone,
+          onSaved: fetchHistory,
+        });
+        fetchHistory();
+      });
     </script>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
-</body>
+  </body>
 </html>

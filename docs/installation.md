@@ -55,18 +55,18 @@ Migrations are idempotent and run automatically on startup, so an upgrade needs 
 
 ## What lives where
 
-| Path | Contents |
-|---|---|
+| Path             | Contents                                              |
+| ---------------- | ----------------------------------------------------- |
 | `/data/rally.db` | Everything: events, tasks, lists, settings, snapshots |
-| `/output` | Generated summary artifacts |
+| `/output`        | Generated summary artifacts                           |
 
 The database holds your API keys and any CalDAV app-specific passwords **in plaintext**. Treat the volume accordingly, and back it up. [backup.md](backup.md) covers a scheduled, client-side-encrypted offsite backup, worked through end to end for Unraid and Cloudflare R2.
 
 ## Environment variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `RALLY_ENV` | `development` | Set to `production` in Docker |
+| Variable        | Default                        | Purpose                        |
+| --------------- | ------------------------------ | ------------------------------ |
+| `RALLY_ENV`     | `development`                  | Set to `production` in Docker  |
 | `RALLY_DB_PATH` | Auto-detected from `RALLY_ENV` | Override the database location |
 
 Everything else is configured in the Settings UI and stored in the database. See [configuration.md](configuration.md).

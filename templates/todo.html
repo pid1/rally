@@ -1,452 +1,638 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally - Todos</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Todo Management</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Todo Management</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo" class="active">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo" class="active">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Tasks</h2>
-                <div class="page-header-actions">
-                    <button class="btn" id="btn-add-task">Add Task</button>
-                </div>
-            </div>
-            <div class="page-header-meta">
-                <a class="link-quiet" href="/todo/completed">View completed tasks</a>
-            </div>
-        </header>
-
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="assignee-label">Assignee</span>
-                <div class="filter-chips" id="filter-assignee-chips" role="group" aria-labelledby="assignee-label">
-                    <button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>
-                </div>
-            </div>
-            <div class="toolbar-group">
-                <label class="toolbar-label" for="sort-by">Sort</label>
-                <select id="sort-by" class="select toolbar-control">
-                    <option value="due-soonest">Due Date (Soonest)</option>
-                    <option value="due-furthest">Due Date (Furthest Out)</option>
-                    <option value="assignee">Assignee</option>
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                </select>
-            </div>
-            <div class="toolbar-reset">
-                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
-            </div>
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Tasks</h2>
+          <div class="page-header-actions">
+            <button class="btn" id="btn-add-task">Add Task</button>
+          </div>
         </div>
-
-        <div class="list-container" id="list-container">
-            <div class="container-loading-state">Loading tasks...</div>
+        <div class="page-header-meta">
+          <a class="link-quiet" href="/todo/completed">View completed tasks</a>
         </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="assignee-label">Assignee</span>
+          <div
+            class="filter-chips"
+            id="filter-assignee-chips"
+            role="group"
+            aria-labelledby="assignee-label"
+          >
+            <button type="button" class="filter-chip" data-value="unassigned">
+              Unassigned
+            </button>
+          </div>
+        </div>
+        <div class="toolbar-group">
+          <label class="toolbar-label" for="sort-by">Sort</label>
+          <select id="sort-by" class="select toolbar-control">
+            <option value="due-soonest">Due Date (Soonest)</option>
+            <option value="due-furthest">Due Date (Furthest Out)</option>
+            <option value="assignee">Assignee</option>
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+          </select>
+        </div>
+        <div class="toolbar-reset">
+          <button type="button" class="btn btn--quiet" id="filter-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      <div class="list-container" id="list-container">
+        <div class="container-loading-state">Loading tasks...</div>
+      </div>
     </div>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Recurring Tasks</h2>
-                <div class="page-header-actions">
-                    <button class="btn" id="btn-add-recurring">Add Recurring</button>
-                </div>
-            </div>
-        </header>
-
-        <div class="list-container" id="recurring-list-container">
-            <div class="container-loading-state">Loading recurring tasks...</div>
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Recurring Tasks</h2>
+          <div class="page-header-actions">
+            <button class="btn" id="btn-add-recurring">Add Recurring</button>
+          </div>
         </div>
+      </header>
+
+      <div class="list-container" id="recurring-list-container">
+        <div class="container-loading-state">Loading recurring tasks...</div>
+      </div>
     </div>
 
     <!-- Modal for add/edit recurring -->
     <div class="modal-overlay" id="recurring-modal-overlay">
-        <div class="modal-content">
-            <h3 id="recurring-modal-title">Add Recurring Task</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
+      <div class="modal-content">
+        <h3 id="recurring-modal-title">Add Recurring Task</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
             <form id="recurring-form">
-                <input type="hidden" id="recurring-id">
+              <input type="hidden" id="recurring-id" />
+              <div class="form-group">
+                <label>Task</label>
+                <input
+                  type="text"
+                  id="recurring-title"
+                  placeholder="Task title"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Notes (optional)</label>
+                <textarea
+                  id="recurring-description"
+                  placeholder="Additional details"
+                  rows="3"
+                ></textarea>
+              </div>
+              <div class="form-group">
+                <label>Recurrence</label>
+                <select id="recurring-type" required>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div
+                class="form-group"
+                id="recurring-day-group"
+                style="display: none"
+              >
+                <label id="recurring-day-label">Day</label>
+                <select id="recurring-day"></select>
+              </div>
+              <div id="recurring-custom-group" style="display: none">
                 <div class="form-group">
-                    <label>Task</label>
-                    <input type="text" id="recurring-title" placeholder="Task title" required>
-                </div>
-                <div class="form-group">
-                    <label>Notes (optional)</label>
-                    <textarea id="recurring-description" placeholder="Additional details" rows="3"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Recurrence</label>
-                    <select id="recurring-type" required>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="custom">Custom</option>
+                  <label>Repeat every</label>
+                  <div class="custom-recurrence-row">
+                    <input
+                      type="number"
+                      id="custom-interval"
+                      min="1"
+                      value="1"
+                      class="remind-days-input"
+                    />
+                    <select id="custom-freq" style="flex: 1">
+                      <option value="daily">Days</option>
+                      <option value="weekly">Weeks</option>
+                      <option value="monthly">Months</option>
                     </select>
+                  </div>
                 </div>
-                <div class="form-group" id="recurring-day-group" style="display:none;">
-                    <label id="recurring-day-label">Day</label>
-                    <select id="recurring-day"></select>
+                <div
+                  class="form-group"
+                  id="custom-weekdays-only-group"
+                  style="display: none"
+                >
+                  <label
+                    title="When checked, if the next due date falls on a weekend, it will be moved to the following Monday. Useful for tasks that must be done at a specific interval but can only be completed on weekdays (e.g., medical appointments, office pickups)."
+                  >
+                    <input type="checkbox" id="custom-weekdays-only" />
+                    Schedule on weekdays only
+                  </label>
                 </div>
-                <div id="recurring-custom-group" style="display:none;">
-                    <div class="form-group">
-                        <label>Repeat every</label>
-                        <div class="custom-recurrence-row">
-                            <input type="number" id="custom-interval" min="1" value="1" class="remind-days-input">
-                            <select id="custom-freq" style="flex:1;">
-                                <option value="daily">Days</option>
-                                <option value="weekly">Weeks</option>
-                                <option value="monthly">Months</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group" id="custom-weekdays-only-group" style="display:none;">
-                        <label title="When checked, if the next due date falls on a weekend, it will be moved to the following Monday. Useful for tasks that must be done at a specific interval but can only be completed on weekdays (e.g., medical appointments, office pickups).">
-                            <input type="checkbox" id="custom-weekdays-only">
-                            Schedule on weekdays only
-                        </label>
-                    </div>
-                    <div class="form-group" id="custom-next-due-from-group" style="display:none;">
-                        <label title="&quot;Due date of the last task&quot; keeps the original cadence — the interval after the last task's due date — but if that date has already passed, it falls back to the interval after completion so a task is never created already overdue. &quot;Date the last task was completed&quot; schedules the next task the interval after you finish the last one.">Calculate next due date from:</label>
-                        <div class="radio-options">
-                            <label>
-                                <input type="radio" name="custom-next-due-from" value="due_date" checked>
-                                Due date of the last task
-                            </label>
-                            <label>
-                                <input type="radio" name="custom-next-due-from" value="completion_date">
-                                Date the last task was completed
-                            </label>
-                        </div>
-                    </div>
-                    <div class="form-group" id="custom-weekly-group" style="display:none;">
-                        <label>On</label>
-                        <div class="weekday-checkboxes" id="custom-weekdays">
-                            <label class="weekday-label"><input type="checkbox" value="0"> Mon</label>
-                            <label class="weekday-label"><input type="checkbox" value="1"> Tue</label>
-                            <label class="weekday-label"><input type="checkbox" value="2"> Wed</label>
-                            <label class="weekday-label"><input type="checkbox" value="3"> Thu</label>
-                            <label class="weekday-label"><input type="checkbox" value="4"> Fri</label>
-                            <label class="weekday-label"><input type="checkbox" value="5"> Sat</label>
-                            <label class="weekday-label"><input type="checkbox" value="6"> Sun</label>
-                        </div>
-                    </div>
-                    <div class="form-group" id="custom-monthly-group" style="display:none;">
-                        <label>On</label>
-                        <div class="radio-options" style="margin-bottom:8px;">
-                            <label><input type="radio" name="custom-monthly-mode" value="day" checked> Day of month</label>
-                            <label><input type="radio" name="custom-monthly-mode" value="weekday"> Relative weekday</label>
-                        </div>
-                        <div id="custom-monthly-day-group">
-                            <select id="custom-monthly-day"></select>
-                        </div>
-                        <div id="custom-monthly-weekday-group" style="display:none;">
-                            <div class="custom-recurrence-row">
-                                <select id="custom-ordinal" style="flex:1;">
-                                    <option value="first">First</option>
-                                    <option value="second">Second</option>
-                                    <option value="third">Third</option>
-                                    <option value="fourth">Fourth</option>
-                                    <option value="last">Last</option>
-                                </select>
-                                <select id="custom-weekday" style="flex:1;">
-                                    <option value="0">Monday</option>
-                                    <option value="1">Tuesday</option>
-                                    <option value="2">Wednesday</option>
-                                    <option value="3">Thursday</option>
-                                    <option value="4">Friday</option>
-                                    <option value="5">Saturday</option>
-                                    <option value="6">Sunday</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="recurring-start-date">Starts</label>
-                    <input type="date" id="recurring-start-date">
-                    <small id="recurring-start-hint">Leave blank to start on the next occurrence from today.</small>
-                </div>
-                <div class="recurrence-preview" id="recurrence-preview" aria-live="polite"></div>
-                <div class="form-group">
-                    <label>Assigned To (optional)</label>
-                    <select id="recurring-assigned-to">
-                        <option value="">Unassigned</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="recurring-has-due-date">
-                        Set due date on generated tasks
+                <div
+                  class="form-group"
+                  id="custom-next-due-from-group"
+                  style="display: none"
+                >
+                  <label
+                    title='"Due date of the last task" keeps the original cadence — the interval after the last task&apos;s due date — but if that date has already passed, it falls back to the interval after completion so a task is never created already overdue. "Date the last task was completed" schedules the next task the interval after you finish the last one.'
+                    >Calculate next due date from:</label
+                  >
+                  <div class="radio-options">
+                    <label>
+                      <input
+                        type="radio"
+                        name="custom-next-due-from"
+                        value="due_date"
+                        checked
+                      />
+                      Due date of the last task
                     </label>
-                    <small>Due date will match the recurrence day</small>
+                    <label>
+                      <input
+                        type="radio"
+                        name="custom-next-due-from"
+                        value="completion_date"
+                      />
+                      Date the last task was completed
+                    </label>
+                  </div>
                 </div>
-                <div class="form-group" id="recurring-remind-group" style="display:none;">
-                    <label>Include in The Briefing starting <input type="number" id="recurring-remind-days" min="0" step="1" placeholder="e.g. 3" class="remind-days-input"> days before the due date</label>
-                    <small>Leave blank to always include in briefings</small>
+                <div
+                  class="form-group"
+                  id="custom-weekly-group"
+                  style="display: none"
+                >
+                  <label>On</label>
+                  <div class="weekday-checkboxes" id="custom-weekdays">
+                    <label class="weekday-label"
+                      ><input type="checkbox" value="0" /> Mon</label
+                    >
+                    <label class="weekday-label"
+                      ><input type="checkbox" value="1" /> Tue</label
+                    >
+                    <label class="weekday-label"
+                      ><input type="checkbox" value="2" /> Wed</label
+                    >
+                    <label class="weekday-label"
+                      ><input type="checkbox" value="3" /> Thu</label
+                    >
+                    <label class="weekday-label"
+                      ><input type="checkbox" value="4" /> Fri</label
+                    >
+                    <label class="weekday-label"
+                      ><input type="checkbox" value="5" /> Sat</label
+                    >
+                    <label class="weekday-label"
+                      ><input type="checkbox" value="6" /> Sun</label
+                    >
+                  </div>
                 </div>
+                <div
+                  class="form-group"
+                  id="custom-monthly-group"
+                  style="display: none"
+                >
+                  <label>On</label>
+                  <div class="radio-options" style="margin-bottom: 8px">
+                    <label
+                      ><input
+                        type="radio"
+                        name="custom-monthly-mode"
+                        value="day"
+                        checked
+                      />
+                      Day of month</label
+                    >
+                    <label
+                      ><input
+                        type="radio"
+                        name="custom-monthly-mode"
+                        value="weekday"
+                      />
+                      Relative weekday</label
+                    >
+                  </div>
+                  <div id="custom-monthly-day-group">
+                    <select id="custom-monthly-day"></select>
+                  </div>
+                  <div id="custom-monthly-weekday-group" style="display: none">
+                    <div class="custom-recurrence-row">
+                      <select id="custom-ordinal" style="flex: 1">
+                        <option value="first">First</option>
+                        <option value="second">Second</option>
+                        <option value="third">Third</option>
+                        <option value="fourth">Fourth</option>
+                        <option value="last">Last</option>
+                      </select>
+                      <select id="custom-weekday" style="flex: 1">
+                        <option value="0">Monday</option>
+                        <option value="1">Tuesday</option>
+                        <option value="2">Wednesday</option>
+                        <option value="3">Thursday</option>
+                        <option value="4">Friday</option>
+                        <option value="5">Saturday</option>
+                        <option value="6">Sunday</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="recurring-start-date">Starts</label>
+                <input type="date" id="recurring-start-date" />
+                <small id="recurring-start-hint"
+                  >Leave blank to start on the next occurrence from
+                  today.</small
+                >
+              </div>
+              <div
+                class="recurrence-preview"
+                id="recurrence-preview"
+                aria-live="polite"
+              ></div>
+              <div class="form-group">
+                <label>Assigned To (optional)</label>
+                <select id="recurring-assigned-to">
+                  <option value="">Unassigned</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="recurring-has-due-date" />
+                  Set due date on generated tasks
+                </label>
+                <small>Due date will match the recurrence day</small>
+              </div>
+              <div
+                class="form-group"
+                id="recurring-remind-group"
+                style="display: none"
+              >
+                <label
+                  >Include in The Briefing starting
+                  <input
+                    type="number"
+                    id="recurring-remind-days"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 3"
+                    class="remind-days-input"
+                  />
+                  days before the due date</label
+                >
+                <small>Leave blank to always include in briefings</small>
+              </div>
             </form>
-                <div class="modal-actions">
-                    <button type="submit" form="recurring-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-recurring">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-recurring" style="display:none" onclick="confirmDeleteRecurringFromModal()">Delete</button>
-                </div>
+            <div class="modal-actions">
+              <button type="submit" form="recurring-form" class="btn">
+                Save
+              </button>
+              <button
+                type="button"
+                class="btn btn--secondary"
+                id="btn-cancel-recurring"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn btn--secondary modal-delete"
+                id="btn-delete-recurring"
+                style="display: none"
+                onclick="confirmDeleteRecurringFromModal()"
+              >
+                Delete
+              </button>
             </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Modal for add/edit -->
     <div class="modal-overlay" id="modal-overlay">
-        <div class="modal-content">
-            <h3 id="modal-title">Add Task</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
-                <form id="todo-form">
-                    <input type="hidden" id="todo-id">
-                    <div class="form-group">
-                        <label>Task</label>
-                        <input type="text" id="todo-title" placeholder="Task title" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Notes (optional)</label>
-                        <textarea id="todo-description" placeholder="Additional details" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Assigned To (optional)</label>
-                        <select id="todo-assigned-to">
-                            <option value="">Unassigned</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Due Date (optional)</label>
-                        <input type="date" id="todo-due-date">
-                        <small>Leave blank if no specific deadline</small>
-                    </div>
-                    <div class="form-group" id="todo-remind-group" style="display:none;">
-                        <label>Include in The Briefing starting <input type="number" id="todo-remind-days" min="0" step="1" placeholder="e.g. 3" class="remind-days-input"> days before the due date</label>
-                        <small>Leave blank to always include in briefings</small>
-                    </div>
-                </form>
-                <div class="modal-actions">
-                    <button type="submit" form="todo-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
-                </div>
+      <div class="modal-content">
+        <h3 id="modal-title">Add Task</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
+            <form id="todo-form">
+              <input type="hidden" id="todo-id" />
+              <div class="form-group">
+                <label>Task</label>
+                <input
+                  type="text"
+                  id="todo-title"
+                  placeholder="Task title"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Notes (optional)</label>
+                <textarea
+                  id="todo-description"
+                  placeholder="Additional details"
+                  rows="3"
+                ></textarea>
+              </div>
+              <div class="form-group">
+                <label>Assigned To (optional)</label>
+                <select id="todo-assigned-to">
+                  <option value="">Unassigned</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Due Date (optional)</label>
+                <input type="date" id="todo-due-date" />
+                <small>Leave blank if no specific deadline</small>
+              </div>
+              <div
+                class="form-group"
+                id="todo-remind-group"
+                style="display: none"
+              >
+                <label
+                  >Include in The Briefing starting
+                  <input
+                    type="number"
+                    id="todo-remind-days"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 3"
+                    class="remind-days-input"
+                  />
+                  days before the due date</label
+                >
+                <small>Leave blank to always include in briefings</small>
+              </div>
+            </form>
+            <div class="modal-actions">
+              <button type="submit" form="todo-form" class="btn">Save</button>
+              <button type="button" class="btn btn--secondary" id="btn-cancel">
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn btn--secondary modal-delete"
+                id="btn-delete-todo"
+                style="display: none"
+                onclick="confirmDeleteFromModal()"
+              >
+                Delete
+              </button>
             </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <script>
-        // State
-        let todos = [];
-        let familyMembers = [];
-        let editingId = null;
+      // State
+      let todos = [];
+      let familyMembers = [];
+      let editingId = null;
 
-        // Load family members for assignee dropdown
-        async function fetchFamilyMembers() {
-            const response = await fetch('/api/family');
-            familyMembers = await response.json();
-            populateAssigneeDropdown();
+      // Load family members for assignee dropdown
+      async function fetchFamilyMembers() {
+        const response = await fetch("/api/family");
+        familyMembers = await response.json();
+        populateAssigneeDropdown();
+      }
+
+      // Track selected assignee filter values
+      let selectedFilters = new Set();
+
+      function populateAssigneeDropdown() {
+        const select = document.getElementById("todo-assigned-to");
+        select.innerHTML = '<option value="">Unassigned</option>';
+        familyMembers.forEach((m) => {
+          select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+        });
+
+        // Build filter chips
+        const chips = document.getElementById("filter-assignee-chips");
+        chips.innerHTML =
+          '<button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>';
+        familyMembers.forEach((m) => {
+          chips.innerHTML += `<button type="button" class="filter-chip" data-value="${m.id}">${escapeHtml(m.name)}</button>`;
+        });
+        // Re-apply active state from selectedFilters
+        chips.querySelectorAll(".filter-chip").forEach((chip) => {
+          if (selectedFilters.has(chip.dataset.value)) {
+            chip.classList.add("active");
+          }
+        });
+        updateClearButton();
+
+        const rSelect = document.getElementById("recurring-assigned-to");
+        rSelect.innerHTML = '<option value="">Unassigned</option>';
+        familyMembers.forEach((m) => {
+          rSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+        });
+      }
+
+      function updateClearButton() {
+        // Clear Filters button is always visible per design
+      }
+
+      function clearFilters() {
+        selectedFilters.clear();
+        document
+          .querySelectorAll("#filter-assignee-chips .filter-chip")
+          .forEach((chip) => {
+            chip.classList.remove("active");
+          });
+        updateClearButton();
+        renderTodos();
+      }
+
+      function getMemberById(id) {
+        return familyMembers.find((m) => m.id === id);
+      }
+
+      // API calls
+      async function fetchTodos() {
+        const response = await fetch("/api/todos");
+        todos = await response.json();
+        renderTodos();
+      }
+
+      async function createTodo(data) {
+        const response = await fetch("/api/todos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to create todo");
+        return response.json();
+      }
+
+      async function updateTodo(id, data) {
+        const response = await fetch(`/api/todos/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to update todo");
+        return response.json();
+      }
+
+      async function deleteTodo(id) {
+        const response = await fetch(`/api/todos/${id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) throw new Error("Failed to delete todo");
+      }
+
+      // Filter & sort
+      function getFilteredSortedTodos() {
+        const sortValue = document.getElementById("sort-by").value;
+
+        let filtered = todos;
+        if (selectedFilters.size > 0) {
+          filtered = todos.filter((t) => {
+            if (!t.assigned_to) return selectedFilters.has("unassigned");
+            return selectedFilters.has(String(t.assigned_to));
+          });
         }
 
-        // Track selected assignee filter values
-        let selectedFilters = new Set();
-
-        function populateAssigneeDropdown() {
-            const select = document.getElementById('todo-assigned-to');
-            select.innerHTML = '<option value="">Unassigned</option>';
-            familyMembers.forEach(m => {
-                select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
-            });
-
-            // Build filter chips
-            const chips = document.getElementById('filter-assignee-chips');
-            chips.innerHTML = '<button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>';
-            familyMembers.forEach(m => {
-                chips.innerHTML += `<button type="button" class="filter-chip" data-value="${m.id}">${escapeHtml(m.name)}</button>`;
-            });
-            // Re-apply active state from selectedFilters
-            chips.querySelectorAll('.filter-chip').forEach(chip => {
-                if (selectedFilters.has(chip.dataset.value)) {
-                    chip.classList.add('active');
-                }
-            });
-            updateClearButton();
-
-            const rSelect = document.getElementById('recurring-assigned-to');
-            rSelect.innerHTML = '<option value="">Unassigned</option>';
-            familyMembers.forEach(m => {
-                rSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
-            });
+        // Sub-sort helpers
+        function cmpNewest(a, b) {
+          return new Date(b.created_at) - new Date(a.created_at);
+        }
+        function cmpOldest(a, b) {
+          return new Date(a.created_at) - new Date(b.created_at);
+        }
+        function cmpDueSoonest(a, b) {
+          if (a.due_date && b.due_date)
+            return a.due_date.localeCompare(b.due_date);
+          if (!a.due_date && !b.due_date) return cmpNewest(a, b);
+          return a.due_date ? -1 : 1;
+        }
+        function cmpDueFurthest(a, b) {
+          if (a.due_date && b.due_date)
+            return b.due_date.localeCompare(a.due_date);
+          if (!a.due_date && !b.due_date) return cmpNewest(a, b);
+          return a.due_date ? -1 : 1;
         }
 
-        function updateClearButton() {
-            // Clear Filters button is always visible per design
-        }
-
-        function clearFilters() {
-            selectedFilters.clear();
-            document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
-                chip.classList.remove('active');
-            });
-            updateClearButton();
-            renderTodos();
-        }
-
-        function getMemberById(id) {
-            return familyMembers.find(m => m.id === id);
-        }
-
-        // API calls
-        async function fetchTodos() {
-            const response = await fetch('/api/todos');
-            todos = await response.json();
-            renderTodos();
-        }
-
-        async function createTodo(data) {
-            const response = await fetch('/api/todos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to create todo');
-            return response.json();
-        }
-
-        async function updateTodo(id, data) {
-            const response = await fetch(`/api/todos/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to update todo');
-            return response.json();
-        }
-
-        async function deleteTodo(id) {
-            const response = await fetch(`/api/todos/${id}`, {
-                method: 'DELETE'
-            });
-            if (!response.ok) throw new Error('Failed to delete todo');
-        }
-
-        // Filter & sort
-        function getFilteredSortedTodos() {
-            const sortValue = document.getElementById('sort-by').value;
-
-            let filtered = todos;
-            if (selectedFilters.size > 0) {
-                filtered = todos.filter(t => {
-                    if (!t.assigned_to) return selectedFilters.has('unassigned');
-                    return selectedFilters.has(String(t.assigned_to));
-                });
-            }
-
-            // Sub-sort helpers
-            function cmpNewest(a, b) {
-                return new Date(b.created_at) - new Date(a.created_at);
-            }
-            function cmpOldest(a, b) {
-                return new Date(a.created_at) - new Date(b.created_at);
-            }
-            function cmpDueSoonest(a, b) {
-                if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
-                if (!a.due_date && !b.due_date) return cmpNewest(a, b);
-                return a.due_date ? -1 : 1;
-            }
-            function cmpDueFurthest(a, b) {
-                if (a.due_date && b.due_date) return b.due_date.localeCompare(a.due_date);
-                if (!a.due_date && !b.due_date) return cmpNewest(a, b);
-                return a.due_date ? -1 : 1;
-            }
-
-            const sorted = [...filtered];
-            if (sortValue === 'oldest') {
-                sorted.sort(cmpOldest);
-            } else if (sortValue === 'due-soonest') {
-                sorted.sort(cmpDueSoonest);
-            } else if (sortValue === 'due-furthest') {
-                sorted.sort(cmpDueFurthest);
-            } else if (sortValue === 'assignee') {
-                sorted.sort((a, b) => {
-                    const nameA = a.assigned_to ? (getMemberById(a.assigned_to)?.name || '') : '';
-                    const nameB = b.assigned_to ? (getMemberById(b.assigned_to)?.name || '') : '';
-                    if (nameA && nameB) {
-                        const nameCmp = nameA.localeCompare(nameB);
-                        if (nameCmp !== 0) return nameCmp;
-                    } else if (!nameA && !nameB) {
-                        return cmpDueSoonest(a, b);
-                    } else {
-                        return nameA ? -1 : 1;
-                    }
-                    return cmpDueSoonest(a, b);
-                });
+        const sorted = [...filtered];
+        if (sortValue === "oldest") {
+          sorted.sort(cmpOldest);
+        } else if (sortValue === "due-soonest") {
+          sorted.sort(cmpDueSoonest);
+        } else if (sortValue === "due-furthest") {
+          sorted.sort(cmpDueFurthest);
+        } else if (sortValue === "assignee") {
+          sorted.sort((a, b) => {
+            const nameA = a.assigned_to
+              ? getMemberById(a.assigned_to)?.name || ""
+              : "";
+            const nameB = b.assigned_to
+              ? getMemberById(b.assigned_to)?.name || ""
+              : "";
+            if (nameA && nameB) {
+              const nameCmp = nameA.localeCompare(nameB);
+              if (nameCmp !== 0) return nameCmp;
+            } else if (!nameA && !nameB) {
+              return cmpDueSoonest(a, b);
             } else {
-                // 'newest' (default)
-                sorted.sort(cmpNewest);
+              return nameA ? -1 : 1;
             }
-
-            return sorted;
+            return cmpDueSoonest(a, b);
+          });
+        } else {
+          // 'newest' (default)
+          sorted.sort(cmpNewest);
         }
 
-        // Render
-        function renderTodos() {
-            const container = document.getElementById('list-container');
-            const recurringContainer = document.getElementById('recurring-list-container');
-            const visible = getFilteredSortedTodos();
+        return sorted;
+      }
 
-            // Render tasks
-            if (visible.length === 0) {
-                container.innerHTML = todos.length === 0
-                    ? '<div class="container-empty-state">No tasks yet. Click "Add Task" to get started.</div>'
-                    : '<div class="container-empty-state">No tasks match the current filter.</div>';
-            } else {
-                container.innerHTML = visible.map(todo => {
-                    const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
-                    const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
-                    const assigneeHtml = member
-                        ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
-                        : '';
-                    const recurringIcon = todo.recurring_todo_id ? '<span class="recurring-indicator">↻</span>' : '';
-                    return `
-                        <div class="editable-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+      // Render
+      function renderTodos() {
+        const container = document.getElementById("list-container");
+        const recurringContainer = document.getElementById(
+          "recurring-list-container",
+        );
+        const visible = getFilteredSortedTodos();
+
+        // Render tasks
+        if (visible.length === 0) {
+          container.innerHTML =
+            todos.length === 0
+              ? '<div class="container-empty-state">No tasks yet. Click "Add Task" to get started.</div>'
+              : '<div class="container-empty-state">No tasks match the current filter.</div>';
+        } else {
+          container.innerHTML = visible
+            .map((todo) => {
+              const dueDateHtml = todo.due_date
+                ? formatDueDate(todo.due_date)
+                : "";
+              const member = todo.assigned_to
+                ? getMemberById(todo.assigned_to)
+                : null;
+              const assigneeHtml = member
+                ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                : "";
+              const recurringIcon = todo.recurring_todo_id
+                ? '<span class="recurring-indicator">↻</span>'
+                : "";
+              return `
+                        <div class="editable-item ${todo.completed ? "completed" : ""}" data-id="${todo.id}">
                             <div class="todo-checkbox">
-                                <input type="checkbox" ${todo.completed ? 'checked' : ''} 
+                                <input type="checkbox" ${todo.completed ? "checked" : ""} 
                                        onchange="toggleComplete(${todo.id}, this.checked)">
                             </div>
                             <div class="editable-item-content">
                                 <div class="editable-item-title">${escapeHtml(todo.title)} ${recurringIcon} ${assigneeHtml}</div>
-                                ${todo.description ? `<div class="editable-item-description">${escapeHtml(todo.description)}</div>` : ''}
+                                ${todo.description ? `<div class="editable-item-description">${escapeHtml(todo.description)}</div>` : ""}
                                 ${dueDateHtml}
                             </div>
                             <div class="editable-item-actions">
@@ -454,23 +640,32 @@
                             </div>
                         </div>
                     `;
-                }).join('');
-            }
+            })
+            .join("");
+        }
 
-            // Render recurring templates
-            if (recurringTodos.length === 0) {
-                recurringContainer.innerHTML = '<div class="container-empty-state">No recurring tasks yet. Click "Add Recurring" to get started.</div>';
-            } else {
-                recurringContainer.innerHTML = recurringTodos.map(rt => {
-                    const member = rt.assigned_to ? getMemberById(rt.assigned_to) : null;
-                    const assigneeHtml = member
-                        ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
-                        : '';
-                    const pausedHtml = !rt.active ? '<span class="recurring-paused">Paused</span>' : '';
-                    const dueBadge = rt.has_due_date ? '<span class="recurring-meta">with due date</span>' : '';
-                    const startsBadge = describeStart(rt.start_date);
-                    return `
-                        <div class="editable-item recurring-template ${!rt.active ? 'completed' : ''}" data-id="${rt.id}">
+        // Render recurring templates
+        if (recurringTodos.length === 0) {
+          recurringContainer.innerHTML =
+            '<div class="container-empty-state">No recurring tasks yet. Click "Add Recurring" to get started.</div>';
+        } else {
+          recurringContainer.innerHTML = recurringTodos
+            .map((rt) => {
+              const member = rt.assigned_to
+                ? getMemberById(rt.assigned_to)
+                : null;
+              const assigneeHtml = member
+                ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+                : "";
+              const pausedHtml = !rt.active
+                ? '<span class="recurring-paused">Paused</span>'
+                : "";
+              const dueBadge = rt.has_due_date
+                ? '<span class="recurring-meta">with due date</span>'
+                : "";
+              const startsBadge = describeStart(rt.start_date);
+              return `
+                        <div class="editable-item recurring-template ${!rt.active ? "completed" : ""}" data-id="${rt.id}">
                             <div class="todo-recurring-icon">↻</div>
                             <div class="editable-item-content">
                                 <div class="editable-item-title">${escapeHtml(rt.title)} ${assigneeHtml} ${pausedHtml}</div>
@@ -478,649 +673,875 @@
                                 <div class="recurring-schedule">Last completed: ${formatLastCompleted(rt.last_completed_at || rt.last_completed_date)}</div>
                             </div>
                             <div class="editable-item-actions">
-                                <button class="btn btn--sm" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? 'Pause' : 'Resume'}</button>
+                                <button class="btn btn--sm" onclick="toggleRecurringActive(${rt.id}, ${rt.active})">${rt.active ? "Pause" : "Resume"}</button>
                                 <button class="btn btn--sm" onclick="openEditRecurringModal(${rt.id})">Edit</button>
                             </div>
                         </div>
                     `;
-                }).join('');
-            }
+            })
+            .join("");
         }
+      }
 
-        function formatDueDate(dateStr) {
-            if (!dateStr) return '';
-            
-            const date = new Date(dateStr + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            
-            const dayName = dayNames[date.getDay()];
-            const month = monthNames[date.getMonth()];
-            const day = date.getDate();
-            
-            const isOverdue = date < today;
-            const overdueClass = isOverdue ? ' overdue' : '';
-            
-            return `<div class="todo-due-date${overdueClass}">Due ${dayName}, ${month} ${day}</div>`;
+      function formatDueDate(dateStr) {
+        if (!dateStr) return "";
+
+        const date = new Date(dateStr + "T00:00:00");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const dayNames = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+
+        const dayName = dayNames[date.getDay()];
+        const month = monthNames[date.getMonth()];
+        const day = date.getDate();
+
+        const isOverdue = date < today;
+        const overdueClass = isOverdue ? " overdue" : "";
+
+        return `<div class="todo-due-date${overdueClass}">Due ${dayName}, ${month} ${day}</div>`;
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Modal
+      function toggleRemindGroup() {
+        const hasDue = !!document.getElementById("todo-due-date").value;
+        document.getElementById("todo-remind-group").style.display = hasDue
+          ? ""
+          : "none";
+        if (!hasDue) document.getElementById("todo-remind-days").value = "";
+      }
+
+      function toggleRecurringRemindGroup() {
+        const hasDue = document.getElementById(
+          "recurring-has-due-date",
+        ).checked;
+        document.getElementById("recurring-remind-group").style.display = hasDue
+          ? ""
+          : "none";
+        if (!hasDue)
+          document.getElementById("recurring-remind-days").value = "";
+      }
+
+      function openAddModal() {
+        editingId = null;
+        document.getElementById("modal-title").textContent = "Add Task";
+        document.getElementById("todo-form").reset();
+        document.getElementById("todo-id").value = "";
+        document.getElementById("todo-assigned-to").value = "";
+        document.getElementById("todo-remind-days").value = "";
+        document.getElementById("btn-delete-todo").style.display = "none";
+        toggleRemindGroup();
+        showModalOverlay("modal-overlay");
+      }
+
+      function openEditModal(id) {
+        const todo = todos.find((t) => t.id === id);
+        if (!todo) return;
+
+        editingId = id;
+        document.getElementById("modal-title").textContent = "Edit Task";
+        document.getElementById("todo-id").value = id;
+        document.getElementById("todo-title").value = todo.title;
+        document.getElementById("todo-description").value =
+          todo.description || "";
+        document.getElementById("todo-assigned-to").value =
+          todo.assigned_to || "";
+        document.getElementById("todo-due-date").value = todo.due_date || "";
+        document.getElementById("todo-remind-days").value =
+          todo.remind_days_before != null ? todo.remind_days_before : "";
+        document.getElementById("btn-delete-todo").style.display = "";
+        toggleRemindGroup();
+        showModalOverlay("modal-overlay");
+      }
+
+      function closeModal() {
+        hideModalOverlay("modal-overlay");
+        editingId = null;
+      }
+
+      // Actions
+      async function toggleComplete(id, completed) {
+        try {
+          await updateTodo(id, { completed });
+          await fetchTodos();
+        } catch (error) {
+          console.error("Error toggling todo:", error);
+          alert("Failed to update task");
+          await fetchTodos(); // Refresh to revert UI
         }
+      }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+      async function confirmDelete(id) {
+        if (!confirm("Are you sure you want to delete this task?")) return;
+
+        try {
+          await deleteTodo(id);
+          await fetchTodos();
+        } catch (error) {
+          console.error("Error deleting todo:", error);
+          alert("Failed to delete task");
         }
+      }
 
-        // Modal
-        function toggleRemindGroup() {
-            const hasDue = !!document.getElementById('todo-due-date').value;
-            document.getElementById('todo-remind-group').style.display = hasDue ? '' : 'none';
-            if (!hasDue) document.getElementById('todo-remind-days').value = '';
+      async function confirmDeleteFromModal() {
+        if (!editingId) return;
+        if (!confirm("Are you sure you want to delete this task?")) return;
+        try {
+          await deleteTodo(editingId);
+          closeModal();
+          await fetchTodos();
+        } catch (error) {
+          console.error("Error deleting todo:", error);
+          alert("Failed to delete task");
         }
+      }
 
-        function toggleRecurringRemindGroup() {
-            const hasDue = document.getElementById('recurring-has-due-date').checked;
-            document.getElementById('recurring-remind-group').style.display = hasDue ? '' : 'none';
-            if (!hasDue) document.getElementById('recurring-remind-days').value = '';
-        }
+      // Event handlers
+      document
+        .getElementById("btn-add-task")
+        .addEventListener("click", openAddModal);
+      document
+        .getElementById("btn-cancel")
+        .addEventListener("click", closeModal);
+      document
+        .getElementById("todo-due-date")
+        .addEventListener("change", toggleRemindGroup);
+      document
+        .getElementById("filter-assignee-chips")
+        .addEventListener("click", (e) => {
+          const chip = e.target.closest(".filter-chip");
+          if (!chip) return;
+          const value = chip.dataset.value;
+          if (selectedFilters.has(value)) {
+            selectedFilters.delete(value);
+            chip.classList.remove("active");
+          } else {
+            selectedFilters.add(value);
+            chip.classList.add("active");
+          }
+          updateClearButton();
+          renderTodos();
+        });
+      document
+        .getElementById("filter-clear")
+        .addEventListener("click", clearFilters);
+      document
+        .getElementById("sort-by")
+        .addEventListener("change", renderTodos);
 
-        function openAddModal() {
-            editingId = null;
-            document.getElementById('modal-title').textContent = 'Add Task';
-            document.getElementById('todo-form').reset();
-            document.getElementById('todo-id').value = '';
-            document.getElementById('todo-assigned-to').value = '';
-            document.getElementById('todo-remind-days').value = '';
-            document.getElementById('btn-delete-todo').style.display = 'none';
-            toggleRemindGroup();
-            showModalOverlay('modal-overlay');
-        }
+      document
+        .getElementById("modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "modal-overlay") closeModal();
+        });
 
-        function openEditModal(id) {
-            const todo = todos.find(t => t.id === id);
-            if (!todo) return;
+      document
+        .getElementById("todo-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
 
-            editingId = id;
-            document.getElementById('modal-title').textContent = 'Edit Task';
-            document.getElementById('todo-id').value = id;
-            document.getElementById('todo-title').value = todo.title;
-            document.getElementById('todo-description').value = todo.description || '';
-            document.getElementById('todo-assigned-to').value = todo.assigned_to || '';
-            document.getElementById('todo-due-date').value = todo.due_date || '';
-            document.getElementById('todo-remind-days').value = todo.remind_days_before != null ? todo.remind_days_before : '';
-            document.getElementById('btn-delete-todo').style.display = '';
-            toggleRemindGroup();
-            showModalOverlay('modal-overlay');
-        }
+          const assignedTo = document.getElementById("todo-assigned-to").value;
+          const remindDays = document.getElementById("todo-remind-days").value;
+          const data = {
+            title: document.getElementById("todo-title").value,
+            description:
+              document.getElementById("todo-description").value || null,
+            assigned_to: assignedTo ? parseInt(assignedTo) : null,
+            due_date: document.getElementById("todo-due-date").value || null,
+            remind_days_before: remindDays !== "" ? parseInt(remindDays) : null,
+          };
 
-        function closeModal() {
-            hideModalOverlay('modal-overlay');
-            editingId = null;
-        }
-
-        // Actions
-        async function toggleComplete(id, completed) {
-            try {
-                await updateTodo(id, { completed });
-                await fetchTodos();
-            } catch (error) {
-                console.error('Error toggling todo:', error);
-                alert('Failed to update task');
-                await fetchTodos(); // Refresh to revert UI
-            }
-        }
-
-        async function confirmDelete(id) {
-            if (!confirm('Are you sure you want to delete this task?')) return;
-            
-            try {
-                await deleteTodo(id);
-                await fetchTodos();
-            } catch (error) {
-                console.error('Error deleting todo:', error);
-                alert('Failed to delete task');
-            }
-        }
-
-        async function confirmDeleteFromModal() {
-            if (!editingId) return;
-            if (!confirm('Are you sure you want to delete this task?')) return;
-            try {
-                await deleteTodo(editingId);
-                closeModal();
-                await fetchTodos();
-            } catch (error) {
-                console.error('Error deleting todo:', error);
-                alert('Failed to delete task');
-            }
-        }
-
-        // Event handlers
-        document.getElementById('btn-add-task').addEventListener('click', openAddModal);
-        document.getElementById('btn-cancel').addEventListener('click', closeModal);
-        document.getElementById('todo-due-date').addEventListener('change', toggleRemindGroup);
-        document.getElementById('filter-assignee-chips').addEventListener('click', (e) => {
-            const chip = e.target.closest('.filter-chip');
-            if (!chip) return;
-            const value = chip.dataset.value;
-            if (selectedFilters.has(value)) {
-                selectedFilters.delete(value);
-                chip.classList.remove('active');
+          try {
+            if (editingId) {
+              await updateTodo(editingId, data);
             } else {
-                selectedFilters.add(value);
-                chip.classList.add('active');
+              await createTodo(data);
             }
-            updateClearButton();
-            renderTodos();
-        });
-        document.getElementById('filter-clear').addEventListener('click', clearFilters);
-        document.getElementById('sort-by').addEventListener('change', renderTodos);
-        
-        document.getElementById('modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'modal-overlay') closeModal();
+            closeModal();
+            await fetchTodos();
+          } catch (error) {
+            console.error("Error saving todo:", error);
+            alert("Failed to save task");
+          }
         });
 
-        document.getElementById('todo-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const assignedTo = document.getElementById('todo-assigned-to').value;
-            const remindDays = document.getElementById('todo-remind-days').value;
-            const data = {
-                title: document.getElementById('todo-title').value,
-                description: document.getElementById('todo-description').value || null,
-                assigned_to: assignedTo ? parseInt(assignedTo) : null,
-                due_date: document.getElementById('todo-due-date').value || null,
-                remind_days_before: remindDays !== '' ? parseInt(remindDays) : null
-            };
+      // ── Recurring Todos ──
 
-            try {
-                if (editingId) {
-                    await updateTodo(editingId, data);
-                } else {
-                    await createTodo(data);
-                }
-                closeModal();
-                await fetchTodos();
-            } catch (error) {
-                console.error('Error saving todo:', error);
-                alert('Failed to save task');
-            }
-        });
+      let recurringTodos = [];
+      let editingRecurringId = null;
+      const DAY_NAMES = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ];
+      const MONTHS_SHORT = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+      const MONTHS_LONG = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ];
+      const WEEKDAYS_LONG = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
+      const START_HINT =
+        "Leave blank to start on the next occurrence from today.";
+      const LOCKED_HINT =
+        "This series has completed tasks, so its next due date is driven by the " +
+        "last completion and the start date can no longer be moved.";
 
-        // ── Recurring Todos ──
+      async function fetchRecurringTodos() {
+        const response = await fetch("/api/recurring-todos");
+        recurringTodos = await response.json();
+        renderTodos();
+      }
 
-        let recurringTodos = [];
-        let editingRecurringId = null;
-        const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
-                             'August', 'September', 'October', 'November', 'December'];
-        const WEEKDAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const START_HINT = 'Leave blank to start on the next occurrence from today.';
-        const LOCKED_HINT = 'This series has completed tasks, so its next due date is driven by the '
-            + 'last completion and the start date can no longer be moved.';
+      function describeRecurrence(rt) {
+        if (rt.recurrence_type === "daily") return "Daily";
+        if (rt.recurrence_type === "weekly")
+          return `Weekly on ${DAY_NAMES[rt.recurrence_day] || "Monday"}`;
+        if (rt.recurrence_type === "monthly")
+          return `Monthly on the ${ordinal(rt.recurrence_day || 1)}`;
+        if (rt.recurrence_type === "custom")
+          return describeCustomRule(rt.custom_rule);
+        return rt.recurrence_type;
+      }
 
-        async function fetchRecurringTodos() {
-            const response = await fetch('/api/recurring-todos');
-            recurringTodos = await response.json();
-            renderTodos();
+      function describeCustomRule(rule) {
+        if (!rule) return "Custom";
+        const { freq, interval } = rule;
+        const n = interval || 1;
+        const every = n === 1 ? "Every" : `Every ${n}`;
+        if (freq === "daily") {
+          const base = n === 1 ? "Daily" : `Every ${n} days`;
+          const notes = [];
+          if (rule.weekdays_only) notes.push("weekdays only");
+          if (rule.next_due_from === "completion_date")
+            notes.push("from completion date");
+          return notes.length ? `${base} (${notes.join(", ")})` : base;
+        }
+        if (freq === "weekly") {
+          const days = (rule.weekdays || [0])
+            .map((d) => DAY_NAMES[d].slice(0, 3))
+            .join(", ");
+          return `${every} week${n !== 1 ? "s" : ""} on ${days}`;
+        }
+        if (freq === "monthly") {
+          const mo = `${every} month${n !== 1 ? "s" : ""}`;
+          if (rule.mode === "day") return `${mo} on the ${ordinal(rule.day)}`;
+          if (rule.mode === "weekday")
+            return `${mo} on the ${rule.ordinal} ${DAY_NAMES[rule.weekday]}`;
+        }
+        return "Custom";
+      }
+
+      // A series that has not begun has nothing on the task list, so its row is
+      // the only place it is visible. Once it has started the date is history
+      // and the schedule already says everything.
+      function describeStart(startDate) {
+        if (!startDate) return "";
+        const start = parseLocalDate(startDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (start <= today) return "";
+        return ` · starts ${formatShortDate(start)}`;
+      }
+
+      function parseLocalDate(value) {
+        return new Date(value + "T00:00:00");
+      }
+
+      function formatShortDate(date) {
+        return `${MONTHS_SHORT[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+      }
+
+      function formatLongDate(value, withWeekday) {
+        const date = parseLocalDate(value);
+        const long = `${MONTHS_LONG[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        return withWeekday ? `${WEEKDAYS_LONG[date.getDay()]}, ${long}` : long;
+      }
+
+      function ordinal(n) {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+      }
+
+      function formatLastCompleted(value) {
+        if (!value) return "Never";
+        const completed = value.includes("T")
+          ? new Date(value)
+          : new Date(value + "T00:00:00");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const completedDay = new Date(completed);
+        completedDay.setHours(0, 0, 0, 0);
+        if (completedDay.getTime() === today.getTime()) return "Today";
+        if (completedDay.getTime() === yesterday.getTime()) return "Yesterday";
+        const months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        return `${months[completed.getMonth()]} ${ordinal(completed.getDate())}, ${completed.getFullYear()}`;
+      }
+
+      // Populate custom monthly day-of-month select on first use
+      (function initCustomMonthlyDay() {
+        const sel = document.getElementById("custom-monthly-day");
+        sel.innerHTML = Array.from(
+          { length: 31 },
+          (_, i) => `<option value="${i + 1}">${ordinal(i + 1)}</option>`,
+        ).join("");
+      })();
+
+      // Recurring type / day selector logic
+      function updateDaySelector() {
+        const type = document.getElementById("recurring-type").value;
+        const dayGroup = document.getElementById("recurring-day-group");
+        const daySelect = document.getElementById("recurring-day");
+        const dayLabel = document.getElementById("recurring-day-label");
+        const customGroup = document.getElementById("recurring-custom-group");
+
+        dayGroup.style.display = "none";
+        customGroup.style.display = "none";
+
+        if (type === "daily") {
+          return;
         }
 
-        function describeRecurrence(rt) {
-            if (rt.recurrence_type === 'daily') return 'Daily';
-            if (rt.recurrence_type === 'weekly') return `Weekly on ${DAY_NAMES[rt.recurrence_day] || 'Monday'}`;
-            if (rt.recurrence_type === 'monthly') return `Monthly on the ${ordinal(rt.recurrence_day || 1)}`;
-            if (rt.recurrence_type === 'custom') return describeCustomRule(rt.custom_rule);
-            return rt.recurrence_type;
+        if (type === "custom") {
+          customGroup.style.display = "";
+          updateCustomSubGroups();
+          return;
         }
 
-        function describeCustomRule(rule) {
-            if (!rule) return 'Custom';
-            const { freq, interval } = rule;
-            const n = interval || 1;
-            const every = n === 1 ? 'Every' : `Every ${n}`;
-            if (freq === 'daily') {
-                const base = n === 1 ? 'Daily' : `Every ${n} days`;
-                const notes = [];
-                if (rule.weekdays_only) notes.push('weekdays only');
-                if (rule.next_due_from === 'completion_date') notes.push('from completion date');
-                return notes.length ? `${base} (${notes.join(', ')})` : base;
-            }
-            if (freq === 'weekly') {
-                const days = (rule.weekdays || [0]).map(d => DAY_NAMES[d].slice(0, 3)).join(', ');
-                return `${every} week${n !== 1 ? 's' : ''} on ${days}`;
-            }
-            if (freq === 'monthly') {
-                const mo = `${every} month${n !== 1 ? 's' : ''}`;
-                if (rule.mode === 'day') return `${mo} on the ${ordinal(rule.day)}`;
-                if (rule.mode === 'weekday') return `${mo} on the ${rule.ordinal} ${DAY_NAMES[rule.weekday]}`;
-            }
-            return 'Custom';
+        dayGroup.style.display = "";
+        if (type === "weekly") {
+          dayLabel.textContent = "Day of Week";
+          daySelect.innerHTML = DAY_NAMES.map(
+            (d, i) => `<option value="${i}">${d}</option>`,
+          ).join("");
+        } else if (type === "monthly") {
+          dayLabel.textContent = "Day of Month";
+          daySelect.innerHTML = Array.from(
+            { length: 31 },
+            (_, i) => `<option value="${i + 1}">${ordinal(i + 1)}</option>`,
+          ).join("");
         }
+      }
 
-        // A series that has not begun has nothing on the task list, so its row is
-        // the only place it is visible. Once it has started the date is history
-        // and the schedule already says everything.
-        function describeStart(startDate) {
-            if (!startDate) return '';
-            const start = parseLocalDate(startDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            if (start <= today) return '';
-            return ` · starts ${formatShortDate(start)}`;
+      function updateCustomSubGroups() {
+        const freq = document.getElementById("custom-freq").value;
+        const hasDue = document.getElementById(
+          "recurring-has-due-date",
+        ).checked;
+        document.getElementById("custom-weekdays-only-group").style.display =
+          freq === "daily" ? "" : "none";
+        // The due-date/completion-date anchor only applies to "every N days"
+        // templates that set a due date on their generated tasks.
+        document.getElementById("custom-next-due-from-group").style.display =
+          freq === "daily" && hasDue ? "" : "none";
+        document.getElementById("custom-weekly-group").style.display =
+          freq === "weekly" ? "" : "none";
+        document.getElementById("custom-monthly-group").style.display =
+          freq === "monthly" ? "" : "none";
+        if (freq !== "daily") {
+          document.getElementById("custom-weekdays-only").checked = false;
         }
+      }
 
-        function parseLocalDate(value) {
-            return new Date(value + 'T00:00:00');
-        }
+      function updateCustomMonthlyMode() {
+        const mode = document.querySelector(
+          'input[name="custom-monthly-mode"]:checked',
+        ).value;
+        document.getElementById("custom-monthly-day-group").style.display =
+          mode === "day" ? "" : "none";
+        document.getElementById("custom-monthly-weekday-group").style.display =
+          mode === "weekday" ? "" : "none";
+      }
 
-        function formatShortDate(date) {
-            return `${MONTHS_SHORT[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-        }
+      document
+        .getElementById("recurring-type")
+        .addEventListener("change", updateDaySelector);
+      document
+        .getElementById("custom-freq")
+        .addEventListener("change", updateCustomSubGroups);
+      document
+        .querySelectorAll('input[name="custom-monthly-mode"]')
+        .forEach((r) => r.addEventListener("change", updateCustomMonthlyMode));
+      document
+        .getElementById("recurring-has-due-date")
+        .addEventListener("change", toggleRecurringRemindGroup);
+      document
+        .getElementById("recurring-has-due-date")
+        .addEventListener("change", updateCustomSubGroups);
 
-        function formatLongDate(value, withWeekday) {
-            const date = parseLocalDate(value);
-            const long = `${MONTHS_LONG[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-            return withWeekday ? `${WEEKDAYS_LONG[date.getDay()]}, ${long}` : long;
-        }
+      // Anything that changes the rule changes the dates it produces. The custom
+      // group is listened to as a whole: every control inside it feeds the rule.
+      [
+        "recurring-type",
+        "recurring-day",
+        "recurring-start-date",
+        "recurring-custom-group",
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        el.addEventListener("change", scheduleRecurrencePreview);
+        el.addEventListener("input", scheduleRecurrencePreview);
+      });
 
-        function ordinal(n) {
-            const s = ['th','st','nd','rd'];
-            const v = n % 100;
-            return n + (s[(v-20)%10] || s[v] || s[0]);
-        }
+      // ── Recurrence preview ──
+      //
+      // The modal never works out a recurrence date itself: it asks the server
+      // what the rule produces and renders the answer, so `rally.recurrence`
+      // stays the only place that knows what "every 12 months on the first
+      // Sunday" means. Debounced with a sequence guard — typing in the interval
+      // box would otherwise fire a request per keystroke and answer out of order.
+      let startDateLocked = false;
+      let previewSequence = 0;
+      let previewTimer = null;
 
-        function formatLastCompleted(value) {
-            if (!value) return 'Never';
-            const completed = value.includes('T') ? new Date(value) : new Date(value + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const yesterday = new Date(today);
-            yesterday.setDate(today.getDate() - 1);
-            const completedDay = new Date(completed);
-            completedDay.setHours(0, 0, 0, 0);
-            if (completedDay.getTime() === today.getTime()) return 'Today';
-            if (completedDay.getTime() === yesterday.getTime()) return 'Yesterday';
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            return `${months[completed.getMonth()]} ${ordinal(completed.getDate())}, ${completed.getFullYear()}`;
-        }
+      function scheduleRecurrencePreview() {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(updateRecurrencePreview, 150);
+      }
 
-        // Populate custom monthly day-of-month select on first use
-        (function initCustomMonthlyDay() {
-            const sel = document.getElementById('custom-monthly-day');
-            sel.innerHTML = Array.from({length: 31}, (_, i) =>
-                `<option value="${i + 1}">${ordinal(i + 1)}</option>`
-            ).join('');
-        })();
+      async function updateRecurrencePreview() {
+        const box = document.getElementById("recurrence-preview");
+        const type = document.getElementById("recurring-type").value;
+        const isBuiltIn =
+          type === "daily" || type === "weekly" || type === "monthly";
+        const payload = {
+          recurrence_type: type,
+          recurrence_day:
+            isBuiltIn && type !== "daily"
+              ? parseInt(document.getElementById("recurring-day").value)
+              : null,
+          custom_rule: type === "custom" ? buildCustomRule() : null,
+          start_date:
+            document.getElementById("recurring-start-date").value || null,
+        };
+        const sequence = ++previewSequence;
 
-        // Recurring type / day selector logic
-        function updateDaySelector() {
-            const type = document.getElementById('recurring-type').value;
-            const dayGroup = document.getElementById('recurring-day-group');
-            const daySelect = document.getElementById('recurring-day');
-            const dayLabel = document.getElementById('recurring-day-label');
-            const customGroup = document.getElementById('recurring-custom-group');
-
-            dayGroup.style.display = 'none';
-            customGroup.style.display = 'none';
-
-            if (type === 'daily') {
-                return;
-            }
-
-            if (type === 'custom') {
-                customGroup.style.display = '';
-                updateCustomSubGroups();
-                return;
-            }
-
-            dayGroup.style.display = '';
-            if (type === 'weekly') {
-                dayLabel.textContent = 'Day of Week';
-                daySelect.innerHTML = DAY_NAMES.map((d, i) =>
-                    `<option value="${i}">${d}</option>`
-                ).join('');
-            } else if (type === 'monthly') {
-                dayLabel.textContent = 'Day of Month';
-                daySelect.innerHTML = Array.from({length: 31}, (_, i) =>
-                    `<option value="${i + 1}">${ordinal(i + 1)}</option>`
-                ).join('');
-            }
-        }
-
-        function updateCustomSubGroups() {
-            const freq = document.getElementById('custom-freq').value;
-            const hasDue = document.getElementById('recurring-has-due-date').checked;
-            document.getElementById('custom-weekdays-only-group').style.display = freq === 'daily' ? '' : 'none';
-            // The due-date/completion-date anchor only applies to "every N days"
-            // templates that set a due date on their generated tasks.
-            document.getElementById('custom-next-due-from-group').style.display =
-                freq === 'daily' && hasDue ? '' : 'none';
-            document.getElementById('custom-weekly-group').style.display = freq === 'weekly' ? '' : 'none';
-            document.getElementById('custom-monthly-group').style.display = freq === 'monthly' ? '' : 'none';
-            if (freq !== 'daily') {
-                document.getElementById('custom-weekdays-only').checked = false;
-            }
-        }
-
-        function updateCustomMonthlyMode() {
-            const mode = document.querySelector('input[name="custom-monthly-mode"]:checked').value;
-            document.getElementById('custom-monthly-day-group').style.display = mode === 'day' ? '' : 'none';
-            document.getElementById('custom-monthly-weekday-group').style.display = mode === 'weekday' ? '' : 'none';
-        }
-
-        document.getElementById('recurring-type').addEventListener('change', updateDaySelector);
-        document.getElementById('custom-freq').addEventListener('change', updateCustomSubGroups);
-        document.querySelectorAll('input[name="custom-monthly-mode"]').forEach(r =>
-            r.addEventListener('change', updateCustomMonthlyMode)
-        );
-        document.getElementById('recurring-has-due-date').addEventListener('change', toggleRecurringRemindGroup);
-        document.getElementById('recurring-has-due-date').addEventListener('change', updateCustomSubGroups);
-
-        // Anything that changes the rule changes the dates it produces. The custom
-        // group is listened to as a whole: every control inside it feeds the rule.
-        ['recurring-type', 'recurring-day', 'recurring-start-date', 'recurring-custom-group'].forEach(id => {
-            const el = document.getElementById(id);
-            el.addEventListener('change', scheduleRecurrencePreview);
-            el.addEventListener('input', scheduleRecurrencePreview);
-        });
-
-        // ── Recurrence preview ──
-        //
-        // The modal never works out a recurrence date itself: it asks the server
-        // what the rule produces and renders the answer, so `rally.recurrence`
-        // stays the only place that knows what "every 12 months on the first
-        // Sunday" means. Debounced with a sequence guard — typing in the interval
-        // box would otherwise fire a request per keystroke and answer out of order.
-        let startDateLocked = false;
-        let previewSequence = 0;
-        let previewTimer = null;
-
-        function scheduleRecurrencePreview() {
-            clearTimeout(previewTimer);
-            previewTimer = setTimeout(updateRecurrencePreview, 150);
-        }
-
-        async function updateRecurrencePreview() {
-            const box = document.getElementById('recurrence-preview');
-            const type = document.getElementById('recurring-type').value;
-            const isBuiltIn = type === 'daily' || type === 'weekly' || type === 'monthly';
-            const payload = {
-                recurrence_type: type,
-                recurrence_day: isBuiltIn && type !== 'daily' ? parseInt(document.getElementById('recurring-day').value) : null,
-                custom_rule: type === 'custom' ? buildCustomRule() : null,
-                start_date: document.getElementById('recurring-start-date').value || null,
-            };
-            const sequence = ++previewSequence;
-
-            try {
-                const response = await fetch('/api/recurring-todos/preview', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error('preview failed');
-                const { occurrences } = await response.json();
-                if (sequence !== previewSequence) return; // A later edit already answered
-                const lead = startDateLocked ? 'Next task' : 'First task';
-                const rest = occurrences.slice(1).map(o => formatLongDate(o, false)).join(', ');
-                box.innerHTML = `
+        try {
+          const response = await fetch("/api/recurring-todos/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) throw new Error("preview failed");
+          const { occurrences } = await response.json();
+          if (sequence !== previewSequence) return; // A later edit already answered
+          const lead = startDateLocked ? "Next task" : "First task";
+          const rest = occurrences
+            .slice(1)
+            .map((o) => formatLongDate(o, false))
+            .join(", ");
+          box.innerHTML = `
                     <div class="recurrence-preview-lead">${lead}: ${formatLongDate(occurrences[0], true)}</div>
-                    ${rest ? `<div class="recurrence-preview-rest">then ${rest}</div>` : ''}
+                    ${rest ? `<div class="recurrence-preview-rest">then ${rest}</div>` : ""}
                 `;
-            } catch (error) {
-                // Say nothing rather than something wrong.
-                if (sequence === previewSequence) box.innerHTML = '';
-            }
+        } catch (error) {
+          // Say nothing rather than something wrong.
+          if (sequence === previewSequence) box.innerHTML = "";
         }
+      }
 
-        function resetStartDateField(rt) {
-            const input = document.getElementById('recurring-start-date');
-            const hint = document.getElementById('recurring-start-hint');
-            startDateLocked = !!(rt && (rt.last_completed_at || rt.last_completed_date));
-            input.value = (rt && rt.start_date) || '';
-            input.disabled = startDateLocked;
-            const started = startDateLocked && rt.start_date
-                ? `Started ${formatShortDate(parseLocalDate(rt.start_date))}. `
-                : '';
-            hint.textContent = startDateLocked ? `${started}${LOCKED_HINT}` : START_HINT;
+      function resetStartDateField(rt) {
+        const input = document.getElementById("recurring-start-date");
+        const hint = document.getElementById("recurring-start-hint");
+        startDateLocked = !!(
+          rt &&
+          (rt.last_completed_at || rt.last_completed_date)
+        );
+        input.value = (rt && rt.start_date) || "";
+        input.disabled = startDateLocked;
+        const started =
+          startDateLocked && rt.start_date
+            ? `Started ${formatShortDate(parseLocalDate(rt.start_date))}. `
+            : "";
+        hint.textContent = startDateLocked
+          ? `${started}${LOCKED_HINT}`
+          : START_HINT;
+      }
+
+      function resetCustomFields() {
+        document.getElementById("custom-interval").value = "1";
+        document.getElementById("custom-freq").value = "daily";
+        document.getElementById("custom-weekdays-only").checked = false;
+        document.querySelector(
+          'input[name="custom-next-due-from"][value="due_date"]',
+        ).checked = true;
+        document
+          .querySelectorAll('#custom-weekdays input[type="checkbox"]')
+          .forEach((cb) => (cb.checked = false));
+        document.querySelector(
+          'input[name="custom-monthly-mode"][value="day"]',
+        ).checked = true;
+        document.getElementById("custom-monthly-day").value = "1";
+        document.getElementById("custom-ordinal").value = "first";
+        document.getElementById("custom-weekday").value = "0";
+        updateCustomSubGroups();
+        updateCustomMonthlyMode();
+      }
+
+      function loadCustomRule(rule) {
+        if (!rule) return;
+        document.getElementById("custom-interval").value = rule.interval || 1;
+        document.getElementById("custom-freq").value = rule.freq || "daily";
+        updateCustomSubGroups();
+        if (rule.freq === "daily") {
+          document.getElementById("custom-weekdays-only").checked =
+            !!rule.weekdays_only;
+          const anchor =
+            rule.next_due_from === "completion_date"
+              ? "completion_date"
+              : "due_date";
+          document.querySelector(
+            `input[name="custom-next-due-from"][value="${anchor}"]`,
+          ).checked = true;
         }
-
-        function resetCustomFields() {
-            document.getElementById('custom-interval').value = '1';
-            document.getElementById('custom-freq').value = 'daily';
-            document.getElementById('custom-weekdays-only').checked = false;
-            document.querySelector('input[name="custom-next-due-from"][value="due_date"]').checked = true;
-            document.querySelectorAll('#custom-weekdays input[type="checkbox"]').forEach(cb => cb.checked = false);
-            document.querySelector('input[name="custom-monthly-mode"][value="day"]').checked = true;
-            document.getElementById('custom-monthly-day').value = '1';
-            document.getElementById('custom-ordinal').value = 'first';
-            document.getElementById('custom-weekday').value = '0';
-            updateCustomSubGroups();
-            updateCustomMonthlyMode();
-        }
-
-        function loadCustomRule(rule) {
-            if (!rule) return;
-            document.getElementById('custom-interval').value = rule.interval || 1;
-            document.getElementById('custom-freq').value = rule.freq || 'daily';
-            updateCustomSubGroups();
-            if (rule.freq === 'daily') {
-                document.getElementById('custom-weekdays-only').checked = !!rule.weekdays_only;
-                const anchor = rule.next_due_from === 'completion_date' ? 'completion_date' : 'due_date';
-                document.querySelector(`input[name="custom-next-due-from"][value="${anchor}"]`).checked = true;
-            }
-            if (rule.freq === 'weekly') {
-                const wds = rule.weekdays || [];
-                document.querySelectorAll('#custom-weekdays input[type="checkbox"]').forEach(cb => {
-                    cb.checked = wds.includes(parseInt(cb.value));
-                });
-            } else if (rule.freq === 'monthly') {
-                const mode = rule.mode || 'day';
-                document.querySelector(`input[name="custom-monthly-mode"][value="${mode}"]`).checked = true;
-                updateCustomMonthlyMode();
-                if (mode === 'day') {
-                    document.getElementById('custom-monthly-day').value = rule.day || 1;
-                } else {
-                    document.getElementById('custom-ordinal').value = rule.ordinal || 'first';
-                    document.getElementById('custom-weekday').value = rule.weekday != null ? rule.weekday : 0;
-                }
-            }
-        }
-
-        function buildCustomRule() {
-            const freq = document.getElementById('custom-freq').value;
-            const interval = parseInt(document.getElementById('custom-interval').value) || 1;
-            const rule = { freq, interval };
-            if (freq === 'daily' && document.getElementById('custom-weekdays-only').checked) {
-                rule.weekdays_only = true;
-            }
-            // Only persist a non-default anchor; absence means "due_date".
-            if (freq === 'daily') {
-                const anchor = document.querySelector('input[name="custom-next-due-from"]:checked');
-                if (anchor && anchor.value === 'completion_date') {
-                    rule.next_due_from = 'completion_date';
-                }
-            }
-            if (freq === 'weekly') {
-                rule.weekdays = [...document.querySelectorAll('#custom-weekdays input[type="checkbox"]:checked')]
-                    .map(cb => parseInt(cb.value));
-                if (rule.weekdays.length === 0) rule.weekdays = [0]; // default Monday
-            } else if (freq === 'monthly') {
-                rule.mode = document.querySelector('input[name="custom-monthly-mode"]:checked').value;
-                if (rule.mode === 'day') {
-                    rule.day = parseInt(document.getElementById('custom-monthly-day').value);
-                } else {
-                    rule.ordinal = document.getElementById('custom-ordinal').value;
-                    rule.weekday = parseInt(document.getElementById('custom-weekday').value);
-                }
-            }
-            return rule;
-        }
-
-        function openAddRecurringModal() {
-            editingRecurringId = null;
-            document.getElementById('recurring-modal-title').textContent = 'Add Recurring Task';
-            document.getElementById('recurring-form').reset();
-            document.getElementById('recurring-id').value = '';
-            document.getElementById('recurring-assigned-to').value = '';
-            document.getElementById('recurring-type').value = 'daily';
-            document.getElementById('recurring-remind-days').value = '';
-            document.getElementById('btn-delete-recurring').style.display = 'none';
-            resetCustomFields();
-            resetStartDateField(null);
-            updateDaySelector();
-            toggleRecurringRemindGroup();
-            updateRecurrencePreview();
-            showModalOverlay('recurring-modal-overlay');
-        }
-
-        function openEditRecurringModal(id) {
-            const rt = recurringTodos.find(r => r.id === id);
-            if (!rt) return;
-
-            editingRecurringId = id;
-            document.getElementById('recurring-modal-title').textContent = 'Edit Recurring Task';
-            document.getElementById('recurring-id').value = id;
-            document.getElementById('recurring-title').value = rt.title;
-            document.getElementById('recurring-description').value = rt.description || '';
-            document.getElementById('recurring-type').value = rt.recurrence_type;
-            resetCustomFields();
-            updateDaySelector();
-            if (rt.recurrence_type === 'custom') {
-                loadCustomRule(rt.custom_rule);
-            } else if (rt.recurrence_day !== null) {
-                document.getElementById('recurring-day').value = rt.recurrence_day;
-            }
-            document.getElementById('recurring-assigned-to').value = rt.assigned_to || '';
-            document.getElementById('recurring-has-due-date').checked = rt.has_due_date;
-            document.getElementById('recurring-remind-days').value = rt.remind_days_before != null ? rt.remind_days_before : '';
-            document.getElementById('btn-delete-recurring').style.display = '';
-            resetStartDateField(rt);
-            toggleRecurringRemindGroup();
-            updateRecurrencePreview();
-            showModalOverlay('recurring-modal-overlay');
-        }
-
-        function closeRecurringModal() {
-            hideModalOverlay('recurring-modal-overlay');
-            editingRecurringId = null;
-        }
-
-        async function toggleRecurringActive(id, currentlyActive) {
-            try {
-                await fetch(`/api/recurring-todos/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ active: !currentlyActive })
-                });
-                await fetchRecurringTodos();
-            } catch (error) {
-                alert('Failed to update recurring task');
-            }
-        }
-
-        async function confirmDeleteRecurring(id) {
-            if (!confirm('Delete this recurring task? Existing generated todos will remain.')) return;
-            try {
-                await fetch(`/api/recurring-todos/${id}`, { method: 'DELETE' });
-                await fetchRecurringTodos();
-            } catch (error) {
-                alert('Failed to delete recurring task');
-            }
-        }
-
-        async function confirmDeleteRecurringFromModal() {
-            if (!editingRecurringId) return;
-            if (!confirm('Delete this recurring task? Existing generated todos will remain.')) return;
-            try {
-                await fetch(`/api/recurring-todos/${editingRecurringId}`, { method: 'DELETE' });
-                closeRecurringModal();
-                await fetchRecurringTodos();
-            } catch (error) {
-                alert('Failed to delete recurring task');
-            }
-        }
-
-        document.getElementById('btn-add-recurring').addEventListener('click', openAddRecurringModal);
-        document.getElementById('btn-cancel-recurring').addEventListener('click', closeRecurringModal);
-        document.getElementById('recurring-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'recurring-modal-overlay') closeRecurringModal();
-        });
-
-        document.getElementById('recurring-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const type = document.getElementById('recurring-type').value;
-            const assignedTo = document.getElementById('recurring-assigned-to').value;
-            const recurringRemindDays = document.getElementById('recurring-remind-days').value;
-            const isBuiltIn = type === 'daily' || type === 'weekly' || type === 'monthly';
-            const startInput = document.getElementById('recurring-start-date');
-            const data = {
-                title: document.getElementById('recurring-title').value,
-                description: document.getElementById('recurring-description').value || null,
-                recurrence_type: type,
-                recurrence_day: isBuiltIn && type !== 'daily' ? parseInt(document.getElementById('recurring-day').value) : null,
-                assigned_to: assignedTo ? parseInt(assignedTo) : null,
-                has_due_date: document.getElementById('recurring-has-due-date').checked,
-                remind_days_before: recurringRemindDays !== '' ? parseInt(recurringRemindDays) : null,
-                custom_rule: type === 'custom' ? buildCustomRule() : null,
-            };
-            // A locked start date is read-back, not input: omitting it leaves the
-            // stored value alone rather than sending it back for the server to
-            // compare. Blank clears it, which is only reachable while unlocked.
-            if (!startInput.disabled) {
-                data.start_date = startInput.value || null;
-            }
-
-            try {
-                const response = editingRecurringId
-                    ? await fetch(`/api/recurring-todos/${editingRecurringId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    })
-                    : await fetch('/api/recurring-todos', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                if (!response.ok) {
-                    const body = await response.json().catch(() => ({}));
-                    alert(typeof body.detail === 'string' ? body.detail : 'Failed to save recurring task');
-                    return;
-                }
-                closeRecurringModal();
-                await fetchRecurringTodos();
-                await fetchTodos(); // Refresh in case a new instance was generated
-            } catch (error) {
-                alert('Failed to save recurring task');
-            }
-        });
-
-        // Initialize
-        fetchFamilyMembers().then(() => {
-            fetchTodos();
-            fetchRecurringTodos();
-        });
-
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
+        if (rule.freq === "weekly") {
+          const wds = rule.weekdays || [];
+          document
+            .querySelectorAll('#custom-weekdays input[type="checkbox"]')
+            .forEach((cb) => {
+              cb.checked = wds.includes(parseInt(cb.value));
             });
+        } else if (rule.freq === "monthly") {
+          const mode = rule.mode || "day";
+          document.querySelector(
+            `input[name="custom-monthly-mode"][value="${mode}"]`,
+          ).checked = true;
+          updateCustomMonthlyMode();
+          if (mode === "day") {
+            document.getElementById("custom-monthly-day").value = rule.day || 1;
+          } else {
+            document.getElementById("custom-ordinal").value =
+              rule.ordinal || "first";
+            document.getElementById("custom-weekday").value =
+              rule.weekday != null ? rule.weekday : 0;
+          }
+        }
+      }
+
+      function buildCustomRule() {
+        const freq = document.getElementById("custom-freq").value;
+        const interval =
+          parseInt(document.getElementById("custom-interval").value) || 1;
+        const rule = { freq, interval };
+        if (
+          freq === "daily" &&
+          document.getElementById("custom-weekdays-only").checked
+        ) {
+          rule.weekdays_only = true;
+        }
+        // Only persist a non-default anchor; absence means "due_date".
+        if (freq === "daily") {
+          const anchor = document.querySelector(
+            'input[name="custom-next-due-from"]:checked',
+          );
+          if (anchor && anchor.value === "completion_date") {
+            rule.next_due_from = "completion_date";
+          }
+        }
+        if (freq === "weekly") {
+          rule.weekdays = [
+            ...document.querySelectorAll(
+              '#custom-weekdays input[type="checkbox"]:checked',
+            ),
+          ].map((cb) => parseInt(cb.value));
+          if (rule.weekdays.length === 0) rule.weekdays = [0]; // default Monday
+        } else if (freq === "monthly") {
+          rule.mode = document.querySelector(
+            'input[name="custom-monthly-mode"]:checked',
+          ).value;
+          if (rule.mode === "day") {
+            rule.day = parseInt(
+              document.getElementById("custom-monthly-day").value,
+            );
+          } else {
+            rule.ordinal = document.getElementById("custom-ordinal").value;
+            rule.weekday = parseInt(
+              document.getElementById("custom-weekday").value,
+            );
+          }
+        }
+        return rule;
+      }
+
+      function openAddRecurringModal() {
+        editingRecurringId = null;
+        document.getElementById("recurring-modal-title").textContent =
+          "Add Recurring Task";
+        document.getElementById("recurring-form").reset();
+        document.getElementById("recurring-id").value = "";
+        document.getElementById("recurring-assigned-to").value = "";
+        document.getElementById("recurring-type").value = "daily";
+        document.getElementById("recurring-remind-days").value = "";
+        document.getElementById("btn-delete-recurring").style.display = "none";
+        resetCustomFields();
+        resetStartDateField(null);
+        updateDaySelector();
+        toggleRecurringRemindGroup();
+        updateRecurrencePreview();
+        showModalOverlay("recurring-modal-overlay");
+      }
+
+      function openEditRecurringModal(id) {
+        const rt = recurringTodos.find((r) => r.id === id);
+        if (!rt) return;
+
+        editingRecurringId = id;
+        document.getElementById("recurring-modal-title").textContent =
+          "Edit Recurring Task";
+        document.getElementById("recurring-id").value = id;
+        document.getElementById("recurring-title").value = rt.title;
+        document.getElementById("recurring-description").value =
+          rt.description || "";
+        document.getElementById("recurring-type").value = rt.recurrence_type;
+        resetCustomFields();
+        updateDaySelector();
+        if (rt.recurrence_type === "custom") {
+          loadCustomRule(rt.custom_rule);
+        } else if (rt.recurrence_day !== null) {
+          document.getElementById("recurring-day").value = rt.recurrence_day;
+        }
+        document.getElementById("recurring-assigned-to").value =
+          rt.assigned_to || "";
+        document.getElementById("recurring-has-due-date").checked =
+          rt.has_due_date;
+        document.getElementById("recurring-remind-days").value =
+          rt.remind_days_before != null ? rt.remind_days_before : "";
+        document.getElementById("btn-delete-recurring").style.display = "";
+        resetStartDateField(rt);
+        toggleRecurringRemindGroup();
+        updateRecurrencePreview();
+        showModalOverlay("recurring-modal-overlay");
+      }
+
+      function closeRecurringModal() {
+        hideModalOverlay("recurring-modal-overlay");
+        editingRecurringId = null;
+      }
+
+      async function toggleRecurringActive(id, currentlyActive) {
+        try {
+          await fetch(`/api/recurring-todos/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: !currentlyActive }),
+          });
+          await fetchRecurringTodos();
+        } catch (error) {
+          alert("Failed to update recurring task");
+        }
+      }
+
+      async function confirmDeleteRecurring(id) {
+        if (
+          !confirm(
+            "Delete this recurring task? Existing generated todos will remain.",
+          )
+        )
+          return;
+        try {
+          await fetch(`/api/recurring-todos/${id}`, { method: "DELETE" });
+          await fetchRecurringTodos();
+        } catch (error) {
+          alert("Failed to delete recurring task");
+        }
+      }
+
+      async function confirmDeleteRecurringFromModal() {
+        if (!editingRecurringId) return;
+        if (
+          !confirm(
+            "Delete this recurring task? Existing generated todos will remain.",
+          )
+        )
+          return;
+        try {
+          await fetch(`/api/recurring-todos/${editingRecurringId}`, {
+            method: "DELETE",
+          });
+          closeRecurringModal();
+          await fetchRecurringTodos();
+        } catch (error) {
+          alert("Failed to delete recurring task");
+        }
+      }
+
+      document
+        .getElementById("btn-add-recurring")
+        .addEventListener("click", openAddRecurringModal);
+      document
+        .getElementById("btn-cancel-recurring")
+        .addEventListener("click", closeRecurringModal);
+      document
+        .getElementById("recurring-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "recurring-modal-overlay") closeRecurringModal();
         });
+
+      document
+        .getElementById("recurring-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const type = document.getElementById("recurring-type").value;
+          const assignedTo = document.getElementById(
+            "recurring-assigned-to",
+          ).value;
+          const recurringRemindDays = document.getElementById(
+            "recurring-remind-days",
+          ).value;
+          const isBuiltIn =
+            type === "daily" || type === "weekly" || type === "monthly";
+          const startInput = document.getElementById("recurring-start-date");
+          const data = {
+            title: document.getElementById("recurring-title").value,
+            description:
+              document.getElementById("recurring-description").value || null,
+            recurrence_type: type,
+            recurrence_day:
+              isBuiltIn && type !== "daily"
+                ? parseInt(document.getElementById("recurring-day").value)
+                : null,
+            assigned_to: assignedTo ? parseInt(assignedTo) : null,
+            has_due_date: document.getElementById("recurring-has-due-date")
+              .checked,
+            remind_days_before:
+              recurringRemindDays !== "" ? parseInt(recurringRemindDays) : null,
+            custom_rule: type === "custom" ? buildCustomRule() : null,
+          };
+          // A locked start date is read-back, not input: omitting it leaves the
+          // stored value alone rather than sending it back for the server to
+          // compare. Blank clears it, which is only reachable while unlocked.
+          if (!startInput.disabled) {
+            data.start_date = startInput.value || null;
+          }
+
+          try {
+            const response = editingRecurringId
+              ? await fetch(`/api/recurring-todos/${editingRecurringId}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(data),
+                })
+              : await fetch("/api/recurring-todos", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(data),
+                });
+            if (!response.ok) {
+              const body = await response.json().catch(() => ({}));
+              alert(
+                typeof body.detail === "string"
+                  ? body.detail
+                  : "Failed to save recurring task",
+              );
+              return;
+            }
+            closeRecurringModal();
+            await fetchRecurringTodos();
+            await fetchTodos(); // Refresh in case a new instance was generated
+          } catch (error) {
+            alert("Failed to save recurring task");
+          }
+        });
+
+      // Initialize
+      fetchFamilyMembers().then(() => {
+        fetchTodos();
+        fetchRecurringTodos();
+      });
+
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
+        });
+      });
     </script>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
     <script src="/static/modal.js?v={{ css_version }}"></script>
-</body>
+  </body>
 </html>

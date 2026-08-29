@@ -1,560 +1,690 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally — Style Guide</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Style Guide</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Style Guide</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Style Guide</h2>
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Style Guide</h2>
+        </div>
+        <div class="page-header-meta">
+          <p class="page-note">
+            Every component and state, rendered from the real stylesheet. If
+            something here looks wrong, the app looks wrong too. See
+            docs/visual-design-system.md for the rules behind it.
+          </p>
+        </div>
+      </header>
+
+      <section>
+        <div class="card-header">Space scale</div>
+        <div id="sg-space"></div>
+      </section>
+
+      <section>
+        <div class="card-header">Type scale</div>
+        <div id="sg-type"></div>
+      </section>
+
+      <section>
+        <div class="card-header">Color roles</div>
+        <p class="page-note">
+          Text uses ink, ink-muted or ink-subtle only. The rule tokens are
+          hairlines and fail contrast as text.
+        </p>
+        <div id="sg-color"></div>
+      </section>
+
+      <section>
+        <div class="card-header">Member colors</div>
+        <p class="page-note">
+          The closed palette behind family member identity, ordered darkest
+          first. Five entries, because that is how many fit between "dark enough
+          to read as black at 8px" and 3:1 on the sunken surface while staying
+          at least 1.24&times; apart in luminance. The second row is the same
+          palette with color removed: monochrome e-ink is the display this
+          spacing exists for, and five distinct grays there is the property that
+          matters.
+        </p>
+        <div id="sg-member-colors"></div>
+        <div id="sg-member-colors-gray" style="filter: grayscale(1)"></div>
+      </section>
+
+      <section>
+        <div class="card-header">Headings</div>
+        <h2>Page title — h2</h2>
+        <h3>Section and modal title — h3</h3>
+        <div class="card-header">Card header</div>
+        <div class="shopping-group-header">
+          <span class="shopping-group-name">Group header</span>
+          <span class="shopping-group-rule"></span>
+          <span class="shopping-group-count">4 items</span>
+        </div>
+      </section>
+
+      <section>
+        <div class="card-header">Buttons</div>
+        <p class="page-note">
+          One family, four roles, one size plus a compact modifier. Save is the
+          same control everywhere it appears.
+        </p>
+        <div class="list-container">
+          <div class="editable-item">
+            <div class="editable-item-content">
+              <div class="editable-item-description">
+                Default &middot; primary action
+              </div>
+              <div class="page-header-actions">
+                <button class="btn">Add Task</button>
+                <button class="btn" disabled>Disabled</button>
+              </div>
             </div>
-            <div class="page-header-meta">
-                <p class="page-note">
-                    Every component and state, rendered from the real stylesheet. If something
-                    here looks wrong, the app looks wrong too. See
-                    docs/visual-design-system.md for the rules behind it.
-                </p>
+          </div>
+          <div class="editable-item">
+            <div class="editable-item-content">
+              <div class="editable-item-description">
+                Secondary &middot; cancel, delete, dismiss
+              </div>
+              <div class="page-header-actions">
+                <button class="btn btn--secondary">Cancel</button>
+                <button class="btn btn--secondary">Delete</button>
+              </div>
             </div>
-        </header>
+          </div>
+          <div class="editable-item">
+            <div class="editable-item-content">
+              <div class="editable-item-description">
+                Quiet &middot; resets and inline actions
+              </div>
+              <div class="page-header-actions">
+                <button class="btn btn--quiet">Clear Filters</button>
+                <a class="link-quiet" href="/styleguide"
+                  >View purchased items</a
+                >
+              </div>
+            </div>
+          </div>
+          <div class="editable-item">
+            <div class="editable-item-content">
+              <div class="editable-item-description">
+                Compact &middot; inside a list row
+              </div>
+              <div class="page-header-actions">
+                <button class="btn btn--sm">Edit</button>
+                <button class="btn btn--secondary btn--sm">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <section>
-            <div class="card-header">Space scale</div>
-            <div id="sg-space"></div>
-        </section>
+      <section>
+        <div class="card-header">Toolbar</div>
+        <p class="page-note">
+          Labels stack above their chips below 768px and sit inline above it.
+          The reset slot is always last, and always in the same place on every
+          page.
+        </p>
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label" id="sg-filter-label">Assignee</span>
+            <div
+              class="filter-chips"
+              role="group"
+              aria-labelledby="sg-filter-label"
+            >
+              <button type="button" class="filter-chip active">
+                Unassigned
+              </button>
+              <button type="button" class="filter-chip">Jon</button>
+              <button type="button" class="filter-chip">Rodryk</button>
+              <button type="button" class="filter-chip">Sarah</button>
+              <button type="button" class="filter-chip">Soren</button>
+            </div>
+          </div>
+          <div class="toolbar-group">
+            <label class="toolbar-label" for="sg-sort">Sort</label>
+            <select id="sg-sort" class="select toolbar-control">
+              <option>Due Date (Soonest)</option>
+              <option>Newest First</option>
+            </select>
+          </div>
+          <div class="toolbar-search">
+            <label class="toolbar-label" for="sg-search">Search</label>
+            <input
+              type="text"
+              id="sg-search"
+              class="search-input"
+              placeholder="Search"
+            />
+            <button type="button" class="btn btn--secondary">Search</button>
+            <button type="button" class="btn btn--quiet">Clear Search</button>
+          </div>
+          <div class="toolbar-reset">
+            <button type="button" class="btn btn--quiet">Clear Filters</button>
+          </div>
+        </div>
+      </section>
 
-        <section>
-            <div class="card-header">Type scale</div>
-            <div id="sg-type"></div>
-        </section>
+      <section>
+        <div class="card-header">List rows</div>
+        <div class="list-container">
+          <div class="editable-item">
+            <div class="todo-checkbox"><input type="checkbox" /></div>
+            <div class="editable-item-content">
+              <div class="editable-item-title">
+                Return library books <span class="assignee-label">— Soren</span>
+              </div>
+              <div class="editable-item-description">
+                In the bag by the door
+              </div>
+              <div class="todo-due-date overdue">Due Saturday, Aug 1</div>
+            </div>
+            <div class="editable-item-actions">
+              <button class="btn btn--sm">Edit</button>
+            </div>
+          </div>
+          <div class="editable-item completed">
+            <div class="todo-checkbox"><input type="checkbox" checked /></div>
+            <div class="editable-item-content">
+              <div class="editable-item-title">Diet cokes</div>
+              <div class="shopping-completed-at">Purchased Monday, Aug 10</div>
+            </div>
+            <div class="editable-item-actions">
+              <button class="btn btn--sm">Edit</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <section>
-            <div class="card-header">Color roles</div>
-            <p class="page-note">
-                Text uses ink, ink-muted or ink-subtle only. The rule tokens are hairlines
-                and fail contrast as text.
+      <section>
+        <div class="card-header">Empty and loading states</div>
+        <div class="list-container">
+          <div class="container-empty-state">
+            No tasks match the current filter.
+          </div>
+          <div class="container-loading-state">Loading tasks…</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="card-header">Form controls</div>
+        <div class="border-container">
+          <div class="form-group">
+            <label for="sg-text">Text field</label>
+            <input type="text" id="sg-text" placeholder="Item name" />
+            <small>Help text sits under the field it explains.</small>
+          </div>
+          <div class="form-group">
+            <label for="sg-select">Select</label>
+            <select id="sg-select">
+              <option>Dinner</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="sg-area">Textarea</label>
+            <textarea
+              id="sg-area"
+              rows="3"
+              placeholder="What's on the menu?"
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label>Checkboxes</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label"
+                ><input type="checkbox" checked /> Jon</label
+              >
+              <label class="checkbox-label"
+                ><input type="checkbox" /> Sarah</label
+              >
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Radios</label>
+            <div class="radio-options">
+              <label
+                ><input type="radio" name="sg-radio" checked /> Due date of the
+                last task</label
+              >
+              <label
+                ><input type="radio" name="sg-radio" /> Date the last task was
+                completed</label
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="card-header">Card</div>
+        <div class="card">
+          <div class="card-header">Weather &amp; Preparedness</div>
+          <div class="card-content">
+            <p>
+              Partly cloudy with highs around 68&deg;F. Light jacket recommended
+              for morning activities. <strong>No rain expected today.</strong>
             </p>
-            <div id="sg-color"></div>
-        </section>
+          </div>
+        </div>
+      </section>
 
-        <section>
-            <div class="card-header">Member colors</div>
-            <p class="page-note">
-                The closed palette behind family member identity, ordered darkest first.
-                Five entries, because that is how many fit between "dark enough to read as
-                black at 8px" and 3:1 on the sunken surface while staying at least 1.24&times;
-                apart in luminance. The second row is the same palette with color removed:
-                monochrome e-ink is the display this spacing exists for, and five distinct
-                grays there is the property that matters.
-            </p>
-            <div id="sg-member-colors"></div>
-            <div id="sg-member-colors-gray" style="filter:grayscale(1);"></div>
-        </section>
+      <section>
+        <div class="card-header">Calendar month grid</div>
+        <p class="page-note">
+          Today is marked with a rule, never a fill: the palette is grayscale,
+          so the only color on the page is the family-member dots and a filled
+          cell would shout over them. A day that overflows offers &ldquo;+N
+          more&rdquo; and switches to that day&rsquo;s agenda &mdash; a popover
+          would be a second modal chassis. The grid renders at every width. It
+          was once hidden below 768px on a measurement of 42px per column, but
+          that was taken at 320px; re-measured, a 390px phone gives 51px and the
+          grid earns its place. On a phone the cell grows to fit its events and
+          the rows carry text rather than dots, each row a target in its own
+          right &mdash; an event row that cannot be 44px must not be a target at
+          all, and <code>pointer-events: none</code> is not that: it stops the
+          finger and leaves the keyboard.
+        </p>
+        <div class="calendar-grid">
+          <div class="calendar-weekday">Mon</div>
+          <div class="calendar-weekday">Tue</div>
+          <div class="calendar-weekday">Wed</div>
+          <div class="calendar-day is-outside">
+            <button type="button" class="calendar-day-open">
+              <span class="calendar-day-number">30</span>
+            </button>
+          </div>
+          <div class="calendar-day">
+            <button type="button" class="calendar-day-open">
+              <span class="calendar-day-number">1</span>
+            </button>
+            <button type="button" class="calendar-event">
+              <span class="calendar-dot"></span>
+              <span class="calendar-event-time">9:00 AM</span>
+              <span class="calendar-event-title">Dentist</span>
+            </button>
+          </div>
+          <div class="calendar-day is-today">
+            <button type="button" class="calendar-day-open">
+              <span class="calendar-day-number">2</span>
+            </button>
+            <button type="button" class="calendar-event">
+              <span class="calendar-dot"></span>
+              <span class="calendar-event-time">7:00 PM</span>
+              <span class="calendar-event-title">Scouts</span>
+            </button>
+            <button type="button" class="calendar-event is-external">
+              <span class="calendar-dot"></span>
+              <span class="calendar-event-time">8:00 PM</span>
+              <span class="calendar-event-title">Book club</span>
+            </button>
+            <button type="button" class="calendar-more">+2 more</button>
+          </div>
+        </div>
+      </section>
 
-        <section>
-            <div class="card-header">Headings</div>
-            <h2>Page title — h2</h2>
-            <h3>Section and modal title — h3</h3>
-            <div class="card-header">Card header</div>
-            <div class="shopping-group-header">
-                <span class="shopping-group-name">Group header</span>
-                <span class="shopping-group-rule"></span>
-                <span class="shopping-group-count">4 items</span>
+      <section>
+        <div class="card-header">Calendar time grid</div>
+        <p class="page-note">
+          Day and Week are one component with the column count set to 1 or 7. It
+          exists for what a list cannot say: duration is height and adjacency is
+          position, so a collision is visible rather than arithmetic. Three
+          rules hold it together.
+        </p>
+        <p class="page-note">
+          <strong
+            >The hour is 5.5rem so that thirty minutes is exactly 44px.</strong
+          >
+          The shortest a body may be and the hit-area floor are pinned to each
+          other; that is the whole reason for the value. Starts and heights snap
+          to five minutes.
+        </p>
+        <p class="page-note">
+          <strong>An event under thirty minutes is two shapes, not one.</strong>
+          A tab down the left carries the event&rsquo;s real length and the
+          member color; the body beside it holds the words at the thirty-minute
+          minimum. Inflating the whole block instead made a quarter-hour claim
+          three quarters of one. Tab plus body is exactly the column width, and
+          both sit inside one button, so it stays a single target.
+        </p>
+        <p class="page-note">
+          <strong>Columns are packed on the painted rectangle</strong>, not the
+          true span &mdash; otherwise a floored body sits on top of the next
+          event and covers its own title. All-day events leave the time axis
+          entirely and span the band above it. Today is a rule and the now line
+          is a hairline, for the same reason the month grid marks today that
+          way.
+        </p>
+        <div class="calendar-timegrid" style="--timegrid-cols: 3">
+          <div class="calendar-timegrid-head">
+            <div class="calendar-timegrid-gutter-cell"></div>
+            <div class="calendar-timegrid-daylabel">
+              <span class="calendar-timegrid-dayname">Mon</span
+              ><span class="calendar-timegrid-daynum">1</span>
             </div>
-        </section>
-
-        <section>
-            <div class="card-header">Buttons</div>
-            <p class="page-note">
-                One family, four roles, one size plus a compact modifier. Save is the same
-                control everywhere it appears.
-            </p>
-            <div class="list-container">
-                <div class="editable-item">
-                    <div class="editable-item-content">
-                        <div class="editable-item-description">Default &middot; primary action</div>
-                        <div class="page-header-actions">
-                            <button class="btn">Add Task</button>
-                            <button class="btn" disabled>Disabled</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="editable-item">
-                    <div class="editable-item-content">
-                        <div class="editable-item-description">Secondary &middot; cancel, delete, dismiss</div>
-                        <div class="page-header-actions">
-                            <button class="btn btn--secondary">Cancel</button>
-                            <button class="btn btn--secondary">Delete</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="editable-item">
-                    <div class="editable-item-content">
-                        <div class="editable-item-description">Quiet &middot; resets and inline actions</div>
-                        <div class="page-header-actions">
-                            <button class="btn btn--quiet">Clear Filters</button>
-                            <a class="link-quiet" href="/styleguide">View purchased items</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="editable-item">
-                    <div class="editable-item-content">
-                        <div class="editable-item-description">Compact &middot; inside a list row</div>
-                        <div class="page-header-actions">
-                            <button class="btn btn--sm">Edit</button>
-                            <button class="btn btn--secondary btn--sm">Delete</button>
-                        </div>
-                    </div>
-                </div>
+            <div class="calendar-timegrid-daylabel is-today">
+              <span class="calendar-timegrid-dayname">Tue</span
+              ><span class="calendar-timegrid-daynum">2</span>
             </div>
-        </section>
-
-        <section>
-            <div class="card-header">Toolbar</div>
-            <p class="page-note">
-                Labels stack above their chips below 768px and sit inline above it. The reset
-                slot is always last, and always in the same place on every page.
-            </p>
-            <div class="toolbar">
-                <div class="toolbar-group">
-                    <span class="toolbar-label" id="sg-filter-label">Assignee</span>
-                    <div class="filter-chips" role="group" aria-labelledby="sg-filter-label">
-                        <button type="button" class="filter-chip active">Unassigned</button>
-                        <button type="button" class="filter-chip">Jon</button>
-                        <button type="button" class="filter-chip">Rodryk</button>
-                        <button type="button" class="filter-chip">Sarah</button>
-                        <button type="button" class="filter-chip">Soren</button>
-                    </div>
-                </div>
-                <div class="toolbar-group">
-                    <label class="toolbar-label" for="sg-sort">Sort</label>
-                    <select id="sg-sort" class="select toolbar-control">
-                        <option>Due Date (Soonest)</option>
-                        <option>Newest First</option>
-                    </select>
-                </div>
-                <div class="toolbar-search">
-                    <label class="toolbar-label" for="sg-search">Search</label>
-                    <input type="text" id="sg-search" class="search-input" placeholder="Search">
-                    <button type="button" class="btn btn--secondary">Search</button>
-                    <button type="button" class="btn btn--quiet">Clear Search</button>
-                </div>
-                <div class="toolbar-reset">
-                    <button type="button" class="btn btn--quiet">Clear Filters</button>
-                </div>
+            <div class="calendar-timegrid-daylabel">
+              <span class="calendar-timegrid-dayname">Wed</span
+              ><span class="calendar-timegrid-daynum">3</span>
             </div>
-        </section>
-
-        <section>
-            <div class="card-header">List rows</div>
-            <div class="list-container">
-                <div class="editable-item">
-                    <div class="todo-checkbox"><input type="checkbox"></div>
-                    <div class="editable-item-content">
-                        <div class="editable-item-title">Return library books <span class="assignee-label">— Soren</span></div>
-                        <div class="editable-item-description">In the bag by the door</div>
-                        <div class="todo-due-date overdue">Due Saturday, Aug 1</div>
-                    </div>
-                    <div class="editable-item-actions"><button class="btn btn--sm">Edit</button></div>
-                </div>
-                <div class="editable-item completed">
-                    <div class="todo-checkbox"><input type="checkbox" checked></div>
-                    <div class="editable-item-content">
-                        <div class="editable-item-title">Diet cokes</div>
-                        <div class="shopping-completed-at">Purchased Monday, Aug 10</div>
-                    </div>
-                    <div class="editable-item-actions"><button class="btn btn--sm">Edit</button></div>
-                </div>
+          </div>
+          <div class="calendar-timegrid-allday">
+            <div class="calendar-timegrid-gutter-cell">All day</div>
+            <div class="calendar-timegrid-allday-track">
+              <button
+                type="button"
+                class="calendar-timegrid-allday-event"
+                style="grid-column: 2 / 4"
+              >
+                <span class="calendar-dot"></span>
+                <span class="calendar-event-title">Grandma visiting</span>
+              </button>
             </div>
-        </section>
-
-        <section>
-            <div class="card-header">Empty and loading states</div>
-            <div class="list-container">
-                <div class="container-empty-state">No tasks match the current filter.</div>
-                <div class="container-loading-state">Loading tasks…</div>
-            </div>
-        </section>
-
-        <section>
-            <div class="card-header">Form controls</div>
-            <div class="border-container">
-                <div class="form-group">
-                    <label for="sg-text">Text field</label>
-                    <input type="text" id="sg-text" placeholder="Item name">
-                    <small>Help text sits under the field it explains.</small>
-                </div>
-                <div class="form-group">
-                    <label for="sg-select">Select</label>
-                    <select id="sg-select"><option>Dinner</option></select>
-                </div>
-                <div class="form-group">
-                    <label for="sg-area">Textarea</label>
-                    <textarea id="sg-area" rows="3" placeholder="What's on the menu?"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Checkboxes</label>
-                    <div class="checkbox-group">
-                        <label class="checkbox-label"><input type="checkbox" checked> Jon</label>
-                        <label class="checkbox-label"><input type="checkbox"> Sarah</label>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Radios</label>
-                    <div class="radio-options">
-                        <label><input type="radio" name="sg-radio" checked> Due date of the last task</label>
-                        <label><input type="radio" name="sg-radio"> Date the last task was completed</label>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section>
-            <div class="card-header">Card</div>
-            <div class="card">
-                <div class="card-header">Weather &amp; Preparedness</div>
-                <div class="card-content">
-                    <p>Partly cloudy with highs around 68&deg;F. Light jacket recommended for
-                    morning activities. <strong>No rain expected today.</strong></p>
-                </div>
-            </div>
-        </section>
-
-        <section>
-            <div class="card-header">Calendar month grid</div>
-            <p class="page-note">
-                Today is marked with a rule, never a fill: the palette is grayscale, so the
-                only color on the page is the family-member dots and a filled cell would
-                shout over them. A day that overflows offers &ldquo;+N more&rdquo; and switches
-                to that day&rsquo;s agenda &mdash; a popover would be a second modal chassis.
-                The grid renders at every width. It was once hidden below 768px on a
-                measurement of 42px per column, but that was taken at 320px; re-measured, a
-                390px phone gives 51px and the grid earns its place. On a phone the cell
-                grows to fit its events and the rows carry text rather than dots, each row a
-                target in its own right &mdash; an event row that cannot be 44px must not be
-                a target at all, and <code>pointer-events: none</code> is not that: it stops
-                the finger and leaves the keyboard.
-            </p>
-            <div class="calendar-grid">
-                <div class="calendar-weekday">Mon</div>
-                <div class="calendar-weekday">Tue</div>
-                <div class="calendar-weekday">Wed</div>
-                <div class="calendar-day is-outside"><button type="button" class="calendar-day-open"><span class="calendar-day-number">30</span></button></div>
-                <div class="calendar-day">
-                    <button type="button" class="calendar-day-open">
-                        <span class="calendar-day-number">1</span>
-                    </button>
-                    <button type="button" class="calendar-event">
-                        <span class="calendar-dot"></span>
-                        <span class="calendar-event-time">9:00 AM</span>
-                        <span class="calendar-event-title">Dentist</span>
-                    </button>
-                </div>
-                <div class="calendar-day is-today">
-                    <button type="button" class="calendar-day-open">
-                        <span class="calendar-day-number">2</span>
-                    </button>
-                    <button type="button" class="calendar-event">
-                        <span class="calendar-dot"></span>
-                        <span class="calendar-event-time">7:00 PM</span>
-                        <span class="calendar-event-title">Scouts</span>
-                    </button>
-                    <button type="button" class="calendar-event is-external">
-                        <span class="calendar-dot"></span>
-                        <span class="calendar-event-time">8:00 PM</span>
-                        <span class="calendar-event-title">Book club</span>
-                    </button>
-                    <button type="button" class="calendar-more">+2 more</button>
-                </div>
-            </div>
-        </section>
-
-        <section>
-            <div class="card-header">Calendar time grid</div>
-            <p class="page-note">
-                Day and Week are one component with the column count set to 1 or 7. It exists
-                for what a list cannot say: duration is height and adjacency is position, so a
-                collision is visible rather than arithmetic. Three rules hold it together.
-            </p>
-            <p class="page-note">
-                <strong>The hour is 5.5rem so that thirty minutes is exactly 44px.</strong> The
-                shortest a body may be and the hit-area floor are pinned to each other; that
-                is the whole reason for the value. Starts and heights snap to five minutes.
-            </p>
-            <p class="page-note">
-                <strong>An event under thirty minutes is two shapes, not one.</strong> A tab
-                down the left carries the event&rsquo;s real length and the member color; the
-                body beside it holds the words at the thirty-minute minimum. Inflating the
-                whole block instead made a quarter-hour claim three quarters of one. Tab plus
-                body is exactly the column width, and both sit inside one button, so it stays
-                a single target.
-            </p>
-            <p class="page-note">
-                <strong>Columns are packed on the painted rectangle</strong>, not the true
-                span &mdash; otherwise a floored body sits on top of the next event and covers
-                its own title. All-day events leave the time axis entirely and span the band
-                above it. Today is a rule and the now line is a hairline, for the same reason
-                the month grid marks today that way.
-            </p>
-            <div class="calendar-timegrid" style="--timegrid-cols:3">
-                <div class="calendar-timegrid-head">
-                    <div class="calendar-timegrid-gutter-cell"></div>
-                    <div class="calendar-timegrid-daylabel"><span class="calendar-timegrid-dayname">Mon</span><span class="calendar-timegrid-daynum">1</span></div>
-                    <div class="calendar-timegrid-daylabel is-today"><span class="calendar-timegrid-dayname">Tue</span><span class="calendar-timegrid-daynum">2</span></div>
-                    <div class="calendar-timegrid-daylabel"><span class="calendar-timegrid-dayname">Wed</span><span class="calendar-timegrid-daynum">3</span></div>
-                </div>
-                <div class="calendar-timegrid-allday">
-                    <div class="calendar-timegrid-gutter-cell">All day</div>
-                    <div class="calendar-timegrid-allday-track">
-                        <button type="button" class="calendar-timegrid-allday-event" style="grid-column: 2 / 4">
-                            <span class="calendar-dot"></span>
-                            <span class="calendar-event-title">Grandma visiting</span>
-                        </button>
-                    </div>
-                </div>
-                <!-- The live grid is a full 24-hour canvas; this sample is a
+          </div>
+          <!-- The live grid is a full 24-hour canvas; this sample is a
                      four-hour window, so the body height is overridden to match
                      and every percentage below is read against 240 minutes. -->
-                <div class="calendar-timegrid-scroll">
-                    <div class="calendar-timegrid-body" style="height:calc(4 * var(--timegrid-hour))">
-                        <div class="calendar-timegrid-gutter">
-                            <div class="calendar-timegrid-hour"><span>9 AM</span></div>
-                            <div class="calendar-timegrid-hour"><span>10 AM</span></div>
-                            <div class="calendar-timegrid-hour"><span>11 AM</span></div>
-                            <div class="calendar-timegrid-hour"><span>12 PM</span></div>
-                        </div>
-                        <div class="calendar-timegrid-col">
-                            <button type="button" class="calendar-timegrid-event" style="top:0%;height:25%;left:0%;width:100%;">
-                                <span class="calendar-event-title">Standup</span>
-                                <span class="calendar-timegrid-event-time">9:00 AM</span>
-                            </button>
-                        </div>
-                        <div class="calendar-timegrid-col is-today">
-                            <button type="button" class="calendar-timegrid-event is-short" style="top:25%;height:12.5%;left:0%;width:100%;">
-                                <span class="calendar-timegrid-event-tab" style="height:calc(var(--timegrid-hour) * 0.25)"></span>
-                                <span class="calendar-timegrid-event-body">
-                                    <span class="calendar-event-title">School pickup</span>
-                                    <span class="calendar-timegrid-event-time">10:00 AM</span>
-                                </span>
-                            </button>
-                            <button type="button" class="calendar-timegrid-event" style="top:37.5%;height:25%;left:0%;width:100%;">
-                                <span class="calendar-event-title">Dentist</span>
-                                <span class="calendar-timegrid-event-time">10:30 AM</span>
-                            </button>
-                            <div class="calendar-timegrid-now" style="top:56%"></div>
-                        </div>
-                        <div class="calendar-timegrid-col">
-                            <button type="button" class="calendar-timegrid-event" style="top:12.5%;height:37.5%;left:0%;width:50%;">
-                                <span class="calendar-event-title">Soccer practice</span>
-                                <span class="calendar-timegrid-event-time">9:30 AM</span>
-                            </button>
-                            <button type="button" class="calendar-timegrid-event is-external" style="top:25%;height:25%;left:50%;width:50%;">
-                                <span class="calendar-event-title">Vendor call</span>
-                                <span class="calendar-timegrid-event-time">10:00 AM</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+          <div class="calendar-timegrid-scroll">
+            <div
+              class="calendar-timegrid-body"
+              style="height: calc(4 * var(--timegrid-hour))"
+            >
+              <div class="calendar-timegrid-gutter">
+                <div class="calendar-timegrid-hour"><span>9 AM</span></div>
+                <div class="calendar-timegrid-hour"><span>10 AM</span></div>
+                <div class="calendar-timegrid-hour"><span>11 AM</span></div>
+                <div class="calendar-timegrid-hour"><span>12 PM</span></div>
+              </div>
+              <div class="calendar-timegrid-col">
+                <button
+                  type="button"
+                  class="calendar-timegrid-event"
+                  style="top: 0%; height: 25%; left: 0%; width: 100%"
+                >
+                  <span class="calendar-event-title">Standup</span>
+                  <span class="calendar-timegrid-event-time">9:00 AM</span>
+                </button>
+              </div>
+              <div class="calendar-timegrid-col is-today">
+                <button
+                  type="button"
+                  class="calendar-timegrid-event is-short"
+                  style="top: 25%; height: 12.5%; left: 0%; width: 100%"
+                >
+                  <span
+                    class="calendar-timegrid-event-tab"
+                    style="height: calc(var(--timegrid-hour) * 0.25)"
+                  ></span>
+                  <span class="calendar-timegrid-event-body">
+                    <span class="calendar-event-title">School pickup</span>
+                    <span class="calendar-timegrid-event-time">10:00 AM</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="calendar-timegrid-event"
+                  style="top: 37.5%; height: 25%; left: 0%; width: 100%"
+                >
+                  <span class="calendar-event-title">Dentist</span>
+                  <span class="calendar-timegrid-event-time">10:30 AM</span>
+                </button>
+                <div class="calendar-timegrid-now" style="top: 56%"></div>
+              </div>
+              <div class="calendar-timegrid-col">
+                <button
+                  type="button"
+                  class="calendar-timegrid-event"
+                  style="top: 12.5%; height: 37.5%; left: 0%; width: 50%"
+                >
+                  <span class="calendar-event-title">Soccer practice</span>
+                  <span class="calendar-timegrid-event-time">9:30 AM</span>
+                </button>
+                <button
+                  type="button"
+                  class="calendar-timegrid-event is-external"
+                  style="top: 25%; height: 25%; left: 50%; width: 50%"
+                >
+                  <span class="calendar-event-title">Vendor call</span>
+                  <span class="calendar-timegrid-event-time">10:00 AM</span>
+                </button>
+              </div>
             </div>
-        </section>
+          </div>
+        </div>
+      </section>
 
-        <section>
-            <div class="card-header">Preparedness state and rows</div>
-            <p class="page-note">
-                The one place the palette leaves grayscale. State is encoded in color
-                <em>and</em> in words, because the meaning is the message: an expired water filter
-                has to read as different in kind, not merely in wording. These pills report — they
-                do not filter — so they are deliberately not <code>.filter-chip</code>.
-            </p>
-            <p>
-                <span class="pill pill--ok">OK</span>
+      <section>
+        <div class="card-header">Preparedness state and rows</div>
+        <p class="page-note">
+          The one place the palette leaves grayscale. State is encoded in color
+          <em>and</em> in words, because the meaning is the message: an expired
+          water filter has to read as different in kind, not merely in wording.
+          These pills report — they do not filter — so they are deliberately not
+          <code>.filter-chip</code>.
+        </p>
+        <p>
+          <span class="pill pill--ok">OK</span>
+          <span class="pill pill--due">Due soon</span>
+          <span class="pill pill--overdue">Overdue</span>
+        </p>
+
+        <div class="prep-group">
+          <div class="prep-group-header">
+            <h3>Water</h3>
+            <span class="prep-group-count">3 items · 1 needs attention</span>
+          </div>
+          <div class="prep-row">
+            <div class="prep-main">
+              <div class="prep-name">
+                Sawyer filters<span class="prep-qty"> — 2</span>
+              </div>
+              <div class="prep-meta">
                 <span class="pill pill--due">Due soon</span>
+                <span>Refresh 2027-02-15 · 14 days</span>
+              </div>
+              <div class="prep-notes">
+                Backflush and dry-store — freeze damage risk if stored wet.
+              </div>
+            </div>
+            <div class="prep-actions">
+              <button class="btn btn--quiet btn--sm">Refreshed</button>
+              <button class="btn btn--quiet btn--sm">Edit</button>
+            </div>
+          </div>
+          <div class="prep-row prep-row--overdue">
+            <div class="prep-main">
+              <div class="prep-name">
+                Water drums<span class="prep-qty"> — 4 x 55gal</span>
+              </div>
+              <div class="prep-meta">
                 <span class="pill pill--overdue">Overdue</span>
-            </p>
-
-            <div class="prep-group">
-                <div class="prep-group-header">
-                    <h3>Water</h3>
-                    <span class="prep-group-count">3 items · 1 needs attention</span>
-                </div>
-                <div class="prep-row">
-                    <div class="prep-main">
-                        <div class="prep-name">Sawyer filters<span class="prep-qty"> — 2</span></div>
-                        <div class="prep-meta">
-                            <span class="pill pill--due">Due soon</span>
-                            <span>Refresh 2027-02-15 · 14 days</span>
-                        </div>
-                        <div class="prep-notes">Backflush and dry-store — freeze damage risk if stored wet.</div>
-                    </div>
-                    <div class="prep-actions">
-                        <button class="btn btn--quiet btn--sm">Refreshed</button>
-                        <button class="btn btn--quiet btn--sm">Edit</button>
-                    </div>
-                </div>
-                <div class="prep-row prep-row--overdue">
-                    <div class="prep-main">
-                        <div class="prep-name">Water drums<span class="prep-qty"> — 4 x 55gal</span></div>
-                        <div class="prep-meta">
-                            <span class="pill pill--overdue">Overdue</span>
-                            <span>Overdue since 2026-07-01</span>
-                        </div>
-                    </div>
-                    <div class="prep-actions">
-                        <button class="btn btn--quiet btn--sm">Refreshed</button>
-                    </div>
-                </div>
-                <div class="prep-row">
-                    <div class="golist-checkbox" aria-hidden="true"></div>
-                    <div class="prep-main">
-                        <div class="prep-name">Nalgene 32 oz<span class="prep-qty"> — 1</span></div>
-                        <div class="prep-notes">Go-list variant, with the tick box you fill in with a pen.</div>
-                    </div>
-                </div>
+                <span>Overdue since 2026-07-01</span>
+              </div>
             </div>
-        </section>
-
-        <section>
-            <div class="card-header">Modal</div>
-            <p class="page-note">
-                Every modal uses one chassis, so each one signals a scrollable body the same way.
-            </p>
-            <div class="page-header-actions">
-                <button class="btn" onclick="showModalOverlay('sg-modal')">Open modal</button>
+            <div class="prep-actions">
+              <button class="btn btn--quiet btn--sm">Refreshed</button>
             </div>
-        </section>
+          </div>
+          <div class="prep-row">
+            <div class="golist-checkbox" aria-hidden="true"></div>
+            <div class="prep-main">
+              <div class="prep-name">
+                Nalgene 32 oz<span class="prep-qty"> — 1</span>
+              </div>
+              <div class="prep-notes">
+                Go-list variant, with the tick box you fill in with a pen.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="card-header">Modal</div>
+        <p class="page-note">
+          Every modal uses one chassis, so each one signals a scrollable body
+          the same way.
+        </p>
+        <div class="page-header-actions">
+          <button class="btn" onclick="showModalOverlay('sg-modal')">
+            Open modal
+          </button>
+        </div>
+      </section>
     </div>
 
     <div class="modal-overlay" id="sg-modal">
-        <div class="modal-content">
-            <h3>Add Item</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="sg-modal-name">Item</label>
-                    <input type="text" id="sg-modal-name" placeholder="Item name">
-                </div>
-                <div class="form-group">
-                    <label for="sg-modal-note">Note (optional)</label>
-                    <textarea id="sg-modal-note" rows="3"></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" onclick="hideModalOverlay('sg-modal')">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete">Delete</button>
-                </div>
+      <div class="modal-content">
+        <h3>Add Item</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="sg-modal-name">Item</label>
+              <input type="text" id="sg-modal-name" placeholder="Item name" />
             </div>
+            <div class="form-group">
+              <label for="sg-modal-note">Note (optional)</label>
+              <textarea id="sg-modal-note" rows="3"></textarea>
             </div>
+            <div class="modal-actions">
+              <button type="button" class="btn">Save</button>
+              <button
+                type="button"
+                class="btn btn--secondary"
+                onclick="hideModalOverlay('sg-modal')"
+              >
+                Cancel
+              </button>
+              <button type="button" class="btn btn--secondary modal-delete">
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
 
     <script src="/static/modal.js?v={{ css_version }}"></script>
     <script>
-        // Read the tokens back out of the cascade rather than hard-coding them,
-        // so this page cannot describe a scale the stylesheet no longer has.
-        const root = getComputedStyle(document.documentElement);
+      // Read the tokens back out of the cascade rather than hard-coding them,
+      // so this page cannot describe a scale the stylesheet no longer has.
+      const root = getComputedStyle(document.documentElement);
 
-        function swatchRows(target, items, render) {
-            document.getElementById(target).innerHTML =
-                '<div class="list-container">' + items.map(render).join('') + '</div>';
-        }
+      function swatchRows(target, items, render) {
+          document.getElementById(target).innerHTML =
+              '<div class="list-container">' + items.map(render).join('') + '</div>';
+      }
 
-        swatchRows('sg-space', ['1', '2', '3', '4', '5', '6', '7', '8'], n => {
-            const value = root.getPropertyValue(`--space-${n}`).trim();
-            return `<div class="editable-item">
-                <div class="editable-item-content">
-                    <div class="editable-item-title">--space-${n}</div>
-                    <div class="editable-item-description">${value}</div>
-                </div>
-                <div style="width:${value};align-self:stretch;background:var(--ink);"></div>
-            </div>`;
-        });
+      swatchRows('sg-space', ['1', '2', '3', '4', '5', '6', '7', '8'], n => {
+          const value = root.getPropertyValue(`--space-${n}`).trim();
+          return `<div class="editable-item">
+              <div class="editable-item-content">
+                  <div class="editable-item-title">--space-${n}</div>
+                  <div class="editable-item-description">${value}</div>
+              </div>
+              <div style="width:${value};align-self:stretch;background:var(--ink);"></div>
+          </div>`;
+      });
 
-        swatchRows('sg-type', ['xs', 'sm', 'base', 'lg', 'xl', 'display'], name => {
-            const value = root.getPropertyValue(`--text-${name}`).trim();
-            return `<div class="editable-item">
-                <div class="editable-item-content">
-                    <div class="editable-item-description">--text-${name} &middot; ${value}</div>
-                    <div style="font-size:${value};line-height:1.3;">Rally</div>
-                </div>
-            </div>`;
-        });
+      swatchRows('sg-type', ['xs', 'sm', 'base', 'lg', 'xl', 'display'], name => {
+          const value = root.getPropertyValue(`--text-${name}`).trim();
+          return `<div class="editable-item">
+              <div class="editable-item-content">
+                  <div class="editable-item-description">--text-${name} &middot; ${value}</div>
+                  <div style="font-size:${value};line-height:1.3;">Rally</div>
+              </div>
+          </div>`;
+      });
 
-        swatchRows('sg-color',
-            ['ink', 'ink-strong', 'ink-muted', 'ink-subtle', 'rule', 'rule-subtle', 'surface-sunken'],
-            name => {
-                const value = root.getPropertyValue(`--${name}`).trim();
-                return `<div class="editable-item">
-                    <div style="width:2.75rem;align-self:stretch;background:${value};border:1px solid var(--rule);"></div>
-                    <div class="editable-item-content">
-                        <div class="editable-item-title">--${name}</div>
-                        <div class="editable-item-description">${value}</div>
-                    </div>
-                </div>`;
-            });
+      swatchRows('sg-color',
+          ['ink', 'ink-strong', 'ink-muted', 'ink-subtle', 'rule', 'rule-subtle', 'surface-sunken'],
+          name => {
+              const value = root.getPropertyValue(`--${name}`).trim();
+              return `<div class="editable-item">
+                  <div style="width:2.75rem;align-self:stretch;background:${value};border:1px solid var(--rule);"></div>
+                  <div class="editable-item-content">
+                      <div class="editable-item-title">--${name}</div>
+                      <div class="editable-item-description">${value}</div>
+                  </div>
+              </div>`;
+          });
 
-        const memberPalette = [
-            {% for entry in member_palette %}
-            { token: '{{ entry.token }}', label: '{{ entry.label }}' }{{ "," if not loop.last }}
-            {% endfor %}
-        ];
+      const memberPalette = [
+          {% for entry in member_palette %}
+          { token: '{{ entry.token }}', label: '{{ entry.label }}' }{{ "," if not loop.last }}
+          {% endfor %}
+      ];
 
-        // Same discipline as the scales above: the value is read back out of
-        // the cascade, so this page cannot show a palette the stylesheet has
-        // stopped declaring.
-        function memberSwatch(entry) {
-            const value = root.getPropertyValue(entry.token).trim();
-            return `<div class="editable-item">
-                <div style="width:2.75rem;align-self:stretch;background:${value};border:1px solid var(--rule);"></div>
-                <div class="editable-item-content">
-                    <div class="editable-item-title">${entry.label}</div>
-                    <div class="editable-item-description">${entry.token} &middot; ${value}</div>
-                </div>
-            </div>`;
-        }
+      // Same discipline as the scales above: the value is read back out of
+      // the cascade, so this page cannot show a palette the stylesheet has
+      // stopped declaring.
+      function memberSwatch(entry) {
+          const value = root.getPropertyValue(entry.token).trim();
+          return `<div class="editable-item">
+              <div style="width:2.75rem;align-self:stretch;background:${value};border:1px solid var(--rule);"></div>
+              <div class="editable-item-content">
+                  <div class="editable-item-title">${entry.label}</div>
+                  <div class="editable-item-description">${entry.token} &middot; ${value}</div>
+              </div>
+          </div>`;
+      }
 
-        swatchRows('sg-member-colors', memberPalette, memberSwatch);
-        swatchRows('sg-member-colors-gray', memberPalette, memberSwatch);
+      swatchRows('sg-member-colors', memberPalette, memberSwatch);
+      swatchRows('sg-member-colors-gray', memberPalette, memberSwatch);
 
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
-        });
+      function toggleOtherDropdown(e) {
+          e.stopPropagation();
+          document.getElementById('other-dropdown').classList.toggle('open');
+      }
+      document.addEventListener('click', function () {
+          document.querySelectorAll('.nav-dropdown').forEach(function (d) {
+              d.classList.remove('open');
+          });
+      });
     </script>
-</body>
+  </body>
 </html>

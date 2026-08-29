@@ -46,20 +46,20 @@ dev             # http://localhost:8000
 
 All of these are devenv scripts, available inside the shell.
 
-| Command | What it does |
-|---|---|
-| `setup` | Install dependencies and initialize the database |
-| `dev` | Run the dev server on port 8000 (blocks) |
-| `dev-start` / `dev-stop` | Same server in the background |
-| `dev-status` / `dev-logs` | Check it, tail it |
-| `demo` | A fresh, seeded demo instance on port 8100 in its own database |
-| `seed` | Seed the dev database with sample data |
-| `resetdb` | Delete and reinitialize the dev database |
-| `generate` | Generate a real dashboard summary from the configured APIs |
-| `lint` / `lint-fix` | ruff |
-| `format` | ruff format |
-| `check` | `lint` plus format check, which is what CI runs |
-| `build` / `up` / `down` | Docker image and container |
+| Command                   | What it does                                                   |
+| ------------------------- | -------------------------------------------------------------- |
+| `setup`                   | Install dependencies and initialize the database               |
+| `dev`                     | Run the dev server on port 8000 (blocks)                       |
+| `dev-start` / `dev-stop`  | Same server in the background                                  |
+| `dev-status` / `dev-logs` | Check it, tail it                                              |
+| `demo`                    | A fresh, seeded demo instance on port 8100 in its own database |
+| `seed`                    | Seed the dev database with sample data                         |
+| `resetdb`                 | Delete and reinitialize the dev database                       |
+| `generate`                | Generate a real dashboard summary from the configured APIs     |
+| `lint` / `lint-fix`       | ruff                                                           |
+| `format`                  | ruff format                                                    |
+| `check`                   | `lint` plus format check, which is what CI runs                |
+| `build` / `up` / `down`   | Docker image and container                                     |
 
 ## Tests
 

@@ -1,65 +1,91 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally — Meal Planner</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Meal Planner</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Meal Planner</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn active" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner" class="active">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button
+          class="nav-dropdown-btn active"
+          onclick="toggleOtherDropdown(event)"
+        >
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner" class="active">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Meal Planner</h2>
-                <div class="page-header-actions">
-                    <button class="btn" id="btn-add-meal">Add Meal</button>
-                </div>
-            </div>
-        </header>
-
-        <!-- Filter toolbar (filters first; this page has no sort control) -->
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="meal-type-label">Meal Type</span>
-                <div class="filter-chips" id="meal-type-filters" role="group" aria-labelledby="meal-type-label">
-                    <button type="button" class="filter-chip" data-meal="Breakfast">Breakfast</button>
-                    <button type="button" class="filter-chip" data-meal="Lunch">Lunch</button>
-                    <button type="button" class="filter-chip" data-meal="Dinner">Dinner</button>
-                    <button type="button" class="filter-chip" data-meal="Snacks">Snacks</button>
-                </div>
-            </div>
-            <div class="toolbar-reset">
-                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
-            </div>
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Meal Planner</h2>
+          <div class="page-header-actions">
+            <button class="btn" id="btn-add-meal">Add Meal</button>
+          </div>
         </div>
+      </header>
 
-        <div class="list-container" id="plans-list">
-            <div class="container-loading-state">Loading meal plans...</div>
+      <!-- Filter toolbar (filters first; this page has no sort control) -->
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="meal-type-label">Meal Type</span>
+          <div
+            class="filter-chips"
+            id="meal-type-filters"
+            role="group"
+            aria-labelledby="meal-type-label"
+          >
+            <button type="button" class="filter-chip" data-meal="Breakfast">
+              Breakfast
+            </button>
+            <button type="button" class="filter-chip" data-meal="Lunch">
+              Lunch
+            </button>
+            <button type="button" class="filter-chip" data-meal="Dinner">
+              Dinner
+            </button>
+            <button type="button" class="filter-chip" data-meal="Snacks">
+              Snacks
+            </button>
+          </div>
         </div>
+        <div class="toolbar-reset">
+          <button type="button" class="btn btn--quiet" id="filter-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      <div class="list-container" id="plans-list">
+        <div class="container-loading-state">Loading meal plans...</div>
+      </div>
     </div>
 
     <!-- Shared meal add/edit modal (see templates/_meal_edit_modal.html) -->
@@ -68,127 +94,140 @@
     <script src="/static/modal.js?v={{ css_version }}"></script>
     <script src="/static/meal_edit_modal.js?v={{ css_version }}"></script>
     <script>
-        // State
-        let plans = [];
-        let familyMembers = [];
-        let defaultMealType = 'Dinner';
-        let localTimezone = 'UTC';
-        let selectedMealTypes = new Set();
-        let mealModal = null;  // shared MealEditModal instance
+      // State
+      let plans = [];
+      let familyMembers = [];
+      let defaultMealType = "Dinner";
+      let localTimezone = "UTC";
+      let selectedMealTypes = new Set();
+      let mealModal = null; // shared MealEditModal instance
 
-        const MEAL_TYPE_ORDER = { 'Breakfast': 0, 'Lunch': 1, 'Dinner': 2, 'Snacks': 3 };
+      const MEAL_TYPE_ORDER = { Breakfast: 0, Lunch: 1, Dinner: 2, Snacks: 3 };
 
-        // Today's date (YYYY-MM-DD) in the configured local timezone.
-        // Mirrors the backend's today_local() so Current & Upcoming and
-        // Previous Meals agree on the day boundary.
-        function todayLocal() {
-            return new Intl.DateTimeFormat('en-CA', { timeZone: localTimezone }).format(new Date());
+      // Today's date (YYYY-MM-DD) in the configured local timezone.
+      // Mirrors the backend's today_local() so Current & Upcoming and
+      // Previous Meals agree on the day boundary.
+      function todayLocal() {
+        return new Intl.DateTimeFormat("en-CA", {
+          timeZone: localTimezone,
+        }).format(new Date());
+      }
+
+      // Get date N days from today (YYYY-MM-DD) in the configured local timezone.
+      function getDateInDays(days) {
+        // Anchor to local calendar midnight so day arithmetic isn't skewed by UTC.
+        const base = new Date(todayLocal() + "T00:00:00");
+        base.setDate(base.getDate() + days);
+        const y = base.getFullYear();
+        const m = String(base.getMonth() + 1).padStart(2, "0");
+        const d = String(base.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+
+      // Format date for display
+      function formatDate(dateStr) {
+        const date = new Date(dateStr + "T00:00:00");
+        const today = todayLocal();
+        const tomorrow = getDateInDays(1);
+
+        if (dateStr === today) return "Today";
+        if (dateStr === tomorrow) return "Tomorrow";
+
+        // The planner runs to the end of the plan list, so a meal can land in
+        // a later year — show the year when it isn't the current one.
+        const opts = { weekday: "long", month: "short", day: "numeric" };
+        if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = "numeric";
+
+        return date.toLocaleDateString("en-US", opts);
+      }
+
+      // Family member helpers
+      async function fetchFamilyMembers() {
+        const response = await fetch("/api/family");
+        familyMembers = await response.json();
+      }
+
+      function getMemberById(id) {
+        return familyMembers.find((m) => m.id === id);
+      }
+
+      // Settings
+      async function fetchDefaultMealType() {
+        try {
+          const response = await fetch("/api/settings");
+          const data = await response.json();
+          const s = data.settings || {};
+          defaultMealType = s.meal_default_type || "Dinner";
+          localTimezone = s.local_timezone || "UTC";
+        } catch (_) {
+          defaultMealType = "Dinner";
+        }
+      }
+
+      // API calls
+      async function fetchPlans() {
+        const response = await fetch("/api/dinner-plans");
+        const allPlans = await response.json();
+
+        // Keep every meal from today onward (no upper bound — the planner
+        // shows the whole future), then sort by date then meal type order.
+        const today = todayLocal();
+        plans = allPlans
+          .filter((p) => p.date >= today)
+          .sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return (
+              (MEAL_TYPE_ORDER[a.meal_type] ?? 99) -
+              (MEAL_TYPE_ORDER[b.meal_type] ?? 99)
+            );
+          });
+
+        renderPlans();
+      }
+
+      // Apply the active meal-type filter (empty selection = show all).
+      function getVisiblePlans() {
+        if (selectedMealTypes.size === 0) return plans;
+        return plans.filter((p) =>
+          selectedMealTypes.has(p.meal_type || "Dinner"),
+        );
+      }
+
+      // Render
+      function renderPlans() {
+        const container = document.getElementById("plans-list");
+        const visible = getVisiblePlans();
+
+        if (visible.length === 0) {
+          container.innerHTML =
+            selectedMealTypes.size > 0
+              ? '<div class="container-empty-state">No meals match the current filters.</div>'
+              : '<div class="container-empty-state">No upcoming meal plans. Click "Add Meal" to get started.</div>';
+          return;
         }
 
-        // Get date N days from today (YYYY-MM-DD) in the configured local timezone.
-        function getDateInDays(days) {
-            // Anchor to local calendar midnight so day arithmetic isn't skewed by UTC.
-            const base = new Date(todayLocal() + 'T00:00:00');
-            base.setDate(base.getDate() + days);
-            const y = base.getFullYear();
-            const m = String(base.getMonth() + 1).padStart(2, '0');
-            const d = String(base.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
-
-        // Format date for display
-        function formatDate(dateStr) {
-            const date = new Date(dateStr + 'T00:00:00');
-            const today = todayLocal();
-            const tomorrow = getDateInDays(1);
-
-            if (dateStr === today) return 'Today';
-            if (dateStr === tomorrow) return 'Tomorrow';
-
-            // The planner runs to the end of the plan list, so a meal can land in
-            // a later year — show the year when it isn't the current one.
-            const opts = { weekday: 'long', month: 'short', day: 'numeric' };
-            if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = 'numeric';
-
-            return date.toLocaleDateString('en-US', opts);
-        }
-
-        // Family member helpers
-        async function fetchFamilyMembers() {
-            const response = await fetch('/api/family');
-            familyMembers = await response.json();
-        }
-
-        function getMemberById(id) {
-            return familyMembers.find(m => m.id === id);
-        }
-
-        // Settings
-        async function fetchDefaultMealType() {
-            try {
-                const response = await fetch('/api/settings');
-                const data = await response.json();
-                const s = data.settings || {};
-                defaultMealType = s.meal_default_type || 'Dinner';
-                localTimezone = s.local_timezone || 'UTC';
-            } catch (_) {
-                defaultMealType = 'Dinner';
+        container.innerHTML = visible
+          .map((plan) => {
+            // Build meta parts
+            const parts = [];
+            if (plan.attendee_ids && plan.attendee_ids.length > 0) {
+              const names = plan.attendee_ids
+                .map((id) => getMemberById(id)?.name || "?")
+                .join(", ");
+              parts.push(`Eating: ${escapeHtml(names)}`);
             }
-        }
-
-        // API calls
-        async function fetchPlans() {
-            const response = await fetch('/api/dinner-plans');
-            const allPlans = await response.json();
-
-            // Keep every meal from today onward (no upper bound — the planner
-            // shows the whole future), then sort by date then meal type order.
-            const today = todayLocal();
-            plans = allPlans
-                .filter(p => p.date >= today)
-                .sort((a, b) => {
-                    if (a.date !== b.date) return a.date.localeCompare(b.date);
-                    return (MEAL_TYPE_ORDER[a.meal_type] ?? 99) - (MEAL_TYPE_ORDER[b.meal_type] ?? 99);
-                });
-
-            renderPlans();
-        }
-
-        // Apply the active meal-type filter (empty selection = show all).
-        function getVisiblePlans() {
-            if (selectedMealTypes.size === 0) return plans;
-            return plans.filter(p => selectedMealTypes.has(p.meal_type || 'Dinner'));
-        }
-
-        // Render
-        function renderPlans() {
-            const container = document.getElementById('plans-list');
-            const visible = getVisiblePlans();
-
-            if (visible.length === 0) {
-                container.innerHTML = selectedMealTypes.size > 0
-                    ? '<div class="container-empty-state">No meals match the current filters.</div>'
-                    : '<div class="container-empty-state">No upcoming meal plans. Click "Add Meal" to get started.</div>';
-                return;
+            if (plan.cook_id) {
+              const cook = getMemberById(plan.cook_id);
+              if (cook) parts.push(`Cook: ${escapeHtml(cook.name)}`);
             }
+            const metaHtml =
+              parts.length > 0
+                ? `<div class="editable-item-description">${parts.join(" · ")}</div>`
+                : "";
 
-            container.innerHTML = visible.map(plan => {
-                // Build meta parts
-                const parts = [];
-                if (plan.attendee_ids && plan.attendee_ids.length > 0) {
-                    const names = plan.attendee_ids.map(id => getMemberById(id)?.name || '?').join(', ');
-                    parts.push(`Eating: ${escapeHtml(names)}`);
-                }
-                if (plan.cook_id) {
-                    const cook = getMemberById(plan.cook_id);
-                    if (cook) parts.push(`Cook: ${escapeHtml(cook.name)}`);
-                }
-                const metaHtml = parts.length > 0
-                    ? `<div class="editable-item-description">${parts.join(' · ')}</div>` : '';
+            const mealType = plan.meal_type || "Dinner";
 
-                const mealType = plan.meal_type || 'Dinner';
-
-                return `
+            return `
                     <div class="editable-item" data-id="${plan.id}">
                         <div class="editable-item-content">
                             <div class="editable-item-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
@@ -200,72 +239,79 @@
                         </div>
                     </div>
                 `;
-            }).join('');
-        }
+          })
+          .join("");
+      }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
 
-        // Modal — the shared MealEditModal (static/meal_edit_modal.js) owns the
-        // add/edit/delete behavior. Called from the per-card Edit button.
-        function openEditModal(id) {
-            mealModal.openEdit(plans.find(p => p.id === id));
-        }
+      // Modal — the shared MealEditModal (static/meal_edit_modal.js) owns the
+      // add/edit/delete behavior. Called from the per-card Edit button.
+      function openEditModal(id) {
+        mealModal.openEdit(plans.find((p) => p.id === id));
+      }
 
-        // Meal type filter: multi-select (any of the selected types). Filtering
-        // is client-side over the already-loaded week, so no refetch is needed.
-        document.getElementById('meal-type-filters').addEventListener('click', (e) => {
-            const chip = e.target.closest('.filter-chip');
-            if (!chip) return;
+      // Meal type filter: multi-select (any of the selected types). Filtering
+      // is client-side over the already-loaded week, so no refetch is needed.
+      document
+        .getElementById("meal-type-filters")
+        .addEventListener("click", (e) => {
+          const chip = e.target.closest(".filter-chip");
+          if (!chip) return;
 
-            const meal = chip.dataset.meal;
-            if (selectedMealTypes.has(meal)) {
-                selectedMealTypes.delete(meal);
-                chip.classList.remove('active');
-            } else {
-                selectedMealTypes.add(meal);
-                chip.classList.add('active');
-            }
-            renderPlans();
+          const meal = chip.dataset.meal;
+          if (selectedMealTypes.has(meal)) {
+            selectedMealTypes.delete(meal);
+            chip.classList.remove("active");
+          } else {
+            selectedMealTypes.add(meal);
+            chip.classList.add("active");
+          }
+          renderPlans();
         });
 
-        document.getElementById('filter-clear').addEventListener('click', () => {
-            selectedMealTypes.clear();
-            document.querySelectorAll('#meal-type-filters .filter-chip').forEach(c => c.classList.remove('active'));
-            renderPlans();
-        });
+      document.getElementById("filter-clear").addEventListener("click", () => {
+        selectedMealTypes.clear();
+        document
+          .querySelectorAll("#meal-type-filters .filter-chip")
+          .forEach((c) => c.classList.remove("active"));
+        renderPlans();
+      });
 
-        // Event handlers
-        document.getElementById('btn-add-meal').addEventListener('click', () => mealModal.openAdd());
+      // Event handlers
+      document
+        .getElementById("btn-add-meal")
+        .addEventListener("click", () => mealModal.openAdd());
 
-        // Initialize — settings and family members load before plans render
-        Promise.all([fetchDefaultMealType(), fetchFamilyMembers()]).then(() => {
-            mealModal = new MealEditModal({
-                getFamilyMembers: () => familyMembers,
-                getDefaultMealType: () => defaultMealType,
-                getTimezone: () => localTimezone,
-                onSaved: fetchPlans,
-            });
-            fetchPlans();
+      // Initialize — settings and family members load before plans render
+      Promise.all([fetchDefaultMealType(), fetchFamilyMembers()]).then(() => {
+        mealModal = new MealEditModal({
+          getFamilyMembers: () => familyMembers,
+          getDefaultMealType: () => defaultMealType,
+          getTimezone: () => localTimezone,
+          onSaved: fetchPlans,
         });
+        fetchPlans();
+      });
 
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
         });
+      });
     </script>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
-</body>
+  </body>
 </html>

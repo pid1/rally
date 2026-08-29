@@ -13,10 +13,10 @@ Pick a provider in Settings → **LLM**:
 
 Two free-text fields shape what the model writes:
 
-| Field | What it is for |
-|---|---|
+| Field              | What it is for                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------- |
 | **Family context** | Who is in the family, ages, routines, what matters. The model reads this every run |
-| **Agent voice** | The tone to write in |
+| **Agent voice**    | The tone to write in                                                               |
 
 Both are versioned. Every save records a snapshot, and **Version History** rolls either one back without touching the other. The same applies to the LLM provider, model and token budget, which are versioned together as one coupled snapshot: rolling back restores all of it at once.
 
@@ -62,13 +62,13 @@ A member without a key is never notified. That is the default rather than an err
 
 Five kinds of push, each with its own audience rule:
 
-| Kind | Fires when | Goes to | Default | Install-wide switch |
-|---|---|---|---|---|
-| Event reminders | An event's lead time arrives, or somebody presses **Notify attendees** | The event's attendees | On | — |
-| Calendar additions and changes | A Rally event is added, changed or deleted | The event's attendees | On | — |
-| Task hand-offs | A task is created for somebody or handed to them | That one assignee | On | Settings → **Tasks** |
-| Preparedness refresh digest | Daily, at the configured time | Everybody with a key | On | Settings → **Preparedness** |
-| Shopping list additions | Items are added to the list | Whoever opted in | **Off** | Settings → **Shopping List** |
+| Kind                           | Fires when                                                             | Goes to               | Default | Install-wide switch          |
+| ------------------------------ | ---------------------------------------------------------------------- | --------------------- | ------- | ---------------------------- |
+| Event reminders                | An event's lead time arrives, or somebody presses **Notify attendees** | The event's attendees | On      | —                            |
+| Calendar additions and changes | A Rally event is added, changed or deleted                             | The event's attendees | On      | —                            |
+| Task hand-offs                 | A task is created for somebody or handed to them                       | That one assignee     | On      | Settings → **Tasks**         |
+| Preparedness refresh digest    | Daily, at the configured time                                          | Everybody with a key  | On      | Settings → **Preparedness**  |
+| Shopping list additions        | Items are added to the list                                            | Whoever opted in      | **Off** | Settings → **Shopping List** |
 
 The event kinds go to the event's **attendees** rather than to the whole household. Buzzing four phones about one child's appointment is how a family learns to ignore notifications.
 
@@ -76,15 +76,15 @@ A task assignment goes to the assignee alone, once, at the moment the task becom
 
 ### Who hears what
 
-Each family member chooses which kinds they get, in **Notify … about** on their own record in Settings → **Family Members**. A tick only ever *narrows* what that person already receives: turning on **Event reminders** does not start sending you other people's appointments. Somebody with no Pushover key keeps whatever they have set — the switches are held and explained rather than silently ineffective, and they take effect the moment a key is added.
+Each family member chooses which kinds they get, in **Notify … about** on their own record in Settings → **Family Members**. A tick only ever _narrows_ what that person already receives: turning on **Event reminders** does not start sending you other people's appointments. Somebody with no Pushover key keeps whatever they have set — the switches are held and explained rather than silently ineffective, and they take effect the moment a key is added.
 
-Settings → **Notifications** lists every kind with its audience rule and who currently receives it, including who has muted it and who has no key. It is read-only: one screen answers *"why didn't I get that?"*, and the place to change an answer is the person's own record.
+Settings → **Notifications** lists every kind with its audience rule and who currently receives it, including who has muted it and who has no key. It is read-only: one screen answers _"why didn't I get that?"_, and the place to change an answer is the person's own record.
 
 ### Shopping list additions
 
 A shopping list belongs to the household, so this is the one kind with no audience of its own — it goes only to the people who asked. Turn it on in Settings → **Shopping List**; it is off after an upgrade until somebody does.
 
-Additions are **batched**. Nine things added while walking the pantry is one push, not nine: Rally waits for the adding to stop before it sends, and the wait is the **Wait for adding to stop** setting (`shopping_notify_settle_minutes`, default 5). An item added and purchased inside that window is never announced, which is correct — it was already bought. Purchases, edits, deletions and reordering are never announced; a notification when the list gets *shorter* is nobody's news.
+Additions are **batched**. Nine things added while walking the pantry is one push, not nine: Rally waits for the adding to stop before it sends, and the wait is the **Wait for adding to stop** setting (`shopping_notify_settle_minutes`, default 5). An item added and purchased inside that window is never announced, which is correct — it was already bought. Purchases, edits, deletions and reordering are never announced; a notification when the list gets _shorter_ is nobody's news.
 
 Rally has no sign-in, so it cannot know who added an item: whoever opted in hears about their own adds too.
 
@@ -94,13 +94,13 @@ Preparedness has its own daily digest, with its own time and lead-time settings.
 
 Each of these is a toggle in Settings:
 
-| Toggle | Default | Effect |
-|---|---|---|
-| Shopping list in summary | Off | Folds your open shopping list into the morning briefing |
-| Overdue stock in summary | On | Mentions preparedness items past their refresh date |
-| STEM concept of the day | Off | Adds one age-appropriate STEM idea, never repeating a topic within 60 days |
-| Sports watchlist | Off | Tonight's games and notable events for teams you follow |
-| AI inventory review | Off | Adds a **Review** button to Preparedness that asks your model what the kit is missing |
+| Toggle                   | Default | Effect                                                                                |
+| ------------------------ | ------- | ------------------------------------------------------------------------------------- |
+| Shopping list in summary | Off     | Folds your open shopping list into the morning briefing                               |
+| Overdue stock in summary | On      | Mentions preparedness items past their refresh date                                   |
+| STEM concept of the day  | Off     | Adds one age-appropriate STEM idea, never repeating a topic within 60 days            |
+| Sports watchlist         | Off     | Tonight's games and notable events for teams you follow                               |
+| AI inventory review      | Off     | Adds a **Review** button to Preparedness that asks your model what the kit is missing |
 
 ## Context files
 
@@ -117,5 +117,10 @@ The Settings UI is the recommended path. These exist for people who would rather
 The dashboard reloads itself every 30 minutes. To change that, edit the timeout at the bottom of `templates/dashboard.html`:
 
 ```javascript
-setTimeout(function() { location.reload(); }, 30 * 60 * 1000);
+setTimeout(
+  function () {
+    location.reload();
+  },
+  30 * 60 * 1000,
+);
 ```

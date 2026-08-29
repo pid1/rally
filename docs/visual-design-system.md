@@ -4,7 +4,7 @@
 
 Rally's look is deliberate — an editorial, monochrome, serif command center that reads well on a wall tablet and prints cleanly. That identity is not in question here and this work did not change it.
 
-What is in question is *consistency*. Every page was built by hand against a single 1,723-line stylesheet with no shared vocabulary, so the same idea is expressed a slightly different way on each page. Individually the differences are small. Together they are why the app feels assembled rather than designed, and why every new page costs more than the last one.
+What is in question is _consistency_. Every page was built by hand against a single 1,723-line stylesheet with no shared vocabulary, so the same idea is expressed a slightly different way on each page. Individually the differences are small. Together they are why the app feels assembled rather than designed, and why every new page costs more than the last one.
 
 This document is the audit, the design system built to fix it, and the enforcement that keeps it from drifting back.
 
@@ -14,7 +14,7 @@ Every page was loaded in headless Chromium at three widths — 1440×900, 834×1
 
 Pages: `/dashboard`, `/todo`, `/todo/completed`, `/shopping`, `/shopping/purchased`, `/dinner-planner`, `/meal-history`, `/settings`. Modals: all 11, opened and measured at desktop and mobile.
 
-The measuring code is the reason this is worth doing as a *system*: it is directly reusable as the enforcement mechanism (see "Enforcement" below), so the audit becomes a regression test rather than a one-time cleanup.
+The measuring code is the reason this is worth doing as a _system_: it is directly reusable as the enforcement mechanism (see "Enforcement" below), so the audit becomes a regression test rather than a one-time cleanup.
 
 ## Findings
 
@@ -30,16 +30,16 @@ Grouped by cause, not by page. This is the state before the rebuild; each findin
 
 **A4. On mobile, page chrome consumes the entire first screen.** Y-coordinate of the first content row against an 844px viewport:
 
-| Page | First content row | Share of first screen |
-|---|---|---|
-| Completed Tasks | 981px | 116% |
-| Tasks | 864px | 102% |
-| Meal History | 861px | 102% |
-| Purchased Items | 830px | 98% |
-| Shopping | 760px | 90% |
-| Meal Planner | 730px | 86% |
-| Dashboard | 687px | 81% |
-| Settings | 623px | 74% |
+| Page            | First content row | Share of first screen |
+| --------------- | ----------------- | --------------------- |
+| Completed Tasks | 981px             | 116%                  |
+| Tasks           | 864px             | 102%                  |
+| Meal History    | 861px             | 102%                  |
+| Purchased Items | 830px             | 98%                   |
+| Shopping        | 760px             | 90%                   |
+| Meal Planner    | 730px             | 86%                   |
+| Dashboard       | 687px             | 81%                   |
+| Settings        | 623px             | 74%                   |
 
 On four of eight pages you must scroll before seeing a single task, item or meal. This is the "shoves the usable content downwards" complaint, quantified. The cost is fixed and repeated: 3rem wordmark, subtitle, rule, four stacked full-width nav buttons, rule, title, rule, toolbar — before any content.
 
@@ -53,25 +53,25 @@ This is the single largest source of visible inconsistency, and it is where the 
 
 **B1. Whether a filter label sits beside its chips or above them is decided by chip count, not by design.** `.toolbar-group` is a wrapping flex row; the `.filter-chips` block is a single flex item, so it drops to its own line the moment its content no longer fits. At 390px:
 
-| Page | Group | Chips | Label beside chips? |
-|---|---|---|---|
-| Tasks | Assignee | 5 | no |
-| Meal History | Meal Type | 4 | no |
-| Meal Planner | Meal Type | 4 | no |
-| Meal History | Rating | 3 | **yes** |
-| Shopping | Store | 3 | **yes** |
+| Page         | Group     | Chips | Label beside chips? |
+| ------------ | --------- | ----- | ------------------- |
+| Tasks        | Assignee  | 5     | no                  |
+| Meal History | Meal Type | 4     | no                  |
+| Meal Planner | Meal Type | 4     | no                  |
+| Meal History | Rating    | 3     | **yes**             |
+| Shopping     | Store     | 3     | **yes**             |
 
-Meal History exhibits both behaviors *in the same toolbar*: "Meal Type" above its chips, "Rating" beside its chips, "Sort" beside its select. Adding a family member or a store silently changes the layout of the page.
+Meal History exhibits both behaviors _in the same toolbar_: "Meal Type" above its chips, "Rating" beside its chips, "Sort" beside its select. Adding a family member or a store silently changes the layout of the page.
 
 **B2. "Clear Filters" lands wherever the preceding chips end.** It is a child of whichever `.toolbar-group` each template happened to put it in, so it has no fixed slot. Measured x-position and row at 1440px:
 
-| Page | Attached to | x | Row |
-|---|---|---|---|
-| Tasks | Assignee | 771 | 1 |
-| Meal Planner | Meal Type | 732 | 1 |
-| Shopping | Store | 654 | 1 |
-| Meal History | Rating | 628 | **2** |
-| Purchased Items | Store | 384 | 1 |
+| Page            | Attached to | x   | Row   |
+| --------------- | ----------- | --- | ----- |
+| Tasks           | Assignee    | 771 | 1     |
+| Meal Planner    | Meal Type   | 732 | 1     |
+| Shopping        | Store       | 654 | 1     |
+| Meal History    | Rating      | 628 | **2** |
+| Purchased Items | Store       | 384 | 1     |
 
 Between Meal Planner and Meal History — two views of the same feature, reached from the same nav dropdown — the control changes both column and row. On Meal History it is stranded mid-row between the Rating chips and the Sort label, so it reads as if it belongs to Sort.
 
@@ -97,7 +97,7 @@ Between Meal Planner and Meal History — two views of the same feature, reached
 
 ### D. Components
 
-**D1. Two primary buttons, both labeled "Save", both on the Settings page.** `.btn-save` (padding 10px 24px, 1rem) is used by Settings' nine inline forms; `.btn-primary` (padding 8px 16px, 0.9rem) is used by all 11 modals — including the four modals that open *from* Settings. Measured: **80×43 at 16px** versus **61×37 at 14.4px**. Same word, two controls, one page. Note which one is correct: `.btn-save` at 43px nearly meets the 44px touch target that `.btn-primary` misses by seven.
+**D1. Two primary buttons, both labeled "Save", both on the Settings page.** `.btn-save` (padding 10px 24px, 1rem) is used by Settings' nine inline forms; `.btn-primary` (padding 8px 16px, 0.9rem) is used by all 11 modals — including the four modals that open _from_ Settings. Measured: **80×43 at 16px** versus **61×37 at 14.4px**. Same word, two controls, one page. Note which one is correct: `.btn-save` at 43px nearly meets the 44px touch target that `.btn-primary` misses by seven.
 
 **D2. The modal chassis is split in two.** Five modals (task, recurring, item, stores) use `.modal-scroll` + `.modal-body` and get the scroll-fade affordance and a body that flexes. Six (meal, review, member, calendar, team) do not, and fall back to `.modal-content { overflow: auto }`. At 390px the Add Team modal fills 89.8% of the viewport and the Add Meal modal 88%, both with no fade to signal that content continues.
 
@@ -143,29 +143,42 @@ Raw grays stay as private primitives; everything else references a role. Every t
 
 ```css
 /* space — one 4px-based scale, replacing 18 ad hoc values */
---space-1: 0.25rem;  --space-2: 0.5rem;   --space-3: 0.75rem;  --space-4: 1rem;
---space-5: 1.5rem;   --space-6: 2rem;     --space-7: 3rem;     --space-8: 4rem;
+--space-1: 0.25rem;
+--space-2: 0.5rem;
+--space-3: 0.75rem;
+--space-4: 1rem;
+--space-5: 1.5rem;
+--space-6: 2rem;
+--space-7: 3rem;
+--space-8: 4rem;
 
 /* type — six steps, replacing 17 declared sizes */
---text-xs: 0.75rem;  --text-sm: 0.875rem; --text-base: 1rem;
---text-lg: 1.25rem;  --text-xl: 1.5rem;   --text-display: 3rem;
+--text-xs: 0.75rem;
+--text-sm: 0.875rem;
+--text-base: 1rem;
+--text-lg: 1.25rem;
+--text-xl: 1.5rem;
+--text-display: 3rem;
 
 /* color by role, not appearance */
---ink: #1a1a1a;          /* primary text, strong rules   */
---ink-muted: #666666;    /* secondary text — 5.74:1      */
---ink-subtle: #767676;   /* tertiary text — 4.54:1       */
---ink-strong: #000000;   /* emphasis inside body copy    */
---rule: #cccccc;         /* hairlines — never text       */
+--ink: #1a1a1a; /* primary text, strong rules   */
+--ink-muted: #666666; /* secondary text — 5.74:1      */
+--ink-subtle: #767676; /* tertiary text — 4.54:1       */
+--ink-strong: #000000; /* emphasis inside body copy    */
+--rule: #cccccc; /* hairlines — never text       */
 --rule-subtle: #e5e5e5;
 --surface: #ffffff;
 --surface-sunken: #f5f5f5;
---inverse: #ffffff;      /* text on --ink                */
+--inverse: #ffffff; /* text on --ink                */
 
---target-min: 2.25rem;   /* 2.75rem under (pointer: coarse) and below 768px */
+--target-min: 2.25rem; /* 2.75rem under (pointer: coarse) and below 768px */
 
 /* family member identity — the only color on a calendar page */
---member-ink-blue: #315277;  --member-crimson: #af2c3d;  --member-violet: #8859b1;
---member-forest: #3b8c61;    --member-amber: #a38b43;
+--member-ink-blue: #315277;
+--member-crimson: #af2c3d;
+--member-violet: #8859b1;
+--member-forest: #3b8c61;
+--member-amber: #a38b43;
 ```
 
 The member palette is the second place the system leaves grayscale, and the
@@ -190,7 +203,7 @@ Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelat
 ### 2. Layout primitives
 
 - **`.page`** — the content column. Width is owned by `body` alone; the second `max-width` that put every desktop page 2px out of line with its own header is gone (A1).
-- **`.page-header`** — title, actions, and any secondary links as *one* block with defined internal spacing. The archive switch and retention note are now inside it instead of being loose siblings with their own margins (A2, A3). Dashboard and Settings use the same primitives; Settings gained a page-level `h2` and its section headings became `h3` (A5).
+- **`.page-header`** — title, actions, and any secondary links as _one_ block with defined internal spacing. The archive switch and retention note are now inside it instead of being loose siblings with their own margins (A2, A3). Dashboard and Settings use the same primitives; Settings gained a page-level `h2` and its section headings became `h3` (A5).
 - **`.stack`** — vertical rhythm via `> * + *`. The space between blocks comes from one declaration, tightened one step on mobile (A6).
 
 ### 3. Components
@@ -223,25 +236,25 @@ Two suites, cheapest first.
 
 **`tests/visual/`** — the audit's measuring code turned into assertions, run in its own CI job against a real browser and a seeded database. Every test names the finding it protects against:
 
-| Test | Guards |
-|---|---|
-| page blocks share a left edge | A1 |
+| Test                                                       | Guards |
+| ---------------------------------------------------------- | ------ |
+| page blocks share a left edge                              | A1     |
 | header is the same distance from the next block everywhere | A2, A3 |
-| content starts above the fold on a phone | A4 |
-| filter labels are placed by rule, not chip count | B1 |
-| Clear Filters occupies one fixed slot on every page | B2 |
-| type sizes come from the scale | C1 |
-| colors come from the palette | C4 |
-| text meets WCAG AA contrast | C5 |
-| every modal uses the shared chassis | D2 |
-| every modal reopens at the top | D7 |
-| every control shows a focus ring | E1 |
-| touch targets meet 44px on a phone | E2 |
-| focus rings are not clipped inside modals | E5 |
-| no horizontal overflow | — |
+| content starts above the fold on a phone                   | A4     |
+| filter labels are placed by rule, not chip count           | B1     |
+| Clear Filters occupies one fixed slot on every page        | B2     |
+| type sizes come from the scale                             | C1     |
+| colors come from the palette                               | C4     |
+| text meets WCAG AA contrast                                | C5     |
+| every modal uses the shared chassis                        | D2     |
+| every modal reopens at the top                             | D7     |
+| every control shows a focus ring                           | E1     |
+| touch targets meet 44px on a phone                         | E2     |
+| focus rings are not clipped inside modals                  | E5     |
+| no horizontal overflow                                     | —      |
 
 The calendar's time grid adds a second kind: **geometry tests** that inject
-occurrences, call `render()`, and assert the result in *minutes* rather than
+occurrences, call `render()`, and assert the result in _minutes_ rather than
 pixels — a fifteen-minute event has a fifteen-minute tab, a floored body pushes
 its neighbor aside instead of covering it, an event crossing midnight is drawn
 on both days. The hour row is a token and may move; the rules are what hold.
@@ -260,18 +273,18 @@ uv run pytest tests/visual -v
 
 ## What changed, measured
 
-| | Before | After |
-|---|---|---|
-| Distinct rendered font sizes | 11 | 6, all tokens |
-| Declared `font-size` values | 17 | 6 tokens |
-| Declared spacing values | 18 | 8 tokens |
-| Positions of "Clear Filters" across pages | 5 | 1 |
-| Label/chip placement rules | emergent, chip-count dependent | 1 per breakpoint |
-| Pages with content below the mobile fold | 4 of 8 | 0 of 8 |
-| Text below WCAG AA | 10 rules | 0 |
-| Controls with no focus ring | 4 | 0 |
-| Modals missing the scroll chassis | 6 of 11 | 0 |
-| Duplicate rule blocks | 4 | 0, enforced |
+|                                           | Before                         | After            |
+| ----------------------------------------- | ------------------------------ | ---------------- |
+| Distinct rendered font sizes              | 11                             | 6, all tokens    |
+| Declared `font-size` values               | 17                             | 6 tokens         |
+| Declared spacing values                   | 18                             | 8 tokens         |
+| Positions of "Clear Filters" across pages | 5                              | 1                |
+| Label/chip placement rules                | emergent, chip-count dependent | 1 per breakpoint |
+| Pages with content below the mobile fold  | 4 of 8                         | 0 of 8           |
+| Text below WCAG AA                        | 10 rules                       | 0                |
+| Controls with no focus ring               | 4                              | 0                |
+| Modals missing the scroll chassis         | 6 of 11                        | 0                |
+| Duplicate rule blocks                     | 4                              | 0, enforced      |
 
 ## Non-goals
 

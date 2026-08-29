@@ -12,16 +12,16 @@ Two properties of the database decide the whole design.
 
 **It holds live credentials.** Rally stores secrets in the database, in plaintext:
 
-| Where | What |
-|---|---|
-| `settings.llm_anthropic_api_key`, `settings.llm_local_api_key` | LLM API keys |
-| `settings.pushover_app_token` | Pushover application token |
-| `family_members.pushover_user_key` | Per-member Pushover user keys |
-| `calendars.username`, `calendars.password` | Google and Apple **app-specific passwords** |
+| Where                                                          | What                                        |
+| -------------------------------------------------------------- | ------------------------------------------- |
+| `settings.llm_anthropic_api_key`, `settings.llm_local_api_key` | LLM API keys                                |
+| `settings.pushover_app_token`                                  | Pushover application token                  |
+| `family_members.pushover_user_key`                             | Per-member Pushover user keys               |
+| `calendars.username`, `calendars.password`                     | Google and Apple **app-specific passwords** |
 
-Those last ones are standing grants against real accounts. So the backup has to be encrypted *before* it leaves the host. A provider that offers "encryption at rest" is holding a key to your family's calendar accounts, which is not the same thing at all.
+Those last ones are standing grants against real accounts. So the backup has to be encrypted _before_ it leaves the host. A provider that offers "encryption at rest" is holding a key to your family's calendar accounts, which is not the same thing at all.
 
-**It is small.** A seeded database is on the order of 100 KB, and real family use keeps it in single-digit megabytes for years. This rules out most of what a search for "SQLite backup" will recommend — those tools solve the opposite problem. At this size the storage is free and the transfer is instant, so the design can optimize entirely for *simplicity and recoverability*.
+**It is small.** A seeded database is on the order of 100 KB, and real family use keeps it in single-digit megabytes for years. This rules out most of what a search for "SQLite backup" will recommend — those tools solve the opposite problem. At this size the storage is free and the transfer is instant, so the design can optimize entirely for _simplicity and recoverability_.
 
 ## What gets backed up
 
@@ -74,7 +74,7 @@ The endpoint is `https://<account-id>.r2.cloudflarestorage.com`, and restic addr
 
 [restic](https://restic.net) encrypts client-side by default, keeps versioned snapshots, prunes on a retention policy, and verifies repository integrity — the whole job in one tool, and nothing to install on the host, since it runs from the official container image.
 
-The versioning matters more than it might seem. A backup that simply *mirrors* the database will faithfully mirror its damage: a bad migration or a corrupted page gets copied offsite, overwriting the last good copy. Dated snapshots with a retention policy protect against the failure you are actually likely to hit.
+The versioning matters more than it might seem. A backup that simply _mirrors_ the database will faithfully mirror its damage: a bad migration or a corrupted page gets copied offsite, overwriting the last good copy. Dated snapshots with a retention policy protect against the failure you are actually likely to hit.
 
 ### Credentials
 
@@ -228,7 +228,7 @@ That retention really does keep a year of history for a few megabytes. Measured 
 
 ### Why the script verifies rather than assuming
 
-A job that only checks whether the upload returned an error is testing the wrong property. What you actually need to know is that a *restore* would work, and the only way to know that is to do one. Because the data is tiny and R2 charges nothing for egress, downloading the copy back and comparing it byte for byte costs a few seconds and nothing at all in money.
+A job that only checks whether the upload returned an error is testing the wrong property. What you actually need to know is that a _restore_ would work, and the only way to know that is to do one. Because the data is tiny and R2 charges nothing for egress, downloading the copy back and comparing it byte for byte costs a few seconds and nothing at all in money.
 
 The ordering is the substance of the design:
 
@@ -240,7 +240,7 @@ The ordering is the substance of the design:
 Two deletions in the script are deliberate, and both are about not leaving credentials lying around:
 
 - **The local snapshot is removed when the run finishes**, including on failure. It is an unencrypted copy of the credentials table; there is no reason to keep one in appdata between runs.
-- **`backup.env` is excluded from the backup.** Backing up the whole volume otherwise sweeps it in, which puts the restic passphrase and the R2 keys *inside the repository they protect*. It is encrypted there, so this is not an immediate exposure — but anyone who obtained the passphrase would also get keys that can delete the backups, and an R2 token is trivially re-created, so there is no recovery value to offset the risk.
+- **`backup.env` is excluded from the backup.** Backing up the whole volume otherwise sweeps it in, which puts the restic passphrase and the R2 keys _inside the repository they protect_. It is encrypted there, so this is not an immediate exposure — but anyone who obtained the passphrase would also get keys that can delete the backups, and an R2 token is trivially re-created, so there is no recovery value to offset the risk.
 
 ## Restoring
 
@@ -281,7 +281,7 @@ docker run --rm \
   restic/restic check --read-data
 ```
 
-**Prove the restored database actually runs Rally**, once at setup and after any major upgrade. Byte-identical is not the same as bootable — this is the check that catches a schema the current image can no longer migrate. Run a *second* container against a copy, so production is never involved:
+**Prove the restored database actually runs Rally**, once at setup and after any major upgrade. Byte-identical is not the same as bootable — this is the check that catches a schema the current image can no longer migrate. Run a _second_ container against a copy, so production is never involved:
 
 ```bash
 TESTDIR=/mnt/user/appdata/rally-restoretest

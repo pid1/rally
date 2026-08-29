@@ -75,14 +75,14 @@ Full instructions, including what you need before you start: **[docs/installatio
 
 ## Documentation
 
-| Guide | What's in it |
-|---|---|
-| [Installation](docs/installation.md) | Requirements, Docker deployment, upgrades, environment variables |
-| [Configuration](docs/configuration.md) | Settings UI, AI providers, weather, calendars, Pushover notifications |
-| [Voice shortcuts](docs/voice-shortcuts.md) | Adding shopping items with Siri and Apple Shortcuts |
-| [Backups](docs/backup.md) | Scheduled, client-side-encrypted offsite backup |
-| [Development](docs/development.md) | Local setup, commands, tests, database migrations, the demo instance |
-| [Design system](docs/visual-design-system.md) | Typography, spacing, components and how they are enforced |
+| Guide                                         | What's in it                                                          |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| [Installation](docs/installation.md)          | Requirements, Docker deployment, upgrades, environment variables      |
+| [Configuration](docs/configuration.md)        | Settings UI, AI providers, weather, calendars, Pushover notifications |
+| [Voice shortcuts](docs/voice-shortcuts.md)    | Adding shopping items with Siri and Apple Shortcuts                   |
+| [Backups](docs/backup.md)                     | Scheduled, client-side-encrypted offsite backup                       |
+| [Development](docs/development.md)            | Local setup, commands, tests, database migrations, the demo instance  |
+| [Design system](docs/visual-design-system.md) | Typography, spacing, components and how they are enforced             |
 
 ## Contributing
 

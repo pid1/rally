@@ -1,231 +1,281 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally - Purchased Items</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Shopping List</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Shopping List</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping" class="active">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping" class="active">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Shopping List</h2>
-            </div>
-            <div class="page-header-meta">
-                <a class="link-quiet" href="/shopping">Back to shopping list</a>
-                <!-- Required, not decorative: without it the page silently loses
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Shopping List</h2>
+        </div>
+        <div class="page-header-meta">
+          <a class="link-quiet" href="/shopping">Back to shopping list</a>
+          <!-- Required, not decorative: without it the page silently loses
                      history and reads as broken next to the tasks archive. -->
-                <p class="page-note">Purchased items are kept for 30 days.</p>
-            </div>
-        </header>
-
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="store-label">Store</span>
-                <div class="filter-chips" id="filter-store-chips" role="group" aria-labelledby="store-label"></div>
-            </div>
-            <div class="toolbar-search">
-                <label class="toolbar-label" for="search-input">Search</label>
-                <div class="toolbar-search-controls">
-                    <input type="text" id="search-input" class="search-input"
-                           placeholder="Search purchased items" autocomplete="off">
-                    <button type="button" class="btn btn--secondary" id="search-btn" disabled>Search</button>
-                    <button type="button" class="btn btn--quiet" id="search-clear">Clear Search</button>
-                </div>
-            </div>
-            <div class="search-results-count" id="search-results-count" hidden></div>
-            <div class="toolbar-reset">
-                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
-            </div>
+          <p class="page-note">Purchased items are kept for 30 days.</p>
         </div>
+      </header>
 
-        <div id="groups-container">
-            <div class="container-loading-state">Loading purchased items…</div>
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="store-label">Store</span>
+          <div
+            class="filter-chips"
+            id="filter-store-chips"
+            role="group"
+            aria-labelledby="store-label"
+          ></div>
         </div>
+        <div class="toolbar-search">
+          <label class="toolbar-label" for="search-input">Search</label>
+          <div class="toolbar-search-controls">
+            <input
+              type="text"
+              id="search-input"
+              class="search-input"
+              placeholder="Search purchased items"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              class="btn btn--secondary"
+              id="search-btn"
+              disabled
+            >
+              Search
+            </button>
+            <button type="button" class="btn btn--quiet" id="search-clear">
+              Clear Search
+            </button>
+          </div>
+        </div>
+        <div
+          class="search-results-count"
+          id="search-results-count"
+          hidden
+        ></div>
+        <div class="toolbar-reset">
+          <button type="button" class="btn btn--quiet" id="filter-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      <div id="groups-container">
+        <div class="container-loading-state">Loading purchased items…</div>
+      </div>
     </div>
 
     <script>
-        // ── State ──
-        let items = [];
-        let stores = [];
-        let selectedStores = new Set();   // chip values: store ids as strings, or 'anywhere'
+      // ── State ──
+      let items = [];
+      let stores = [];
+      let selectedStores = new Set(); // chip values: store ids as strings, or 'anywhere'
 
-        const ANYWHERE = 'anywhere';
+      const ANYWHERE = "anywhere";
 
-        // The currently submitted search term ('' when no search is active).
-        // Search runs only on submit (button click or Enter), never on keystroke.
-        let searchTerm = '';
-        // Guards against a slow earlier request overwriting a newer one's results.
-        let requestToken = 0;
+      // The currently submitted search term ('' when no search is active).
+      // Search runs only on submit (button click or Enter), never on keystroke.
+      let searchTerm = "";
+      // Guards against a slow earlier request overwriting a newer one's results.
+      let requestToken = 0;
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function storeName(storeId) {
+        const store = stores.find((s) => s.id === storeId);
+        return store ? store.name : null;
+      }
+
+      // ── API ──
+      async function fetchStores() {
+        const response = await fetch("/api/shopping/stores");
+        stores = await response.json();
+      }
+
+      // Search filters server-side — it is the one control that would need
+      // pagination if retention ever grew, so it lives in the query string
+      // from the start. Store chips filter client-side; see renderItems().
+      async function fetchItems() {
+        const token = ++requestToken;
+        const params = new URLSearchParams();
+        if (searchTerm) params.set("search", searchTerm);
+        const query = params.toString();
+        try {
+          const response = await fetch(
+            `/api/shopping/purchased${query ? "?" + query : ""}`,
+          );
+          if (!response.ok) throw new Error("Failed to load purchased items");
+          const data = await response.json();
+          if (token !== requestToken) return; // superseded by a newer request
+          items = data;
+          renderItems();
+        } catch (error) {
+          if (token !== requestToken) return;
+          console.error("Error loading purchased items:", error);
+          document.getElementById("groups-container").innerHTML =
+            '<div class="container-empty-state">Could not load purchased items. Please try again.</div>';
+        }
+      }
+
+      // ── Filter chips ──
+      //
+      // Chips describe what is on the page, not what stores exist. A store
+      // that is currently selected keeps its chip even with nothing under it,
+      // or filtering to it would leave a filter with no visible way to undo it.
+      function renderStoreChips() {
+        const present = new Set(items.map(chipValueForItem));
+        const parts = [];
+        stores.forEach((s) => {
+          const value = String(s.id);
+          if (present.has(value) || selectedStores.has(value)) {
+            parts.push(
+              `<button type="button" class="filter-chip" data-value="${value}">${escapeHtml(s.name)}</button>`,
+            );
+          }
+        });
+        if (present.has(ANYWHERE) || selectedStores.has(ANYWHERE)) {
+          parts.push(
+            `<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`,
+          );
+        }
+        document.getElementById("filter-store-chips").innerHTML =
+          parts.join("");
+        syncChipState();
+      }
+
+      function syncChipState() {
+        document
+          .querySelectorAll("#filter-store-chips .filter-chip")
+          .forEach((chip) => {
+            chip.classList.toggle(
+              "active",
+              selectedStores.has(chip.dataset.value),
+            );
+          });
+      }
+
+      function clearFilters() {
+        selectedStores.clear();
+        renderItems();
+      }
+
+      // ── Rendering ──
+      function chipValueForItem(item) {
+        return item.store_id ? String(item.store_id) : ANYWHERE;
+      }
+
+      function visibleItems() {
+        if (selectedStores.size === 0) return items;
+        return items.filter((item) =>
+          selectedStores.has(chipValueForItem(item)),
+        );
+      }
+
+      function groupLabel(value) {
+        if (value === ANYWHERE) return "Anywhere";
+        return storeName(parseInt(value, 10)) || "Anywhere";
+      }
+
+      function updateSearchCount(total) {
+        const el = document.getElementById("search-results-count");
+        if (!searchTerm) {
+          el.hidden = true;
+          return;
+        }
+        el.hidden = false;
+        el.textContent =
+          total === 1 ? "1 matching item." : `${total} matching items.`;
+      }
+
+      function renderItems() {
+        const container = document.getElementById("groups-container");
+        renderStoreChips();
+        updateSearchCount(items.length);
+
+        const visible = visibleItems();
+
+        const groups = new Map();
+        visible.forEach((item) => {
+          const key = chipValueForItem(item);
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(item);
+        });
+
+        // An explicitly filtered store renders even when empty, so filtering
+        // to it reads as "nothing here" rather than as a vanished group.
+        selectedStores.forEach((value) => {
+          if (!groups.has(value)) groups.set(value, []);
+        });
+
+        // Named stores alphabetically, the catch-all last — the same order
+        // as the shopping list you just came from.
+        const keys = [...groups.keys()].sort((a, b) => {
+          if (a === ANYWHERE) return 1;
+          if (b === ANYWHERE) return -1;
+          return groupLabel(a).localeCompare(groupLabel(b));
+        });
+
+        if (keys.length === 0) {
+          const message = searchTerm
+            ? `No purchased items match "${escapeHtml(searchTerm)}".`
+            : "Nothing purchased yet.";
+          container.innerHTML = `<div class="container-empty-state">${message}</div>`;
+          return;
         }
 
-        function storeName(storeId) {
-            const store = stores.find(s => s.id === storeId);
-            return store ? store.name : null;
-        }
-
-        // ── API ──
-        async function fetchStores() {
-            const response = await fetch('/api/shopping/stores');
-            stores = await response.json();
-        }
-
-        // Search filters server-side — it is the one control that would need
-        // pagination if retention ever grew, so it lives in the query string
-        // from the start. Store chips filter client-side; see renderItems().
-        async function fetchItems() {
-            const token = ++requestToken;
-            const params = new URLSearchParams();
-            if (searchTerm) params.set('search', searchTerm);
-            const query = params.toString();
-            try {
-                const response = await fetch(`/api/shopping/purchased${query ? '?' + query : ''}`);
-                if (!response.ok) throw new Error('Failed to load purchased items');
-                const data = await response.json();
-                if (token !== requestToken) return;   // superseded by a newer request
-                items = data;
-                renderItems();
-            } catch (error) {
-                if (token !== requestToken) return;
-                console.error('Error loading purchased items:', error);
-                document.getElementById('groups-container').innerHTML =
-                    '<div class="container-empty-state">Could not load purchased items. Please try again.</div>';
-            }
-        }
-
-        // ── Filter chips ──
-        //
-        // Chips describe what is on the page, not what stores exist. A store
-        // that is currently selected keeps its chip even with nothing under it,
-        // or filtering to it would leave a filter with no visible way to undo it.
-        function renderStoreChips() {
-            const present = new Set(items.map(chipValueForItem));
-            const parts = [];
-            stores.forEach(s => {
-                const value = String(s.id);
-                if (present.has(value) || selectedStores.has(value)) {
-                    parts.push(`<button type="button" class="filter-chip" data-value="${value}">${escapeHtml(s.name)}</button>`);
-                }
-            });
-            if (present.has(ANYWHERE) || selectedStores.has(ANYWHERE)) {
-                parts.push(`<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`);
-            }
-            document.getElementById('filter-store-chips').innerHTML = parts.join('');
-            syncChipState();
-        }
-
-        function syncChipState() {
-            document.querySelectorAll('#filter-store-chips .filter-chip').forEach(chip => {
-                chip.classList.toggle('active', selectedStores.has(chip.dataset.value));
-            });
-        }
-
-        function clearFilters() {
-            selectedStores.clear();
-            renderItems();
-        }
-
-        // ── Rendering ──
-        function chipValueForItem(item) {
-            return item.store_id ? String(item.store_id) : ANYWHERE;
-        }
-
-        function visibleItems() {
-            if (selectedStores.size === 0) return items;
-            return items.filter(item => selectedStores.has(chipValueForItem(item)));
-        }
-
-        function groupLabel(value) {
-            if (value === ANYWHERE) return 'Anywhere';
-            return storeName(parseInt(value, 10)) || 'Anywhere';
-        }
-
-        function updateSearchCount(total) {
-            const el = document.getElementById('search-results-count');
-            if (!searchTerm) {
-                el.hidden = true;
-                return;
-            }
-            el.hidden = false;
-            el.textContent = total === 1 ? '1 matching item.' : `${total} matching items.`;
-        }
-
-        function renderItems() {
-            const container = document.getElementById('groups-container');
-            renderStoreChips();
-            updateSearchCount(items.length);
-
-            const visible = visibleItems();
-
-            const groups = new Map();
-            visible.forEach(item => {
-                const key = chipValueForItem(item);
-                if (!groups.has(key)) groups.set(key, []);
-                groups.get(key).push(item);
-            });
-
-            // An explicitly filtered store renders even when empty, so filtering
-            // to it reads as "nothing here" rather than as a vanished group.
-            selectedStores.forEach(value => {
-                if (!groups.has(value)) groups.set(value, []);
-            });
-
-            // Named stores alphabetically, the catch-all last — the same order
-            // as the shopping list you just came from.
-            const keys = [...groups.keys()].sort((a, b) => {
-                if (a === ANYWHERE) return 1;
-                if (b === ANYWHERE) return -1;
-                return groupLabel(a).localeCompare(groupLabel(b));
-            });
-
-            if (keys.length === 0) {
-                const message = searchTerm
-                    ? `No purchased items match "${escapeHtml(searchTerm)}".`
-                    : 'Nothing purchased yet.';
-                container.innerHTML = `<div class="container-empty-state">${message}</div>`;
-                return;
-            }
-
-            // Same group markup as /shopping, which needs the wrapper so a drag
-            // can be aimed at a whole group. Kept identical here so the two
-            // views of one list do not drift into two shapes.
-            container.innerHTML = keys.map(key => {
-                const groupItems = groups.get(key);
-                const countLabel = `${groupItems.length} item${groupItems.length === 1 ? '' : 's'}`;
-                const rows = groupItems.length === 0
-                    ? '<div class="container-empty-state">Nothing here right now.</div>'
-                    : groupItems.map(renderItemRow).join('');
-                return `
+        // Same group markup as /shopping, which needs the wrapper so a drag
+        // can be aimed at a whole group. Kept identical here so the two
+        // views of one list do not drift into two shapes.
+        container.innerHTML = keys
+          .map((key) => {
+            const groupItems = groups.get(key);
+            const countLabel = `${groupItems.length} item${groupItems.length === 1 ? "" : "s"}`;
+            const rows =
+              groupItems.length === 0
+                ? '<div class="container-empty-state">Nothing here right now.</div>'
+                : groupItems.map(renderItemRow).join("");
+            return `
                     <section class="shopping-group" data-group="${escapeHtml(key)}">
                         <div class="shopping-group-header">
                             <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
@@ -235,104 +285,141 @@
                         <div class="list-container">${rows}</div>
                     </section>
                 `;
-            }).join('');
-        }
+          })
+          .join("");
+      }
 
-        // Read-only: no checkbox, no Edit, no delete. Re-buying something is
-        // "Add Item" on the list, where autocomplete already knows every item
-        // the family has ever bought.
-        function renderItemRow(item) {
-            return `
+      // Read-only: no checkbox, no Edit, no delete. Re-buying something is
+      // "Add Item" on the list, where autocomplete already knows every item
+      // the family has ever bought.
+      function renderItemRow(item) {
+        return `
                 <div class="editable-item" data-id="${item.id}">
                     <div class="editable-item-content">
                         <div class="editable-item-title">${escapeHtml(item.name)}</div>
-                        ${item.note ? `<div class="editable-item-description">${escapeHtml(item.note)}</div>` : ''}
+                        ${item.note ? `<div class="editable-item-description">${escapeHtml(item.note)}</div>` : ""}
                         ${formatPurchasedDate(item.completed_at)}
                     </div>
                 </div>
             `;
-        }
+      }
 
-        // A weekday and date, not "3d ago": relative time is right for something
-        // you ticked off an hour ago, absolute is right for an archive.
-        function formatPurchasedDate(value) {
-            if (!value) return '';
-            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
-            if (isNaN(date)) return '';
-            return `<div class="shopping-completed-at">Purchased ${formatDayMonth(date)}</div>`;
-        }
+      // A weekday and date, not "3d ago": relative time is right for something
+      // you ticked off an hour ago, absolute is right for an archive.
+      function formatPurchasedDate(value) {
+        if (!value) return "";
+        const date = new Date(
+          value.endsWith("Z") || value.includes("+") ? value : value + "Z",
+        );
+        if (isNaN(date)) return "";
+        return `<div class="shopping-completed-at">Purchased ${formatDayMonth(date)}</div>`;
+      }
 
-        function formatDayMonth(date) {
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
-        }
+      function formatDayMonth(date) {
+        const dayNames = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
+      }
 
-        // ── Search ──
-        function updateSearchButton() {
-            const hasText = document.getElementById('search-input').value.trim().length > 0;
-            document.getElementById('search-btn').disabled = !hasText;
-        }
+      // ── Search ──
+      function updateSearchButton() {
+        const hasText =
+          document.getElementById("search-input").value.trim().length > 0;
+        document.getElementById("search-btn").disabled = !hasText;
+      }
 
-        function submitSearch() {
-            const value = document.getElementById('search-input').value.trim();
-            if (!value) return;
-            searchTerm = value;
-            // Chips describe what is on screen, so a search legitimately narrows
-            // the chip set. Clearing the selection keeps the two consistent.
-            selectedStores.clear();
-            fetchItems();
-        }
+      function submitSearch() {
+        const value = document.getElementById("search-input").value.trim();
+        if (!value) return;
+        searchTerm = value;
+        // Chips describe what is on screen, so a search legitimately narrows
+        // the chip set. Clearing the selection keeps the two consistent.
+        selectedStores.clear();
+        fetchItems();
+      }
 
-        function clearSearch() {
-            searchTerm = '';
-            document.getElementById('search-input').value = '';
-            updateSearchButton();
-            selectedStores.clear();
-            fetchItems();
-        }
+      function clearSearch() {
+        searchTerm = "";
+        document.getElementById("search-input").value = "";
+        updateSearchButton();
+        selectedStores.clear();
+        fetchItems();
+      }
 
-        // ── Event handlers ──
-        document.getElementById('filter-store-chips').addEventListener('click', (e) => {
-            const chip = e.target.closest('.filter-chip');
-            if (!chip) return;
-            const value = chip.dataset.value;
-            if (selectedStores.has(value)) {
-                selectedStores.delete(value);
-            } else {
-                selectedStores.add(value);
-            }
-            renderItems();
+      // ── Event handlers ──
+      document
+        .getElementById("filter-store-chips")
+        .addEventListener("click", (e) => {
+          const chip = e.target.closest(".filter-chip");
+          if (!chip) return;
+          const value = chip.dataset.value;
+          if (selectedStores.has(value)) {
+            selectedStores.delete(value);
+          } else {
+            selectedStores.add(value);
+          }
+          renderItems();
         });
 
-        document.getElementById('filter-clear').addEventListener('click', clearFilters);
-        document.getElementById('search-btn').addEventListener('click', submitSearch);
-        document.getElementById('search-clear').addEventListener('click', clearSearch);
-        document.getElementById('search-input').addEventListener('input', updateSearchButton);
-        document.getElementById('search-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                submitSearch();
-            }
+      document
+        .getElementById("filter-clear")
+        .addEventListener("click", clearFilters);
+      document
+        .getElementById("search-btn")
+        .addEventListener("click", submitSearch);
+      document
+        .getElementById("search-clear")
+        .addEventListener("click", clearSearch);
+      document
+        .getElementById("search-input")
+        .addEventListener("input", updateSearchButton);
+      document
+        .getElementById("search-input")
+        .addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submitSearch();
+          }
         });
 
-        // ── Initialize ──
-        fetchStores().then(fetchItems);
+      // ── Initialize ──
+      fetchStores().then(fetchItems);
 
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
         });
+      });
     </script>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
-</body>
+  </body>
 </html>

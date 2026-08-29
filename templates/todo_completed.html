@@ -1,358 +1,456 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally - Todos</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Todo Management</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Todo Management</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo" class="active">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo" class="active">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Tasks</h2>
-            </div>
-            <div class="page-header-meta">
-                <a class="link-quiet" href="/todo">Back to current tasks</a>
-            </div>
-        </header>
-
-        <div class="toolbar">
-            <div class="toolbar-group">
-                <span class="toolbar-label" id="assignee-label">Assignee</span>
-                <div class="filter-chips" id="filter-assignee-chips" role="group" aria-labelledby="assignee-label">
-                    <button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>
-                </div>
-            </div>
-            <div class="toolbar-group">
-                <label class="toolbar-label" for="sort-by">Sort</label>
-                <select id="sort-by" class="select toolbar-control">
-                    <option value="completed-newest">Completion Date (Most Recent)</option>
-                    <option value="completed-oldest">Completion Date (Oldest)</option>
-                    <option value="due-soonest">Due Date (Soonest)</option>
-                    <option value="due-furthest">Due Date (Furthest Out)</option>
-                    <option value="assignee">Assignee</option>
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                </select>
-            </div>
-            <div class="toolbar-search">
-                <label class="toolbar-label" for="search-input">Search</label>
-                <div class="toolbar-search-controls">
-                    <input type="text" id="search-input" class="search-input"
-                           placeholder="Search completed tasks" autocomplete="off">
-                    <button type="button" class="btn btn--secondary" id="search-btn" disabled>Search</button>
-                    <button type="button" class="btn btn--quiet" id="search-clear">Clear Search</button>
-                </div>
-            </div>
-            <div class="search-results-count" id="search-results-count" hidden></div>
-            <div class="toolbar-reset">
-                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
-            </div>
+      <header class="page-header">
+        <div class="page-header-row">
+          <h2>Tasks</h2>
         </div>
-
-        <div class="list-container" id="list-container">
-            <div class="container-loading-state">Loading completed tasks...</div>
+        <div class="page-header-meta">
+          <a class="link-quiet" href="/todo">Back to current tasks</a>
         </div>
+      </header>
 
-        <div class="load-more-container" id="load-more-container" style="display:none;">
-            <button type="button" class="btn btn--secondary" id="btn-load-more">Load more</button>
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label" id="assignee-label">Assignee</span>
+          <div
+            class="filter-chips"
+            id="filter-assignee-chips"
+            role="group"
+            aria-labelledby="assignee-label"
+          >
+            <button type="button" class="filter-chip" data-value="unassigned">
+              Unassigned
+            </button>
+          </div>
         </div>
+        <div class="toolbar-group">
+          <label class="toolbar-label" for="sort-by">Sort</label>
+          <select id="sort-by" class="select toolbar-control">
+            <option value="completed-newest">
+              Completion Date (Most Recent)
+            </option>
+            <option value="completed-oldest">Completion Date (Oldest)</option>
+            <option value="due-soonest">Due Date (Soonest)</option>
+            <option value="due-furthest">Due Date (Furthest Out)</option>
+            <option value="assignee">Assignee</option>
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+          </select>
+        </div>
+        <div class="toolbar-search">
+          <label class="toolbar-label" for="search-input">Search</label>
+          <div class="toolbar-search-controls">
+            <input
+              type="text"
+              id="search-input"
+              class="search-input"
+              placeholder="Search completed tasks"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              class="btn btn--secondary"
+              id="search-btn"
+              disabled
+            >
+              Search
+            </button>
+            <button type="button" class="btn btn--quiet" id="search-clear">
+              Clear Search
+            </button>
+          </div>
+        </div>
+        <div
+          class="search-results-count"
+          id="search-results-count"
+          hidden
+        ></div>
+        <div class="toolbar-reset">
+          <button type="button" class="btn btn--quiet" id="filter-clear">
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      <div class="list-container" id="list-container">
+        <div class="container-loading-state">Loading completed tasks...</div>
+      </div>
+
+      <div
+        class="load-more-container"
+        id="load-more-container"
+        style="display: none"
+      >
+        <button type="button" class="btn btn--secondary" id="btn-load-more">
+          Load more
+        </button>
+      </div>
     </div>
 
     <script>
-        const PAGE_SIZE = 50;
+      const PAGE_SIZE = 50;
 
-        // State
-        let todos = [];          // every page loaded so far, in server order
-        let familyMembers = [];
-        let hasMore = false;
-        let loading = false;
-        // Guards against a slow earlier request overwriting a newer one's results
-        let requestToken = 0;
+      // State
+      let todos = []; // every page loaded so far, in server order
+      let familyMembers = [];
+      let hasMore = false;
+      let loading = false;
+      // Guards against a slow earlier request overwriting a newer one's results
+      let requestToken = 0;
 
-        // Track selected assignee filter values
-        let selectedFilters = new Set();
+      // Track selected assignee filter values
+      let selectedFilters = new Set();
 
-        // The currently submitted search term ('' when no search is active).
-        // Search runs only on submit (button click or Enter), never on keystroke.
-        let searchTerm = '';
+      // The currently submitted search term ('' when no search is active).
+      // Search runs only on submit (button click or Enter), never on keystroke.
+      let searchTerm = "";
 
-        async function fetchFamilyMembers() {
-            const response = await fetch('/api/family');
-            familyMembers = await response.json();
-            populateAssigneeDropdown();
+      async function fetchFamilyMembers() {
+        const response = await fetch("/api/family");
+        familyMembers = await response.json();
+        populateAssigneeDropdown();
+      }
+
+      function populateAssigneeDropdown() {
+        const chips = document.getElementById("filter-assignee-chips");
+        chips.innerHTML =
+          '<button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>';
+        familyMembers.forEach((m) => {
+          chips.innerHTML += `<button type="button" class="filter-chip" data-value="${m.id}">${escapeHtml(m.name)}</button>`;
+        });
+        // Re-apply active state from selectedFilters
+        chips.querySelectorAll(".filter-chip").forEach((chip) => {
+          if (selectedFilters.has(chip.dataset.value)) {
+            chip.classList.add("active");
+          }
+        });
+      }
+
+      function clearFilters() {
+        selectedFilters.clear();
+        document
+          .querySelectorAll("#filter-assignee-chips .filter-chip")
+          .forEach((chip) => {
+            chip.classList.remove("active");
+          });
+        reload();
+      }
+
+      function clearAssigneeChips() {
+        selectedFilters.clear();
+        document
+          .querySelectorAll("#filter-assignee-chips .filter-chip")
+          .forEach((chip) => {
+            chip.classList.remove("active");
+          });
+      }
+
+      // The Search button is disabled unless the field holds non-whitespace text.
+      function updateSearchButton() {
+        const hasText =
+          document.getElementById("search-input").value.trim().length > 0;
+        document.getElementById("search-btn").disabled = !hasText;
+      }
+
+      // Submitting a search clears any applied filters and resets sort to the
+      // default, then loads a fresh result set for the new term.
+      function submitSearch() {
+        const value = document.getElementById("search-input").value.trim();
+        if (!value) return;
+        searchTerm = value;
+        clearAssigneeChips();
+        document.getElementById("sort-by").value = "completed-newest";
+        reload();
+      }
+
+      // Reset the page to its default state: no search, no filters, default sort.
+      function clearSearch() {
+        searchTerm = "";
+        document.getElementById("search-input").value = "";
+        updateSearchButton();
+        clearAssigneeChips();
+        document.getElementById("sort-by").value = "completed-newest";
+        reload();
+      }
+
+      // Deemphasized count shown only while a search is active. Reflects the
+      // total matches for the current query (search plus any filters applied
+      // to the results afterward), across all pages — not just what's loaded.
+      function updateSearchCount(total) {
+        const el = document.getElementById("search-results-count");
+        if (!searchTerm) {
+          el.hidden = true;
+          return;
         }
+        el.hidden = false;
+        el.textContent =
+          total === 1 ? "1 matching task." : `${total} matching tasks.`;
+      }
 
-        function populateAssigneeDropdown() {
-            const chips = document.getElementById('filter-assignee-chips');
-            chips.innerHTML = '<button type="button" class="filter-chip" data-value="unassigned">Unassigned</button>';
-            familyMembers.forEach(m => {
-                chips.innerHTML += `<button type="button" class="filter-chip" data-value="${m.id}">${escapeHtml(m.name)}</button>`;
-            });
-            // Re-apply active state from selectedFilters
-            chips.querySelectorAll('.filter-chip').forEach(chip => {
-                if (selectedFilters.has(chip.dataset.value)) {
-                    chip.classList.add('active');
-                }
-            });
-        }
+      function getMemberById(id) {
+        return familyMembers.find((m) => m.id === id);
+      }
 
-        function clearFilters() {
-            selectedFilters.clear();
-            document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
-                chip.classList.remove('active');
-            });
-            reload();
-        }
+      // API calls
+      //
+      // Sorting, filtering and paging all happen server-side: the client only
+      // ever holds the pages it has loaded, so it can't sort or filter the
+      // full set itself.
+      function buildQuery(offset) {
+        const params = new URLSearchParams({
+          sort: document.getElementById("sort-by").value,
+          limit: PAGE_SIZE,
+          offset: offset,
+        });
+        selectedFilters.forEach((value) => params.append("assignee", value));
+        if (searchTerm) params.set("search", searchTerm);
+        return params;
+      }
 
-        function clearAssigneeChips() {
-            selectedFilters.clear();
-            document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
-                chip.classList.remove('active');
-            });
-        }
-
-        // The Search button is disabled unless the field holds non-whitespace text.
-        function updateSearchButton() {
-            const hasText = document.getElementById('search-input').value.trim().length > 0;
-            document.getElementById('search-btn').disabled = !hasText;
-        }
-
-        // Submitting a search clears any applied filters and resets sort to the
-        // default, then loads a fresh result set for the new term.
-        function submitSearch() {
-            const value = document.getElementById('search-input').value.trim();
-            if (!value) return;
-            searchTerm = value;
-            clearAssigneeChips();
-            document.getElementById('sort-by').value = 'completed-newest';
-            reload();
-        }
-
-        // Reset the page to its default state: no search, no filters, default sort.
-        function clearSearch() {
-            searchTerm = '';
-            document.getElementById('search-input').value = '';
-            updateSearchButton();
-            clearAssigneeChips();
-            document.getElementById('sort-by').value = 'completed-newest';
-            reload();
-        }
-
-        // Deemphasized count shown only while a search is active. Reflects the
-        // total matches for the current query (search plus any filters applied
-        // to the results afterward), across all pages — not just what's loaded.
-        function updateSearchCount(total) {
-            const el = document.getElementById('search-results-count');
-            if (!searchTerm) {
-                el.hidden = true;
-                return;
-            }
-            el.hidden = false;
-            el.textContent = total === 1 ? '1 matching task.' : `${total} matching tasks.`;
-        }
-
-        function getMemberById(id) {
-            return familyMembers.find(m => m.id === id);
-        }
-
-        // API calls
-        //
-        // Sorting, filtering and paging all happen server-side: the client only
-        // ever holds the pages it has loaded, so it can't sort or filter the
-        // full set itself.
-        function buildQuery(offset) {
-            const params = new URLSearchParams({
-                sort: document.getElementById('sort-by').value,
-                limit: PAGE_SIZE,
-                offset: offset
-            });
-            selectedFilters.forEach(value => params.append('assignee', value));
-            if (searchTerm) params.set('search', searchTerm);
-            return params;
-        }
-
-        async function fetchPage(offset) {
-            const token = ++requestToken;
-            loading = true;
+      async function fetchPage(offset) {
+        const token = ++requestToken;
+        loading = true;
+        updateLoadMore();
+        try {
+          const response = await fetch(
+            `/api/todos/completed?${buildQuery(offset)}`,
+          );
+          if (!response.ok) throw new Error("Failed to load completed tasks");
+          const page = await response.json();
+          if (token !== requestToken) return; // superseded by a newer request
+          todos = offset === 0 ? page.items : todos.concat(page.items);
+          hasMore = page.has_more;
+          updateSearchCount(page.total);
+          renderTodos();
+        } catch (error) {
+          if (token !== requestToken) return;
+          console.error("Error loading completed tasks:", error);
+          document.getElementById("list-container").innerHTML =
+            '<div class="container-empty-state">Could not load completed tasks. Please try again.</div>';
+          hasMore = false;
+        } finally {
+          if (token === requestToken) {
+            loading = false;
             updateLoadMore();
-            try {
-                const response = await fetch(`/api/todos/completed?${buildQuery(offset)}`);
-                if (!response.ok) throw new Error('Failed to load completed tasks');
-                const page = await response.json();
-                if (token !== requestToken) return; // superseded by a newer request
-                todos = offset === 0 ? page.items : todos.concat(page.items);
-                hasMore = page.has_more;
-                updateSearchCount(page.total);
-                renderTodos();
-            } catch (error) {
-                if (token !== requestToken) return;
-                console.error('Error loading completed tasks:', error);
-                document.getElementById('list-container').innerHTML =
-                    '<div class="container-empty-state">Could not load completed tasks. Please try again.</div>';
-                hasMore = false;
-            } finally {
-                if (token === requestToken) {
-                    loading = false;
-                    updateLoadMore();
-                }
-            }
+          }
+        }
+      }
+
+      function reload() {
+        todos = [];
+        document.getElementById("list-container").innerHTML =
+          '<div class="container-loading-state">Loading completed tasks...</div>';
+        fetchPage(0);
+      }
+
+      function loadMore() {
+        if (loading || !hasMore) return;
+        fetchPage(todos.length);
+      }
+
+      // Render
+      function renderTodos() {
+        const container = document.getElementById("list-container");
+
+        if (todos.length === 0) {
+          let message;
+          if (searchTerm) {
+            message = "No completed tasks match the current search.";
+          } else if (selectedFilters.size > 0) {
+            message = "No completed tasks match the current filter.";
+          } else {
+            message =
+              "No completed tasks yet. Tasks appear here the day after you finish them.";
+          }
+          container.innerHTML = `<div class="container-empty-state">${message}</div>`;
+          return;
         }
 
-        function reload() {
-            todos = [];
-            document.getElementById('list-container').innerHTML =
-                '<div class="container-loading-state">Loading completed tasks...</div>';
-            fetchPage(0);
-        }
-
-        function loadMore() {
-            if (loading || !hasMore) return;
-            fetchPage(todos.length);
-        }
-
-        // Render
-        function renderTodos() {
-            const container = document.getElementById('list-container');
-
-            if (todos.length === 0) {
-                let message;
-                if (searchTerm) {
-                    message = 'No completed tasks match the current search.';
-                } else if (selectedFilters.size > 0) {
-                    message = 'No completed tasks match the current filter.';
-                } else {
-                    message = 'No completed tasks yet. Tasks appear here the day after you finish them.';
-                }
-                container.innerHTML = `<div class="container-empty-state">${message}</div>`;
-                return;
-            }
-
-            container.innerHTML = todos.map(todo => {
-                const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
-                const completedHtml = formatCompletedDate(todo.completed_at);
-                const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
-                const assigneeHtml = member
-                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
-                    : '';
-                const recurringIcon = todo.recurring_todo_id ? '<span class="recurring-indicator">↻</span>' : '';
-                return `
+        container.innerHTML = todos
+          .map((todo) => {
+            const dueDateHtml = todo.due_date
+              ? formatDueDate(todo.due_date)
+              : "";
+            const completedHtml = formatCompletedDate(todo.completed_at);
+            const member = todo.assigned_to
+              ? getMemberById(todo.assigned_to)
+              : null;
+            const assigneeHtml = member
+              ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+              : "";
+            const recurringIcon = todo.recurring_todo_id
+              ? '<span class="recurring-indicator">↻</span>'
+              : "";
+            return `
                     <div class="editable-item" data-id="${todo.id}">
                         <div class="editable-item-content">
                             <div class="editable-item-title">${escapeHtml(todo.title)} ${recurringIcon} ${assigneeHtml}</div>
-                            ${todo.description ? `<div class="editable-item-description">${escapeHtml(todo.description)}</div>` : ''}
+                            ${todo.description ? `<div class="editable-item-description">${escapeHtml(todo.description)}</div>` : ""}
                             ${dueDateHtml}
                             ${completedHtml}
                         </div>
                     </div>
                 `;
-            }).join('');
-        }
+          })
+          .join("");
+      }
 
-        function updateLoadMore() {
-            const container = document.getElementById('load-more-container');
-            const button = document.getElementById('btn-load-more');
-            container.style.display = hasMore ? '' : 'none';
-            button.disabled = loading;
-            button.textContent = loading ? 'Loading…' : 'Load more';
-        }
+      function updateLoadMore() {
+        const container = document.getElementById("load-more-container");
+        const button = document.getElementById("btn-load-more");
+        container.style.display = hasMore ? "" : "none";
+        button.disabled = loading;
+        button.textContent = loading ? "Loading…" : "Load more";
+      }
 
-        // Every task here is finished, so due dates render in their neutral
-        // style — no overdue emphasis.
-        function formatDueDate(dateStr) {
-            if (!dateStr) return '';
-            const date = new Date(dateStr + 'T00:00:00');
-            return `<div class="todo-due-date">Due ${formatDayMonth(date)}</div>`;
-        }
+      // Every task here is finished, so due dates render in their neutral
+      // style — no overdue emphasis.
+      function formatDueDate(dateStr) {
+        if (!dateStr) return "";
+        const date = new Date(dateStr + "T00:00:00");
+        return `<div class="todo-due-date">Due ${formatDayMonth(date)}</div>`;
+      }
 
-        function formatCompletedDate(value) {
-            if (!value) return '';
-            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
-            if (isNaN(date)) return '';
-            return `<div class="todo-completed-date">Completed ${formatDayMonth(date)}</div>`;
-        }
+      function formatCompletedDate(value) {
+        if (!value) return "";
+        const date = new Date(
+          value.endsWith("Z") || value.includes("+") ? value : value + "Z",
+        );
+        if (isNaN(date)) return "";
+        return `<div class="todo-completed-date">Completed ${formatDayMonth(date)}</div>`;
+      }
 
-        function formatDayMonth(date) {
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
-        }
+      function formatDayMonth(date) {
+        const dayNames = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
+      }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
 
-        // Event handlers
-        document.getElementById('filter-assignee-chips').addEventListener('click', (e) => {
-            const chip = e.target.closest('.filter-chip');
-            if (!chip) return;
-            const value = chip.dataset.value;
-            if (selectedFilters.has(value)) {
-                selectedFilters.delete(value);
-                chip.classList.remove('active');
-            } else {
-                selectedFilters.add(value);
-                chip.classList.add('active');
-            }
-            reload();
+      // Event handlers
+      document
+        .getElementById("filter-assignee-chips")
+        .addEventListener("click", (e) => {
+          const chip = e.target.closest(".filter-chip");
+          if (!chip) return;
+          const value = chip.dataset.value;
+          if (selectedFilters.has(value)) {
+            selectedFilters.delete(value);
+            chip.classList.remove("active");
+          } else {
+            selectedFilters.add(value);
+            chip.classList.add("active");
+          }
+          reload();
         });
-        document.getElementById('filter-clear').addEventListener('click', clearFilters);
-        document.getElementById('sort-by').addEventListener('change', reload);
-        document.getElementById('btn-load-more').addEventListener('click', loadMore);
-        document.getElementById('search-btn').addEventListener('click', submitSearch);
-        document.getElementById('search-clear').addEventListener('click', clearSearch);
-        document.getElementById('search-input').addEventListener('input', updateSearchButton);
-        document.getElementById('search-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                submitSearch();
-            }
+      document
+        .getElementById("filter-clear")
+        .addEventListener("click", clearFilters);
+      document.getElementById("sort-by").addEventListener("change", reload);
+      document
+        .getElementById("btn-load-more")
+        .addEventListener("click", loadMore);
+      document
+        .getElementById("search-btn")
+        .addEventListener("click", submitSearch);
+      document
+        .getElementById("search-clear")
+        .addEventListener("click", clearSearch);
+      document
+        .getElementById("search-input")
+        .addEventListener("input", updateSearchButton);
+      document
+        .getElementById("search-input")
+        .addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submitSearch();
+          }
         });
 
-        // Initialize
-        fetchFamilyMembers().then(reload);
+      // Initialize
+      fetchFamilyMembers().then(reload);
 
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
+      // Nav dropdown toggle (for touch devices)
+      function toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", function () {
+        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+          d.classList.remove("open");
         });
+      });
     </script>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
-</body>
+  </body>
 </html>

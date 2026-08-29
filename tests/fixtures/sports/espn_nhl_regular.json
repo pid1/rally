@@ -1,1 +1,1227 @@
-{"timestamp":"2026-08-11T03:37:20Z","status":"success","season":{"year":2026,"type":4,"name":"Off Season","displayName":"2025-26","half":1},"team":{"id":"9","abbreviation":"DAL","location":"Dallas","name":"Stars","displayName":"Dallas Stars","clubhouse":"https://www.espn.com/nhl/team/_/name/dal/dallas-stars","color":"20864c","logo":"https://a.espncdn.com/i/teamlogos/nhl/500/dal.png","recordSummary":"50-20-12","seasonSummary":"2025-26","standingSummary":"2nd in Central Division","groups":{"id":"31","parent":{"id":"8"},"isConference":false}},"events":[{"id":"401687616","date":"2024-10-11T00:00Z","name":"Dallas Stars at Nashville Predators","shortName":"DAL @ NSH","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687616","date":"2024-10-11T00:00Z","attendance":17544,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"Bridgestone Arena","address":{"city":"Nashville","state":"TN","zipCode":"37250","country":"USA"}},"competitors":[{"id":"27","type":"team","order":0,"homeAway":"home","winner":false,"team":{"id":"27","location":"Nashville","nickname":"Predators","abbreviation":"NSH","displayName":"Nashville Predators","shortDisplayName":"Predators"},"score":{"value":3.0,"displayValue":"3"},"curatedRank":{"current":99}},{"id":"9","type":"team","order":1,"homeAway":"away","winner":true,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":4.0,"displayValue":"4"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"Hulu"},"lang":"en","region":"us","partnered":false}],"status":{"clock":0.0,"displayClock":"0:00","period":3,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final","shortDetail":"Final"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":4196914,"athlete":{"id":"4196914","lastName":"Oettinger","displayName":"Jake Oettinger","shortName":"J. Oettinger"},"team":{"id":"9","name":"Stars"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":5622,"athlete":{"id":"5622","lastName":"Wedgewood","displayName":"Scott Wedgewood","shortName":"S. Wedgewood"},"team":{"id":"27","name":"Predators"}}]}}]},{"id":"401687631","date":"2024-10-13T00:00Z","name":"New York Islanders at Dallas Stars","shortName":"NYI @ DAL","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687631","date":"2024-10-13T00:00Z","attendance":18532,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"American Airlines Center","address":{"city":"Dallas","state":"TX","zipCode":"75398","country":"USA"}},"competitors":[{"id":"9","type":"team","order":0,"homeAway":"home","winner":true,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":3.0,"displayValue":"3"},"curatedRank":{"current":99}},{"id":"12","type":"team","order":1,"homeAway":"away","winner":false,"team":{"id":"12","location":"New York","nickname":"Islanders","abbreviation":"NYI","displayName":"New York Islanders","shortDisplayName":"Islanders"},"score":{"value":0.0,"displayValue":"0"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Victory+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"MSG2"},"lang":"en","region":"us","partnered":false}],"status":{"clock":0.0,"displayClock":"0:00","period":3,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final","shortDetail":"Final"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":4196914,"athlete":{"id":"4196914","lastName":"Oettinger","displayName":"Jake Oettinger","shortName":"J. Oettinger"},"team":{"id":"9","name":"Stars"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":3759,"athlete":{"id":"3759","lastName":"Varlamov","displayName":"Semyon Varlamov","shortName":"S. Varlamov"},"team":{"id":"12","name":"Islanders"}}]}}]},{"id":"401687638","date":"2024-10-14T00:00Z","name":"Seattle Kraken at Dallas Stars","shortName":"SEA @ DAL","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687638","date":"2024-10-14T00:00Z","attendance":18532,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"American Airlines Center","address":{"city":"Dallas","state":"TX","zipCode":"75398","country":"USA"}},"competitors":[{"id":"9","type":"team","order":0,"homeAway":"home","winner":true,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":2.0,"displayValue":"2"},"curatedRank":{"current":99}},{"id":"124292","type":"team","order":1,"homeAway":"away","winner":false,"team":{"id":"124292","location":"Seattle","nickname":"Kraken","abbreviation":"SEA","displayName":"Seattle Kraken","shortDisplayName":"Kraken"},"score":{"value":0.0,"displayValue":"0"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Victory+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"KONG"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"KHN"},"lang":"en","region":"us","partnered":false}],"status":{"clock":0.0,"displayClock":"0:00","period":3,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final","shortDetail":"Final"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":3025540,"athlete":{"id":"3025540","lastName":"DeSmith","displayName":"Casey DeSmith","shortName":"C. DeSmith"},"team":{"id":"9","name":"Stars"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":5657,"athlete":{"id":"5657","lastName":"Grubauer","displayName":"Philipp Grubauer","shortName":"P. Grubauer"},"team":{"id":"124292","name":"Kraken"}}]}}]},{"id":"401687653","date":"2024-10-16T00:00Z","name":"San Jose Sharks at Dallas Stars","shortName":"SJ @ DAL","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687653","date":"2024-10-16T00:00Z","attendance":18532,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"American Airlines Center","address":{"city":"Dallas","state":"TX","zipCode":"75398","country":"USA"}},"competitors":[{"id":"9","type":"team","order":0,"homeAway":"home","winner":true,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":3.0,"displayValue":"3"},"curatedRank":{"current":99}},{"id":"18","type":"team","order":1,"homeAway":"away","winner":false,"team":{"id":"18","location":"San Jose","nickname":"Sharks","abbreviation":"SJ","displayName":"San Jose Sharks","shortDisplayName":"Sharks"},"score":{"value":2.0,"displayValue":"2"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"NBC Sports BA"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Victory+"},"lang":"en","region":"us","partnered":false}],"status":{"clock":0.0,"displayClock":"0:00","period":5,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final/SO","shortDetail":"Final/SO","altDetail":"SO"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":4196914,"athlete":{"id":"4196914","lastName":"Oettinger","displayName":"Jake Oettinger","shortName":"J. Oettinger"},"team":{"id":"9","name":"Stars"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":3904177,"athlete":{"id":"3904177","lastName":"Blackwood","displayName":"Mackenzie Blackwood","shortName":"M. Blackwood"},"team":{"id":"18","name":"Sharks"}}]}}]},{"id":"401687665","date":"2024-10-17T23:00Z","name":"Dallas Stars at Washington Capitals","shortName":"DAL @ WSH","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687665","date":"2024-10-17T23:00Z","attendance":17034,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"Capital One Arena","address":{"city":"Washington","state":"DC","country":"USA"}},"competitors":[{"id":"23","type":"team","order":0,"homeAway":"home","winner":true,"team":{"id":"23","location":"Washington","nickname":"Capitals","abbreviation":"WSH","displayName":"Washington Capitals","shortDisplayName":"Capitals"},"score":{"value":3.0,"displayValue":"3"},"curatedRank":{"current":99}},{"id":"9","type":"team","order":1,"homeAway":"away","winner":false,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":2.0,"displayValue":"2"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Victory+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"MNMT"},"lang":"en","region":"us","partnered":true}],"status":{"clock":0.0,"displayClock":"0:00","period":3,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final","shortDetail":"Final"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":3095975,"athlete":{"id":"3095975","lastName":"Lindgren","displayName":"Charlie Lindgren","shortName":"C. Lindgren"},"team":{"id":"23","name":"Capitals"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":3025540,"athlete":{"id":"3025540","lastName":"DeSmith","displayName":"Casey DeSmith","shortName":"C. DeSmith"},"team":{"id":"9","name":"Stars"}}]}}]},{"id":"401687676","date":"2024-10-19T20:00Z","name":"Edmonton Oilers at Dallas Stars","shortName":"EDM @ DAL","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687676","date":"2024-10-19T20:00Z","attendance":18532,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"American Airlines Center","address":{"city":"Dallas","state":"TX","zipCode":"75398","country":"USA"}},"competitors":[{"id":"9","type":"team","order":0,"homeAway":"home","winner":true,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":4.0,"displayValue":"4"},"curatedRank":{"current":99}},{"id":"6","type":"team","order":1,"homeAway":"away","winner":false,"team":{"id":"6","location":"Edmonton","nickname":"Oilers","abbreviation":"EDM","displayName":"Edmonton Oilers","shortDisplayName":"Oilers"},"score":{"value":1.0,"displayValue":"1"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Victory+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Sportsnet"},"lang":"en","region":"us","partnered":false}],"status":{"clock":0.0,"displayClock":"0:00","period":3,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final","shortDetail":"Final"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":4196914,"athlete":{"id":"4196914","lastName":"Oettinger","displayName":"Jake Oettinger","shortName":"J. Oettinger"},"team":{"id":"9","name":"Stars"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":4268767,"athlete":{"id":"4268767","lastName":"Skinner","displayName":"Stuart Skinner","shortName":"S. Skinner"},"team":{"id":"6","name":"Oilers"}}]}}]},{"id":"401687694","date":"2024-10-22T23:00Z","name":"Dallas Stars at Buffalo Sabres","shortName":"DAL @ BUF","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687694","date":"2024-10-22T23:00Z","attendance":13014,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"KeyBank Center","address":{"city":"Buffalo","state":"NY","country":"USA"}},"competitors":[{"id":"2","type":"team","order":0,"homeAway":"home","winner":true,"team":{"id":"2","location":"Buffalo","nickname":"Sabres","abbreviation":"BUF","displayName":"Buffalo Sabres","shortDisplayName":"Sabres"},"score":{"value":4.0,"displayValue":"4"},"curatedRank":{"current":99}},{"id":"9","type":"team","order":1,"homeAway":"away","winner":false,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":2.0,"displayValue":"2"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Victory+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"MSGB"},"lang":"en","region":"us","partnered":false}],"status":{"clock":0.0,"displayClock":"0:00","period":3,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final","shortDetail":"Final"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":4233889,"athlete":{"id":"4233889","lastName":"Luukkonen","displayName":"Ukko-Pekka Luukkonen","shortName":"U. Luukkonen"},"team":{"id":"2","name":"Sabres"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":4196914,"athlete":{"id":"4196914","lastName":"Oettinger","displayName":"Jake Oettinger","shortName":"J. Oettinger"},"team":{"id":"9","name":"Stars"}}]}}]},{"id":"401687708","date":"2024-10-24T23:00Z","name":"Dallas Stars at Boston Bruins","shortName":"DAL @ BOS","season":{"year":2025,"displayName":"2024-25"},"seasonType":{"id":"2","type":2,"name":"Regular Season","abbreviation":"reg"},"timeValid":true,"competitions":[{"id":"401687708","date":"2024-10-24T23:00Z","attendance":17850,"type":{"id":"1","text":"Standard","abbreviation":"STD","slug":"standard","type":"standard"},"timeValid":true,"neutralSite":false,"boxscoreAvailable":true,"ticketsAvailable":false,"venue":{"fullName":"TD Garden","address":{"city":"Boston","state":"MA","country":"USA"}},"competitors":[{"id":"1","type":"team","order":0,"homeAway":"home","winner":false,"team":{"id":"1","location":"Boston","nickname":"Bruins","abbreviation":"BOS","displayName":"Boston Bruins","shortDisplayName":"Bruins"},"score":{"value":2.0,"displayValue":"2"},"curatedRank":{"current":99}},{"id":"9","type":"team","order":1,"homeAway":"away","winner":true,"team":{"id":"9","location":"Dallas","nickname":"Stars","abbreviation":"DAL","displayName":"Dallas Stars","shortDisplayName":"Stars"},"score":{"value":5.0,"displayValue":"5"},"curatedRank":{"current":99}}],"notes":[],"broadcasts":[{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"1","type":"National"},"media":{"shortName":"ESPN+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"4","shortName":"Streaming"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Victory+"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"NESN"},"lang":"en","region":"us","partnered":true},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Sportsnet East"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Sportsnet One"},"lang":"en","region":"us","partnered":false},{"type":{"id":"1","shortName":"TV"},"market":{"id":"2","type":"Home"},"media":{"shortName":"Sportsnet Pacific"},"lang":"en","region":"us","partnered":false}],"status":{"clock":0.0,"displayClock":"0:00","period":3,"type":{"id":"3","name":"STATUS_FINAL","state":"post","completed":true,"description":"Final","detail":"Final","shortDetail":"Final"},"featuredAthletes":[{"name":"winningGoalie","displayName":"Winning Goalie","shortDisplayName":"Winning Goalie","abbreviation":"W","playerId":3025540,"athlete":{"id":"3025540","lastName":"DeSmith","displayName":"Casey DeSmith","shortName":"C. DeSmith"},"team":{"id":"9","name":"Stars"}},{"name":"losingGoalie","displayName":"Losing Goalie","shortDisplayName":"Losing Goalie","abbreviation":"L","playerId":4712036,"athlete":{"id":"4712036","lastName":"Swayman","displayName":"Jeremy Swayman","shortName":"J. Swayman"},"team":{"id":"1","name":"Bruins"}}]}}]}],"requestedSeason":{"year":2025,"type":2,"name":"Regular Season","displayName":"2024-25"}}
+{
+  "timestamp": "2026-08-11T03:37:20Z",
+  "status": "success",
+  "season": {
+    "year": 2026,
+    "type": 4,
+    "name": "Off Season",
+    "displayName": "2025-26",
+    "half": 1
+  },
+  "team": {
+    "id": "9",
+    "abbreviation": "DAL",
+    "location": "Dallas",
+    "name": "Stars",
+    "displayName": "Dallas Stars",
+    "clubhouse": "https://www.espn.com/nhl/team/_/name/dal/dallas-stars",
+    "color": "20864c",
+    "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/dal.png",
+    "recordSummary": "50-20-12",
+    "seasonSummary": "2025-26",
+    "standingSummary": "2nd in Central Division",
+    "groups": { "id": "31", "parent": { "id": "8" }, "isConference": false }
+  },
+  "events": [
+    {
+      "id": "401687616",
+      "date": "2024-10-11T00:00Z",
+      "name": "Dallas Stars at Nashville Predators",
+      "shortName": "DAL @ NSH",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687616",
+          "date": "2024-10-11T00:00Z",
+          "attendance": 17544,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "Bridgestone Arena",
+            "address": {
+              "city": "Nashville",
+              "state": "TN",
+              "zipCode": "37250",
+              "country": "USA"
+            }
+          },
+          "competitors": [
+            {
+              "id": "27",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": false,
+              "team": {
+                "id": "27",
+                "location": "Nashville",
+                "nickname": "Predators",
+                "abbreviation": "NSH",
+                "displayName": "Nashville Predators",
+                "shortDisplayName": "Predators"
+              },
+              "score": { "value": 3.0, "displayValue": "3" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "9",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": true,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 4.0, "displayValue": "4" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "Hulu" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 4196914,
+                "athlete": {
+                  "id": "4196914",
+                  "lastName": "Oettinger",
+                  "displayName": "Jake Oettinger",
+                  "shortName": "J. Oettinger"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 5622,
+                "athlete": {
+                  "id": "5622",
+                  "lastName": "Wedgewood",
+                  "displayName": "Scott Wedgewood",
+                  "shortName": "S. Wedgewood"
+                },
+                "team": { "id": "27", "name": "Predators" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "401687631",
+      "date": "2024-10-13T00:00Z",
+      "name": "New York Islanders at Dallas Stars",
+      "shortName": "NYI @ DAL",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687631",
+          "date": "2024-10-13T00:00Z",
+          "attendance": 18532,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "American Airlines Center",
+            "address": {
+              "city": "Dallas",
+              "state": "TX",
+              "zipCode": "75398",
+              "country": "USA"
+            }
+          },
+          "competitors": [
+            {
+              "id": "9",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 3.0, "displayValue": "3" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "12",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "12",
+                "location": "New York",
+                "nickname": "Islanders",
+                "abbreviation": "NYI",
+                "displayName": "New York Islanders",
+                "shortDisplayName": "Islanders"
+              },
+              "score": { "value": 0.0, "displayValue": "0" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Victory+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "MSG2" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 4196914,
+                "athlete": {
+                  "id": "4196914",
+                  "lastName": "Oettinger",
+                  "displayName": "Jake Oettinger",
+                  "shortName": "J. Oettinger"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 3759,
+                "athlete": {
+                  "id": "3759",
+                  "lastName": "Varlamov",
+                  "displayName": "Semyon Varlamov",
+                  "shortName": "S. Varlamov"
+                },
+                "team": { "id": "12", "name": "Islanders" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "401687638",
+      "date": "2024-10-14T00:00Z",
+      "name": "Seattle Kraken at Dallas Stars",
+      "shortName": "SEA @ DAL",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687638",
+          "date": "2024-10-14T00:00Z",
+          "attendance": 18532,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "American Airlines Center",
+            "address": {
+              "city": "Dallas",
+              "state": "TX",
+              "zipCode": "75398",
+              "country": "USA"
+            }
+          },
+          "competitors": [
+            {
+              "id": "9",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 2.0, "displayValue": "2" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "124292",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "124292",
+                "location": "Seattle",
+                "nickname": "Kraken",
+                "abbreviation": "SEA",
+                "displayName": "Seattle Kraken",
+                "shortDisplayName": "Kraken"
+              },
+              "score": { "value": 0.0, "displayValue": "0" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Victory+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "KONG" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "KHN" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 3025540,
+                "athlete": {
+                  "id": "3025540",
+                  "lastName": "DeSmith",
+                  "displayName": "Casey DeSmith",
+                  "shortName": "C. DeSmith"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 5657,
+                "athlete": {
+                  "id": "5657",
+                  "lastName": "Grubauer",
+                  "displayName": "Philipp Grubauer",
+                  "shortName": "P. Grubauer"
+                },
+                "team": { "id": "124292", "name": "Kraken" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "401687653",
+      "date": "2024-10-16T00:00Z",
+      "name": "San Jose Sharks at Dallas Stars",
+      "shortName": "SJ @ DAL",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687653",
+          "date": "2024-10-16T00:00Z",
+          "attendance": 18532,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "American Airlines Center",
+            "address": {
+              "city": "Dallas",
+              "state": "TX",
+              "zipCode": "75398",
+              "country": "USA"
+            }
+          },
+          "competitors": [
+            {
+              "id": "9",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 3.0, "displayValue": "3" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "18",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "18",
+                "location": "San Jose",
+                "nickname": "Sharks",
+                "abbreviation": "SJ",
+                "displayName": "San Jose Sharks",
+                "shortDisplayName": "Sharks"
+              },
+              "score": { "value": 2.0, "displayValue": "2" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "NBC Sports BA" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Victory+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 5,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final/SO",
+              "shortDetail": "Final/SO",
+              "altDetail": "SO"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 4196914,
+                "athlete": {
+                  "id": "4196914",
+                  "lastName": "Oettinger",
+                  "displayName": "Jake Oettinger",
+                  "shortName": "J. Oettinger"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 3904177,
+                "athlete": {
+                  "id": "3904177",
+                  "lastName": "Blackwood",
+                  "displayName": "Mackenzie Blackwood",
+                  "shortName": "M. Blackwood"
+                },
+                "team": { "id": "18", "name": "Sharks" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "401687665",
+      "date": "2024-10-17T23:00Z",
+      "name": "Dallas Stars at Washington Capitals",
+      "shortName": "DAL @ WSH",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687665",
+          "date": "2024-10-17T23:00Z",
+          "attendance": 17034,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "Capital One Arena",
+            "address": { "city": "Washington", "state": "DC", "country": "USA" }
+          },
+          "competitors": [
+            {
+              "id": "23",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "23",
+                "location": "Washington",
+                "nickname": "Capitals",
+                "abbreviation": "WSH",
+                "displayName": "Washington Capitals",
+                "shortDisplayName": "Capitals"
+              },
+              "score": { "value": 3.0, "displayValue": "3" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "9",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 2.0, "displayValue": "2" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Victory+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "MNMT" },
+              "lang": "en",
+              "region": "us",
+              "partnered": true
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 3095975,
+                "athlete": {
+                  "id": "3095975",
+                  "lastName": "Lindgren",
+                  "displayName": "Charlie Lindgren",
+                  "shortName": "C. Lindgren"
+                },
+                "team": { "id": "23", "name": "Capitals" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 3025540,
+                "athlete": {
+                  "id": "3025540",
+                  "lastName": "DeSmith",
+                  "displayName": "Casey DeSmith",
+                  "shortName": "C. DeSmith"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "401687676",
+      "date": "2024-10-19T20:00Z",
+      "name": "Edmonton Oilers at Dallas Stars",
+      "shortName": "EDM @ DAL",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687676",
+          "date": "2024-10-19T20:00Z",
+          "attendance": 18532,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "American Airlines Center",
+            "address": {
+              "city": "Dallas",
+              "state": "TX",
+              "zipCode": "75398",
+              "country": "USA"
+            }
+          },
+          "competitors": [
+            {
+              "id": "9",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 4.0, "displayValue": "4" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "6",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "6",
+                "location": "Edmonton",
+                "nickname": "Oilers",
+                "abbreviation": "EDM",
+                "displayName": "Edmonton Oilers",
+                "shortDisplayName": "Oilers"
+              },
+              "score": { "value": 1.0, "displayValue": "1" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Victory+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Sportsnet" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 4196914,
+                "athlete": {
+                  "id": "4196914",
+                  "lastName": "Oettinger",
+                  "displayName": "Jake Oettinger",
+                  "shortName": "J. Oettinger"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 4268767,
+                "athlete": {
+                  "id": "4268767",
+                  "lastName": "Skinner",
+                  "displayName": "Stuart Skinner",
+                  "shortName": "S. Skinner"
+                },
+                "team": { "id": "6", "name": "Oilers" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "401687694",
+      "date": "2024-10-22T23:00Z",
+      "name": "Dallas Stars at Buffalo Sabres",
+      "shortName": "DAL @ BUF",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687694",
+          "date": "2024-10-22T23:00Z",
+          "attendance": 13014,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "KeyBank Center",
+            "address": { "city": "Buffalo", "state": "NY", "country": "USA" }
+          },
+          "competitors": [
+            {
+              "id": "2",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": true,
+              "team": {
+                "id": "2",
+                "location": "Buffalo",
+                "nickname": "Sabres",
+                "abbreviation": "BUF",
+                "displayName": "Buffalo Sabres",
+                "shortDisplayName": "Sabres"
+              },
+              "score": { "value": 4.0, "displayValue": "4" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "9",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": false,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 2.0, "displayValue": "2" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Victory+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "MSGB" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 4233889,
+                "athlete": {
+                  "id": "4233889",
+                  "lastName": "Luukkonen",
+                  "displayName": "Ukko-Pekka Luukkonen",
+                  "shortName": "U. Luukkonen"
+                },
+                "team": { "id": "2", "name": "Sabres" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 4196914,
+                "athlete": {
+                  "id": "4196914",
+                  "lastName": "Oettinger",
+                  "displayName": "Jake Oettinger",
+                  "shortName": "J. Oettinger"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "401687708",
+      "date": "2024-10-24T23:00Z",
+      "name": "Dallas Stars at Boston Bruins",
+      "shortName": "DAL @ BOS",
+      "season": { "year": 2025, "displayName": "2024-25" },
+      "seasonType": {
+        "id": "2",
+        "type": 2,
+        "name": "Regular Season",
+        "abbreviation": "reg"
+      },
+      "timeValid": true,
+      "competitions": [
+        {
+          "id": "401687708",
+          "date": "2024-10-24T23:00Z",
+          "attendance": 17850,
+          "type": {
+            "id": "1",
+            "text": "Standard",
+            "abbreviation": "STD",
+            "slug": "standard",
+            "type": "standard"
+          },
+          "timeValid": true,
+          "neutralSite": false,
+          "boxscoreAvailable": true,
+          "ticketsAvailable": false,
+          "venue": {
+            "fullName": "TD Garden",
+            "address": { "city": "Boston", "state": "MA", "country": "USA" }
+          },
+          "competitors": [
+            {
+              "id": "1",
+              "type": "team",
+              "order": 0,
+              "homeAway": "home",
+              "winner": false,
+              "team": {
+                "id": "1",
+                "location": "Boston",
+                "nickname": "Bruins",
+                "abbreviation": "BOS",
+                "displayName": "Boston Bruins",
+                "shortDisplayName": "Bruins"
+              },
+              "score": { "value": 2.0, "displayValue": "2" },
+              "curatedRank": { "current": 99 }
+            },
+            {
+              "id": "9",
+              "type": "team",
+              "order": 1,
+              "homeAway": "away",
+              "winner": true,
+              "team": {
+                "id": "9",
+                "location": "Dallas",
+                "nickname": "Stars",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Stars",
+                "shortDisplayName": "Stars"
+              },
+              "score": { "value": 5.0, "displayValue": "5" },
+              "curatedRank": { "current": 99 }
+            }
+          ],
+          "notes": [],
+          "broadcasts": [
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "1", "type": "National" },
+              "media": { "shortName": "ESPN+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "4", "shortName": "Streaming" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Victory+" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "NESN" },
+              "lang": "en",
+              "region": "us",
+              "partnered": true
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Sportsnet East" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Sportsnet One" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            },
+            {
+              "type": { "id": "1", "shortName": "TV" },
+              "market": { "id": "2", "type": "Home" },
+              "media": { "shortName": "Sportsnet Pacific" },
+              "lang": "en",
+              "region": "us",
+              "partnered": false
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 3,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            },
+            "featuredAthletes": [
+              {
+                "name": "winningGoalie",
+                "displayName": "Winning Goalie",
+                "shortDisplayName": "Winning Goalie",
+                "abbreviation": "W",
+                "playerId": 3025540,
+                "athlete": {
+                  "id": "3025540",
+                  "lastName": "DeSmith",
+                  "displayName": "Casey DeSmith",
+                  "shortName": "C. DeSmith"
+                },
+                "team": { "id": "9", "name": "Stars" }
+              },
+              {
+                "name": "losingGoalie",
+                "displayName": "Losing Goalie",
+                "shortDisplayName": "Losing Goalie",
+                "abbreviation": "L",
+                "playerId": 4712036,
+                "athlete": {
+                  "id": "4712036",
+                  "lastName": "Swayman",
+                  "displayName": "Jeremy Swayman",
+                  "shortName": "J. Swayman"
+                },
+                "team": { "id": "1", "name": "Bruins" }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "requestedSeason": {
+    "year": 2025,
+    "type": 2,
+    "name": "Regular Season",
+    "displayName": "2024-25"
+  }
+}
