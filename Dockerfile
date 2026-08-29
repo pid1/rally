@@ -33,7 +33,16 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 8000
 
+# trivy DS-0002 / checkov CKV_DOCKER_3: do not run as root. The mount
+# points are created and chowned *before* the VOLUME lines, because
+# changes made to a declared volume path later in the build are discarded.
+RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app \
+    && mkdir -p /data /output \
+    && chown -R 10001 /app /data /output
+
 VOLUME /data
 VOLUME /output
+
+USER 10001
 
 CMD ["./entrypoint.sh"]
