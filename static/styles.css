@@ -1967,10 +1967,16 @@ body.is-dragging {
     }
 }
 
+/* One line across the whole grid, not one per column — the reasoning is with
+   the markup in calendar.html. It hangs off .calendar-timegrid-body, which is
+   the grid container, so it has to clear the gutter by hand; using the same
+   token the body's first track is sized with means the line's start and the
+   gutter's edge cannot drift apart, including where mobile narrows it. It
+   stops there: the time axis is labels, not a cell the line passes through. */
 .calendar-timegrid-now {
     position: absolute;
     right: 0;
-    left: 0;
+    left: var(--timegrid-gutter);
     border-top: 1px solid var(--ink);
     pointer-events: none;
 }
@@ -2606,6 +2612,13 @@ code {
 
     .page-header-meta,
     .prep-actions {
+        display: none;
+    }
+
+    /* A printed week is a document about a date range, not about the moment it
+       came off the printer, and on any week but the current one the line means
+       nothing at all once it is on paper. */
+    .calendar-timegrid-now {
         display: none;
     }
 }
