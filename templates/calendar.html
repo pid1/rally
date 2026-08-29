@@ -244,6 +244,8 @@
         let editingEvent = null;      // Full event record while the modal is open
         let editingOccurrence = null; // The occurrence that was clicked
         let detailOccurrence = null;
+        // The date the now tick last saw, so it can notice midnight passing.
+        let tickDate = todayIso();
 
         const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const AGENDA_DAYS = 30;
@@ -288,6 +290,16 @@
 
         function todayIso() {
             return isoDate(new Date());
+        }
+
+        /* The one place the grid asks what time it is. The now line and the
+           opening scroll have to agree to the minute, and two `new Date()`
+           calls either side of a render can straddle one. Same clock as
+           `todayIso()` and the `is-today` rule: the browser's, which on the
+           wall tablet is the family's. */
+        function nowMinutes() {
+            const now = new Date();
+            return now.getHours() * 60 + now.getMinutes();
         }
 
         /* The Monday on or before the first of the month, so the grid starts
@@ -443,7 +455,7 @@
                     load();
                 });
             });
-            scrollGridToFirstInterest();
+            scrollGridToOpeningHour();
         }
 
         function rangeLabel() {
@@ -708,10 +720,6 @@
             });
             head += '</div>';
 
-            // 7 AM unless something starts earlier, in which case an hour ahead
-            // of it. A grid that opens with its first event scrolled off the
-            // top is the one failure the component cannot recover from itself.
-            let earliest = 7 * 60;
             let columns = '';
             days.forEach(day => {
                 const iso = isoDate(day);
@@ -720,14 +728,6 @@
                     if (occurrence.all_day) return;
                     const span = timedSpanOn(occurrence, iso);
                     if (span) items.push({ occurrence, span, paint: paintGeometry(span) });
-                });
-                // Only events that *begin* on their day move the opening
-                // scroll. A block continuing over midnight starts at 00:00 by
-                // definition, and letting it vote pins every week containing
-                // one night shift to the top of the grid.
-                items.forEach(item => {
-                    if (item.occurrence.start_date !== iso) return;
-                    earliest = Math.min(earliest, item.paint.start);
                 });
 
                 let blocks = '';
@@ -779,20 +779,37 @@
                         + '</button>';
                 });
 
-                // The now line uses the browser's clock, as `todayIso()` and
-                // the `is-today` rule already do. It is drawn as a hairline,
-                // never a fill, for the same reason the month grid marks today
-                // that way: color on this page means a family member.
-                if (iso === today) {
-                    const now = new Date();
-                    const minutes = now.getHours() * 60 + now.getMinutes();
-                    blocks += `<div class="calendar-timegrid-now" style="top:${(minutes / MINUTES_PER_DAY) * 100}%"></div>`;
-                }
-
                 columns += `<div class="calendar-timegrid-col${iso === today ? ' is-today' : ''}">${blocks}</div>`;
             });
 
-            const scrollTo = Math.max(0, earliest - 60);
+            /* One line for the whole grid rather than one per column. The
+               grid's whole value is a shared vertical axis, so the element
+               that names your place on it has to cross every column to be read
+               against any of them; stopping at today's edge made it a mark on
+               Thursday instead of a time. It is drawn in every displayed
+               range, not only the one containing today — on a week three
+               months out it is the only reference a 3 PM block has, and which
+               column is today's is already said by `is-today`, structurally.
+
+               It cannot live in a column even if it wanted to: those are
+               `overflow: hidden` so a late-night block does not paint past the
+               bottom of the day, which clips a line at the column edge
+               whatever its `left` and `right` say. Still a hairline, never a
+               fill — color on this page means a family member. */
+            const nowTop = (nowMinutes() / MINUTES_PER_DAY) * 100;
+            const nowLine = `<div class="calendar-timegrid-now" style="top:${nowTop}%"></div>`;
+
+            /* The grid opens an hour before the current hour, whatever is on
+               it. Where to open is a question about when you are asking, not
+               about what the day happens to contain: the rule this replaces
+               opened an hour ahead of the day's first event, so every visit
+               started around 6 AM and the afternoon — the thing most often
+               being asked about, at a tablet you are standing at — was ten
+               hours of empty morning away. Hour-aligned rather than exactly
+               sixty minutes back, so the top of the viewport is always an hour
+               label. Clamped between midnight and 1 AM, where there is nothing
+               above it to show. */
+            const scrollTo = Math.max(0, (Math.floor(nowMinutes() / 60) - 1) * 60);
             // `--multi` is the many-columns case, which is the only one whose
             // day headings are width-starved. Day has one column and all the
             // room it needs, so it must not inherit the narrow treatment.
@@ -801,15 +818,47 @@
                 + head
                 + allDayBandHtml(days)
                 + `<div class="calendar-timegrid-scroll" data-scroll-minutes="${scrollTo}">`
-                + `<div class="calendar-timegrid-body">${hourGutterHtml()}${columns}</div>`
+                + `<div class="calendar-timegrid-body">${hourGutterHtml()}${columns}${nowLine}</div>`
                 + '</div></div>';
         }
 
-        function scrollGridToFirstInterest() {
+        function scrollGridToOpeningHour() {
             const scroller = document.querySelector('.calendar-timegrid-scroll');
             if (!scroller) return;
             const minutes = Number(scroller.dataset.scrollMinutes || 0);
             scroller.scrollTop = scroller.scrollHeight * (minutes / MINUTES_PER_DAY);
+        }
+
+        /* Rally's primary device is a tablet on a wall that is never reloaded,
+           so now has to keep moving on its own: a line frozen at whenever the
+           page happened to load is worse than no line, because it is
+           confidently wrong. Five minutes is the lattice the grid is already
+           drawn on, so the line lands where a block would. */
+        const NOW_TICK_MS = SNAP_MINUTES * 60 * 1000;
+
+        function moveNowLine() {
+            const line = document.querySelector('.calendar-timegrid-now');
+            if (!line) return;
+            line.style.top = `${(nowMinutes() / MINUTES_PER_DAY) * 100}%`;
+        }
+
+        function tick() {
+            const today = todayIso();
+            if (today === tickDate) {
+                // The common case, and it moves one style property. Re-rendering
+                // every five minutes would throw away an open detail modal and
+                // reset the scroll under whoever is reading.
+                moveNowLine();
+                return;
+            }
+            /* The date rolled over, and everything that says which day it is
+               went stale at once: the line, `is-today`, the Day title. Day
+               names exactly one date, so on a tablet nobody touches it has to
+               follow the date or it is still showing yesterday at breakfast.
+               Week and Month name a span and keep the one they are on. */
+            tickDate = today;
+            if (range === 'day') anchor = parseIso(today);
+            load();
         }
 
         function agendaHtml() {
@@ -1460,6 +1509,9 @@
             // After the calendar is on screen, not before: freshness is a
             // footnote and must never delay the thing it is a footnote about.
             loadSyncStatus();
+            // Started once the first grid is up, so the tick never races the
+            // fetch it would be redrawing.
+            setInterval(tick, NOW_TICK_MS);
         })();
     </script>
 </body>
