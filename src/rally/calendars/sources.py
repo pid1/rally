@@ -24,6 +24,7 @@ from rally.calendars.occurrence import (
     SOURCE_ICS,
     FetchResult,
     Occurrence,
+    owner_display_label,
     resolve_local,
 )
 from rally.models import Calendar, FamilyMember
@@ -152,7 +153,7 @@ def collect_occurrences(
 
         member = owner.name if owner else None
         member_color = owner.color if owner else None
-        label = f"{calendar.label} ({member})" if member else calendar.label
+        label = owner_display_label(calendar.label, member)
 
         try:
             if cal_type == "caldav_google":

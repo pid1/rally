@@ -322,17 +322,19 @@ class TestSyncing:
         stored = db_session.query(CalendarCache).one().occurrences
         assert [o["member_color"] for o in stored] == [recolored]
 
-    def test_a_stable_color_leaves_the_blob_alone(self, db_session, ics_calendar, mock_requests):
+    def test_stable_owner_fields_leave_the_blob_alone(
+        self, db_session, ics_calendar, mock_requests
+    ):
         """The guard on the restamp. Without it a warm cache would rewrite
-        every stored occurrence every fifteen minutes to no effect."""
+        every stored occurrence on every pass to no effect."""
         mock_requests.set_response(text=self._feed())
         calendar_cache.sync_calendars(db_session, TZ)
         row = db_session.query(CalendarCache).one()
         before = row.occurrences
         owner = db_session.query(FamilyMember).filter_by(name="Jon").one()
 
-        assert calendar_cache._restamp_member_color(row, owner) is False
-        assert row.occurrences is before, "an unchanged color must not reassign the column"
+        assert calendar_cache._restamp_owner_fields(row, ics_calendar, owner) is False
+        assert row.occurrences is before, "unchanged owner fields must not reassign the column"
 
     def test_a_failure_keeps_the_previous_occurrences(
         self, db_session, ics_calendar, mock_requests
@@ -382,6 +384,123 @@ class TestSyncing:
         assert summary["calendars"] == 0
         assert db_session.query(CalendarCache).count() == 0
         assert mock_requests.calls == []
+
+    # ── Owner-derived fields on the paths that skip re-expansion ────────────
+    #
+    # `member`, `member_color`, `calendar_label` and `attendees` are stamped on
+    # by Rally, not parsed from the feed. The unchanged and failure paths guard
+    # on the feed's content, which does not move when a member is renamed — so
+    # without an explicit reconciliation these stay frozen until the feed
+    # happens to change, which for a quiet calendar is never.
+
+    def _stored(self, db_session):
+        return db_session.query(CalendarCache).one().occurrences[0]
+
+    def _rename(self, db_session, old, new):
+        member = db_session.query(FamilyMember).filter_by(name=old).one()
+        member.name = new
+        db_session.commit()
+        return member
+
+    def test_a_rename_reaches_the_304_path(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(text=self._feed(), headers={"ETag": "v1"})
+        calendar_cache.sync_calendars(db_session, TZ)
+        self._rename(db_session, "Jon", "Jonathan")
+        mock_requests.set_response(status_code=304, headers={"ETag": "v1"})
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["unchanged"] == 1
+        stored = self._stored(db_session)
+        assert stored["member"] == "Jonathan"
+        assert stored["calendar_label"] == "Work (Jonathan)"
+        assert stored["attendees"] == ["Jonathan"]
+
+    def test_a_rename_reaches_the_content_hash_path(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        self._rename(db_session, "Jon", "Jonathan")
+
+        # Same body: the fingerprint matches and expansion is skipped.
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["unchanged"] == 1
+        stored = self._stored(db_session)
+        assert stored["member"] == "Jonathan"
+        assert stored["calendar_label"] == "Work (Jonathan)"
+        assert stored["attendees"] == ["Jonathan"]
+
+    def test_a_calendar_label_edit_reaches_an_unchanged_path(
+        self, db_session, ics_calendar, mock_requests
+    ):
+        """`calendar_label` is built from both sides, so either can stale it."""
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        ics_calendar.label = "Day Job"
+        db_session.commit()
+
+        calendar_cache.sync_calendars(db_session, TZ)
+
+        assert self._stored(db_session)["calendar_label"] == "Day Job (Jon)"
+
+    def test_a_rename_reaches_the_failure_path(self, db_session, ics_calendar, mock_requests):
+        """A member should not have to wait out somebody else's outage."""
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        self._rename(db_session, "Jon", "Jonathan")
+
+        def boom(*args, **kwargs):
+            raise ConnectionError("feed unreachable")
+
+        mock_requests.set_handler(boom)
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["failed"] == 1
+        row = db_session.query(CalendarCache).one()
+        assert len(row.occurrences) == 1, "a down feed must not blank the calendar"
+        assert row.occurrences[0]["member"] == "Jonathan"
+        assert row.occurrences[0]["calendar_label"] == "Work (Jonathan)"
+        assert row.occurrences[0]["attendees"] == ["Jonathan"]
+        assert row.last_error
+        assert row.failure_count == 1
+
+    def test_a_renamed_member_still_matches_their_own_filter(
+        self, client, db_session, ics_calendar, mock_requests
+    ):
+        """The reported symptom, end to end.
+
+        The Month view's member chip filters on `attendees`. With that field
+        frozen at the old name, filtering by the renamed member returned
+        nothing at all — their events were still on screen unfiltered, so it
+        read as data loss rather than a stale label.
+        """
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        self._rename(db_session, "Jon", "Jonathan")
+        calendar_cache.sync_calendars(db_session, TZ)  # unchanged body
+
+        response = client.get(
+            "/api/events",
+            params={"start": "2026-08-20", "end": "2026-08-21", "member": "Jonathan"},
+        )
+
+        assert response.status_code == 200
+        titles = [o["title"] for o in response.json()["occurrences"]]
+        assert "Dentist" in titles
+
+    def test_a_restamp_does_not_touch_changed_at(self, db_session, ics_calendar, mock_requests):
+        """`changed_at` tracks the feed's content. A rename is not that."""
+        mock_requests.set_response(text=self._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        changed_at = db_session.query(CalendarCache).one().changed_at
+        self._rename(db_session, "Jon", "Jonathan")
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        row = db_session.query(CalendarCache).one()
+        assert row.changed_at == changed_at
+        assert summary["unchanged"] == 1, "a restamp is not a fetch outcome"
+        assert summary["synced"] == 0
 
 
 class TestStaleness:

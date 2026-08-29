@@ -34,7 +34,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from rally.calendars.occurrence import Occurrence
+from rally.calendars.occurrence import Occurrence, owner_display_label
 from rally.models import Calendar, CalendarCache, FamilyMember, Setting
 from rally.utils.timezone import ensure_utc, now_utc
 
@@ -302,7 +302,7 @@ def _fetch_one(
     cal_type = calendar.cal_type or "ics"
     member = owner.name if owner else None
     member_color = owner.color if owner else None
-    label = f"{calendar.label} ({member})" if member else calendar.label
+    label = owner_display_label(calendar.label, member)
 
     try:
         if cal_type in ("caldav_google", "caldav_apple"):
@@ -415,28 +415,64 @@ def _fetch_one(
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "label": label}
 
 
-def _restamp_member_color(row: CalendarCache, owner: FamilyMember | None) -> bool:
-    """Rewrite the owner's current color onto already-stored occurrences.
+def _owner_fields(calendar: Calendar, owner: FamilyMember | None) -> dict:
+    """Everything on a cached occurrence that comes from *our* side, not the feed.
 
-    The unchanged paths skip expansion, which is the whole point of them — but
-    the stored dicts carry whatever color the owner had when they were last
-    expanded. A member who picks a new color would otherwise keep the old dot
-    until the feed itself happened to change, which for a quiet calendar is
-    never: the guard those paths test is the *feed's* content, and nothing
-    about it moves when the change was on this side.
+    None of these are parsed out of the ICS or CalDAV payload: they are the
+    owner and the calendar as Rally knows them, stamped on at expansion time.
+    That is exactly why they go stale on the paths that skip expansion, and
+    why they can be rewritten without re-reading the feed.
+
+    ``attendees`` is safe to overwrite rather than merge because
+    ``component_to_occurrence`` sets it to ``(member,)`` and never reads the
+    feed's own ATTENDEE properties. A cached row is external-only and
+    pre-merge, so its attendee list is only ever its own calendar's owner —
+    the union across duplicate feeds happens later, in ``merge_occurrences``.
+    """
+    member = owner.name if owner else None
+    return {
+        "member": member,
+        "member_color": owner.color if owner else None,
+        "calendar_label": owner_display_label(calendar.label, member),
+        # Stored occurrences come back from JSON with lists, not tuples, so
+        # the comparison below has to be against a list to ever match.
+        "attendees": [member] if member else [],
+    }
+
+
+def _restamp_owner_fields(
+    row: CalendarCache, calendar: Calendar, owner: FamilyMember | None
+) -> bool:
+    """Reconcile owner-derived fields on occurrences we did not re-expand.
+
+    Three paths store occurrences without rebuilding them: a 304, a CalDAV
+    sync-token that reports no change, and a body that hashes identically —
+    plus the failure path, which deliberately keeps the last good occurrences
+    so a down feed never blanks the calendar. All four guard on the *feed's*
+    content, and nothing about the feed moves when the change was on our side.
+    So a member renamed or recolored, or a calendar relabeled, would keep the
+    old values until the feed itself happened to change, which for a quiet
+    calendar is never.
+
+    ``attendees`` is the one with teeth. The member filter matches on it, so a
+    renamed member's imported events did not merely show a stale name — they
+    dropped out of their own filter entirely, which reads as data loss rather
+    than a cosmetic lag.
 
     Returns whether anything moved, so the overwhelmingly common case — nobody
-    changed a color — stays a no-op rather than rewriting the whole blob on
+    renamed anybody — stays a no-op rather than rewriting the whole blob on
     every sync pass.
     """
-    color = owner.color if owner else None
+    current = _owner_fields(calendar, owner)
     stored = row.occurrences or []
-    if all(occurrence.get("member_color") == color for occurrence in stored):
+    if all(
+        all(occurrence.get(key) == value for key, value in current.items()) for occurrence in stored
+    ):
         return False
     # `occurrences` is a plain JSON column with no mutation tracking, so
     # patching the dicts in place would never reach the database. The list has
     # to be reassigned.
-    row.occurrences = [{**occurrence, "member_color": color} for occurrence in stored]
+    row.occurrences = [{**occurrence, **current} for occurrence in stored]
     return True
 
 
@@ -519,6 +555,12 @@ def sync_calendars(
         if not outcome.get("ok"):
             # Keep the previous occurrences. A feed being down must shorten
             # nothing and blank nothing; it only adds a note.
+            #
+            # The kept occurrences still get their owner fields reconciled: a
+            # rename is ours, not the feed's, and there is no reason to make
+            # somebody wait out an outage they have nothing to do with before
+            # their own name is right.
+            _restamp_owner_fields(row, cal, owner)
             row.last_error = outcome.get("error", "unknown error")
             row.failure_count = (row.failure_count or 0) + 1
             if outcome.get("rate_limited"):
@@ -531,7 +573,7 @@ def sync_calendars(
             continue
 
         if outcome.get("unchanged"):
-            _restamp_member_color(row, owner)
+            _restamp_owner_fields(row, cal, owner)
             row.fetched_at = now
             if outcome.get("sync_tokens") is not None:
                 row.sync_tokens = outcome["sync_tokens"]
@@ -544,9 +586,9 @@ def sync_calendars(
         digest = outcome.get("body_hash")
         if digest and row.content_hash == digest and row.occurrences:
             # Body identical to last time: skip the expansion entirely. The
-            # owner's color is still re-resolved — it is ours, not the feed's,
-            # and this is the one path that would otherwise never revisit it.
-            _restamp_member_color(row, owner)
+            # owner-derived fields are still re-resolved — they are ours, not
+            # the feed's, and nothing about the feed moves when one changes.
+            _restamp_owner_fields(row, cal, owner)
             row.fetched_at = now
             row.last_error = None
             row.failure_count = 0

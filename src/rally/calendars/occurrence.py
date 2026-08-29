@@ -118,6 +118,18 @@ class Occurrence:
         return self.start_local_date != self.end_local_date
 
 
+def owner_display_label(calendar_label: str, member: str | None) -> str:
+    """How an external calendar names itself once its owner is folded in.
+
+    Lives here because three places have to agree on it: the live fetch, the
+    cached fetch, and the reconciliation that rewrites owner-derived fields
+    onto occurrences a sync skipped re-expanding. When the third disagrees
+    with the first two it does not fail loudly — it just writes a label that
+    never matches, on every pass, forever.
+    """
+    return f"{calendar_label} ({member})" if member else calendar_label
+
+
 def resolve_local(naive: datetime, tz: ZoneInfo) -> datetime:
     """Attach ``tz`` to a naive local wall time, resolving DST edge cases.
 
