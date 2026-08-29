@@ -3,8 +3,8 @@ set -e
 
 # Run all migrations (idempotent)
 if ! python migrations/run_migrations.py; then
-    echo "✗ Migrations failed - exiting"
-    exit 1
+  echo "✗ Migrations failed - exiting"
+  exit 1
 fi
 
 # Initialize database schema (idempotent - creates missing tables)
@@ -17,15 +17,15 @@ echo "✓ Database ready"
 (
   echo "Starting scheduled generator (runs at 4:00 AM in configured timezone)"
   LAST_RUN_DATE=""
-  
+
   while true; do
     # Get local timezone from config (default to America/Chicago for backward compatibility)
     LOCAL_TZ=$(python -c "import tomllib; f=open('/data/config.toml', 'rb'); cfg=tomllib.load(f); print(cfg.get('local_timezone', 'America/Chicago'))" 2>/dev/null || echo "America/Chicago")
-    
+
     # Get current hour and date in the configured timezone
     current_hour=$(TZ="$LOCAL_TZ" date +%H)
     current_date=$(TZ="$LOCAL_TZ" date +%Y-%m-%d)
-    
+
     # Check if it's 4:00 AM in local timezone AND we haven't run today
     if [ "$current_hour" = "04" ] && [ "$current_date" != "$LAST_RUN_DATE" ]; then
       echo "$(date): Running scheduled dashboard generation for $current_date..."
@@ -33,7 +33,7 @@ echo "✓ Database ready"
       LAST_RUN_DATE="$current_date"
       echo "$(date): Generation complete. Next run: tomorrow at 4:00 AM $LOCAL_TZ"
     fi
-    
+
     # Check every 60 seconds (more efficient than 30s)
     sleep 60
   done
