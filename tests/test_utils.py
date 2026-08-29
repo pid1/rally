@@ -28,7 +28,9 @@ def test_compute_version_hashes_stylesheet(tmp_path, monkeypatch):
 
 
 def test_ensure_utc_treats_naive_as_utc():
-    assert tz.ensure_utc(datetime(2026, 1, 1, 12, 0)) == datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    assert tz.ensure_utc(datetime(2026, 1, 1, 12, 0)) == datetime(
+        2026, 1, 1, 12, 0, tzinfo=UTC
+    )
 
 
 def test_ensure_utc_converts_aware_to_utc():

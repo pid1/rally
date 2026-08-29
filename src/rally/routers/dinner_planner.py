@@ -81,7 +81,9 @@ def list_meal_history(
     if meal_type:
         invalid = [m for m in meal_type if m not in MEAL_TYPES]
         if invalid:
-            raise HTTPException(status_code=422, detail=f"Invalid meal_type value(s): {invalid}")
+            raise HTTPException(
+                status_code=422, detail=f"Invalid meal_type value(s): {invalid}"
+            )
 
     today = _today_local_str(db)
 
@@ -94,7 +96,9 @@ def list_meal_history(
         query = query.filter(DinnerPlan.meal_type.in_(meal_type))
 
     if sort == "rating_desc":
-        query = query.order_by(nullslast(DinnerPlan.rating.desc()), DinnerPlan.date.desc())
+        query = query.order_by(
+            nullslast(DinnerPlan.rating.desc()), DinnerPlan.date.desc()
+        )
     elif sort == "date_asc":
         query = query.order_by(DinnerPlan.date.asc(), _MEAL_TYPE_ORDER)
     else:  # date_desc
@@ -106,7 +110,12 @@ def list_meal_history(
 @router.get("/date/{date}", response_model=list[DinnerPlanResponse])
 def get_dinner_plans_by_date(date: str, db: Session = Depends(get_db)):
     """Get all meal plans for a specific date (YYYY-MM-DD)."""
-    plans = db.query(DinnerPlan).filter(DinnerPlan.date == date).order_by(_MEAL_TYPE_ORDER).all()
+    plans = (
+        db.query(DinnerPlan)
+        .filter(DinnerPlan.date == date)
+        .order_by(_MEAL_TYPE_ORDER)
+        .all()
+    )
     return plans
 
 
@@ -167,7 +176,9 @@ def review_meal(
 
     if review.rating is not None:
         if review.rating < 1 or review.rating > 5:
-            raise HTTPException(status_code=422, detail="Rating must be between 1 and 5")
+            raise HTTPException(
+                status_code=422, detail="Rating must be between 1 and 5"
+            )
         db_plan.rating = review.rating
     elif review.rating is None and "rating" in review.model_fields_set:
         db_plan.rating = None

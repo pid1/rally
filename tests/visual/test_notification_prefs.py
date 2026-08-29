@@ -30,7 +30,9 @@ def _settings(browser, live_server, viewport: str):
 
 
 @pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
-def test_what_rally_sends_lists_every_kind_without_overflowing(browser, live_server, viewport):
+def test_what_rally_sends_lists_every_kind_without_overflowing(
+    browser, live_server, viewport
+):
     """Five rows of prose in a bordered container, at 390 as well as 1440."""
     context, page = _settings(browser, live_server, viewport)
     try:
@@ -49,7 +51,9 @@ def test_what_rally_sends_lists_every_kind_without_overflowing(browser, live_ser
 
 
 @pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
-def test_the_member_modal_switches_meet_the_touch_target(browser, live_server, viewport):
+def test_the_member_modal_switches_meet_the_touch_target(
+    browser, live_server, viewport
+):
     """One row per kind, each a full hit area — the rule that bites at 390px.
 
     Measured against the page's own ``--target-min`` rather than a literal 44,

@@ -66,7 +66,9 @@ def seed(db_path: Path) -> None:
         check=True,
         capture_output=True,
     )
-    subprocess.run([py, "-m", "rally.cli"], env=env, cwd=ROOT, check=True, capture_output=True)
+    subprocess.run(
+        [py, "-m", "rally.cli"], env=env, cwd=ROOT, check=True, capture_output=True
+    )
 
     # A Pushover key on one member, so the member modal shows the field doing
     # something, and a preparedness review, which is normally an LLM call. The
@@ -222,7 +224,9 @@ SHOTS: tuple[Shot, ...] = (
     Shot("readme-mobile", "/calendar", width=390, height=844, full_page=False),
     # Calendar reference shots — 1x, matching the inline docs.
     Shot("calendar-month", "/calendar", scale=1, setup=_calendar("calendar", "month")),
-    Shot("calendar-agenda", "/calendar", scale=1, setup=_calendar("agenda", "rolling30")),
+    Shot(
+        "calendar-agenda", "/calendar", scale=1, setup=_calendar("agenda", "rolling30")
+    ),
     Shot(
         "calendar-mobile",
         "/calendar",
@@ -234,7 +238,9 @@ SHOTS: tuple[Shot, ...] = (
     # Preparedness reference shots.
     Shot("preparedness-inventory", "/preparedness", width=1440, scale=1),
     Shot("preparedness-go-list", "/go-list", width=1440, scale=1),
-    Shot("preparedness-review", "/preparedness", width=1440, scale=1, setup=_open_review),
+    Shot(
+        "preparedness-review", "/preparedness", width=1440, scale=1, setup=_open_review
+    ),
     Shot("preparedness-mobile", "/preparedness", width=390, height=844, scale=1),
     Shot(
         "preparedness-nav",
@@ -261,7 +267,9 @@ SHOTS: tuple[Shot, ...] = (
         element="#member-modal-overlay .modal-content",
         setup=_open_member_modal,
     ),
-    Shot("settings-notifications", "/settings", scale=1, element="#notification-overview"),
+    Shot(
+        "settings-notifications", "/settings", scale=1, element="#notification-overview"
+    ),
     Shot(
         "event-notify",
         "/calendar",
@@ -307,10 +315,16 @@ def capture(only: set[str] | None) -> list[str]:
                 if shot.element:
                     target.screenshot(path=OUT / f"{shot.name}.png")
                 else:
-                    page.screenshot(path=OUT / f"{shot.name}.png", full_page=shot.full_page)
+                    page.screenshot(
+                        path=OUT / f"{shot.name}.png", full_page=shot.full_page
+                    )
                 print(f"  captured {shot.name}")
-            except Exception as exc:  # noqa: BLE001 — one bad shot must not stop the run
-                print(f"  ! {shot.name}: {type(exc).__name__}: {str(exc).splitlines()[0][:90]}")
+            except (
+                Exception
+            ) as exc:  # noqa: BLE001 — one bad shot must not stop the run
+                print(
+                    f"  ! {shot.name}: {type(exc).__name__}: {str(exc).splitlines()[0][:90]}"
+                )
                 failed.append(shot.name)
             finally:
                 context.close()
@@ -330,7 +344,11 @@ def main() -> int:
         print(f"Seeding {db_path}...")
         seed(db_path)
 
-        env = {**os.environ, "RALLY_DB_PATH": str(db_path), "PYTHONPATH": str(ROOT / "src")}
+        env = {
+            **os.environ,
+            "RALLY_DB_PATH": str(db_path),
+            "PYTHONPATH": str(ROOT / "src"),
+        }
         server = subprocess.Popen(
             [
                 str(ROOT / ".devenv" / "state" / "venv" / "bin" / "uvicorn"),

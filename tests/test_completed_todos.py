@@ -19,7 +19,9 @@ conftest.
 from datetime import UTC, datetime, timedelta
 
 PAST = datetime(2020, 1, 1, 12, 0, 0)
-TODAY_NOON = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0, tzinfo=None)
+TODAY_NOON = datetime.now(UTC).replace(
+    hour=12, minute=0, second=0, microsecond=0, tzinfo=None
+)
 
 
 def get_completed(client, **params):

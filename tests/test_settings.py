@@ -24,7 +24,11 @@ def test_settings_bulk_upsert_roundtrip(client):
 
     # Upsert an existing key and add a new one.
     client.put("/api/settings", json={"settings": {"a": "9", "c": "3"}})
-    assert client.get("/api/settings").json()["settings"] == {"a": "9", "b": "2", "c": "3"}
+    assert client.get("/api/settings").json()["settings"] == {
+        "a": "9",
+        "b": "2",
+        "c": "3",
+    }
 
 
 # --- AI settings versioning ----------------------------------------------------
@@ -32,7 +36,11 @@ def test_settings_bulk_upsert_roundtrip(client):
 
 def test_ai_get_empty_when_unset(client):
     ai = client.get("/api/settings/ai").json()
-    assert ai["agent_voice"] == {"field_name": "agent_voice", "value": "", "history_id": None}
+    assert ai["agent_voice"] == {
+        "field_name": "agent_voice",
+        "value": "",
+        "history_id": None,
+    }
     assert ai["family_context"]["value"] == ""
 
 
@@ -77,7 +85,10 @@ def test_ai_rollback_reactivates_without_new_row(client, db_session, frozen_now)
 
     assert rb["value"] == "v1"
     assert rb["history_id"] == v1["history_id"]
-    assert client.get("/api/settings/ai").json()["agent_voice"]["history_id"] == v1["history_id"]
+    assert (
+        client.get("/api/settings/ai").json()["agent_voice"]["history_id"]
+        == v1["history_id"]
+    )
 
     # No new row was inserted; last_used_at on the reactivated row was bumped.
     rows = db_session.query(AISettingsHistory).filter_by(field_name="agent_voice").all()
@@ -100,7 +111,9 @@ def test_ai_rollback_unknown_field_404(client):
 
 
 def test_ai_rollback_missing_history_404(client):
-    resp = client.post("/api/settings/ai/agent_voice/rollback", json={"history_id": 9999})
+    resp = client.post(
+        "/api/settings/ai/agent_voice/rollback", json={"history_id": 9999}
+    )
     assert resp.status_code == 404
 
 
@@ -129,7 +142,11 @@ def test_llm_config_save_writes_derived_keys_anthropic(client):
     assert body["history_id"] is not None
 
     cfg = client.get("/api/settings/llm/config").json()
-    assert (cfg["provider"], cfg["model"], cfg["max_tokens"]) == ("anthropic", "claude-x", 16000)
+    assert (cfg["provider"], cfg["model"], cfg["max_tokens"]) == (
+        "anthropic",
+        "claude-x",
+        16000,
+    )
 
     settings = client.get("/api/settings").json()["settings"]
     assert settings["llm_provider"] == "anthropic"
@@ -158,7 +175,9 @@ def test_llm_config_save_local_uses_local_model_key(client):
 
 def test_llm_config_save_defaults_max_tokens_when_omitted(client):
     """Existing callers that don't send max_tokens still work — 4000/custom."""
-    body = client.put("/api/settings/llm/config", json={"provider": "local", "model": "m"}).json()
+    body = client.put(
+        "/api/settings/llm/config", json={"provider": "local", "model": "m"}
+    ).json()
 
     assert body["max_tokens"] == 4000
     assert body["max_tokens_mode"] == "custom"
@@ -201,7 +220,9 @@ def test_llm_config_save_model_max_accepts_placeholder_zero_max_tokens(
     assert resp.json()["max_tokens"] == 200000
 
 
-def test_llm_config_save_local_forces_custom_mode_even_if_client_sends_model_max(client):
+def test_llm_config_save_local_forces_custom_mode_even_if_client_sends_model_max(
+    client,
+):
     """Defense in depth: local has no Models API, so the server ignores a stray
     model_max mode from a stale client rather than trusting it."""
     body = client.put(
@@ -215,10 +236,14 @@ def test_llm_config_save_local_forces_custom_mode_even_if_client_sends_model_max
     ).json()
 
     assert body["max_tokens_mode"] == "custom"
-    assert body["max_tokens"] == 4000  # not resolved — the submitted value passes through
+    assert (
+        body["max_tokens"] == 4000
+    )  # not resolved — the submitted value passes through
 
 
-def test_llm_config_save_model_max_resolves_via_models_api(client, make_setting, mock_llm):
+def test_llm_config_save_model_max_resolves_via_models_api(
+    client, make_setting, mock_llm
+):
     make_setting("llm_anthropic_api_key", "sk-test")
 
     body = client.put(
@@ -240,7 +265,9 @@ def test_llm_config_save_model_max_resolves_via_models_api(client, make_setting,
     assert settings["llm_anthropic_max_tokens_mode"] == "model_max"
 
 
-def test_llm_config_save_model_max_rejects_unresolvable_model(client, make_setting, monkeypatch):
+def test_llm_config_save_model_max_rejects_unresolvable_model(
+    client, make_setting, monkeypatch
+):
     make_setting("llm_anthropic_api_key", "sk-test")
 
     import anthropic
@@ -289,7 +316,9 @@ def test_llm_config_history_is_newest_first(client, frozen_now):
     frozen_now(T1)
     client.put("/api/settings/llm/config", json={"provider": "local", "model": "m1"})
     frozen_now(T2)
-    b = client.put("/api/settings/llm/config", json={"provider": "anthropic", "model": "m2"}).json()
+    b = client.put(
+        "/api/settings/llm/config", json={"provider": "anthropic", "model": "m2"}
+    ).json()
 
     hist = client.get("/api/settings/llm/config/history").json()
 
@@ -300,7 +329,9 @@ def test_llm_config_history_is_newest_first(client, frozen_now):
     ]
 
 
-def test_llm_config_rollback_restores_pair_and_derived_keys(client, db_session, frozen_now):
+def test_llm_config_rollback_restores_pair_and_derived_keys(
+    client, db_session, frozen_now
+):
     frozen_now(T1)
     a = client.put(
         "/api/settings/llm/config",
@@ -319,9 +350,17 @@ def test_llm_config_rollback_restores_pair_and_derived_keys(client, db_session, 
         "/api/settings/llm/config/rollback", json={"history_id": a["history_id"]}
     ).json()
 
-    assert (rb["provider"], rb["model"], rb["max_tokens"]) == ("anthropic", "claude-1", 32000)
+    assert (rb["provider"], rb["model"], rb["max_tokens"]) == (
+        "anthropic",
+        "claude-1",
+        32000,
+    )
     cfg = client.get("/api/settings/llm/config").json()
-    assert (cfg["provider"], cfg["model"], cfg["max_tokens"]) == ("anthropic", "claude-1", 32000)
+    assert (cfg["provider"], cfg["model"], cfg["max_tokens"]) == (
+        "anthropic",
+        "claude-1",
+        32000,
+    )
 
     # Derived keys the generator reads are restored too, not just the pointer.
     settings = client.get("/api/settings").json()["settings"]
@@ -378,7 +417,9 @@ def _make_calendar(client, member_id, **overrides):
     return resp.json()
 
 
-def test_calendar_create_persists_password_but_never_returns_it(client, db_session, make_member):
+def test_calendar_create_persists_password_but_never_returns_it(
+    client, db_session, make_member
+):
     member = make_member("Dad")
 
     body = _make_calendar(
@@ -490,7 +531,10 @@ class TestHomeLocation:
         assert home_location(db_session) == ""
 
     def test_round_trips_through_the_api(self, client):
-        client.put("/api/settings", json={"settings": {"home_location": "Highland Village, TX"}})
+        client.put(
+            "/api/settings",
+            json={"settings": {"home_location": "Highland Village, TX"}},
+        )
         body = client.get("/api/settings").json()
         assert body["settings"]["home_location"] == "Highland Village, TX"
 
@@ -517,10 +561,13 @@ def test_the_overview_says_who_hears_each_kind(client, make_member):
     make_member("Dad", pushover_user_key="dad-key")
     make_member("Jake")
     emma = make_member("Emma", pushover_user_key="emma-key")
-    client.put(f"/api/family/{emma.id}", json={"notifications": {"event_change": False}})
+    client.put(
+        f"/api/family/{emma.id}", json={"notifications": {"event_change": False}}
+    )
 
     rows = {
-        kind["kind"]: kind for kind in client.get("/api/notifications/overview").json()["kinds"]
+        kind["kind"]: kind
+        for kind in client.get("/api/notifications/overview").json()["kinds"]
     }
 
     assert rows["event_change"]["receiving"] == ["Dad"]
@@ -530,7 +577,8 @@ def test_the_overview_says_who_hears_each_kind(client, make_member):
 
 def test_the_overview_names_the_install_wide_switch_behind_a_kind(client):
     rows = {
-        kind["kind"]: kind for kind in client.get("/api/notifications/overview").json()["kinds"]
+        kind["kind"]: kind
+        for kind in client.get("/api/notifications/overview").json()["kinds"]
     }
 
     assert rows["task_assignment"]["settings_key"] == "todo_notify_enabled"

@@ -53,7 +53,9 @@ def _create(client, **overrides) -> dict:
 # --- Who hears about it --------------------------------------------------------
 
 
-def test_assigning_a_new_task_pushes_to_the_assignee(client, token, reachable, mock_pushover):
+def test_assigning_a_new_task_pushes_to_the_assignee(
+    client, token, reachable, mock_pushover
+):
     _create(client, assigned_to=reachable.id)
 
     assert len(mock_pushover.sent) == 1
@@ -68,7 +70,9 @@ def test_an_unassigned_task_pushes_to_nobody(client, token, reachable, mock_push
     assert mock_pushover.sent == []
 
 
-def test_only_the_assignee_hears_about_it(client, token, reachable, make_member, mock_pushover):
+def test_only_the_assignee_hears_about_it(
+    client, token, reachable, make_member, mock_pushover
+):
     make_member("Dad", pushover_user_key="dad-key")
     _create(client, assigned_to=reachable.id)
 
@@ -101,7 +105,9 @@ def test_reassigning_pushes_to_the_new_assignee(
     todo = _create(client, assigned_to=dad.id)
     mock_pushover.sent.clear()
 
-    response = client.put(f"/api/todos/{todo['id']}", json={"assigned_to": reachable.id})
+    response = client.put(
+        f"/api/todos/{todo['id']}", json={"assigned_to": reachable.id}
+    )
     assert response.status_code == 200
 
     assert [p["user"] for p in mock_pushover.sent] == ["emma-key"]
@@ -132,7 +138,9 @@ def test_editing_a_task_without_changing_the_assignee_stays_silent(
     assert mock_pushover.sent == []
 
 
-def test_clearing_the_assignee_pushes_to_nobody(client, token, reachable, mock_pushover):
+def test_clearing_the_assignee_pushes_to_nobody(
+    client, token, reachable, mock_pushover
+):
     todo = _create(client, assigned_to=reachable.id)
     mock_pushover.sent.clear()
 
@@ -141,7 +149,9 @@ def test_clearing_the_assignee_pushes_to_nobody(client, token, reachable, mock_p
     assert mock_pushover.sent == []
 
 
-def test_completing_a_task_does_not_re_announce_it(client, token, reachable, mock_pushover):
+def test_completing_a_task_does_not_re_announce_it(
+    client, token, reachable, mock_pushover
+):
     todo = _create(client, assigned_to=reachable.id)
     mock_pushover.sent.clear()
 
@@ -168,7 +178,9 @@ def test_a_generated_recurring_instance_is_not_announced(
     client, token, reachable, make_recurring_todo, mock_pushover, db_session
 ):
     """The hand-over happened when the template was written, not every morning."""
-    make_recurring_todo("Feed the dog", recurrence_type="daily", assigned_to=reachable.id)
+    make_recurring_todo(
+        "Feed the dog", recurrence_type="daily", assigned_to=reachable.id
+    )
 
     response = client.get("/api/todos")
     assert response.status_code == 200
@@ -192,7 +204,9 @@ def test_a_task_due_tomorrow_says_so(client, token, reachable, mock_pushover):
     assert mock_pushover.sent[0]["message"] == "Due tomorrow"
 
 
-def test_a_task_due_this_week_is_named_by_weekday(client, token, reachable, mock_pushover):
+def test_a_task_due_this_week_is_named_by_weekday(
+    client, token, reachable, mock_pushover
+):
     _create(client, assigned_to=reachable.id, due_date="2026-08-22")
 
     assert mock_pushover.sent[0]["message"] == "Due Saturday"
@@ -204,13 +218,17 @@ def test_a_distant_due_date_is_named_by_date(client, token, reachable, mock_push
     assert mock_pushover.sent[0]["message"] == "Due Sep 30"
 
 
-def test_inheriting_something_late_says_it_is_overdue(client, token, reachable, mock_pushover):
+def test_inheriting_something_late_says_it_is_overdue(
+    client, token, reachable, mock_pushover
+):
     _create(client, assigned_to=reachable.id, due_date="2026-08-14")
 
     assert mock_pushover.sent[0]["message"] == "Overdue since Aug 14"
 
 
-def test_a_due_date_in_another_year_carries_the_year(client, token, reachable, mock_pushover):
+def test_a_due_date_in_another_year_carries_the_year(
+    client, token, reachable, mock_pushover
+):
     _create(client, assigned_to=reachable.id, due_date="2027-01-04")
 
     assert mock_pushover.sent[0]["message"] == "Due Jan 4, 2027"
@@ -227,7 +245,9 @@ def test_the_description_rides_along(client, token, reachable, mock_pushover):
     assert mock_pushover.sent[0]["message"] == "Due today\nBins go out by the curb"
 
 
-def test_a_task_with_nothing_to_add_still_has_a_body(client, token, reachable, mock_pushover):
+def test_a_task_with_nothing_to_add_still_has_a_body(
+    client, token, reachable, mock_pushover
+):
     """Pushover rejects an empty message, so there is always something to say."""
     _create(client, assigned_to=reachable.id)
 
@@ -253,7 +273,9 @@ def test_due_label_ignores_a_malformed_date():
 # --- Failure is data -----------------------------------------------------------
 
 
-def test_the_toggle_turns_the_pushes_off(client, token, reachable, make_setting, mock_pushover):
+def test_the_toggle_turns_the_pushes_off(
+    client, token, reachable, make_setting, mock_pushover
+):
     make_setting("todo_notify_enabled", "false")
 
     _create(client, assigned_to=reachable.id)
@@ -261,7 +283,9 @@ def test_the_toggle_turns_the_pushes_off(client, token, reachable, make_setting,
     assert mock_pushover.sent == []
 
 
-def test_a_missing_app_token_skips_cleanly(client, reachable, mock_pushover, db_session):
+def test_a_missing_app_token_skips_cleanly(
+    client, reachable, mock_pushover, db_session
+):
     _create(client, assigned_to=reachable.id)
 
     assert mock_pushover.sent == []
@@ -290,7 +314,9 @@ def test_a_failure_is_reported_by_name(db_session, token, reachable, mock_pushov
     assert result["sent"] == []
 
 
-def test_an_assignee_who_no_longer_exists_is_not_a_crash(db_session, token, mock_pushover):
+def test_an_assignee_who_no_longer_exists_is_not_a_crash(
+    db_session, token, mock_pushover
+):
     todo = Todo(title="Take out the trash", assigned_to=999, completed=False)
     db_session.add(todo)
     db_session.commit()
@@ -355,5 +381,8 @@ def test_muting_hand_offs_does_not_mute_that_persons_reminders(
     db_session.commit()
 
     assert (
-        notification_prefs.wants(db_session, reachable, notification_prefs.EVENT_REMINDER) is True
+        notification_prefs.wants(
+            db_session, reachable, notification_prefs.EVENT_REMINDER
+        )
+        is True
     )

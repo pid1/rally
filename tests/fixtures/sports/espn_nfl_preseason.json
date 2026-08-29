@@ -1,320 +1,320 @@
 {
-  "timestamp": "2026-08-11T03:36:37Z",
-  "status": "success",
-  "season": {
-    "year": 2026,
-    "type": 1,
-    "name": "Preseason",
-    "displayName": "2026",
-    "half": 1
-  },
-  "team": {
-    "id": "17",
-    "abbreviation": "NE",
-    "location": "New England",
-    "name": "Patriots",
-    "displayName": "New England Patriots",
-    "clubhouse": "https://www.espn.com/nfl/team/_/name/ne/new-england-patriots",
-    "color": "002a5c",
-    "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/ne.png",
-    "seasonSummary": "2026",
-    "groups": { "id": "4", "parent": { "id": "8" }, "isConference": false }
-  },
-  "events": [
-    {
-      "id": "401873273",
-      "date": "2026-08-13T23:30Z",
-      "name": "Indianapolis Colts at New England Patriots",
-      "shortName": "IND @ NE",
-      "season": { "year": 2026, "displayName": "2026" },
-      "seasonType": {
-        "id": "1",
-        "type": 1,
-        "name": "Preseason",
-        "abbreviation": "pre"
-      },
-      "week": { "number": 2, "text": "Preseason Week 1" },
-      "timeValid": true,
-      "competitions": [
-        {
-          "id": "401873273",
-          "date": "2026-08-13T23:30Z",
-          "attendance": 0,
-          "type": {
-            "id": "1",
-            "text": "Standard",
-            "abbreviation": "STD",
-            "slug": "standard",
-            "type": "standard"
-          },
-          "timeValid": true,
-          "neutralSite": false,
-          "boxscoreAvailable": false,
-          "ticketsAvailable": true,
-          "venue": {
-            "fullName": "Gillette Stadium",
-            "address": {
-              "city": "Foxborough",
-              "state": "MA",
-              "zipCode": "02035",
-              "country": "USA"
-            }
-          },
-          "competitors": [
-            {
-              "id": "17",
-              "type": "team",
-              "order": 0,
-              "homeAway": "home",
-              "team": {
-                "id": "17",
-                "location": "New England",
-                "nickname": "Patriots",
-                "abbreviation": "NE",
-                "displayName": "New England Patriots",
-                "shortDisplayName": "Patriots"
-              }
-            },
-            {
-              "id": "11",
-              "type": "team",
-              "order": 1,
-              "homeAway": "away",
-              "team": {
-                "id": "11",
-                "location": "Indianapolis",
-                "nickname": "Colts",
-                "abbreviation": "IND",
-                "displayName": "Indianapolis Colts",
-                "shortDisplayName": "Colts"
-              }
-            }
-          ],
-          "notes": [],
-          "broadcasts": [],
-          "status": {
-            "clock": 0.0,
-            "displayClock": "0:00",
-            "period": 0,
-            "type": {
-              "id": "1",
-              "name": "STATUS_SCHEDULED",
-              "state": "pre",
-              "completed": false,
-              "description": "Scheduled",
-              "detail": "Thu, August 13th at 7:30 PM EDT",
-              "shortDetail": "8/13 - 7:30 PM EDT"
-            },
-            "isTBDFlex": false
-          }
-        }
-      ]
-    },
-    {
-      "id": "401873293",
-      "date": "2026-08-22T23:00Z",
-      "name": "Philadelphia Eagles at New England Patriots",
-      "shortName": "PHI @ NE",
-      "season": { "year": 2026, "displayName": "2026" },
-      "seasonType": {
-        "id": "1",
-        "type": 1,
-        "name": "Preseason",
-        "abbreviation": "pre"
-      },
-      "week": { "number": 3, "text": "Preseason Week 2" },
-      "timeValid": true,
-      "competitions": [
-        {
-          "id": "401873293",
-          "date": "2026-08-22T23:00Z",
-          "attendance": 0,
-          "type": {
-            "id": "1",
-            "text": "Standard",
-            "abbreviation": "STD",
-            "slug": "standard",
-            "type": "standard"
-          },
-          "timeValid": true,
-          "neutralSite": false,
-          "boxscoreAvailable": false,
-          "ticketsAvailable": true,
-          "venue": {
-            "fullName": "Gillette Stadium",
-            "address": {
-              "city": "Foxborough",
-              "state": "MA",
-              "zipCode": "02035",
-              "country": "USA"
-            }
-          },
-          "competitors": [
-            {
-              "id": "17",
-              "type": "team",
-              "order": 0,
-              "homeAway": "home",
-              "team": {
-                "id": "17",
-                "location": "New England",
-                "nickname": "Patriots",
-                "abbreviation": "NE",
-                "displayName": "New England Patriots",
-                "shortDisplayName": "Patriots"
-              }
-            },
-            {
-              "id": "21",
-              "type": "team",
-              "order": 1,
-              "homeAway": "away",
-              "team": {
-                "id": "21",
-                "location": "Philadelphia",
-                "nickname": "Eagles",
-                "abbreviation": "PHI",
-                "displayName": "Philadelphia Eagles",
-                "shortDisplayName": "Eagles"
-              }
-            }
-          ],
-          "notes": [],
-          "broadcasts": [
-            {
-              "type": { "id": "1", "shortName": "TV" },
-              "market": { "id": "1", "type": "National" },
-              "media": {
-                "shortName": "NFL Net",
-                "logo": "https://a.espncdn.com/guid/8281947e-bd6c-3a8a-9b1d-6fc957d1709a/logos/default.png",
-                "darkLogo": "https://a.espncdn.com/guid/8281947e-bd6c-3a8a-9b1d-6fc957d1709a/logos/default-dark.png"
-              },
-              "lang": "en",
-              "region": "us",
-              "partnered": false
-            }
-          ],
-          "status": {
-            "clock": 0.0,
-            "displayClock": "0:00",
-            "period": 0,
-            "type": {
-              "id": "1",
-              "name": "STATUS_SCHEDULED",
-              "state": "pre",
-              "completed": false,
-              "description": "Scheduled",
-              "detail": "Sat, August 22nd at 7:00 PM EDT",
-              "shortDetail": "8/22 - 7:00 PM EDT"
-            },
-            "isTBDFlex": false
-          }
-        }
-      ]
-    },
-    {
-      "id": "401873299",
-      "date": "2026-08-28T00:00Z",
-      "name": "New England Patriots at Cleveland Browns",
-      "shortName": "NE @ CLE",
-      "season": { "year": 2026, "displayName": "2026" },
-      "seasonType": {
-        "id": "1",
-        "type": 1,
-        "name": "Preseason",
-        "abbreviation": "pre"
-      },
-      "week": { "number": 4, "text": "Preseason Week 3" },
-      "timeValid": true,
-      "competitions": [
-        {
-          "id": "401873299",
-          "date": "2026-08-28T00:00Z",
-          "attendance": 0,
-          "type": {
-            "id": "1",
-            "text": "Standard",
-            "abbreviation": "STD",
-            "slug": "standard",
-            "type": "standard"
-          },
-          "timeValid": true,
-          "neutralSite": false,
-          "boxscoreAvailable": false,
-          "ticketsAvailable": true,
-          "venue": {
-            "fullName": "Huntington Bank Field",
-            "address": {
-              "city": "Cleveland",
-              "state": "OH",
-              "zipCode": "44114",
-              "country": "USA"
-            }
-          },
-          "competitors": [
-            {
-              "id": "5",
-              "type": "team",
-              "order": 0,
-              "homeAway": "home",
-              "team": {
-                "id": "5",
-                "location": "Cleveland",
-                "nickname": "Browns",
-                "abbreviation": "CLE",
-                "displayName": "Cleveland Browns",
-                "shortDisplayName": "Browns"
-              }
-            },
-            {
-              "id": "17",
-              "type": "team",
-              "order": 1,
-              "homeAway": "away",
-              "team": {
-                "id": "17",
-                "location": "New England",
-                "nickname": "Patriots",
-                "abbreviation": "NE",
-                "displayName": "New England Patriots",
-                "shortDisplayName": "Patriots"
-              }
-            }
-          ],
-          "notes": [],
-          "broadcasts": [
-            {
-              "type": { "id": "4", "shortName": "Streaming" },
-              "market": { "id": "1", "type": "National" },
-              "media": { "shortName": "Prime Video" },
-              "lang": "en",
-              "region": "us",
-              "partnered": false
-            }
-          ],
-          "status": {
-            "clock": 0.0,
-            "displayClock": "0:00",
-            "period": 0,
-            "type": {
-              "id": "1",
-              "name": "STATUS_SCHEDULED",
-              "state": "pre",
-              "completed": false,
-              "description": "Scheduled",
-              "detail": "Thu, August 27th at 8:00 PM EDT",
-              "shortDetail": "8/27 - 8:00 PM EDT"
-            },
-            "isTBDFlex": false
-          }
-        }
-      ]
-    }
-  ],
-  "requestedSeason": {
-    "year": 2026,
-    "type": 1,
-    "name": "Preseason",
-    "displayName": "2026"
-  }
+	"timestamp": "2026-08-11T03:36:37Z",
+	"status": "success",
+	"season": {
+		"year": 2026,
+		"type": 1,
+		"name": "Preseason",
+		"displayName": "2026",
+		"half": 1
+	},
+	"team": {
+		"id": "17",
+		"abbreviation": "NE",
+		"location": "New England",
+		"name": "Patriots",
+		"displayName": "New England Patriots",
+		"clubhouse": "https://www.espn.com/nfl/team/_/name/ne/new-england-patriots",
+		"color": "002a5c",
+		"logo": "https://a.espncdn.com/i/teamlogos/nfl/500/ne.png",
+		"seasonSummary": "2026",
+		"groups": { "id": "4", "parent": { "id": "8" }, "isConference": false }
+	},
+	"events": [
+		{
+			"id": "401873273",
+			"date": "2026-08-13T23:30Z",
+			"name": "Indianapolis Colts at New England Patriots",
+			"shortName": "IND @ NE",
+			"season": { "year": 2026, "displayName": "2026" },
+			"seasonType": {
+				"id": "1",
+				"type": 1,
+				"name": "Preseason",
+				"abbreviation": "pre"
+			},
+			"week": { "number": 2, "text": "Preseason Week 1" },
+			"timeValid": true,
+			"competitions": [
+				{
+					"id": "401873273",
+					"date": "2026-08-13T23:30Z",
+					"attendance": 0,
+					"type": {
+						"id": "1",
+						"text": "Standard",
+						"abbreviation": "STD",
+						"slug": "standard",
+						"type": "standard"
+					},
+					"timeValid": true,
+					"neutralSite": false,
+					"boxscoreAvailable": false,
+					"ticketsAvailable": true,
+					"venue": {
+						"fullName": "Gillette Stadium",
+						"address": {
+							"city": "Foxborough",
+							"state": "MA",
+							"zipCode": "02035",
+							"country": "USA"
+						}
+					},
+					"competitors": [
+						{
+							"id": "17",
+							"type": "team",
+							"order": 0,
+							"homeAway": "home",
+							"team": {
+								"id": "17",
+								"location": "New England",
+								"nickname": "Patriots",
+								"abbreviation": "NE",
+								"displayName": "New England Patriots",
+								"shortDisplayName": "Patriots"
+							}
+						},
+						{
+							"id": "11",
+							"type": "team",
+							"order": 1,
+							"homeAway": "away",
+							"team": {
+								"id": "11",
+								"location": "Indianapolis",
+								"nickname": "Colts",
+								"abbreviation": "IND",
+								"displayName": "Indianapolis Colts",
+								"shortDisplayName": "Colts"
+							}
+						}
+					],
+					"notes": [],
+					"broadcasts": [],
+					"status": {
+						"clock": 0.0,
+						"displayClock": "0:00",
+						"period": 0,
+						"type": {
+							"id": "1",
+							"name": "STATUS_SCHEDULED",
+							"state": "pre",
+							"completed": false,
+							"description": "Scheduled",
+							"detail": "Thu, August 13th at 7:30 PM EDT",
+							"shortDetail": "8/13 - 7:30 PM EDT"
+						},
+						"isTBDFlex": false
+					}
+				}
+			]
+		},
+		{
+			"id": "401873293",
+			"date": "2026-08-22T23:00Z",
+			"name": "Philadelphia Eagles at New England Patriots",
+			"shortName": "PHI @ NE",
+			"season": { "year": 2026, "displayName": "2026" },
+			"seasonType": {
+				"id": "1",
+				"type": 1,
+				"name": "Preseason",
+				"abbreviation": "pre"
+			},
+			"week": { "number": 3, "text": "Preseason Week 2" },
+			"timeValid": true,
+			"competitions": [
+				{
+					"id": "401873293",
+					"date": "2026-08-22T23:00Z",
+					"attendance": 0,
+					"type": {
+						"id": "1",
+						"text": "Standard",
+						"abbreviation": "STD",
+						"slug": "standard",
+						"type": "standard"
+					},
+					"timeValid": true,
+					"neutralSite": false,
+					"boxscoreAvailable": false,
+					"ticketsAvailable": true,
+					"venue": {
+						"fullName": "Gillette Stadium",
+						"address": {
+							"city": "Foxborough",
+							"state": "MA",
+							"zipCode": "02035",
+							"country": "USA"
+						}
+					},
+					"competitors": [
+						{
+							"id": "17",
+							"type": "team",
+							"order": 0,
+							"homeAway": "home",
+							"team": {
+								"id": "17",
+								"location": "New England",
+								"nickname": "Patriots",
+								"abbreviation": "NE",
+								"displayName": "New England Patriots",
+								"shortDisplayName": "Patriots"
+							}
+						},
+						{
+							"id": "21",
+							"type": "team",
+							"order": 1,
+							"homeAway": "away",
+							"team": {
+								"id": "21",
+								"location": "Philadelphia",
+								"nickname": "Eagles",
+								"abbreviation": "PHI",
+								"displayName": "Philadelphia Eagles",
+								"shortDisplayName": "Eagles"
+							}
+						}
+					],
+					"notes": [],
+					"broadcasts": [
+						{
+							"type": { "id": "1", "shortName": "TV" },
+							"market": { "id": "1", "type": "National" },
+							"media": {
+								"shortName": "NFL Net",
+								"logo": "https://a.espncdn.com/guid/8281947e-bd6c-3a8a-9b1d-6fc957d1709a/logos/default.png",
+								"darkLogo": "https://a.espncdn.com/guid/8281947e-bd6c-3a8a-9b1d-6fc957d1709a/logos/default-dark.png"
+							},
+							"lang": "en",
+							"region": "us",
+							"partnered": false
+						}
+					],
+					"status": {
+						"clock": 0.0,
+						"displayClock": "0:00",
+						"period": 0,
+						"type": {
+							"id": "1",
+							"name": "STATUS_SCHEDULED",
+							"state": "pre",
+							"completed": false,
+							"description": "Scheduled",
+							"detail": "Sat, August 22nd at 7:00 PM EDT",
+							"shortDetail": "8/22 - 7:00 PM EDT"
+						},
+						"isTBDFlex": false
+					}
+				}
+			]
+		},
+		{
+			"id": "401873299",
+			"date": "2026-08-28T00:00Z",
+			"name": "New England Patriots at Cleveland Browns",
+			"shortName": "NE @ CLE",
+			"season": { "year": 2026, "displayName": "2026" },
+			"seasonType": {
+				"id": "1",
+				"type": 1,
+				"name": "Preseason",
+				"abbreviation": "pre"
+			},
+			"week": { "number": 4, "text": "Preseason Week 3" },
+			"timeValid": true,
+			"competitions": [
+				{
+					"id": "401873299",
+					"date": "2026-08-28T00:00Z",
+					"attendance": 0,
+					"type": {
+						"id": "1",
+						"text": "Standard",
+						"abbreviation": "STD",
+						"slug": "standard",
+						"type": "standard"
+					},
+					"timeValid": true,
+					"neutralSite": false,
+					"boxscoreAvailable": false,
+					"ticketsAvailable": true,
+					"venue": {
+						"fullName": "Huntington Bank Field",
+						"address": {
+							"city": "Cleveland",
+							"state": "OH",
+							"zipCode": "44114",
+							"country": "USA"
+						}
+					},
+					"competitors": [
+						{
+							"id": "5",
+							"type": "team",
+							"order": 0,
+							"homeAway": "home",
+							"team": {
+								"id": "5",
+								"location": "Cleveland",
+								"nickname": "Browns",
+								"abbreviation": "CLE",
+								"displayName": "Cleveland Browns",
+								"shortDisplayName": "Browns"
+							}
+						},
+						{
+							"id": "17",
+							"type": "team",
+							"order": 1,
+							"homeAway": "away",
+							"team": {
+								"id": "17",
+								"location": "New England",
+								"nickname": "Patriots",
+								"abbreviation": "NE",
+								"displayName": "New England Patriots",
+								"shortDisplayName": "Patriots"
+							}
+						}
+					],
+					"notes": [],
+					"broadcasts": [
+						{
+							"type": { "id": "4", "shortName": "Streaming" },
+							"market": { "id": "1", "type": "National" },
+							"media": { "shortName": "Prime Video" },
+							"lang": "en",
+							"region": "us",
+							"partnered": false
+						}
+					],
+					"status": {
+						"clock": 0.0,
+						"displayClock": "0:00",
+						"period": 0,
+						"type": {
+							"id": "1",
+							"name": "STATUS_SCHEDULED",
+							"state": "pre",
+							"completed": false,
+							"description": "Scheduled",
+							"detail": "Thu, August 27th at 8:00 PM EDT",
+							"shortDetail": "8/27 - 8:00 PM EDT"
+						},
+						"isTBDFlex": false
+					}
+				}
+			]
+		}
+	],
+	"requestedSeason": {
+		"year": 2026,
+		"type": 1,
+		"name": "Preseason",
+		"displayName": "2026"
+	}
 }

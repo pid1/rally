@@ -85,17 +85,23 @@ def migrate():
         ]
 
         if not stale:
-            print("✓ Migration: every family member is already on a palette color (idempotent)")
+            print(
+                "✓ Migration: every family member is already on a palette color (idempotent)"
+            )
             return True
 
         print(f"  Recoloring {len(stale)} of {len(members)} family member(s)...")
         for index, member_id, name in stale:
             color = PALETTE[index % len(PALETTE)]
-            cursor.execute("UPDATE family_members SET color = ? WHERE id = ?", (color, member_id))
+            cursor.execute(
+                "UPDATE family_members SET color = ? WHERE id = ?", (color, member_id)
+            )
             print(f"    {name} -> {color}")
 
         conn.commit()
-        print(f"✓ Migration complete: {len(stale)} family member(s) moved onto the palette")
+        print(
+            f"✓ Migration complete: {len(stale)} family member(s) moved onto the palette"
+        )
         return True
 
     except sqlite3.Error as e:

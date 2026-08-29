@@ -58,7 +58,9 @@ def _clean_name(raw: str, label: str) -> str:
 
 def _find_location_by_name(db: Session, name: str) -> PrepLocation | None:
     return (
-        db.query(PrepLocation).filter(func.lower(PrepLocation.name) == name.strip().lower()).first()
+        db.query(PrepLocation)
+        .filter(func.lower(PrepLocation.name) == name.strip().lower())
+        .first()
     )
 
 
@@ -76,7 +78,9 @@ def _parse_iso(value: str | None, label: str) -> date | None:
     try:
         return date.fromisoformat(value)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=f"{label} must be YYYY-MM-DD") from exc
+        raise HTTPException(
+            status_code=422, detail=f"{label} must be YYYY-MM-DD"
+        ) from exc
 
 
 def _location_names(db: Session) -> dict[int, str]:
@@ -124,7 +128,9 @@ def create_location(location: PrepLocationCreate, db: Session = Depends(get_db))
     """Create a location. Names are unique case-insensitively."""
     name = _clean_name(location.name, "Location name")
     if _find_location_by_name(db, name):
-        raise HTTPException(status_code=409, detail="A location with that name already exists")
+        raise HTTPException(
+            status_code=409, detail="A location with that name already exists"
+        )
 
     db_location = PrepLocation(name=name, sort_order=location.sort_order)
     db.add(db_location)
@@ -134,7 +140,9 @@ def create_location(location: PrepLocationCreate, db: Session = Depends(get_db))
 
 
 @router.put("/locations/{location_id}", response_model=PrepLocationResponse)
-def update_location(location_id: int, location: PrepLocationUpdate, db: Session = Depends(get_db)):
+def update_location(
+    location_id: int, location: PrepLocationUpdate, db: Session = Depends(get_db)
+):
     db_location = db.query(PrepLocation).filter(PrepLocation.id == location_id).first()
     if not db_location:
         raise HTTPException(status_code=404, detail="Location not found")
@@ -143,7 +151,9 @@ def update_location(location_id: int, location: PrepLocationUpdate, db: Session 
         name = _clean_name(location.name, "Location name")
         conflict = _find_location_by_name(db, name)
         if conflict and conflict.id != location_id:
-            raise HTTPException(status_code=409, detail="A location with that name already exists")
+            raise HTTPException(
+                status_code=409, detail="A location with that name already exists"
+            )
         db_location.name = name
 
     if location.sort_order is not None:
@@ -180,10 +190,16 @@ def delete_location(location_id: int, db: Session = Depends(get_db)):
 
 @router.get("/items", response_model=list[PrepItemResponse])
 def list_items(
-    location: list[str] = Query(default=[], description="Location id and/or 'unassigned'"),
+    location: list[str] = Query(
+        default=[], description="Location id and/or 'unassigned'"
+    ),
     status: str | None = Query(None, description="ok | due | overdue"),
-    search: str | None = Query(None, description="Case-insensitive, over name and notes"),
-    sort: str = Query("location", description="location | name | refresh-soonest | newest"),
+    search: str | None = Query(
+        None, description="Case-insensitive, over name and notes"
+    ),
+    sort: str = Query(
+        "location", description="location | name | refresh-soonest | newest"
+    ),
     db: Session = Depends(get_db),
 ):
     """List preparedness stock.
@@ -218,9 +234,16 @@ def list_items(
     # Status is derived from today's date rather than stored, which is also why
     # it cannot be an index and is filtered here.
     if status in ("ok", "due", "overdue"):
-        items = [i for i in items if preparedness.status_of(i, on_date, default_lead) == status]
+        items = [
+            i
+            for i in items
+            if preparedness.status_of(i, on_date, default_lead) == status
+        ]
 
-    order = {loc.id: (loc.sort_order, loc.name.lower()) for loc in db.query(PrepLocation).all()}
+    order = {
+        loc.id: (loc.sort_order, loc.name.lower())
+        for loc in db.query(PrepLocation).all()
+    }
     if sort == "name":
         items.sort(key=lambda i: i.name.lower())
     elif sort == "refresh-soonest":
@@ -228,7 +251,9 @@ def list_items(
     elif sort == "newest":
         items.sort(key=lambda i: i.created_at, reverse=True)
     else:  # location — unassigned sorts last
-        items.sort(key=lambda i: (order.get(i.location_id, (10**6, "zzz")), i.name.lower()))
+        items.sort(
+            key=lambda i: (order.get(i.location_id, (10**6, "zzz")), i.name.lower())
+        )
 
     names = _location_names(db)
     return [_to_response(i, on_date, names, default_lead) for i in items]
@@ -248,7 +273,9 @@ def create_item(item: PrepItemCreate, db: Session = Depends(get_db)):
 
     next_date = item.next_refresh_date
     if item.refresh_mode == "interval" and not next_date:
-        next_date = preparedness.add_months(on_date, item.refresh_interval_months).isoformat()
+        next_date = preparedness.add_months(
+            on_date, item.refresh_interval_months
+        ).isoformat()
     if next_date:
         _parse_iso(next_date, "next_refresh_date")
 
@@ -265,7 +292,9 @@ def create_item(item: PrepItemCreate, db: Session = Depends(get_db)):
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
-    return _to_response(db_item, on_date, _location_names(db), preparedness.default_lead_days(db))
+    return _to_response(
+        db_item, on_date, _location_names(db), preparedness.default_lead_days(db)
+    )
 
 
 @router.get("/items/{item_id}", response_model=PrepItemResponse)
@@ -274,7 +303,10 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
     return _to_response(
-        db_item, preparedness.today_for(db), _location_names(db), preparedness.default_lead_days(db)
+        db_item,
+        preparedness.today_for(db),
+        _location_names(db),
+        preparedness.default_lead_days(db),
     )
 
 
@@ -308,7 +340,9 @@ def update_item(item_id: int, item: PrepItemUpdate, db: Session = Depends(get_db
     # mode still has to leave a coherent item behind.
     try:
         validate_prep_schedule(
-            db_item.refresh_mode, db_item.refresh_interval_months, db_item.next_refresh_date
+            db_item.refresh_mode,
+            db_item.refresh_interval_months,
+            db_item.next_refresh_date,
         )
     except ValueError as exc:
         db.rollback()
@@ -317,7 +351,10 @@ def update_item(item_id: int, item: PrepItemUpdate, db: Session = Depends(get_db
     db.commit()
     db.refresh(db_item)
     return _to_response(
-        db_item, preparedness.today_for(db), _location_names(db), preparedness.default_lead_days(db)
+        db_item,
+        preparedness.today_for(db),
+        _location_names(db),
+        preparedness.default_lead_days(db),
     )
 
 
@@ -334,7 +371,9 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/items/{item_id}/refresh", response_model=PrepItemResponse)
-def refresh_item(item_id: int, body: PrepItemRefresh | None = None, db: Session = Depends(get_db)):
+def refresh_item(
+    item_id: int, body: PrepItemRefresh | None = None, db: Session = Depends(get_db)
+):
     """Mark an item refreshed and recompute its next refresh date."""
     db_item = db.query(PrepItem).filter(PrepItem.id == item_id).first()
     if not db_item:
@@ -343,7 +382,10 @@ def refresh_item(item_id: int, body: PrepItemRefresh | None = None, db: Session 
     on = _parse_iso(body.on, "on") if body and body.on else preparedness.today_for(db)
     preparedness.mark_refreshed(db, db_item, on)
     return _to_response(
-        db_item, preparedness.today_for(db), _location_names(db), preparedness.default_lead_days(db)
+        db_item,
+        preparedness.today_for(db),
+        _location_names(db),
+        preparedness.default_lead_days(db),
     )
 
 
@@ -352,7 +394,9 @@ def refresh_item(item_id: int, body: PrepItemRefresh | None = None, db: Session 
 
 @router.get("/go-list", response_model=GoListResponse)
 def get_go_list(
-    location: list[str] = Query(default=[], description="Location id and/or 'unassigned'"),
+    location: list[str] = Query(
+        default=[], description="Location id and/or 'unassigned'"
+    ),
     db: Session = Depends(get_db),
 ):
     on_date = preparedness.today_for(db)
@@ -382,7 +426,9 @@ def export_go_list(
 ):
     """Download the go list as an attachment."""
     if format not in EXPORT_FORMATS:
-        raise HTTPException(status_code=422, detail="format must be one of: md, csv, pdf")
+        raise HTTPException(
+            status_code=422, detail="format must be one of: md, csv, pdf"
+        )
 
     on_date = preparedness.today_for(db)
     groups = golist.build_groups(db, location or None)
@@ -408,7 +454,9 @@ def export_go_list(
 
 @router.post("/digest/run", response_model=PrepDigestResponse)
 def run_digest(
-    dry_run: bool = Query(True, description="Report what would be sent without sending"),
+    dry_run: bool = Query(
+        True, description="Report what would be sent without sending"
+    ),
     db: Session = Depends(get_db),
 ):
     """Run the refresh digest now.

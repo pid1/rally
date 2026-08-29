@@ -24,7 +24,9 @@ def migrate():
 
     if not db_path.exists():
         print(f"✓ Database not found at {db_path}")
-        print("  No migration needed - database will be created with correct schema on first run.")
+        print(
+            "  No migration needed - database will be created with correct schema on first run."
+        )
         return  # Exit successfully, not an error
 
     print(f"Checking database at {db_path}...")
@@ -38,7 +40,9 @@ def migrate():
         todo_columns = [col[1] for col in cursor.fetchall()]
 
         if "remind_days_before" in todo_columns:
-            print("✓ Migration: todos.remind_days_before column already exists (idempotent check)")
+            print(
+                "✓ Migration: todos.remind_days_before column already exists (idempotent check)"
+            )
         else:
             print("  Adding 'remind_days_before' column to todos table...")
             cursor.execute("ALTER TABLE todos ADD COLUMN remind_days_before INTEGER")
@@ -55,9 +59,13 @@ def migrate():
             )
         else:
             print("  Adding 'remind_days_before' column to recurring_todos table...")
-            cursor.execute("ALTER TABLE recurring_todos ADD COLUMN remind_days_before INTEGER")
+            cursor.execute(
+                "ALTER TABLE recurring_todos ADD COLUMN remind_days_before INTEGER"
+            )
             conn.commit()
-            print("✓ Migration complete: recurring_todos.remind_days_before column added")
+            print(
+                "✓ Migration complete: recurring_todos.remind_days_before column added"
+            )
 
         return True
 

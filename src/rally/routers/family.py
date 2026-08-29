@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 from rally import member_colors, notification_prefs
 from rally.database import get_db
 from rally.models import Calendar, FamilyMember
-from rally.schemas import UNSET, FamilyMemberCreate, FamilyMemberResponse, FamilyMemberUpdate
+from rally.schemas import (
+    UNSET,
+    FamilyMemberCreate,
+    FamilyMemberResponse,
+    FamilyMemberUpdate,
+)
 
 router = APIRouter(prefix="/api/family", tags=["family"])
 

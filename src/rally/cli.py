@@ -137,11 +137,41 @@ def seed():
         seed_tz = "America/Chicago"
         monday = today_utc() - timedelta(days=today_utc().weekday())
         event_specs = [
-            (mom, "Scouts", 1, "19:00", 1, "FREQ=WEEKLY;BYDAY=TU", "Church hall", [mom, jake], 60),
+            (
+                mom,
+                "Scouts",
+                1,
+                "19:00",
+                1,
+                "FREQ=WEEKLY;BYDAY=TU",
+                "Church hall",
+                [mom, jake],
+                60,
+            ),
             (dad, "Dentist — Emma", 2, "09:00", 1, None, "Dr. Kim", [dad, emma], 30),
             (emma, "Piano lesson", 3, "16:00", 1, None, "Studio B", [emma], None),
-            (jake, "Soccer practice", 4, "17:30", 2, None, "Field 4", [jake, dad], None),
-            (dad, "Camping trip", 5, None, 3, None, "Beavers Bend", [mom, dad, emma, jake], None),
+            (
+                jake,
+                "Soccer practice",
+                4,
+                "17:30",
+                2,
+                None,
+                "Field 4",
+                [jake, dad],
+                None,
+            ),
+            (
+                dad,
+                "Camping trip",
+                5,
+                None,
+                3,
+                None,
+                "Beavers Bend",
+                [mom, dad, emma, jake],
+                None,
+            ),
         ]
 
         events = []
@@ -305,7 +335,9 @@ def seed():
                 sort_order=2,
             ),
             ShoppingItem(name="Almond milk", store_id=trader_joes.id, sort_order=0),
-            ShoppingItem(name="Frozen dumplings", store_id=trader_joes.id, sort_order=1),
+            ShoppingItem(
+                name="Frozen dumplings", store_id=trader_joes.id, sort_order=1
+            ),
             ShoppingItem(name="Stamps", sort_order=0),
             ShoppingItem(name="Batteries", note="AA", sort_order=1),
         ]

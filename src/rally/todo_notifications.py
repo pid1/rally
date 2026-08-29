@@ -134,7 +134,9 @@ def assignee(db: Session, todo: Todo) -> FamilyMember | None:
     return db.get(FamilyMember, todo.assigned_to)
 
 
-def notify_assignment(db: Session, todo: Todo, *, previous_assignee: int | None = None) -> dict:
+def notify_assignment(
+    db: Session, todo: Todo, *, previous_assignee: int | None = None
+) -> dict:
     """Tell the assignee a task is theirs. Never raises.
 
     ``previous_assignee`` is who held the task before this write, so a create

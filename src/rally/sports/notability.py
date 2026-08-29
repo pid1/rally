@@ -53,7 +53,11 @@ def _record_phrase(label: str, record) -> str | None:
     """A record or streak, phrased for a reason string. Never a game result."""
     if record is None:
         return None
-    if record.losses == 0 and record.ties == 0 and record.games_played >= UNDEFEATED_MIN_GAMES:
+    if (
+        record.losses == 0
+        and record.ties == 0
+        and record.games_played >= UNDEFEATED_MIN_GAMES
+    ):
         return f"{label} are {record.wins}-0"
     return None
 
@@ -103,7 +107,9 @@ def season_opener_reasons(full_season: list[SportsEvent]) -> dict[str, str]:
     return reasons
 
 
-def first_meetings(full_season: list[SportsEvent], standings: Standings | None) -> set[str]:
+def first_meetings(
+    full_season: list[SportsEvent], standings: Standings | None
+) -> set[str]:
     """Event keys that are the season's first meeting with a division rival.
 
     Scoped to the division rather than every opponent: an unscoped rule fires on
@@ -156,7 +162,9 @@ def _nfl(event: SportsEvent, standings: Standings | None) -> str:
     return "Regular season"
 
 
-def _nhl(event: SportsEvent, standings: Standings | None, first_meeting: bool) -> str | None:
+def _nhl(
+    event: SportsEvent, standings: Standings | None, first_meeting: bool
+) -> str | None:
     """82 games, so filter. Nationally televised games are 12 of them."""
     if event.national_tv:
         return "National TV"
@@ -178,7 +186,9 @@ def _nhl(event: SportsEvent, standings: Standings | None, first_meeting: bool) -
     return None
 
 
-def _mlb(event: SportsEvent, standings: Standings | None, first_meeting: bool) -> str | None:
+def _mlb(
+    event: SportsEvent, standings: Standings | None, first_meeting: bool
+) -> str | None:
     """162 games, so filter hardest — this is the rule that decides whether
     "Coming up" is readable at all."""
     if event.national_tv:
@@ -189,7 +199,9 @@ def _mlb(event: SportsEvent, standings: Standings | None, first_meeting: bool) -
     if standings and event.local_date.month >= MLB_RECORD_RULES_FROM_MONTH:
         opponent = standings.get(event.opponent_id)
         if opponent and opponent.top_seed:
-            return f"{event.opponent_name or 'Opponent'} have the best record in baseball"
+            return (
+                f"{event.opponent_name or 'Opponent'} have the best record in baseball"
+            )
         ours = standings.get(event.team_id)
         if ours and ours.division_leader:
             return f"{event.team_label} lead the division"

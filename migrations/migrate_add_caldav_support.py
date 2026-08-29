@@ -45,7 +45,9 @@ def migrate():
         added = []
 
         if "cal_type" not in columns:
-            cursor.execute("ALTER TABLE calendars ADD COLUMN cal_type VARCHAR(20) DEFAULT 'ics'")
+            cursor.execute(
+                "ALTER TABLE calendars ADD COLUMN cal_type VARCHAR(20) DEFAULT 'ics'"
+            )
             added.append("cal_type")
 
         if "username" not in columns:

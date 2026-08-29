@@ -42,7 +42,10 @@ def test_create_with_explicit_palette_color(client):
 def test_create_rejects_a_color_outside_the_palette(client):
     """A format check would let #ffffff through; it is invisible on the page."""
     for bad in ("#ffffff", "#333333", "not-a-color"):
-        assert client.post("/api/family", json={"name": "Mom", "color": bad}).status_code == 422
+        assert (
+            client.post("/api/family", json={"name": "Mom", "color": bad}).status_code
+            == 422
+        )
 
 
 def test_list_ordered_by_name(client):
@@ -65,7 +68,9 @@ def test_update_fields(client):
     first, second = member_colors.PALETTE[0].value, member_colors.PALETTE[1].value
     member = client.post("/api/family", json={"name": "Dad", "color": first}).json()
 
-    body = client.put(f"/api/family/{member['id']}", json={"name": "Daddy", "color": second}).json()
+    body = client.put(
+        f"/api/family/{member['id']}", json={"name": "Daddy", "color": second}
+    ).json()
 
     assert body["name"] == "Daddy"
     assert body["color"] == second
@@ -74,7 +79,10 @@ def test_update_fields(client):
 def test_update_rejects_a_color_outside_the_palette(client):
     member = client.post("/api/family", json={"name": "Dad"}).json()
 
-    assert client.put(f"/api/family/{member['id']}", json={"color": "#ffffff"}).status_code == 422
+    assert (
+        client.put(f"/api/family/{member['id']}", json={"color": "#ffffff"}).status_code
+        == 422
+    )
 
 
 def test_update_without_color_leaves_it_alone(client):
@@ -124,7 +132,9 @@ def test_a_new_member_can_be_created_with_preferences(client, db_session):
 def test_updating_notifications_is_partial(client):
     member = client.post("/api/family", json={"name": "Emma"}).json()
 
-    client.put(f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}})
+    client.put(
+        f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}}
+    )
     body = client.put(
         f"/api/family/{member['id']}", json={"notifications": {SHOPPING_ADDED: True}}
     ).json()
@@ -135,7 +145,9 @@ def test_updating_notifications_is_partial(client):
 
 def test_updating_something_else_leaves_preferences_alone(client):
     member = client.post("/api/family", json={"name": "Emma"}).json()
-    client.put(f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}})
+    client.put(
+        f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}}
+    )
 
     body = client.put(f"/api/family/{member['id']}", json={"name": "Em"}).json()
 
@@ -145,14 +157,18 @@ def test_updating_something_else_leaves_preferences_alone(client):
 def test_an_unknown_kind_is_rejected_rather_than_stored(client, db_session):
     member = client.post("/api/family", json={"name": "Emma"}).json()
 
-    response = client.put(f"/api/family/{member['id']}", json={"notifications": {"nope": True}})
+    response = client.put(
+        f"/api/family/{member['id']}", json={"notifications": {"nope": True}}
+    )
 
     assert response.status_code == 422
     assert db_session.query(MemberNotificationPref).count() == 0
 
 
 def test_creating_with_an_unknown_kind_is_rejected(client, db_session):
-    response = client.post("/api/family", json={"name": "Emma", "notifications": {"nope": True}})
+    response = client.post(
+        "/api/family", json={"name": "Emma", "notifications": {"nope": True}}
+    )
 
     assert response.status_code == 422
     assert db_session.query(FamilyMember).count() == 0
@@ -172,7 +188,9 @@ def test_a_member_with_no_key_keeps_the_preferences_they_set(client):
 
 def test_listing_members_carries_their_preferences(client):
     member = client.post("/api/family", json={"name": "Emma"}).json()
-    client.put(f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}})
+    client.put(
+        f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}}
+    )
 
     listed = client.get("/api/family").json()
 
@@ -182,7 +200,9 @@ def test_listing_members_carries_their_preferences(client):
 def test_deleting_a_member_takes_their_preferences_with_them(client, db_session):
     """Nothing enforces the reference, so the rows have to go by hand."""
     member = client.post("/api/family", json={"name": "Emma"}).json()
-    client.put(f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}})
+    client.put(
+        f"/api/family/{member['id']}", json={"notifications": {EVENT_CHANGE: False}}
+    )
     assert db_session.query(MemberNotificationPref).count() == 1
 
     client.delete(f"/api/family/{member['id']}")

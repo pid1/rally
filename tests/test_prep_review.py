@@ -22,7 +22,12 @@ from rally.prep_review import (
 GOOD = {
     "assessment": "A solid water and food base with a clear gap around light.",
     "gaps": [
-        {"item": "Spare headlamp batteries", "category": "Light", "why": "x", "priority": "high"},
+        {
+            "item": "Spare headlamp batteries",
+            "category": "Light",
+            "why": "x",
+            "priority": "high",
+        },
         {"item": "Paper maps", "category": "Navigation", "why": "y", "priority": "low"},
     ],
     "strengths": ["Two Sawyer filters"],
@@ -72,7 +77,10 @@ class TestGrounding:
     ):
         loc = make_prep_location("Water")
         make_prep_item(
-            name="Sawyer filters", quantity="2", notes="Backflush yearly", location_id=loc.id
+            name="Sawyer filters",
+            quantity="2",
+            notes="Backflush yearly",
+            location_id=loc.id,
         )
 
         inventory = gather_inputs(db_session).inventory
@@ -85,7 +93,9 @@ class TestGrounding:
         self, db_session, make_prep_item, make_setting
     ):
         make_setting("local_timezone", "UTC")
-        make_prep_item(name="Water drums", refresh_mode="date", next_refresh_date="2020-01-01")
+        make_prep_item(
+            name="Water drums", refresh_mode="date", next_refresh_date="2020-01-01"
+        )
 
         assert "OVERDUE" in gather_inputs(db_session).inventory
 
@@ -97,7 +107,9 @@ class TestGrounding:
         assert "FAMILY CONTEXT:\n(not recorded)" in prompt
         assert "HOME:\n(not recorded)" in prompt
 
-    def test_context_and_home_reach_the_prompt(self, db_session, make_prep_item, make_setting):
+    def test_context_and_home_reach_the_prompt(
+        self, db_session, make_prep_item, make_setting
+    ):
         make_setting("family_context", "Rodryk is 3, Soren is an infant.")
         make_setting("home_location", "Highland Village, TX")
         make_prep_item(name="Spork")
@@ -141,7 +153,9 @@ class TestNormalise:
 
     def test_coerces_an_unknown_priority(self):
         assert (
-            normalize({"gaps": [{"item": "X", "priority": "urgent"}]})["gaps"][0]["priority"]
+            normalize({"gaps": [{"item": "X", "priority": "urgent"}]})["gaps"][0][
+                "priority"
+            ]
             == "medium"
         )
 
@@ -162,7 +176,9 @@ class TestNormalise:
         assert len(out["gaps"]) == prep_review.MAX_GAPS
 
     def test_ignores_unrecognised_shapes(self):
-        out = normalize({"gaps": ["not a dict", {"item": "Radio"}], "strengths": "not a list"})
+        out = normalize(
+            {"gaps": ["not a dict", {"item": "Radio"}], "strengths": "not a list"}
+        )
         assert [g["item"] for g in out["gaps"]] == ["Radio"]
         assert out["strengths"] == []
 
@@ -200,22 +216,30 @@ class TestRunReview:
         row = run_review(db_session, llm=fake_llm(raw=raw))
         assert row.data["assessment"].startswith("A solid water")
 
-    def test_a_non_json_response_is_a_clean_error(self, db_session, make_prep_item, review_on):
+    def test_a_non_json_response_is_a_clean_error(
+        self, db_session, make_prep_item, review_on
+    ):
         make_prep_item(name="Spork")
         with pytest.raises(PrepReviewError, match="did not return JSON"):
             run_review(db_session, llm=fake_llm(raw="I cannot help with that."))
 
-    def test_a_truncated_response_is_a_clean_error(self, db_session, make_prep_item, review_on):
+    def test_a_truncated_response_is_a_clean_error(
+        self, db_session, make_prep_item, review_on
+    ):
         make_prep_item(name="Spork")
         with pytest.raises(PrepReviewError, match="cut off"):
             run_review(db_session, llm=fake_llm(raw='{"assessment": "half'))
 
-    def test_a_provider_failure_is_a_clean_error(self, db_session, make_prep_item, review_on):
+    def test_a_provider_failure_is_a_clean_error(
+        self, db_session, make_prep_item, review_on
+    ):
         make_prep_item(name="Spork")
         with pytest.raises(PrepReviewError, match="review call failed"):
             run_review(db_session, llm=fake_llm(boom="connection reset"))
 
-    def test_nothing_is_stored_when_the_call_fails(self, db_session, make_prep_item, review_on):
+    def test_nothing_is_stored_when_the_call_fails(
+        self, db_session, make_prep_item, review_on
+    ):
         make_prep_item(name="Spork")
         with pytest.raises(PrepReviewError):
             run_review(db_session, llm=fake_llm(boom="nope"))
@@ -229,7 +253,9 @@ class TestReviewApi:
     def test_404_until_one_has_been_run(self, client):
         assert client.get("/api/preparedness/review").status_code == 404
 
-    def test_reading_never_calls_the_model(self, client, db_session, make_prep_item, review_on):
+    def test_reading_never_calls_the_model(
+        self, client, db_session, make_prep_item, review_on
+    ):
         """A page load must never spend money."""
         make_prep_item(name="Spork")
         run_review(db_session, llm=fake_llm())

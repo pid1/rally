@@ -58,10 +58,14 @@ def migrate():
         """)
 
         # Settings table may not exist yet on a fresh database
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
+        )
         if not cursor.fetchone():
             conn.commit()
-            print("  Migration 012: ai_settings_history created; no settings table to seed from")
+            print(
+                "  Migration 012: ai_settings_history created; no settings table to seed from"
+            )
             return True
 
         # Match SQLAlchemy's SQLite datetime format (naive UTC)
@@ -96,7 +100,9 @@ def migrate():
                 (pointer_key, str(history_id), now),
             )
             cursor.execute("DELETE FROM settings WHERE key = ?", (field,))
-            print(f"  Migration 012: migrated {field} into ai_settings_history row {history_id}")
+            print(
+                f"  Migration 012: migrated {field} into ai_settings_history row {history_id}"
+            )
 
         conn.commit()
         print("  Migration 012 complete: ai_settings_history ready")

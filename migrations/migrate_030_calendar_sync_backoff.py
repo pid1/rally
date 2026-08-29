@@ -64,22 +64,24 @@ def migrate():
             if "retry_after" in columns:
                 print("✓ calendar_cache.retry_after already exists (idempotent)")
             else:
-                cursor.execute("ALTER TABLE calendar_cache ADD COLUMN retry_after DATETIME")
+                cursor.execute(
+                    "ALTER TABLE calendar_cache ADD COLUMN retry_after DATETIME"
+                )
                 print("✓ Added calendar_cache.retry_after")
 
             # Orphans: a cache row whose calendar has been deleted.
-            cursor.execute(
-                """
+            cursor.execute("""
                 DELETE FROM calendar_cache
                 WHERE calendar_id NOT IN (SELECT id FROM calendars)
-                """
-            )
+                """)
             if cursor.rowcount > 0:
                 print(f"✓ Removed {cursor.rowcount} orphaned calendar_cache row(s)")
             else:
                 print("✓ No orphaned calendar_cache rows (idempotent)")
 
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
+        )
         if not cursor.fetchone():
             print("✓ settings does not exist yet; nothing to retune")
         else:
@@ -92,7 +94,9 @@ def migrate():
                     "INSERT INTO settings (key, value) VALUES (?, ?)",
                     ("calendar_sync_interval_minutes", NEW_DEFAULT_INTERVAL),
                 )
-                print(f"✓ Seeded calendar_sync_interval_minutes = {NEW_DEFAULT_INTERVAL}")
+                print(
+                    f"✓ Seeded calendar_sync_interval_minutes = {NEW_DEFAULT_INTERVAL}"
+                )
             elif (row[0] or "").strip() == OLD_DEFAULT_INTERVAL:
                 cursor.execute(
                     "UPDATE settings SET value = ? WHERE key = 'calendar_sync_interval_minutes'",

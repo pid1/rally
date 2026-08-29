@@ -1,159 +1,159 @@
 {
-  "leagues": [
-    {
-      "id": "2023",
-      "uid": "s:2000~l:2023",
-      "name": "NASCAR Truck Series",
-      "abbreviation": "NASCAR-TRUCK",
-      "slug": "nascar-truck",
-      "season": {
-        "year": 2026,
-        "startDate": "2026-01-01T08:00Z",
-        "endDate": "2026-12-31T08:00Z",
-        "displayName": "NASCAR Truck Series",
-        "type": {
-          "id": "2",
-          "type": 2,
-          "name": "Regular Season",
-          "abbreviation": "reg"
-        }
-      },
-      "calendarType": "list",
-      "calendarIsWhitelist": true,
-      "calendarStartDate": "2026-08-10T07:00Z",
-      "calendarEndDate": "2026-08-24T07:00Z",
-      "calendar": [
-        {
-          "label": "NASCAR Truck Series at Richmond",
-          "startDate": "2026-08-15T02:30Z",
-          "endDate": "2026-08-15T02:30Z",
-          "event": {
-            "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/nascar-truck/events/202608143887?lang=en&region=us"
-          }
-        },
-        {
-          "label": "NASCAR Truck Series at New Hampshire",
-          "startDate": "2026-08-22T20:30Z",
-          "endDate": "2026-08-22T20:30Z",
-          "event": {
-            "$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/nascar-truck/events/202608220419?lang=en&region=us"
-          }
-        }
-      ]
-    }
-  ],
-  "events": [
-    {
-      "id": "202608143887",
-      "uid": "s:2000~l:2023~e:202608143887",
-      "date": "2026-08-14T23:30Z",
-      "name": "NASCAR Truck Series at Richmond",
-      "shortName": "NASCAR Truck Series at Richmond",
-      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
-      "competitions": [
-        {
-          "id": "202608143887",
-          "uid": "s:2000~l:2023~e:202608143887~c:202608143887",
-          "date": "2026-08-14T23:30Z",
-          "timeValid": true,
-          "recent": false,
-          "status": {
-            "period": 0,
-            "type": {
-              "id": "1",
-              "name": "STATUS_SCHEDULED",
-              "state": "pre",
-              "completed": false,
-              "description": "Scheduled",
-              "detail": "Fri, August 14th at 7:30 PM EDT",
-              "shortDetail": "8/14 - 7:30 PM EDT"
-            }
-          },
-          "broadcasts": [{ "market": "national", "names": ["FS1"] }],
-          "startDate": "2026-08-14T23:30Z",
-          "broadcast": "FS1",
-          "geoBroadcasts": [
-            {
-              "type": { "id": "1", "shortName": "TV" },
-              "market": { "id": "1", "type": "National" },
-              "media": { "shortName": "FS1" },
-              "lang": "en",
-              "region": "us"
-            }
-          ]
-        }
-      ],
-      "status": {
-        "period": 0,
-        "type": {
-          "id": "1",
-          "name": "STATUS_SCHEDULED",
-          "state": "pre",
-          "completed": false,
-          "description": "Scheduled",
-          "detail": "Fri, August 14th at 7:30 PM EDT",
-          "shortDetail": "8/14 - 7:30 PM EDT"
-        }
-      }
-    },
-    {
-      "id": "202608220419",
-      "uid": "s:2000~l:2023~e:202608220419",
-      "date": "2026-08-22T17:30Z",
-      "name": "NASCAR Truck Series at New Hampshire",
-      "shortName": "NASCAR Truck Series at New Hampshire",
-      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
-      "competitions": [
-        {
-          "id": "202608220419",
-          "uid": "s:2000~l:2023~e:202608220419~c:202608220419",
-          "date": "2026-08-22T17:30Z",
-          "timeValid": true,
-          "recent": false,
-          "status": {
-            "period": 0,
-            "type": {
-              "id": "1",
-              "name": "STATUS_SCHEDULED",
-              "state": "pre",
-              "completed": false,
-              "description": "Scheduled",
-              "detail": "Sat, August 22nd at 1:30 PM EDT",
-              "shortDetail": "8/22 - 1:30 PM EDT"
-            }
-          },
-          "broadcasts": [{ "market": "national", "names": ["FS1"] }],
-          "startDate": "2026-08-22T17:30Z",
-          "broadcast": "FS1",
-          "geoBroadcasts": [
-            {
-              "type": { "id": "1", "shortName": "TV" },
-              "market": { "id": "1", "type": "National" },
-              "media": { "shortName": "FS1" },
-              "lang": "en",
-              "region": "us"
-            }
-          ]
-        }
-      ],
-      "status": {
-        "period": 0,
-        "type": {
-          "id": "1",
-          "name": "STATUS_SCHEDULED",
-          "state": "pre",
-          "completed": false,
-          "description": "Scheduled",
-          "detail": "Sat, August 22nd at 1:30 PM EDT",
-          "shortDetail": "8/22 - 1:30 PM EDT"
-        }
-      }
-    }
-  ],
-  "provider": {
-    "id": "100",
-    "name": "Draft Kings",
-    "displayName": "Draft Kings",
-    "priority": 1
-  }
+	"leagues": [
+		{
+			"id": "2023",
+			"uid": "s:2000~l:2023",
+			"name": "NASCAR Truck Series",
+			"abbreviation": "NASCAR-TRUCK",
+			"slug": "nascar-truck",
+			"season": {
+				"year": 2026,
+				"startDate": "2026-01-01T08:00Z",
+				"endDate": "2026-12-31T08:00Z",
+				"displayName": "NASCAR Truck Series",
+				"type": {
+					"id": "2",
+					"type": 2,
+					"name": "Regular Season",
+					"abbreviation": "reg"
+				}
+			},
+			"calendarType": "list",
+			"calendarIsWhitelist": true,
+			"calendarStartDate": "2026-08-10T07:00Z",
+			"calendarEndDate": "2026-08-24T07:00Z",
+			"calendar": [
+				{
+					"label": "NASCAR Truck Series at Richmond",
+					"startDate": "2026-08-15T02:30Z",
+					"endDate": "2026-08-15T02:30Z",
+					"event": {
+						"$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/nascar-truck/events/202608143887?lang=en&region=us"
+					}
+				},
+				{
+					"label": "NASCAR Truck Series at New Hampshire",
+					"startDate": "2026-08-22T20:30Z",
+					"endDate": "2026-08-22T20:30Z",
+					"event": {
+						"$ref": "http://sports.core.api.espn.pvt/v2/sports/racing/leagues/nascar-truck/events/202608220419?lang=en&region=us"
+					}
+				}
+			]
+		}
+	],
+	"events": [
+		{
+			"id": "202608143887",
+			"uid": "s:2000~l:2023~e:202608143887",
+			"date": "2026-08-14T23:30Z",
+			"name": "NASCAR Truck Series at Richmond",
+			"shortName": "NASCAR Truck Series at Richmond",
+			"season": { "year": 2026, "type": 2, "slug": "regular-season" },
+			"competitions": [
+				{
+					"id": "202608143887",
+					"uid": "s:2000~l:2023~e:202608143887~c:202608143887",
+					"date": "2026-08-14T23:30Z",
+					"timeValid": true,
+					"recent": false,
+					"status": {
+						"period": 0,
+						"type": {
+							"id": "1",
+							"name": "STATUS_SCHEDULED",
+							"state": "pre",
+							"completed": false,
+							"description": "Scheduled",
+							"detail": "Fri, August 14th at 7:30 PM EDT",
+							"shortDetail": "8/14 - 7:30 PM EDT"
+						}
+					},
+					"broadcasts": [{ "market": "national", "names": ["FS1"] }],
+					"startDate": "2026-08-14T23:30Z",
+					"broadcast": "FS1",
+					"geoBroadcasts": [
+						{
+							"type": { "id": "1", "shortName": "TV" },
+							"market": { "id": "1", "type": "National" },
+							"media": { "shortName": "FS1" },
+							"lang": "en",
+							"region": "us"
+						}
+					]
+				}
+			],
+			"status": {
+				"period": 0,
+				"type": {
+					"id": "1",
+					"name": "STATUS_SCHEDULED",
+					"state": "pre",
+					"completed": false,
+					"description": "Scheduled",
+					"detail": "Fri, August 14th at 7:30 PM EDT",
+					"shortDetail": "8/14 - 7:30 PM EDT"
+				}
+			}
+		},
+		{
+			"id": "202608220419",
+			"uid": "s:2000~l:2023~e:202608220419",
+			"date": "2026-08-22T17:30Z",
+			"name": "NASCAR Truck Series at New Hampshire",
+			"shortName": "NASCAR Truck Series at New Hampshire",
+			"season": { "year": 2026, "type": 2, "slug": "regular-season" },
+			"competitions": [
+				{
+					"id": "202608220419",
+					"uid": "s:2000~l:2023~e:202608220419~c:202608220419",
+					"date": "2026-08-22T17:30Z",
+					"timeValid": true,
+					"recent": false,
+					"status": {
+						"period": 0,
+						"type": {
+							"id": "1",
+							"name": "STATUS_SCHEDULED",
+							"state": "pre",
+							"completed": false,
+							"description": "Scheduled",
+							"detail": "Sat, August 22nd at 1:30 PM EDT",
+							"shortDetail": "8/22 - 1:30 PM EDT"
+						}
+					},
+					"broadcasts": [{ "market": "national", "names": ["FS1"] }],
+					"startDate": "2026-08-22T17:30Z",
+					"broadcast": "FS1",
+					"geoBroadcasts": [
+						{
+							"type": { "id": "1", "shortName": "TV" },
+							"market": { "id": "1", "type": "National" },
+							"media": { "shortName": "FS1" },
+							"lang": "en",
+							"region": "us"
+						}
+					]
+				}
+			],
+			"status": {
+				"period": 0,
+				"type": {
+					"id": "1",
+					"name": "STATUS_SCHEDULED",
+					"state": "pre",
+					"completed": false,
+					"description": "Scheduled",
+					"detail": "Sat, August 22nd at 1:30 PM EDT",
+					"shortDetail": "8/22 - 1:30 PM EDT"
+				}
+			}
+		}
+	],
+	"provider": {
+		"id": "100",
+		"name": "Draft Kings",
+		"displayName": "Draft Kings",
+		"priority": 1
+	}
 }

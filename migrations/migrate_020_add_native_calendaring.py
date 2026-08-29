@@ -25,7 +25,9 @@ def _columns(cursor, table):
 
 
 def _table_exists(cursor, table):
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    )
     return cursor.fetchone() is not None
 
 
@@ -51,8 +53,7 @@ def migrate():
     cursor = conn.cursor()
 
     try:
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY,
                 calendar_id INTEGER NOT NULL,
@@ -72,23 +73,20 @@ def migrate():
                 created_at DATETIME,
                 updated_at DATETIME
             )
-            """
-        )
+            """)
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_events_uid ON events(uid)")
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS ix_events_calendar_start ON events(calendar_id, start_date)"
         )
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS event_attendees (
                 id INTEGER PRIMARY KEY,
                 event_id INTEGER NOT NULL,
                 family_member_id INTEGER NOT NULL,
                 created_at DATETIME
             )
-            """
-        )
+            """)
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS ix_event_attendees_event_id ON event_attendees(event_id)"
         )
@@ -101,8 +99,7 @@ def migrate():
             "ON event_attendees(event_id, family_member_id)"
         )
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS event_overrides (
                 id INTEGER PRIMARY KEY,
                 event_id INTEGER NOT NULL,
@@ -119,8 +116,7 @@ def migrate():
                 created_at DATETIME,
                 updated_at DATETIME
             )
-            """
-        )
+            """)
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS ix_event_overrides_event_id ON event_overrides(event_id)"
         )
@@ -129,8 +125,7 @@ def migrate():
             "ON event_overrides(event_id, occurrence_date)"
         )
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS event_notifications (
                 id INTEGER PRIMARY KEY,
                 event_id INTEGER NOT NULL,
@@ -141,8 +136,7 @@ def migrate():
                 detail VARCHAR(200),
                 created_at DATETIME
             )
-            """
-        )
+            """)
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS ix_event_notifications_event_id "
             "ON event_notifications(event_id)"
@@ -156,29 +150,37 @@ def migrate():
 
         member_columns = _columns(cursor, "family_members")
         if "pushover_user_key" not in member_columns:
-            cursor.execute("ALTER TABLE family_members ADD COLUMN pushover_user_key VARCHAR(64)")
+            cursor.execute(
+                "ALTER TABLE family_members ADD COLUMN pushover_user_key VARCHAR(64)"
+            )
             print("✓ Migration: family_members.pushover_user_key added")
         else:
-            print("✓ Migration: family_members.pushover_user_key already exists (idempotent)")
+            print(
+                "✓ Migration: family_members.pushover_user_key already exists (idempotent)"
+            )
 
         if "pushover_device" not in member_columns:
-            cursor.execute("ALTER TABLE family_members ADD COLUMN pushover_device VARCHAR(64)")
+            cursor.execute(
+                "ALTER TABLE family_members ADD COLUMN pushover_device VARCHAR(64)"
+            )
             print("✓ Migration: family_members.pushover_device added")
         else:
-            print("✓ Migration: family_members.pushover_device already exists (idempotent)")
+            print(
+                "✓ Migration: family_members.pushover_device already exists (idempotent)"
+            )
 
         # Seed one native calendar per family member that has none, so the
         # feature has somewhere to write the moment it is deployed.
-        if _table_exists(cursor, "calendars") and _table_exists(cursor, "family_members"):
-            cursor.execute(
-                """
+        if _table_exists(cursor, "calendars") and _table_exists(
+            cursor, "family_members"
+        ):
+            cursor.execute("""
                 SELECT fm.id, fm.name FROM family_members fm
                 WHERE NOT EXISTS (
                     SELECT 1 FROM calendars c
                     WHERE c.family_member_id = fm.id AND c.cal_type = 'native'
                 )
-                """
-            )
+                """)
             pending = cursor.fetchall()
             for member_id, name in pending:
                 cursor.execute(

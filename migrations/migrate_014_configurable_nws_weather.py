@@ -34,7 +34,9 @@ def migrate():
 
     if not db_path.exists():
         print(f"✓ Database not found at {db_path}")
-        print("  No migration needed - database will be created with correct schema on first run.")
+        print(
+            "  No migration needed - database will be created with correct schema on first run."
+        )
         return True
 
     print(f"Checking database at {db_path}...")
@@ -44,7 +46,9 @@ def migrate():
 
     try:
         # Settings table may not exist yet on very old databases
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
+        )
         if not cursor.fetchone():
             print("✓ Migration: settings table does not exist yet (nothing to migrate)")
             return True
@@ -57,7 +61,9 @@ def migrate():
         if removed:
             print(f"✓ Migration: removed {removed} legacy OpenWeather setting(s)")
         else:
-            print("✓ Migration: no legacy OpenWeather settings present (idempotent check)")
+            print(
+                "✓ Migration: no legacy OpenWeather settings present (idempotent check)"
+            )
 
         # Step 2: Seed weather_nws_url if it's missing
         cursor.execute("SELECT value FROM settings WHERE key = 'weather_nws_url'")

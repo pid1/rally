@@ -79,7 +79,9 @@ def component_to_occurrence(
     all_day = _is_all_day(start_raw)
     if all_day:
         end_day = end_raw if _is_all_day(end_raw) else start_raw + timedelta(days=1)
-        start, end, start_local_date, end_local_date = all_day_bounds(start_raw, end_day, local_tz)
+        start, end, start_local_date, end_local_date = all_day_bounds(
+            start_raw, end_day, local_tz
+        )
     else:
         start = to_utc(start_raw, local_tz)
         end = to_utc(end_raw, local_tz) if isinstance(end_raw, datetime) else start

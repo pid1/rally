@@ -69,21 +69,21 @@ def test_last_daily_is_today():
 
 def test_last_weekly_walks_back_to_weekday():
     # today Wed Jan 7; most recent Monday (day 0) is Jan 5.
-    assert get_last_recurrence_date(rt("weekly", recurrence_day=0), date(2026, 1, 7)) == date(
-        2026, 1, 5
-    )
+    assert get_last_recurrence_date(
+        rt("weekly", recurrence_day=0), date(2026, 1, 7)
+    ) == date(2026, 1, 5)
 
 
 def test_last_monthly_current_month_when_day_passed():
-    assert get_last_recurrence_date(rt("monthly", recurrence_day=15), date(2026, 1, 20)) == date(
-        2026, 1, 15
-    )
+    assert get_last_recurrence_date(
+        rt("monthly", recurrence_day=15), date(2026, 1, 20)
+    ) == date(2026, 1, 15)
 
 
 def test_last_monthly_previous_month_when_day_not_yet_reached():
-    assert get_last_recurrence_date(rt("monthly", recurrence_day=15), date(2026, 1, 10)) == date(
-        2025, 12, 15
-    )
+    assert get_last_recurrence_date(
+        rt("monthly", recurrence_day=15), date(2026, 1, 10)
+    ) == date(2025, 12, 15)
 
 
 # --- get_next_recurrence_date (strictly after) ---------------------------------
@@ -95,28 +95,28 @@ def test_next_daily_advances_one_day():
 
 def test_next_weekly_same_weekday_advances_a_full_week():
     # after Mon Jan 5, next Monday is strictly after -> Jan 12, not Jan 5.
-    assert get_next_recurrence_date(rt("weekly", recurrence_day=0), date(2026, 1, 5)) == date(
-        2026, 1, 12
-    )
+    assert get_next_recurrence_date(
+        rt("weekly", recurrence_day=0), date(2026, 1, 5)
+    ) == date(2026, 1, 12)
 
 
 def test_next_monthly_same_month_when_day_still_ahead():
-    assert get_next_recurrence_date(rt("monthly", recurrence_day=15), date(2026, 1, 10)) == date(
-        2026, 1, 15
-    )
+    assert get_next_recurrence_date(
+        rt("monthly", recurrence_day=15), date(2026, 1, 10)
+    ) == date(2026, 1, 15)
 
 
 def test_next_monthly_clamps_to_short_month_end():
     # day 31 after Jan 31 -> February, clamped to Feb 28 (2026 not leap).
-    assert get_next_recurrence_date(rt("monthly", recurrence_day=31), date(2026, 1, 31)) == date(
-        2026, 2, 28
-    )
+    assert get_next_recurrence_date(
+        rt("monthly", recurrence_day=31), date(2026, 1, 31)
+    ) == date(2026, 2, 28)
 
 
 def test_next_monthly_rolls_over_year():
-    assert get_next_recurrence_date(rt("monthly", recurrence_day=15), date(2026, 12, 20)) == date(
-        2027, 1, 15
-    )
+    assert get_next_recurrence_date(
+        rt("monthly", recurrence_day=15), date(2026, 12, 20)
+    ) == date(2027, 1, 15)
 
 
 # --- get_first_recurrence_date -------------------------------------------------
@@ -128,23 +128,25 @@ def test_first_daily_is_today():
 
 def test_first_weekly_upcoming_weekday_in_current_week():
     # today Wed Jan 7; next Friday (day 4) is Jan 9.
-    assert get_first_recurrence_date(rt("weekly", recurrence_day=4), date(2026, 1, 7)) == date(
-        2026, 1, 9
-    )
+    assert get_first_recurrence_date(
+        rt("weekly", recurrence_day=4), date(2026, 1, 7)
+    ) == date(2026, 1, 9)
 
 
 def test_first_monthly_uses_current_period_clamped():
     # today Feb 10, day 31 -> clamped to Feb 28 (current month, not backdated).
-    assert get_first_recurrence_date(rt("monthly", recurrence_day=31), date(2026, 2, 10)) == date(
-        2026, 2, 28
-    )
+    assert get_first_recurrence_date(
+        rt("monthly", recurrence_day=31), date(2026, 2, 10)
+    ) == date(2026, 2, 28)
 
 
 # --- Custom rules: _next_custom ------------------------------------------------
 
 
 def test_next_custom_daily_interval():
-    assert _next_custom({"freq": "daily", "interval": 2}, date(2026, 1, 1)) == date(2026, 1, 3)
+    assert _next_custom({"freq": "daily", "interval": 2}, date(2026, 1, 1)) == date(
+        2026, 1, 3
+    )
 
 
 def test_next_custom_daily_weekdays_only_skips_weekend():
@@ -171,7 +173,13 @@ def test_next_custom_monthly_day_advances_and_clamps():
 
 
 def test_next_custom_monthly_weekday():
-    rule = {"freq": "monthly", "mode": "weekday", "ordinal": "second", "weekday": 0, "interval": 1}
+    rule = {
+        "freq": "monthly",
+        "mode": "weekday",
+        "ordinal": "second",
+        "weekday": 0,
+        "interval": 1,
+    }
     # after Jan 20, second Monday of Jan (12th) has passed -> second Monday of Feb: Feb 9.
     assert _next_custom(rule, date(2026, 1, 20)) == date(2026, 2, 9)
 
@@ -228,7 +236,13 @@ def test_first_custom_monthly_day_advances_when_passed():
 
 
 def test_first_custom_monthly_weekday_current_month():
-    rule = {"freq": "monthly", "mode": "weekday", "ordinal": "second", "weekday": 0, "interval": 1}
+    rule = {
+        "freq": "monthly",
+        "mode": "weekday",
+        "ordinal": "second",
+        "weekday": 0,
+        "interval": 1,
+    }
     # today Jan 1; second Monday of Jan (12th) is still ahead -> Jan 12.
     assert _first_custom(rule, date(2026, 1, 1)) == date(2026, 1, 12)
 
@@ -243,13 +257,25 @@ def test_next_custom_daily_weekdays_only_sunday_to_monday():
 
 
 def test_next_custom_monthly_weekday_this_month():
-    rule = {"freq": "monthly", "mode": "weekday", "ordinal": "third", "weekday": 0, "interval": 1}
+    rule = {
+        "freq": "monthly",
+        "mode": "weekday",
+        "ordinal": "third",
+        "weekday": 0,
+        "interval": 1,
+    }
     # after Jan 5, the third Monday of Jan (19th) is still ahead -> returned directly.
     assert _next_custom(rule, date(2026, 1, 5)) == date(2026, 1, 19)
 
 
 def test_first_custom_monthly_weekday_advances_when_passed():
-    rule = {"freq": "monthly", "mode": "weekday", "ordinal": "first", "weekday": 0, "interval": 1}
+    rule = {
+        "freq": "monthly",
+        "mode": "weekday",
+        "ordinal": "first",
+        "weekday": 0,
+        "interval": 1,
+    }
     # today Jan 20; first Monday of Jan (5th) has passed -> first Monday of Feb (2nd).
     assert _first_custom(rule, date(2026, 1, 20)) == date(2026, 2, 2)
 
@@ -263,7 +289,9 @@ def test_custom_helpers_unknown_freq_fall_through():
 def test_public_api_unknown_recurrence_type_falls_through():
     # "custom" with no custom_rule, and an unrecognized type, hit the defaults.
     assert get_next_recurrence_date(rt("custom"), date(2026, 1, 1)) == date(2026, 1, 2)
-    assert get_last_recurrence_date(rt("weekdays"), date(2026, 1, 7)) == date(2026, 1, 7)
+    assert get_last_recurrence_date(rt("weekdays"), date(2026, 1, 7)) == date(
+        2026, 1, 7
+    )
     assert get_first_recurrence_date(rt("custom"), date(2026, 1, 7)) == date(2026, 1, 7)
 
 
@@ -290,7 +318,9 @@ def test_first_custom_daily_returns_today():
 
 def test_first_custom_weekly_wraps_to_next_week():
     # today Wed Jan 7; only Monday is listed, and it's behind -> next week's Monday.
-    assert _first_custom({"freq": "weekly", "weekdays": [0]}, date(2026, 1, 7)) == date(2026, 1, 12)
+    assert _first_custom({"freq": "weekly", "weekdays": [0]}, date(2026, 1, 7)) == date(
+        2026, 1, 12
+    )
 
 
 def test_first_custom_monthly_day_this_month():
@@ -302,9 +332,13 @@ def test_process_backfills_reference_from_due_date(
     db_session, make_recurring_todo, make_todo, frozen_now
 ):
     frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
-    template = make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=True)
+    template = make_recurring_todo(
+        "Vitamins", recurrence_type="daily", has_due_date=True
+    )
     # No last_generated_date -> backfill from the most recent instance's due_date.
-    make_todo("Vitamins", completed=True, due_date="2026-03-12", recurring_todo_id=template.id)
+    make_todo(
+        "Vitamins", completed=True, due_date="2026-03-12", recurring_todo_id=template.id
+    )
 
     assert process_recurring_todos(db_session) == 1
     assert template.last_generated_date == "2026-03-13"
@@ -314,7 +348,9 @@ def test_process_backfills_reference_from_created_at_when_no_due_date(
     db_session, make_recurring_todo, make_todo, frozen_now
 ):
     frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
-    template = make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=False)
+    template = make_recurring_todo(
+        "Vitamins", recurrence_type="daily", has_due_date=False
+    )
     # No due_date on the instance -> backfill from its created_at date.
     make_todo(
         "Vitamins",
@@ -339,7 +375,9 @@ def _instances(db, rt_id):
 
 def test_process_generates_first_instance(db_session, make_recurring_todo, frozen_now):
     frozen_now(FROZEN)
-    template = make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=True)
+    template = make_recurring_todo(
+        "Vitamins", recurrence_type="daily", has_due_date=True
+    )
 
     created = process_recurring_todos(db_session)
 
@@ -351,9 +389,13 @@ def test_process_generates_first_instance(db_session, make_recurring_todo, froze
     assert template.last_generated_date == "2026-03-15"
 
 
-def test_process_no_due_date_when_template_has_none(db_session, make_recurring_todo, frozen_now):
+def test_process_no_due_date_when_template_has_none(
+    db_session, make_recurring_todo, frozen_now
+):
     frozen_now(FROZEN)
-    template = make_recurring_todo("Stretch", recurrence_type="daily", has_due_date=False)
+    template = make_recurring_todo(
+        "Stretch", recurrence_type="daily", has_due_date=False
+    )
 
     process_recurring_todos(db_session)
 
@@ -364,8 +406,12 @@ def test_process_skips_when_open_instance_exists(
     db_session, make_recurring_todo, make_todo, frozen_now
 ):
     frozen_now(FROZEN)
-    template = make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=True)
-    make_todo("Vitamins", completed=False, completed_at=None, recurring_todo_id=template.id)
+    template = make_recurring_todo(
+        "Vitamins", recurrence_type="daily", has_due_date=True
+    )
+    make_todo(
+        "Vitamins", completed=False, completed_at=None, recurring_todo_id=template.id
+    )
 
     created = process_recurring_todos(db_session)
 
@@ -374,7 +420,9 @@ def test_process_skips_when_open_instance_exists(
     assert len(_instances(db_session, template.id)) == 1
 
 
-def test_process_advances_from_last_generated_date(db_session, make_recurring_todo, frozen_now):
+def test_process_advances_from_last_generated_date(
+    db_session, make_recurring_todo, frozen_now
+):
     frozen_now(FROZEN)
     # Previous instance was completed; last_generated_date tracks Mar 14.
     template = make_recurring_todo(
@@ -477,7 +525,9 @@ def test_process_late_completion_skips_multiple_elapsed_periods(
 
     assert created == 1
     assert template.last_generated_date == "2026-03-15"
-    new_due_dates = {t.due_date for t in _instances(db_session, template.id) if not t.completed}
+    new_due_dates = {
+        t.due_date for t in _instances(db_session, template.id) if not t.completed
+    }
     assert new_due_dates == {"2026-03-15"}
 
 
@@ -509,11 +559,15 @@ def test_process_early_completion_keeps_cadence(
     assert template.last_generated_date == "2026-03-15"
 
 
-def test_process_counts_multiple_and_ignores_inactive(db_session, make_recurring_todo, frozen_now):
+def test_process_counts_multiple_and_ignores_inactive(
+    db_session, make_recurring_todo, frozen_now
+):
     frozen_now(FROZEN)
     make_recurring_todo("Active A", recurrence_type="daily", has_due_date=True)
     make_recurring_todo("Active B", recurrence_type="daily", has_due_date=True)
-    make_recurring_todo("Inactive", recurrence_type="daily", has_due_date=True, active=False)
+    make_recurring_todo(
+        "Inactive", recurrence_type="daily", has_due_date=True, active=False
+    )
 
     created = process_recurring_todos(db_session)
 
@@ -561,7 +615,9 @@ def test_anchor_completion_date_early_completion(
 
     assert process_recurring_todos(db_session) == 1
     assert template.last_generated_date == "2026-03-12"
-    new_due = {t.due_date for t in _instances(db_session, template.id) if not t.completed}
+    new_due = {
+        t.due_date for t in _instances(db_session, template.id) if not t.completed
+    }
     assert new_due == {"2026-03-12"}
 
 
@@ -693,7 +749,9 @@ def test_anchor_completion_date_applies_weekend_adjustment(
     assert template.last_generated_date == "2026-03-09"
 
 
-def test_anchor_ignored_without_due_date(db_session, make_recurring_todo, make_todo, frozen_now):
+def test_anchor_ignored_without_due_date(
+    db_session, make_recurring_todo, make_todo, frozen_now
+):
     # No due date -> the anchor does not apply even if custom_rule sets it; the
     # generic reference logic runs (early completion keeps the cadence). Every 7
     # days from Mar 8 -> Mar 15, not Mar 12 that a completion anchor would give.
@@ -731,14 +789,17 @@ MEASURED = date(2026, 8, 22)  # the Saturday the issue was measured on
 def test_first_ignores_a_start_date_already_past():
     # A past start date is a floor nothing hits: today wins, so the template
     # behaves exactly as one with no start date at all.
-    assert get_first_recurrence_date(rt("daily", start_date="2020-01-01"), MEASURED) == MEASURED
+    assert (
+        get_first_recurrence_date(rt("daily", start_date="2020-01-01"), MEASURED)
+        == MEASURED
+    )
     assert get_first_recurrence_date(rt("daily"), MEASURED) == MEASURED
 
 
 def test_first_daily_is_anchored_on_the_start_date():
-    assert get_first_recurrence_date(rt("daily", start_date="2027-01-01"), MEASURED) == date(
-        2027, 1, 1
-    )
+    assert get_first_recurrence_date(
+        rt("daily", start_date="2027-01-01"), MEASURED
+    ) == date(2027, 1, 1)
 
 
 def test_first_custom_every_n_days_is_anchored_on_the_start_date():
@@ -843,31 +904,36 @@ def test_first_custom_start_date_on_the_30th_clamps_into_february():
 def test_first_monthly_rolls_forward_when_this_months_day_has_passed():
     # Created on the 22nd, "Monthly on the 1st": the first task is next month's,
     # not one that arrives three weeks overdue.
-    assert get_first_recurrence_date(rt("monthly", recurrence_day=1), MEASURED) == date(2026, 9, 1)
+    assert get_first_recurrence_date(rt("monthly", recurrence_day=1), MEASURED) == date(
+        2026, 9, 1
+    )
 
 
 def test_first_monthly_rolls_forward_across_a_year_boundary():
-    assert get_first_recurrence_date(rt("monthly", recurrence_day=1), date(2026, 12, 15)) == date(
-        2027, 1, 1
-    )
+    assert get_first_recurrence_date(
+        rt("monthly", recurrence_day=1), date(2026, 12, 15)
+    ) == date(2027, 1, 1)
 
 
 def test_first_monthly_roll_forward_clamps_into_february():
     # Day 30 on Jan 31: the roll-forward lands in February, which has 28 days.
-    assert get_first_recurrence_date(rt("monthly", recurrence_day=30), date(2026, 1, 31)) == date(
-        2026, 2, 28
-    )
+    assert get_first_recurrence_date(
+        rt("monthly", recurrence_day=30), date(2026, 1, 31)
+    ) == date(2026, 2, 28)
 
 
 def test_first_monthly_keeps_this_month_when_the_day_is_still_ahead():
     # The roll-forward must not fire when this month's day has not yet passed.
-    assert get_first_recurrence_date(rt("monthly", recurrence_day=25), MEASURED) == date(
-        2026, 8, 25
-    )
+    assert get_first_recurrence_date(
+        rt("monthly", recurrence_day=25), MEASURED
+    ) == date(2026, 8, 25)
 
 
 def test_first_monthly_keeps_today_when_the_day_is_today():
-    assert get_first_recurrence_date(rt("monthly", recurrence_day=22), MEASURED) == MEASURED
+    assert (
+        get_first_recurrence_date(rt("monthly", recurrence_day=22), MEASURED)
+        == MEASURED
+    )
 
 
 # --- Start date: generation ----------------------------------------------------
@@ -965,7 +1031,9 @@ def test_smoke_detector_battery_end_to_end(db_session, make_recurring_todo, froz
 
     assert process_recurring_todos(db_session) == 1
     assert template.last_generated_date == "2028-01-01"
-    open_due = [t.due_date for t in _instances(db_session, template.id) if not t.completed]
+    open_due = [
+        t.due_date for t in _instances(db_session, template.id) if not t.completed
+    ]
     assert open_due == ["2028-01-01"]
 
 

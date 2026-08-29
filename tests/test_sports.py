@@ -162,13 +162,17 @@ def test_espn_postseason_carries_its_round_headline(sports_http):
     sports_http.route("/schedule", lambda params: load("espn_nfl_postseason"))
 
     schedule = espn.fetch_schedule(
-        team(team_key="kc", label="Chiefs"), CHICAGO, date(2025, 1, 1), date(2025, 2, 28)
+        team(team_key="kc", label="Chiefs"),
+        CHICAGO,
+        date(2025, 1, 1),
+        date(2025, 2, 28),
     )
     postseason = [e for e in schedule.window if e.season_type == 3]
 
     assert postseason
     assert any(
-        "Divisional" in (e.note or "") or "Championship" in (e.note or "") for e in postseason
+        "Divisional" in (e.note or "") or "Championship" in (e.note or "")
+        for e in postseason
     )
 
 
@@ -201,7 +205,9 @@ def test_espn_regional_entries_are_dropped_because_market_cannot_attribute_them(
     }
     event = {"id": "1", "date": "2026-10-14T00:05Z", "name": "Islanders at Stars"}
 
-    built = espn._team_event(team(team_key="DAL", league="hockey/nhl"), competition, event, CHICAGO)
+    built = espn._team_event(
+        team(team_key="DAL", league="hockey/nhl"), competition, event, CHICAGO
+    )
 
     assert built.tv == ("TNT",)
     assert "MSG2" not in built.tv
@@ -223,7 +229,9 @@ def test_espn_regional_only_game_renders_tbd_rather_than_the_wrong_channel():
     }
     event = {"id": "2", "date": "2026-10-15T00:05Z", "name": "Kraken at Stars"}
 
-    built = espn._team_event(team(team_key="DAL", league="hockey/nhl"), competition, event, CHICAGO)
+    built = espn._team_event(
+        team(team_key="DAL", league="hockey/nhl"), competition, event, CHICAGO
+    )
 
     assert built.tv == ()
     assert built.tv_label == "channel TBD"
@@ -311,7 +319,12 @@ def test_configured_radio_station_fills_the_gap(sports_http):
     sports_http.route("/schedule", lambda params: load("espn_nhl_regular"))
 
     schedule = espn.fetch_schedule(
-        team(league="hockey/nhl", team_key="dal", label="Stars", radio_station="96.7 The Ticket"),
+        team(
+            league="hockey/nhl",
+            team_key="dal",
+            label="Stars",
+            radio_station="96.7 The Ticket",
+        ),
         CHICAGO,
         date(2026, 10, 1),
         date(2026, 10, 31),
@@ -331,7 +344,9 @@ def test_mlb_carries_real_radio_for_every_game(sports_http):
     """The whole reason baseball uses a different provider."""
     sports_http.route("statsapi.mlb.com/api/v1/schedule", load("mlb_schedule"))
 
-    schedule = mlb.fetch_schedule(rangers(), CHICAGO, date(2026, 8, 10), date(2026, 8, 24))
+    schedule = mlb.fetch_schedule(
+        rangers(), CHICAGO, date(2026, 8, 10), date(2026, 8, 24)
+    )
 
     assert schedule.window
     assert all(e.radio for e in schedule.window)
@@ -500,7 +515,10 @@ def test_preseason_is_never_notable():
 
 def test_postseason_is_notable_with_its_round_as_the_reason():
     notable, reason = evaluate(
-        event(season_type=3, league="hockey/nhl", note="West 1st Round - Game 1"), None, {}, set()
+        event(season_type=3, league="hockey/nhl", note="West 1st Round - Game 1"),
+        None,
+        {},
+        set(),
     )
     assert notable is True
     assert reason == "West 1st Round - Game 1"
@@ -552,7 +570,9 @@ def test_an_mlb_league_special_day_is_notable():
 
 
 def test_an_ordinary_nhl_game_is_not_notable():
-    notable, _ = evaluate(event(league="hockey/nhl", name="Blues at Stars"), None, {}, set())
+    notable, _ = evaluate(
+        event(league="hockey/nhl", name="Blues at Stars"), None, {}, set()
+    )
     assert notable is False
 
 
@@ -563,7 +583,11 @@ def test_a_nationally_televised_nhl_game_is_notable():
 
 
 def test_every_race_is_notable():
-    race = event(league="racing/nascar-premier", name="NASCAR Cup Series at Richmond", is_race=True)
+    race = event(
+        league="racing/nascar-premier",
+        name="NASCAR Cup Series at Richmond",
+        is_race=True,
+    )
     notable, reason = evaluate(race, None, {}, set())
     assert (notable, reason) == (True, "Race weekend")
 
@@ -578,9 +602,21 @@ def test_season_opener_is_derived_from_the_season_not_the_window():
     """The bug this guards: the first game *in a two-week window* is not the
     season opener, and calling it one would be wrong every day, all season."""
     season = [
-        event(event_key="espn:1", is_home=False, start=datetime(2026, 9, 10, 0, 5, tzinfo=UTC)),
-        event(event_key="espn:2", is_home=True, start=datetime(2026, 9, 20, 0, 5, tzinfo=UTC)),
-        event(event_key="espn:3", is_home=False, start=datetime(2026, 9, 27, 0, 5, tzinfo=UTC)),
+        event(
+            event_key="espn:1",
+            is_home=False,
+            start=datetime(2026, 9, 10, 0, 5, tzinfo=UTC),
+        ),
+        event(
+            event_key="espn:2",
+            is_home=True,
+            start=datetime(2026, 9, 20, 0, 5, tzinfo=UTC),
+        ),
+        event(
+            event_key="espn:3",
+            is_home=False,
+            start=datetime(2026, 9, 27, 0, 5, tzinfo=UTC),
+        ),
     ]
     reasons = season_opener_reasons(season)
 
@@ -641,7 +677,9 @@ def test_tonight_lists_every_event_notable_or_not(monkeypatch):
     """Tonight is the replacement for the manual check and must never filter."""
     from rally.sports import TeamSchedule
 
-    tonight = event(start=datetime(2026, 8, 11, 0, 5, tzinfo=UTC), tv=("Rangers Sports Network",))
+    tonight = event(
+        start=datetime(2026, 8, 11, 0, 5, tzinfo=UTC), tv=("Rangers Sports Network",)
+    )
     stub_collect(monkeypatch, [TeamSchedule(window=[tonight], season=[])])
 
     section, notices = build_sections([], CHICAGO, date(2026, 8, 10), set())
@@ -690,7 +728,9 @@ def test_an_already_announced_event_still_appears_in_tonight(monkeypatch):
     from rally.sports import TeamSchedule
 
     today = event(
-        event_key="espn:99", start=datetime(2026, 8, 11, 0, 5, tzinfo=UTC), national_tv=True
+        event_key="espn:99",
+        start=datetime(2026, 8, 11, 0, 5, tzinfo=UTC),
+        national_tv=True,
     )
     stub_collect(monkeypatch, [TeamSchedule(window=[today], season=[])])
 
@@ -738,7 +778,10 @@ def test_a_total_provider_outage_degrades_to_an_empty_section(monkeypatch, sport
         set(),
     )
 
-    assert section == "Nothing scheduled tonight, and nothing notable in the next two weeks."
+    assert (
+        section
+        == "Nothing scheduled tonight, and nothing notable in the next two weeks."
+    )
     assert notices == []
 
 
@@ -757,7 +800,9 @@ def test_notices_are_recorded_once_and_purged_when_stale(db_session):
 
     rows = db_session.query(SportsEventNotice).all()
     assert len(rows) == 1, "an event is announced once, and never re-announced"
-    assert rows[0].notability_reason == "National TV", "the first reason is not rewritten"
+    assert (
+        rows[0].notability_reason == "National TV"
+    ), "the first reason is not rewritten"
     assert load_announced_keys(db_session) == {"espn:new"}
 
 
@@ -774,7 +819,9 @@ def test_notices_older_than_the_retention_window_are_purged(db_session):
     )
     db_session.commit()
 
-    recent = event(event_key="espn:recent", start=datetime(2026, 8, 15, 0, 5, tzinfo=UTC))
+    recent = event(
+        event_key="espn:recent", start=datetime(2026, 8, 15, 0, 5, tzinfo=UTC)
+    )
     record_notices(db_session, [(recent, "National TV")], date(2026, 8, 10))
 
     keys = {row.event_key for row in db_session.query(SportsEventNotice).all()}
@@ -787,12 +834,20 @@ def test_an_inactive_team_is_not_followed(db_session):
 
     db_session.add(
         FollowedTeam(
-            provider="espn", league="hockey/nhl", team_key="dal", label="Stars", active=True
+            provider="espn",
+            league="hockey/nhl",
+            team_key="dal",
+            label="Stars",
+            active=True,
         )
     )
     db_session.add(
         FollowedTeam(
-            provider="espn", league="football/nfl", team_key="ne", label="Patriots", active=False
+            provider="espn",
+            league="football/nfl",
+            team_key="ne",
+            label="Patriots",
+            active=False,
         )
     )
     db_session.commit()
@@ -806,7 +861,12 @@ def test_an_inactive_team_is_not_followed(db_session):
 def test_followed_team_crud_round_trip(client):
     created = client.post(
         "/api/followed-teams",
-        json={"provider": "espn", "league": "hockey/nhl", "team_key": "dal", "label": "Stars"},
+        json={
+            "provider": "espn",
+            "league": "hockey/nhl",
+            "team_key": "dal",
+            "label": "Stars",
+        },
     )
     assert created.status_code == 201
     team_id = created.json()["id"]
@@ -814,7 +874,8 @@ def test_followed_team_crud_round_trip(client):
     assert [t["label"] for t in client.get("/api/followed-teams").json()] == ["Stars"]
 
     updated = client.put(
-        f"/api/followed-teams/{team_id}", json={"radio_station": "96.7 The Ticket", "active": False}
+        f"/api/followed-teams/{team_id}",
+        json={"radio_station": "96.7 The Ticket", "active": False},
     )
     assert updated.json()["radio_station"] == "96.7 The Ticket"
     assert updated.json()["active"] is False
@@ -842,18 +903,26 @@ def test_a_racing_series_is_stored_without_a_team_key(client):
 
 
 def test_updating_a_missing_followed_team_is_404(client):
-    assert client.put("/api/followed-teams/999", json={"label": "Nope"}).status_code == 404
+    assert (
+        client.put("/api/followed-teams/999", json={"label": "Nope"}).status_code == 404
+    )
     assert client.delete("/api/followed-teams/999").status_code == 404
 
 
-def test_the_connection_test_reports_an_empty_window_honestly(client, db_session, sports_http):
+def test_the_connection_test_reports_an_empty_window_honestly(
+    client, db_session, sports_http
+):
     """A wrong key and an off-season team look identical from here, so the
     endpoint says so rather than claiming failure."""
     from rally.models import FollowedTeam
 
     sports_http.route("/schedule", lambda params: {"events": []})
     team_row = FollowedTeam(
-        provider="espn", league="hockey/nhl", team_key="typo", label="Stars", active=True
+        provider="espn",
+        league="hockey/nhl",
+        team_key="typo",
+        label="Stars",
+        active=True,
     )
     db_session.add(team_row)
     db_session.commit()
@@ -910,7 +979,9 @@ def test_the_connection_test_returns_the_window_it_found(
 
 def test_an_espn_special_event_note_is_a_notability_reason():
     """ "NHL Global Series" identifies the event and is exactly the reason we want."""
-    game = event(league="hockey/nhl", name="Panthers at Stars", note="NHL Global Series")
+    game = event(
+        league="hockey/nhl", name="Panthers at Stars", note="NHL Global Series"
+    )
     notable, reason = evaluate(game, None, {}, set())
     assert (notable, reason) == (True, "NHL Global Series")
 
@@ -919,7 +990,9 @@ def test_a_scheduling_note_is_not_a_notability_reason():
     """ESPN mixes scheduling metadata into the same field — three of seventeen
     Patriots games carry "Flex Game: 1/2 or 1/3", which says nothing about
     whether an event is worth watching."""
-    ordinary = event(league="hockey/nhl", name="Blues at Stars", note="Flex Game: 1/2 or 1/3")
+    ordinary = event(
+        league="hockey/nhl", name="Blues at Stars", note="Flex Game: 1/2 or 1/3"
+    )
     notable, _ = evaluate(ordinary, None, {}, set())
     assert notable is False
 

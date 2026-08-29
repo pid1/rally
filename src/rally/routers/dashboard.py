@@ -47,7 +47,9 @@ def _build_stem_section(stem: dict | None) -> str:
             continue
         audience = str(activity.get("audience", "")).strip()
         audience_html = (
-            f'<span class="stem-audience">{escape(audience)}</span> ' if audience else ""
+            f'<span class="stem-audience">{escape(audience)}</span> '
+            if audience
+            else ""
         )
         activities_html += f"<li>{audience_html}{escape(idea)}</li>"
 
@@ -81,7 +83,11 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     # Build schedule HTML
     schedule_html = ""
     for item in data.get("schedule", []):
-        notes = f'<div class="schedule-notes">{item["notes"]}</div>' if item.get("notes") else ""
+        notes = (
+            f'<div class="schedule-notes">{item["notes"]}</div>'
+            if item.get("notes")
+            else ""
+        )
         schedule_html += (
             f'<div class="schedule-item">'
             f'<div class="schedule-time">{item["time"]}</div>'
@@ -96,9 +102,7 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     # Build optional briefing section
     briefing = data.get("briefing", "")
     if briefing:
-        briefing_section = (
-            f'<div class="briefing"><div class="briefing-title">The Briefing</div>{briefing}</div>'
-        )
+        briefing_section = f'<div class="briefing"><div class="briefing-title">The Briefing</div>{briefing}</div>'
     else:
         briefing_section = ""
 
@@ -112,7 +116,9 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     html = html.replace("{{briefing_section}}", briefing_section)
     html = html.replace("{{stem_section}}", stem_section)
     html = html.replace("{{timestamp}}", timestamp_str)  # Fallback for non-JS browsers
-    html = html.replace("{{timestamp_utc}}", timestamp_utc)  # For JS timezone conversion
+    html = html.replace(
+        "{{timestamp_utc}}", timestamp_utc
+    )  # For JS timezone conversion
     html = html.replace("{{css_version}}", STATIC_VERSION)
     return html
 

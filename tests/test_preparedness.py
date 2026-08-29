@@ -122,7 +122,9 @@ class TestDefaultLead:
         assert status_of(item, date(2026, 12, 17), 14) == "ok"
         assert status_of(item, date(2026, 12, 18), 14) == "due"
 
-    def test_the_sweep_reads_the_setting(self, db_session, make_prep_item, make_setting):
+    def test_the_sweep_reads_the_setting(
+        self, db_session, make_prep_item, make_setting
+    ):
         """find_due_items must apply the household default, not zero."""
         item = make_prep_item(refresh_mode="date", next_refresh_date="2026-08-29")
         make_setting("prep_default_remind_days", "14")
@@ -141,7 +143,9 @@ class TestMarkRefreshed:
     def test_interval_reanchors_on_the_actual_date(self, db_session, make_prep_item):
         """For physical stock the clock starts when you swap it."""
         item = make_prep_item(
-            refresh_mode="interval", refresh_interval_months=6, next_refresh_date="2026-08-15"
+            refresh_mode="interval",
+            refresh_interval_months=6,
+            next_refresh_date="2026-08-15",
         )
         mark_refreshed(db_session, item, date(2026, 9, 5))  # three weeks late
 
@@ -175,7 +179,9 @@ class TestFindDue:
         make_prep_item(refresh_mode="date", next_refresh_date="2030-01-01")
         assert find_due_items(db_session, TODAY) == []
 
-    def test_already_announced_is_excluded(self, db_session, make_prep_item, make_prep_notice):
+    def test_already_announced_is_excluded(
+        self, db_session, make_prep_item, make_prep_notice
+    ):
         item = _due(make_prep_item)
         make_prep_notice(item.id, TODAY.isoformat())
         assert find_due_items(db_session, TODAY) == []
@@ -194,7 +200,12 @@ class TestSendDigest:
         assert mock_pushover.sent == [], "a quiet day must not send a push at all"
 
     def test_one_digest_for_several_items(
-        self, db_session, make_prep_item, make_prep_location, mock_pushover, prep_pushover
+        self,
+        db_session,
+        make_prep_item,
+        make_prep_location,
+        mock_pushover,
+        prep_pushover,
     ):
         loc = make_prep_location("Water")
         _due(make_prep_item, name="Sawyer filters", location_id=loc.id, quantity="2")
@@ -211,7 +222,9 @@ class TestSendDigest:
         assert "Sawyer filters" in payload["message"]
         assert "Water" in payload["message"]
 
-    def test_announces_exactly_once(self, db_session, make_prep_item, mock_pushover, prep_pushover):
+    def test_announces_exactly_once(
+        self, db_session, make_prep_item, mock_pushover, prep_pushover
+    ):
         _due(make_prep_item)
 
         first = send_digest(db_session, TODAY)
@@ -231,7 +244,9 @@ class TestSendDigest:
 
         assert len(mock_pushover.sent) == 1
 
-    def test_moving_the_date_rearms(self, db_session, make_prep_item, mock_pushover, prep_pushover):
+    def test_moving_the_date_rearms(
+        self, db_session, make_prep_item, mock_pushover, prep_pushover
+    ):
         item = _due(make_prep_item)
         send_digest(db_session, TODAY)
 
@@ -261,9 +276,9 @@ class TestSendDigest:
 
         assert failed.sent is False
         assert failed.failed
-        assert db_session.query(PrepRefreshNotice).count() == 0, (
-            "a failed send must not be recorded as delivered"
-        )
+        assert (
+            db_session.query(PrepRefreshNotice).count() == 0
+        ), "a failed send must not be recorded as delivered"
 
     def test_missing_app_token_skips_cleanly(
         self, db_session, make_prep_item, mock_pushover, make_setting
@@ -321,7 +336,10 @@ class TestSendDigest:
         self, db_session, make_prep_item, mock_pushover, prep_pushover
     ):
         for n in range(60):
-            _due(make_prep_item, name=f"Item number {n} with a fairly long descriptive name")
+            _due(
+                make_prep_item,
+                name=f"Item number {n} with a fairly long descriptive name",
+            )
 
         send_digest(db_session, TODAY)
 
@@ -382,29 +400,45 @@ class TestDailyDigestGate:
 
 class TestLocationsApi:
     def test_create_and_list(self, client):
-        r = client.post("/api/preparedness/locations", json={"name": "Water", "sort_order": 4})
+        r = client.post(
+            "/api/preparedness/locations", json={"name": "Water", "sort_order": 4}
+        )
         assert r.status_code == 201
-        assert [loc["name"] for loc in client.get("/api/preparedness/locations").json()] == [
-            "Water"
-        ]
+        assert [
+            loc["name"] for loc in client.get("/api/preparedness/locations").json()
+        ] == ["Water"]
 
     def test_duplicate_name_rejected_case_insensitively(self, client):
         client.post("/api/preparedness/locations", json={"name": "Water"})
-        assert client.post("/api/preparedness/locations", json={"name": "water"}).status_code == 409
+        assert (
+            client.post(
+                "/api/preparedness/locations", json={"name": "water"}
+            ).status_code
+            == 409
+        )
 
     def test_sort_order_drives_listing(self, client):
-        client.post("/api/preparedness/locations", json={"name": "Zulu", "sort_order": 1})
-        client.post("/api/preparedness/locations", json={"name": "Alpha", "sort_order": 2})
-        names = [loc["name"] for loc in client.get("/api/preparedness/locations").json()]
+        client.post(
+            "/api/preparedness/locations", json={"name": "Zulu", "sort_order": 1}
+        )
+        client.post(
+            "/api/preparedness/locations", json={"name": "Alpha", "sort_order": 2}
+        )
+        names = [
+            loc["name"] for loc in client.get("/api/preparedness/locations").json()
+        ]
         assert names == ["Zulu", "Alpha"]
 
     def test_delete_moves_items_to_unassigned(self, client):
         loc = client.post("/api/preparedness/locations", json={"name": "Truck"}).json()
         item = client.post(
-            "/api/preparedness/items", json={"name": "Compass", "location_id": loc["id"]}
+            "/api/preparedness/items",
+            json={"name": "Compass", "location_id": loc["id"]},
         ).json()
 
-        assert client.delete(f"/api/preparedness/locations/{loc['id']}").status_code == 204
+        assert (
+            client.delete(f"/api/preparedness/locations/{loc['id']}").status_code == 204
+        )
 
         after = client.get(f"/api/preparedness/items/{item['id']}").json()
         assert after["location_id"] is None
@@ -427,16 +461,25 @@ class TestItemsApi:
         assert body["quantity"] == "8-10"
 
     def test_empty_name_rejected(self, client):
-        assert client.post("/api/preparedness/items", json={"name": "   "}).status_code == 422
+        assert (
+            client.post("/api/preparedness/items", json={"name": "   "}).status_code
+            == 422
+        )
 
     def test_unknown_location_rejected(self, client):
-        r = client.post("/api/preparedness/items", json={"name": "Spork", "location_id": 999})
+        r = client.post(
+            "/api/preparedness/items", json={"name": "Spork", "location_id": 999}
+        )
         assert r.status_code == 422
 
     def test_interval_seeds_the_first_date(self, client):
         body = client.post(
             "/api/preparedness/items",
-            json={"name": "Water", "refresh_mode": "interval", "refresh_interval_months": 6},
+            json={
+                "name": "Water",
+                "refresh_mode": "interval",
+                "refresh_interval_months": 6,
+            },
         ).json()
         assert body["next_refresh_date"] is not None
 
@@ -444,7 +487,11 @@ class TestItemsApi:
         "payload",
         [
             {"name": "Chili", "refresh_mode": "date"},
-            {"name": "Chili", "refresh_mode": "none", "next_refresh_date": "2027-01-01"},
+            {
+                "name": "Chili",
+                "refresh_mode": "none",
+                "next_refresh_date": "2027-01-01",
+            },
             {"name": "Water", "refresh_mode": "interval", "refresh_interval_months": 0},
         ],
     )
@@ -457,16 +504,20 @@ class TestItemsApi:
             json={"name": "Chili", "quantity": "10", "notes": "Pop-top"},
         ).json()
 
-        updated = client.put(f"/api/preparedness/items/{item['id']}", json={"quantity": "8"}).json()
+        updated = client.put(
+            f"/api/preparedness/items/{item['id']}", json={"quantity": "8"}
+        ).json()
         assert updated["quantity"] == "8"
         assert updated["notes"] == "Pop-top", "omission must not clear a field"
 
     def test_explicit_null_clears(self, client):
-        item = client.post("/api/preparedness/items", json={"name": "Chili", "notes": "x"}).json()
+        item = client.post(
+            "/api/preparedness/items", json={"name": "Chili", "notes": "x"}
+        ).json()
         assert (
-            client.put(f"/api/preparedness/items/{item['id']}", json={"notes": None}).json()[
-                "notes"
-            ]
+            client.put(
+                f"/api/preparedness/items/{item['id']}", json={"notes": None}
+            ).json()["notes"]
             is None
         )
 
@@ -474,22 +525,33 @@ class TestItemsApi:
         """Flipping only the mode still has to leave a valid item behind."""
         item = client.post(
             "/api/preparedness/items",
-            json={"name": "Chili", "refresh_mode": "date", "next_refresh_date": "2027-01-01"},
+            json={
+                "name": "Chili",
+                "refresh_mode": "date",
+                "next_refresh_date": "2027-01-01",
+            },
         ).json()
-        r = client.put(f"/api/preparedness/items/{item['id']}", json={"refresh_mode": "interval"})
+        r = client.put(
+            f"/api/preparedness/items/{item['id']}", json={"refresh_mode": "interval"}
+        )
         assert r.status_code == 422
 
     def test_bad_date_format_rejected(self, client):
         item = client.post("/api/preparedness/items", json={"name": "Chili"}).json()
         r = client.put(
-            f"/api/preparedness/items/{item['id']}", json={"next_refresh_date": "01/01/2027"}
+            f"/api/preparedness/items/{item['id']}",
+            json={"next_refresh_date": "01/01/2027"},
         )
         assert r.status_code == 422
 
     def test_refresh_endpoint(self, client):
         item = client.post(
             "/api/preparedness/items",
-            json={"name": "Water", "refresh_mode": "interval", "refresh_interval_months": 6},
+            json={
+                "name": "Water",
+                "refresh_mode": "interval",
+                "refresh_interval_months": 6,
+            },
         ).json()
 
         refreshed = client.post(
@@ -499,19 +561,29 @@ class TestItemsApi:
         assert refreshed["next_refresh_date"] == "2027-02-15"
 
     def test_search_covers_name_and_notes(self, client):
-        client.post("/api/preparedness/items", json={"name": "SPAM", "notes": "high sodium"})
-        client.post("/api/preparedness/items", json={"name": "Spork", "notes": "titanium"})
+        client.post(
+            "/api/preparedness/items", json={"name": "SPAM", "notes": "high sodium"}
+        )
+        client.post(
+            "/api/preparedness/items", json={"name": "Spork", "notes": "titanium"}
+        )
 
         assert len(client.get("/api/preparedness/items?search=spam").json()) == 1
         assert len(client.get("/api/preparedness/items?search=sodium").json()) == 1
 
     def test_location_filter_includes_unassigned(self, client):
         loc = client.post("/api/preparedness/locations", json={"name": "Water"}).json()
-        client.post("/api/preparedness/items", json={"name": "Filter", "location_id": loc["id"]})
+        client.post(
+            "/api/preparedness/items", json={"name": "Filter", "location_id": loc["id"]}
+        )
         client.post("/api/preparedness/items", json={"name": "Orphan"})
 
-        assert len(client.get(f"/api/preparedness/items?location={loc['id']}").json()) == 1
-        assert len(client.get("/api/preparedness/items?location=unassigned").json()) == 1
+        assert (
+            len(client.get(f"/api/preparedness/items?location={loc['id']}").json()) == 1
+        )
+        assert (
+            len(client.get("/api/preparedness/items?location=unassigned").json()) == 1
+        )
 
 
 # --- Go list -------------------------------------------------------------------
@@ -530,7 +602,9 @@ class TestGoList:
         groups = build_groups(db_session)
         assert [name for _lid, name, _i in groups] == ["Food", "Water", "Unassigned"]
 
-    def test_empty_locations_are_omitted(self, db_session, make_prep_location, make_prep_item):
+    def test_empty_locations_are_omitted(
+        self, db_session, make_prep_location, make_prep_item
+    ):
         make_prep_location("Empty", sort_order=1)
         used = make_prep_location("Used", sort_order=2)
         make_prep_item(name="Thing", location_id=used.id)
@@ -547,7 +621,9 @@ class TestGoList:
         _lid, _name, items = build_groups(db_session)[0]
         assert [i.name for i in items] == ["apple", "Mango", "Zebra"]
 
-    def test_markdown_uses_checkboxes(self, db_session, make_prep_location, make_prep_item):
+    def test_markdown_uses_checkboxes(
+        self, db_session, make_prep_location, make_prep_item
+    ):
         loc = make_prep_location("Food")
         make_prep_item(name="SPAM Classic", quantity="5", location_id=loc.id)
 
@@ -589,11 +665,16 @@ class TestGoList:
             assert f".{fmt}" in r.headers["content-disposition"]
 
     def test_export_rejects_unknown_format(self, client):
-        assert client.get("/api/preparedness/go-list/export?format=docx").status_code == 422
+        assert (
+            client.get("/api/preparedness/go-list/export?format=docx").status_code
+            == 422
+        )
 
     def test_export_defaults_to_every_item(self, client):
         loc = client.post("/api/preparedness/locations", json={"name": "Water"}).json()
-        client.post("/api/preparedness/items", json={"name": "Filter", "location_id": loc["id"]})
+        client.post(
+            "/api/preparedness/items", json={"name": "Filter", "location_id": loc["id"]}
+        )
         client.post("/api/preparedness/items", json={"name": "Orphan"})
 
         body = client.get("/api/preparedness/go-list/export?format=md").text
@@ -643,7 +724,12 @@ class TestPages:
         body = client.get("/dashboard").text
         nav = body[body.index("<nav>") : body.index("</nav>")]
         assert nav.count("nav-dropdown") >= 1
-        for href in ('href="/dashboard"', 'href="/todo"', 'href="/shopping"', 'href="/calendar"'):
+        for href in (
+            'href="/dashboard"',
+            'href="/todo"',
+            'href="/shopping"',
+            'href="/calendar"',
+        ):
             assert href in nav
         # The meal and preparedness pages are reachable only through the dropdown.
         assert nav.index('href="/dinner-planner"') > nav.index("nav-dropdown")

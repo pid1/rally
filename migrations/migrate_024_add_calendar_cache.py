@@ -69,11 +69,17 @@ def migrate():
             ON calendar_cache(calendar_id)
         """)
 
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
+        )
         if cursor.fetchone():
-            cursor.execute("SELECT 1 FROM settings WHERE key = 'calendar_sync_interval_minutes'")
+            cursor.execute(
+                "SELECT 1 FROM settings WHERE key = 'calendar_sync_interval_minutes'"
+            )
             if cursor.fetchone():
-                print("✓ Migration: calendar_sync_interval_minutes already present (idempotent)")
+                print(
+                    "✓ Migration: calendar_sync_interval_minutes already present (idempotent)"
+                )
             else:
                 cursor.execute(
                     "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))",

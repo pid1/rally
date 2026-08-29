@@ -67,15 +67,13 @@ def migrate():
         # old list showed whatever SQLite emitted — rowid order, preserved
         # through a stable sort in the browser. Ranking them the same way is
         # what makes "nothing moves" true instead of merely nearly true.
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT id, store_id
             FROM shopping_items
             ORDER BY
                 store_id IS NULL, store_id,
                 completed ASC, created_at DESC, id ASC
-            """
-        )
+            """)
         rows = cursor.fetchall()
 
         position = 0
@@ -88,9 +86,13 @@ def migrate():
             updates.append((position, item_id))
             position += 1
 
-        cursor.executemany("UPDATE shopping_items SET sort_order = ? WHERE id = ?", updates)
+        cursor.executemany(
+            "UPDATE shopping_items SET sort_order = ? WHERE id = ?", updates
+        )
         conn.commit()
-        print(f"✓ Migration complete: shopping_items.sort_order added ({len(updates)} rows ranked)")
+        print(
+            f"✓ Migration complete: shopping_items.sort_order added ({len(updates)} rows ranked)"
+        )
         return True
 
     except sqlite3.Error as e:

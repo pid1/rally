@@ -188,7 +188,9 @@ def test_fetch_google_success(monkeypatch):
     import caldav
 
     monkeypatch.setattr(
-        caldav, "DAVClient", lambda **kwargs: _FakeClient([_FakeCalendar([_FakeItem(_ICS)])])
+        caldav,
+        "DAVClient",
+        lambda **kwargs: _FakeClient([_FakeCalendar([_FakeItem(_ICS)])]),
     )
     record = SimpleNamespace(
         id=1,
@@ -209,7 +211,9 @@ def test_fetch_apple_success(monkeypatch):
     import caldav
 
     monkeypatch.setattr(
-        caldav, "DAVClient", lambda **kwargs: _FakeClient([_FakeCalendar([_FakeItem(_ICS)])])
+        caldav,
+        "DAVClient",
+        lambda **kwargs: _FakeClient([_FakeCalendar([_FakeItem(_ICS)])]),
     )
     record = SimpleNamespace(
         id=1,

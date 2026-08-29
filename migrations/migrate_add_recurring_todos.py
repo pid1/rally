@@ -24,7 +24,9 @@ def migrate():
 
     if not db_path.exists():
         print(f"✓ Database not found at {db_path}")
-        print("  No migration needed - database will be created with correct schema on first run.")
+        print(
+            "  No migration needed - database will be created with correct schema on first run."
+        )
         return True
 
     print(f"Checking database at {db_path}...")
@@ -38,7 +40,9 @@ def migrate():
             "SELECT name FROM sqlite_master WHERE type='table' AND name='recurring_todos'"
         )
         if cursor.fetchone():
-            print("✓ Migration: recurring_todos table already exists (idempotent check)")
+            print(
+                "✓ Migration: recurring_todos table already exists (idempotent check)"
+            )
         else:
             print("  Creating 'recurring_todos' table...")
             cursor.execute("""
@@ -62,7 +66,9 @@ def migrate():
         columns = [col[1] for col in cursor.fetchall()]
 
         if "recurring_todo_id" in columns:
-            print("✓ Migration: todos.recurring_todo_id column already exists (idempotent check)")
+            print(
+                "✓ Migration: todos.recurring_todo_id column already exists (idempotent check)"
+            )
         else:
             print("  Adding 'recurring_todo_id' column to todos table...")
             cursor.execute("ALTER TABLE todos ADD COLUMN recurring_todo_id INTEGER")

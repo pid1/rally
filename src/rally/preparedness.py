@@ -22,7 +22,13 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
-from rally.models import FamilyMember, PrepItem, PrepLocation, PrepRefreshNotice, Setting
+from rally.models import (
+    FamilyMember,
+    PrepItem,
+    PrepLocation,
+    PrepRefreshNotice,
+    Setting,
+)
 from rally.notification_prefs import PREP_REFRESH, filter_recipients
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc, today_local

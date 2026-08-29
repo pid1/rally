@@ -62,7 +62,8 @@ def list_completed_todos(
         description='Family member IDs to filter to, and/or "unassigned". Empty means all.',
     ),
     search: str | None = Query(
-        None, description="Case-insensitive keyword matched against title and description."
+        None,
+        description="Case-insensitive keyword matched against title and description.",
     ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -118,9 +119,9 @@ def list_completed_todos(
     elif sort == "due-furthest":
         query = query.order_by(nullslast(Todo.due_date.desc()), *newest_completed_first)
     elif sort == "assignee":
-        query = query.outerjoin(FamilyMember, Todo.assigned_to == FamilyMember.id).order_by(
-            nullslast(FamilyMember.name.asc()), *newest_completed_first
-        )
+        query = query.outerjoin(
+            FamilyMember, Todo.assigned_to == FamilyMember.id
+        ).order_by(nullslast(FamilyMember.name.asc()), *newest_completed_first)
     elif sort == "newest":
         query = query.order_by(Todo.created_at.desc(), Todo.id.desc())
     elif sort == "oldest":
@@ -130,7 +131,9 @@ def list_completed_todos(
 
     # Fetch one extra row to determine whether another page exists.
     rows = query.offset(offset).limit(limit + 1).all()
-    return CompletedTodoPage(items=rows[:limit], has_more=len(rows) > limit, total=total)
+    return CompletedTodoPage(
+        items=rows[:limit], has_more=len(rows) > limit, total=total
+    )
 
 
 @router.post("", response_model=TodoResponse, status_code=201)

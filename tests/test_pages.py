@@ -82,16 +82,18 @@ def test_modals_are_opened_only_through_the_shared_helper():
     their fade state was whatever it happened to be. The behavior has to be
     the same for every modal, which means one way in and one way out.
     """
-    direct = re.compile(r"getElementById\(['\"][a-z-]*modal-overlay['\"]\)\.style\.display")
+    direct = re.compile(
+        r"getElementById\(['\"][a-z-]*modal-overlay['\"]\)\.style\.display"
+    )
     offenders = [
         f"{path.name}:{i}"
         for path in sorted(TEMPLATES.glob("*.html"))
         for i, line in enumerate(path.read_text().splitlines(), 1)
         if direct.search(line)
     ]
-    assert not offenders, (
-        f"modals must open with showModalOverlay() and close with hideModalOverlay(): {offenders}"
-    )
+    assert (
+        not offenders
+    ), f"modals must open with showModalOverlay() and close with hideModalOverlay(): {offenders}"
 
 
 def test_calendar_offers_view_mode_and_range_as_separate_controls():

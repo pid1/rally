@@ -30,15 +30,21 @@ def test_item_completed_today_stays_on_the_list(
 ):
     local_timezone("America/Chicago")
     frozen_now(NOON)
-    make_shopping_item("Coffee beans", completed=True, completed_at=AFTER_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Coffee beans", completed=True, completed_at=AFTER_LOCAL_MIDNIGHT
+    )
 
     assert item_names(client.get("/api/shopping/items").json()) == ["Coffee beans"]
 
 
-def test_item_completed_yesterday_is_hidden(client, make_shopping_item, frozen_now, local_timezone):
+def test_item_completed_yesterday_is_hidden(
+    client, make_shopping_item, frozen_now, local_timezone
+):
     local_timezone("America/Chicago")
     frozen_now(NOON)
-    make_shopping_item("Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
 
     assert client.get("/api/shopping/items").json() == []
 
@@ -48,7 +54,9 @@ def test_include_hidden_returns_previously_purchased_items(
 ):
     local_timezone("America/Chicago")
     frozen_now(NOON)
-    make_shopping_item("Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
 
     resp = client.get("/api/shopping/items", params={"include_hidden": "true"})
     assert item_names(resp.json()) == ["Coffee beans"]
@@ -59,7 +67,9 @@ def test_boundary_uses_configured_timezone_not_utc(
 ):
     """04:00 UTC is still *yesterday* in Chicago but already today in UTC."""
     frozen_now(NOON)
-    make_shopping_item("Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
 
     # Default (no local_timezone setting) is UTC: the item is "completed today".
     assert item_names(client.get("/api/shopping/items").json()) == ["Coffee beans"]
@@ -76,18 +86,27 @@ def test_open_items_sort_before_completed_ones(
     make_shopping_item("Bought", completed=True, completed_at=AFTER_LOCAL_MIDNIGHT)
     make_shopping_item("Still needed")
 
-    assert item_names(client.get("/api/shopping/items").json()) == ["Still needed", "Bought"]
+    assert item_names(client.get("/api/shopping/items").json()) == [
+        "Still needed",
+        "Bought",
+    ]
 
 
-def test_completing_stamps_and_uncompleting_clears(client, make_shopping_item, frozen_now):
+def test_completing_stamps_and_uncompleting_clears(
+    client, make_shopping_item, frozen_now
+):
     frozen_now(NOON)
     item = make_shopping_item("Milk")
 
-    completed = client.put(f"/api/shopping/items/{item.id}", json={"completed": True}).json()
+    completed = client.put(
+        f"/api/shopping/items/{item.id}", json={"completed": True}
+    ).json()
     assert completed["completed"] is True
     assert completed["completed_at"] is not None
 
-    reopened = client.put(f"/api/shopping/items/{item.id}", json={"completed": False}).json()
+    reopened = client.put(
+        f"/api/shopping/items/{item.id}", json={"completed": False}
+    ).json()
     assert reopened["completed"] is False
     assert reopened["completed_at"] is None
 
@@ -96,9 +115,13 @@ def test_recompleting_does_not_restamp(client, make_shopping_item, frozen_now):
     frozen_now(NOON)
     item = make_shopping_item("Milk")
 
-    first = client.put(f"/api/shopping/items/{item.id}", json={"completed": True}).json()
+    first = client.put(
+        f"/api/shopping/items/{item.id}", json={"completed": True}
+    ).json()
     frozen_now(NOON + timedelta(hours=3))
-    again = client.put(f"/api/shopping/items/{item.id}", json={"completed": True}).json()
+    again = client.put(
+        f"/api/shopping/items/{item.id}", json={"completed": True}
+    ).json()
 
     assert again["completed_at"] == first["completed_at"]
 
@@ -111,7 +134,9 @@ def test_purge_deletes_items_completed_over_30_days_ago(
 ):
     local_timezone()
     frozen_now(NOON)
-    make_shopping_item("Old milk", completed=True, completed_at=NOON - timedelta(days=31))
+    make_shopping_item(
+        "Old milk", completed=True, completed_at=NOON - timedelta(days=31)
+    )
 
     client.get("/api/shopping/items", params={"include_hidden": "true"})
 
@@ -124,7 +149,9 @@ def test_purge_keeps_items_completed_within_30_days(
 ):
     local_timezone()
     frozen_now(NOON)
-    make_shopping_item("Recent milk", completed=True, completed_at=NOON - timedelta(days=29))
+    make_shopping_item(
+        "Recent milk", completed=True, completed_at=NOON - timedelta(days=29)
+    )
 
     client.get("/api/shopping/items", params={"include_hidden": "true"})
 
@@ -145,14 +172,21 @@ def test_purge_never_touches_open_items(
 
 
 def test_purge_leaves_item_history_intact(
-    client, db_session, make_shopping_item, make_item_history, frozen_now, local_timezone
+    client,
+    db_session,
+    make_shopping_item,
+    make_item_history,
+    frozen_now,
+    local_timezone,
 ):
     """The single most important purge test: splitting the tables is the whole
     reason purchased rows can be deleted at all."""
     local_timezone()
     frozen_now(NOON)
     make_item_history("Old milk", times_added=7)
-    make_shopping_item("Old milk", completed=True, completed_at=NOON - timedelta(days=31))
+    make_shopping_item(
+        "Old milk", completed=True, completed_at=NOON - timedelta(days=31)
+    )
 
     client.get("/api/shopping/items", params={"include_hidden": "true"})
 
@@ -189,7 +223,9 @@ def test_store_crud(client):
     client.post("/api/shopping/stores", json={"name": "Aldi"})
     assert item_names(client.get("/api/shopping/stores").json()) == ["Aldi", "Costco"]
 
-    renamed = client.put(f"/api/shopping/stores/{store_id}", json={"name": "Costco Business"})
+    renamed = client.put(
+        f"/api/shopping/stores/{store_id}", json={"name": "Costco Business"}
+    )
     assert renamed.status_code == 200
     assert renamed.json()["name"] == "Costco Business"
 
@@ -199,11 +235,15 @@ def test_store_crud(client):
 
 def test_store_name_conflicts_are_case_insensitive(client, make_store):
     make_store("Costco")
-    assert client.post("/api/shopping/stores", json={"name": "costco"}).status_code == 409
+    assert (
+        client.post("/api/shopping/stores", json={"name": "costco"}).status_code == 409
+    )
 
     other = client.post("/api/shopping/stores", json={"name": "Aldi"}).json()
     assert (
-        client.put(f"/api/shopping/stores/{other['id']}", json={"name": "COSTCO"}).status_code
+        client.put(
+            f"/api/shopping/stores/{other['id']}", json={"name": "COSTCO"}
+        ).status_code
         == 409
     )
 
@@ -245,7 +285,10 @@ def test_unknown_store_id_on_create_is_rejected(client):
 
 def test_unknown_store_id_on_update_is_rejected(client, make_shopping_item):
     item = make_shopping_item("Milk")
-    assert client.put(f"/api/shopping/items/{item.id}", json={"store_id": 999}).status_code == 422
+    assert (
+        client.put(f"/api/shopping/items/{item.id}", json={"store_id": 999}).status_code
+        == 422
+    )
 
 
 # --- Items ---------------------------------------------------------------------
@@ -268,14 +311,21 @@ def test_whitespace_only_item_name_is_rejected(client):
 
 def test_renaming_an_item_to_whitespace_is_rejected(client, make_shopping_item):
     item = make_shopping_item("Milk")
-    assert client.put(f"/api/shopping/items/{item.id}", json={"name": " "}).status_code == 422
+    assert (
+        client.put(f"/api/shopping/items/{item.id}", json={"name": " "}).status_code
+        == 422
+    )
 
 
 def test_adding_an_open_duplicate_returns_the_existing_item(client, make_store):
     store = make_store("Costco")
-    first = client.post("/api/shopping/items", json={"name": "Milk", "store_id": store.id}).json()
+    first = client.post(
+        "/api/shopping/items", json={"name": "Milk", "store_id": store.id}
+    ).json()
 
-    resp = client.post("/api/shopping/items", json={"name": "  milk ", "store_id": store.id})
+    resp = client.post(
+        "/api/shopping/items", json={"name": "  milk ", "store_id": store.id}
+    )
     assert resp.status_code == 200
     assert resp.json()["id"] == first["id"]
 
@@ -285,7 +335,9 @@ def test_same_name_in_a_different_store_is_a_new_item(client, make_store):
     aldi = make_store("Aldi")
     client.post("/api/shopping/items", json={"name": "Milk", "store_id": costco.id})
 
-    resp = client.post("/api/shopping/items", json={"name": "Milk", "store_id": aldi.id})
+    resp = client.post(
+        "/api/shopping/items", json={"name": "Milk", "store_id": aldi.id}
+    )
     assert resp.status_code == 201
 
 
@@ -301,7 +353,9 @@ def test_a_completed_match_does_not_dedupe(client, make_shopping_item, frozen_no
 def test_note_null_clears_and_omission_leaves_alone(client, make_shopping_item):
     item = make_shopping_item("Milk", note="Whole")
 
-    unchanged = client.put(f"/api/shopping/items/{item.id}", json={"name": "Milk"}).json()
+    unchanged = client.put(
+        f"/api/shopping/items/{item.id}", json={"name": "Milk"}
+    ).json()
     assert unchanged["note"] == "Whole"
 
     cleared = client.put(f"/api/shopping/items/{item.id}", json={"note": None}).json()
@@ -319,7 +373,9 @@ def test_delete_item(client, make_shopping_item):
 
 def test_store_name_resolves_case_insensitively(client, make_store):
     store = make_store("Trader Joe's")
-    resp = client.post("/api/shopping/items", json={"name": "Milk", "store": "trader joe's"})
+    resp = client.post(
+        "/api/shopping/items", json={"name": "Milk", "store": "trader joe's"}
+    )
     assert resp.status_code == 201
     assert resp.json()["store_id"] == store.id
 
@@ -335,7 +391,8 @@ def test_unknown_store_name_falls_back_to_anywhere(client, db_session):
 def test_sending_both_store_and_store_id_is_rejected(client, make_store):
     store = make_store("Costco")
     resp = client.post(
-        "/api/shopping/items", json={"name": "Milk", "store_id": store.id, "store": "Costco"}
+        "/api/shopping/items",
+        json={"name": "Milk", "store_id": store.id, "store": "Costco"},
     )
     assert resp.status_code == 422
 
@@ -354,7 +411,9 @@ def test_create_records_history(client, db_session, make_store):
     assert row.store_id == store.id
 
 
-def test_second_create_increments_rather_than_inserting(client, db_session, make_shopping_item):
+def test_second_create_increments_rather_than_inserting(
+    client, db_session, make_shopping_item
+):
     client.post("/api/shopping/items", json={"name": "Milk"})
     # Complete the first one so the second add isn't deduped away.
     item = db_session.query(ShoppingItem).one()
@@ -417,9 +476,9 @@ def test_like_wildcards_in_the_query_are_literal(client, make_item_history):
     make_item_history("Milk")
     make_item_history("100% juice")
 
-    assert item_names(client.get("/api/shopping/suggestions", params={"q": "%"}).json()) == [
-        "100% juice"
-    ]
+    assert item_names(
+        client.get("/api/shopping/suggestions", params={"q": "%"}).json()
+    ) == ["100% juice"]
     assert client.get("/api/shopping/suggestions", params={"q": "_"}).json() == []
 
 
@@ -427,7 +486,10 @@ def test_empty_query_returns_the_usual_suspects(client, make_item_history):
     make_item_history("Bread", times_added=3)
     make_item_history("Milk", times_added=12)
 
-    assert item_names(client.get("/api/shopping/suggestions").json()) == ["Milk", "Bread"]
+    assert item_names(client.get("/api/shopping/suggestions").json()) == [
+        "Milk",
+        "Bread",
+    ]
 
 
 def test_limit_is_honored_and_capped(client, make_item_history):
@@ -435,7 +497,9 @@ def test_limit_is_honored_and_capped(client, make_item_history):
         make_item_history(f"Item {i:02d}", times_added=30 - i)
 
     assert len(client.get("/api/shopping/suggestions", params={"limit": 3}).json()) == 3
-    assert len(client.get("/api/shopping/suggestions", params={"limit": 100}).json()) == 25
+    assert (
+        len(client.get("/api/shopping/suggestions", params={"limit": 100}).json()) == 25
+    )
 
 
 def test_deleting_a_suggestion_leaves_shopping_items_alone(
@@ -464,7 +528,9 @@ def test_purchased_lists_items_bought_before_today(
 ):
     local_timezone("America/Chicago")
     frozen_now(NOON)
-    make_shopping_item("Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
 
     assert item_names(client.get("/api/shopping/purchased").json()) == ["Coffee beans"]
 
@@ -475,7 +541,9 @@ def test_purchased_excludes_items_bought_today(
     """Bought today, so it is still on the shopping list — not yet in the archive."""
     local_timezone("America/Chicago")
     frozen_now(NOON)
-    make_shopping_item("Coffee beans", completed=True, completed_at=AFTER_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Coffee beans", completed=True, completed_at=AFTER_LOCAL_MIDNIGHT
+    )
 
     assert client.get("/api/shopping/purchased").json() == []
 
@@ -493,7 +561,9 @@ def test_purchased_includes_completed_rows_with_no_timestamp(
     assert item_names(client.get("/api/shopping/purchased").json()) == ["Ancient milk"]
 
 
-def test_purchased_excludes_open_items(client, make_shopping_item, frozen_now, local_timezone):
+def test_purchased_excludes_open_items(
+    client, make_shopping_item, frozen_now, local_timezone
+):
     local_timezone("America/Chicago")
     frozen_now(NOON)
     make_shopping_item("Milk")
@@ -502,7 +572,9 @@ def test_purchased_excludes_open_items(client, make_shopping_item, frozen_now, l
     assert item_names(client.get("/api/shopping/purchased").json()) == ["Eggs"]
 
 
-def test_purchased_orders_most_recent_first(client, make_shopping_item, frozen_now, local_timezone):
+def test_purchased_orders_most_recent_first(
+    client, make_shopping_item, frozen_now, local_timezone
+):
     local_timezone("America/Chicago")
     frozen_now(NOON)
     make_shopping_item(
@@ -510,7 +582,10 @@ def test_purchased_orders_most_recent_first(client, make_shopping_item, frozen_n
     )
     make_shopping_item("Newer", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
-    assert item_names(client.get("/api/shopping/purchased").json()) == ["Newer", "Older"]
+    assert item_names(client.get("/api/shopping/purchased").json()) == [
+        "Newer",
+        "Older",
+    ]
 
 
 def test_purchased_search_matches_name_and_note(
@@ -520,7 +595,10 @@ def test_purchased_search_matches_name_and_note(
     frozen_now(NOON)
     make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
     make_shopping_item(
-        "Bread", note="the good EGGY loaf", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+        "Bread",
+        note="the good EGGY loaf",
+        completed=True,
+        completed_at=BEFORE_LOCAL_MIDNIGHT,
     )
     make_shopping_item("Milk", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
@@ -558,7 +636,9 @@ def test_purchased_is_independent_of_include_hidden(
 # contiguous — a cross-store move leaves a gap behind it on purpose.
 
 
-def test_items_read_in_sort_order_within_a_store(client, make_store, make_shopping_item):
+def test_items_read_in_sort_order_within_a_store(
+    client, make_store, make_shopping_item
+):
     store = make_store("Costco")
     make_shopping_item("Rotisserie chicken", store_id=store.id, sort_order=2)
     make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
@@ -571,7 +651,9 @@ def test_items_read_in_sort_order_within_a_store(client, make_store, make_shoppi
     ]
 
 
-def test_a_new_item_lands_above_the_store_it_joins(client, make_store, make_shopping_item):
+def test_a_new_item_lands_above_the_store_it_joins(
+    client, make_store, make_shopping_item
+):
     """Adding used to surface at the top by `created_at DESC`; it still does."""
     store = make_store("Costco")
     make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
@@ -582,7 +664,9 @@ def test_a_new_item_lands_above_the_store_it_joins(client, make_store, make_shop
     assert item_names(client.get("/api/shopping/items").json())[0] == "Milk"
 
 
-def test_a_new_item_is_placed_only_against_its_own_store(client, make_store, make_shopping_item):
+def test_a_new_item_is_placed_only_against_its_own_store(
+    client, make_store, make_shopping_item
+):
     """A crowded Costco must not push a first Trader Joe's item off the top."""
     costco = make_store("Costco")
     trader_joes = make_store("Trader Joe's")
@@ -662,34 +746,46 @@ def test_reorder_rewrites_the_order_of_a_store(client, make_store, make_shopping
     ]
 
 
-def test_reorder_moves_an_item_into_the_destination_store(client, make_store, make_shopping_item):
+def test_reorder_moves_an_item_into_the_destination_store(
+    client, make_store, make_shopping_item
+):
     """The cross-store drag: one payload carries the move and the position."""
     costco = make_store("Costco")
     trader_joes = make_store("Trader Joe's")
     milk = make_shopping_item("Almond milk", store_id=costco.id, sort_order=0)
-    dumplings = make_shopping_item("Frozen dumplings", store_id=trader_joes.id, sort_order=0)
+    dumplings = make_shopping_item(
+        "Frozen dumplings", store_id=trader_joes.id, sort_order=0
+    )
 
     client.post(
         "/api/shopping/items/reorder",
         json={"store_id": trader_joes.id, "item_ids": [milk.id, dumplings.id]},
     )
 
-    moved = next(i for i in client.get("/api/shopping/items").json() if i["id"] == milk.id)
+    moved = next(
+        i for i in client.get("/api/shopping/items").json() if i["id"] == milk.id
+    )
     assert moved["store_id"] == trader_joes.id
     assert moved["sort_order"] == 0
 
 
-def test_reorder_can_move_an_item_to_the_catch_all(client, make_store, make_shopping_item):
+def test_reorder_can_move_an_item_to_the_catch_all(
+    client, make_store, make_shopping_item
+):
     store = make_store("Costco")
     stamps = make_shopping_item("Stamps", store_id=store.id, sort_order=0)
 
-    client.post("/api/shopping/items/reorder", json={"store_id": None, "item_ids": [stamps.id]})
+    client.post(
+        "/api/shopping/items/reorder", json={"store_id": None, "item_ids": [stamps.id]}
+    )
 
     moved = client.get("/api/shopping/items").json()[0]
     assert moved["store_id"] is None
 
 
-def test_reorder_leaves_the_store_the_item_left_alone(client, make_store, make_shopping_item):
+def test_reorder_leaves_the_store_the_item_left_alone(
+    client, make_store, make_shopping_item
+):
     """The gap is deliberate: positions are compared, never counted."""
     costco = make_store("Costco")
     trader_joes = make_store("Trader Joe's")
@@ -702,11 +798,17 @@ def test_reorder_leaves_the_store_the_item_left_alone(client, make_store, make_s
         json={"store_id": trader_joes.id, "item_ids": [batteries.id]},
     )
 
-    remaining = [i for i in client.get("/api/shopping/items").json() if i["store_id"] == costco.id]
+    remaining = [
+        i
+        for i in client.get("/api/shopping/items").json()
+        if i["store_id"] == costco.id
+    ]
     assert [i["id"] for i in remaining] == [towels.id, chicken.id]
 
 
-def test_reorder_with_an_unknown_item_changes_nothing(client, make_store, make_shopping_item):
+def test_reorder_with_an_unknown_item_changes_nothing(
+    client, make_store, make_shopping_item
+):
     """All or nothing — a half-applied order is one the user never asked for."""
     store = make_store("Costco")
     towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
@@ -734,7 +836,9 @@ def test_reorder_rejects_an_unknown_store(client, make_shopping_item):
     assert response.status_code == 422
 
 
-def test_reorder_keeps_the_first_mention_of_a_repeated_id(client, make_store, make_shopping_item):
+def test_reorder_keeps_the_first_mention_of_a_repeated_id(
+    client, make_store, make_shopping_item
+):
     """A duplicate would otherwise assign two positions and let the later win."""
     store = make_store("Costco")
     towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=0)
@@ -742,7 +846,10 @@ def test_reorder_keeps_the_first_mention_of_a_repeated_id(client, make_store, ma
 
     response = client.post(
         "/api/shopping/items/reorder",
-        json={"store_id": store.id, "item_ids": [batteries.id, towels.id, batteries.id]},
+        json={
+            "store_id": store.id,
+            "item_ids": [batteries.id, towels.id, batteries.id],
+        },
     )
 
     assert item_names(response.json()) == ["Batteries", "Paper towels"]
@@ -793,7 +900,9 @@ def test_changing_store_through_the_edit_form_replaces_the_item(
     ]
 
 
-def test_editing_an_item_without_moving_it_keeps_its_place(client, make_store, make_shopping_item):
+def test_editing_an_item_without_moving_it_keeps_its_place(
+    client, make_store, make_shopping_item
+):
     """Renaming is not a move: only a real store change re-places a row."""
     store = make_store("Costco")
     towels = make_shopping_item("Paper towels", store_id=store.id, sort_order=7)

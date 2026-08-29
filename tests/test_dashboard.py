@@ -13,7 +13,9 @@ def test_dashboard_without_snapshot_shows_placeholder(client):
 def test_dashboard_renders_most_recent_active_snapshot(client, db_session):
     db_session.add(
         DashboardSnapshot(
-            date="2026-03-15", data={"greeting": "Hello Fam", "schedule": []}, is_active=True
+            date="2026-03-15",
+            data={"greeting": "Hello Fam", "schedule": []},
+            is_active=True,
         )
     )
     db_session.commit()

@@ -249,7 +249,9 @@ def set_preferences(db: Session, member_id: int, values: dict[str, bool]) -> Non
         row = rows.get(key)
         if row is None:
             db.add(
-                MemberNotificationPref(family_member_id=member_id, kind=key, enabled=bool(enabled))
+                MemberNotificationPref(
+                    family_member_id=member_id, kind=key, enabled=bool(enabled)
+                )
             )
         else:
             row.enabled = bool(enabled)

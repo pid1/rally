@@ -14,7 +14,12 @@ from rally.models import DinnerPlan, FamilyMember, RecurringTodo, Setting, Todo
 
 
 def test_seed_factories_persist_rows(
-    db_session, make_member, make_todo, make_recurring_todo, make_dinner_plan, make_setting
+    db_session,
+    make_member,
+    make_todo,
+    make_recurring_todo,
+    make_dinner_plan,
+    make_setting,
 ):
     member = make_member("Dad")
     todo = make_todo("Buy milk", assigned_to=member.id)

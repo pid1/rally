@@ -70,8 +70,12 @@ def test_create_todo_persists_all_fields(client, make_member):
 
 
 def test_list_orders_by_created_desc(client, make_todo):
-    make_todo("Older", completed=False, completed_at=None, created_at=datetime(2026, 1, 1))
-    make_todo("Newer", completed=False, completed_at=None, created_at=datetime(2026, 1, 2))
+    make_todo(
+        "Older", completed=False, completed_at=None, created_at=datetime(2026, 1, 1)
+    )
+    make_todo(
+        "Newer", completed=False, completed_at=None, created_at=datetime(2026, 1, 2)
+    )
 
     titles = [t["title"] for t in client.get("/api/todos").json()]
 
@@ -90,18 +94,23 @@ def test_list_hides_completed_before_today(client, make_todo, frozen_now):
     assert titles == {"Open", "Done today"}
 
 
-def test_list_include_hidden_shows_completed_before_today(client, make_todo, frozen_now):
+def test_list_include_hidden_shows_completed_before_today(
+    client, make_todo, frozen_now
+):
     frozen_now(NOON)
     make_todo("Done old", completed=True, completed_at=datetime(2020, 1, 1))
 
     titles = [
-        t["title"] for t in client.get("/api/todos", params={"include_hidden": "true"}).json()
+        t["title"]
+        for t in client.get("/api/todos", params={"include_hidden": "true"}).json()
     ]
 
     assert "Done old" in titles
 
 
-def test_list_runs_recurring_generation(client, db_session, make_recurring_todo, frozen_now):
+def test_list_runs_recurring_generation(
+    client, db_session, make_recurring_todo, frozen_now
+):
     # GET /api/todos calls process_recurring_todos as a side effect.
     frozen_now(NOON)
     make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=True)
@@ -152,7 +161,11 @@ def test_update_reopen_clears_completed_at(client, make_todo):
 
 def test_update_omitted_fields_are_untouched(client, make_todo):
     todo = make_todo(
-        "Task", completed=False, completed_at=None, due_date="2026-05-01", description="orig"
+        "Task",
+        completed=False,
+        completed_at=None,
+        due_date="2026-05-01",
+        description="orig",
     )
 
     body = client.put(f"/api/todos/{todo.id}", json={"title": "Renamed"}).json()
@@ -166,10 +179,16 @@ def test_update_omitted_fields_are_untouched(client, make_todo):
 def test_update_explicit_null_clears_unset_field(client, make_todo, make_member):
     dad = make_member("Dad")
     todo = make_todo(
-        "Task", completed=False, completed_at=None, due_date="2026-05-01", assigned_to=dad.id
+        "Task",
+        completed=False,
+        completed_at=None,
+        due_date="2026-05-01",
+        assigned_to=dad.id,
     )
 
-    body = client.put(f"/api/todos/{todo.id}", json={"due_date": None, "assigned_to": None}).json()
+    body = client.put(
+        f"/api/todos/{todo.id}", json={"due_date": None, "assigned_to": None}
+    ).json()
 
     # Explicit null (not UNSET) clears these fields.
     assert body["due_date"] is None

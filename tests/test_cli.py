@@ -120,8 +120,12 @@ def test_seed_shows_every_preparedness_state(cli_db):
     statuses = {status_of(item, today, default_lead=14) for item in items}
     assert {"overdue", "due", "ok"} <= statuses, statuses
 
-    assert any(item.location_id is None for item in items), "expected an unassigned item"
-    assert any(item.refresh_mode == "none" for item in items), "expected unscheduled stock"
+    assert any(
+        item.location_id is None for item in items
+    ), "expected an unassigned item"
+    assert any(
+        item.refresh_mode == "none" for item in items
+    ), "expected unscheduled stock"
     # Locations are walked in physical order, so the seed must set it explicitly.
     assert sorted(loc.sort_order for loc in cli_db.query(PrepLocation)) == [1, 2, 3]
 

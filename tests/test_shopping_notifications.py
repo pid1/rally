@@ -45,7 +45,9 @@ def subscriber(db_session, make_member):
     """Dad, who ticked *Shopping list additions*."""
     member = make_member("Dad", pushover_user_key="dad-key")
     db_session.add(
-        MemberNotificationPref(family_member_id=member.id, kind=SHOPPING_ADDED, enabled=True)
+        MemberNotificationPref(
+            family_member_id=member.id, kind=SHOPPING_ADDED, enabled=True
+        )
     )
     db_session.commit()
     return member
@@ -65,7 +67,9 @@ def watermarked(make_setting):
 def _added(make_shopping_item, name, minutes_ago, **kwargs):
     """An item created ``minutes_ago`` before ``NOW``."""
     return make_shopping_item(
-        name, created_at=(NOW - timedelta(minutes=minutes_ago)).replace(tzinfo=None), **kwargs
+        name,
+        created_at=(NOW - timedelta(minutes=minutes_ago)).replace(tzinfo=None),
+        **kwargs,
     )
 
 
@@ -73,7 +77,13 @@ def _added(make_shopping_item, name, minutes_ago, **kwargs):
 
 
 def test_a_burst_is_held_until_the_adding_stops(
-    db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     watermarked()
     _added(make_shopping_item, "Milk", 6)
@@ -87,7 +97,13 @@ def test_a_burst_is_held_until_the_adding_stops(
 
 
 def test_a_settled_batch_sends_exactly_one_push(
-    db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     watermarked()
     for offset, name in enumerate(["Milk", "Eggs", "Bread"]):
@@ -102,7 +118,13 @@ def test_a_settled_batch_sends_exactly_one_push(
 
 
 def test_the_watermark_advances_past_the_batch_so_it_sends_once(
-    db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     watermarked()
     newest = _added(make_shopping_item, "Milk", 10)
@@ -116,7 +138,13 @@ def test_the_watermark_advances_past_the_batch_so_it_sends_once(
 
 
 def test_an_item_purchased_inside_the_settle_window_is_left_out(
-    db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     """Bought before anybody heard about it is not news."""
     watermarked()
@@ -129,7 +157,13 @@ def test_an_item_purchased_inside_the_settle_window_is_left_out(
 
 
 def test_a_batch_emptied_by_purchases_sends_nothing_and_still_advances(
-    db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     watermarked()
     newest = _added(make_shopping_item, "Milk", 10, completed=True)
@@ -182,7 +216,9 @@ def test_a_long_batch_names_three_and_counts_the_rest(db_session, make_shopping_
     )
 
 
-def test_a_batch_that_shares_a_store_says_where(db_session, make_store, make_shopping_item):
+def test_a_batch_that_shares_a_store_says_where(
+    db_session, make_store, make_shopping_item
+):
     store = make_store("Costco")
     items = [make_shopping_item(name, store_id=store.id) for name in ["Milk", "Eggs"]]
 
@@ -206,7 +242,9 @@ def test_the_catch_all_is_not_a_place(db_session, make_shopping_item):
     assert build_message(db_session, items) == "Milk and Eggs added"
 
 
-def test_a_very_long_batch_stays_under_the_pushover_ceiling(db_session, make_shopping_item):
+def test_a_very_long_batch_stays_under_the_pushover_ceiling(
+    db_session, make_shopping_item
+):
     items = [make_shopping_item("x" * 600) for _ in range(4)]
 
     assert len(build_message(db_session, items)) <= 1024
@@ -228,7 +266,13 @@ def test_the_switch_off_sends_nothing(
 
 
 def test_no_application_token_holds_the_batch_rather_than_dropping_it(
-    db_session, enabled, subscriber, watermarked, make_shopping_item, mock_pushover, make_setting
+    db_session,
+    enabled,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
+    make_setting,
 ):
     """A configuration gap is temporary; the batch is still owed."""
     watermarked()
@@ -243,7 +287,13 @@ def test_no_application_token_holds_the_batch_rather_than_dropping_it(
 
 
 def test_nobody_opted_in_advances_rather_than_hoarding_a_backlog(
-    db_session, enabled, token, make_member, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    make_member,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     """An empty audience is an answer, not a failure.
 
@@ -262,7 +312,13 @@ def test_nobody_opted_in_advances_rather_than_hoarding_a_backlog(
 
 
 def test_a_failed_send_leaves_the_watermark_so_the_next_pass_retries(
-    db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     watermarked()
     _added(make_shopping_item, "Milk", 10)
@@ -281,7 +337,9 @@ def test_nothing_added_since_the_last_pass_is_silent(
 ):
     watermarked()
 
-    assert scan_once(db_session, NOW).skipped_reason == "nothing added since the last pass"
+    assert (
+        scan_once(db_session, NOW).skipped_reason == "nothing added since the last pass"
+    )
     assert mock_pushover.sent == []
 
 
@@ -302,7 +360,13 @@ def test_the_first_pass_starts_from_now_rather_than_announcing_the_existing_list
 
 
 def test_the_write_path_runs_at_most_one_pass_a_minute(
-    db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     watermarked()
     _added(make_shopping_item, "Milk", 10)
@@ -317,7 +381,14 @@ def test_the_write_path_runs_at_most_one_pass_a_minute(
 
 
 def test_adding_an_item_announces_the_batch_before_it(
-    client, db_session, enabled, token, subscriber, watermarked, make_shopping_item, mock_pushover
+    client,
+    db_session,
+    enabled,
+    token,
+    subscriber,
+    watermarked,
+    make_shopping_item,
+    mock_pushover,
 ):
     """The honest hook: a write, not a read.
 

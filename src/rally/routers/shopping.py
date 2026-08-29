@@ -126,7 +126,9 @@ def _next_sort_order(db: Session, store_id: int | None) -> int:
     renumbering the group.
     """
     store_clause = (
-        ShoppingItem.store_id.is_(None) if store_id is None else ShoppingItem.store_id == store_id
+        ShoppingItem.store_id.is_(None)
+        if store_id is None
+        else ShoppingItem.store_id == store_id
     )
     lowest = db.query(func.min(ShoppingItem.sort_order)).filter(store_clause).scalar()
     return 0 if lowest is None else lowest - 1
@@ -169,7 +171,11 @@ def record_item_history(db: Session, name: str, store_id: int | None) -> None:
     records adds, and a typo correction shouldn't rewrite a counter.
     """
     key = _history_key(name)
-    row = db.query(ShoppingItemHistory).filter(ShoppingItemHistory.name_key == key).first()
+    row = (
+        db.query(ShoppingItemHistory)
+        .filter(ShoppingItemHistory.name_key == key)
+        .first()
+    )
     if row:
         row.times_added += 1
         row.name = name  # Follow the newest display casing
@@ -202,7 +208,9 @@ def create_store(store: ShoppingStoreCreate, db: Session = Depends(get_db)):
     """Create a store. Names are unique case-insensitively."""
     name = _clean_name(store.name, "Store name")
     if _find_store_by_name(db, name):
-        raise HTTPException(status_code=409, detail="A store with that name already exists")
+        raise HTTPException(
+            status_code=409, detail="A store with that name already exists"
+        )
 
     db_store = ShoppingStore(name=name)
     db.add(db_store)
@@ -212,7 +220,9 @@ def create_store(store: ShoppingStoreCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/stores/{store_id}", response_model=ShoppingStoreResponse)
-def update_store(store_id: int, store: ShoppingStoreUpdate, db: Session = Depends(get_db)):
+def update_store(
+    store_id: int, store: ShoppingStoreUpdate, db: Session = Depends(get_db)
+):
     """Rename a store."""
     db_store = db.query(ShoppingStore).filter(ShoppingStore.id == store_id).first()
     if not db_store:
@@ -221,7 +231,9 @@ def update_store(store_id: int, store: ShoppingStoreUpdate, db: Session = Depend
     name = _clean_name(store.name, "Store name")
     conflict = _find_store_by_name(db, name)
     if conflict and conflict.id != store_id:
-        raise HTTPException(status_code=409, detail="A store with that name already exists")
+        raise HTTPException(
+            status_code=409, detail="A store with that name already exists"
+        )
 
     db_store.name = name
     db.commit()
@@ -275,7 +287,8 @@ def list_items(
     if not include_hidden:
         cutoff = today_start_utc(db)
         query = query.filter(
-            (ShoppingItem.completed == False) | (ShoppingItem.completed_at >= cutoff)  # noqa: E712
+            (ShoppingItem.completed == False)
+            | (ShoppingItem.completed_at >= cutoff)  # noqa: E712
         )
 
     return query.order_by(*_list_ordering()).all()
@@ -312,13 +325,19 @@ def list_purchased_items(
 
     if search and search.strip():
         term = f"%{search.strip()}%"
-        query = query.filter(or_(ShoppingItem.name.ilike(term), ShoppingItem.note.ilike(term)))
+        query = query.filter(
+            or_(ShoppingItem.name.ilike(term), ShoppingItem.note.ilike(term))
+        )
 
-    return query.order_by(nullslast(ShoppingItem.completed_at.desc()), ShoppingItem.id.desc()).all()
+    return query.order_by(
+        nullslast(ShoppingItem.completed_at.desc()), ShoppingItem.id.desc()
+    ).all()
 
 
 @router.post("/items", response_model=ShoppingItemResponse, status_code=201)
-def create_item(item: ShoppingItemCreate, response: Response, db: Session = Depends(get_db)):
+def create_item(
+    item: ShoppingItemCreate, response: Response, db: Session = Depends(get_db)
+):
     """Add an item, deduplicating against the open list and recording history.
 
     A store may be named instead of referenced by id, for scripted and voice
@@ -349,7 +368,9 @@ def create_item(item: ShoppingItemCreate, response: Response, db: Session = Depe
     # as-is with 200. A merely *completed* match creates a new item — you bought
     # the milk, now you need more milk.
     store_clause = (
-        ShoppingItem.store_id.is_(None) if store_id is None else ShoppingItem.store_id == store_id
+        ShoppingItem.store_id.is_(None)
+        if store_id is None
+        else ShoppingItem.store_id == store_id
     )
     existing = (
         db.query(ShoppingItem)
@@ -446,7 +467,8 @@ def reorder_items(payload: ShoppingReorder, db: Session = Depends(get_db)):
         return []
 
     rows = {
-        row.id: row for row in db.query(ShoppingItem).filter(ShoppingItem.id.in_(ordered_ids)).all()
+        row.id: row
+        for row in db.query(ShoppingItem).filter(ShoppingItem.id.in_(ordered_ids)).all()
     }
     missing = [item_id for item_id in ordered_ids if item_id not in rows]
     if missing:
@@ -480,7 +502,9 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
 
 @router.get("/suggestions", response_model=list[ShoppingSuggestion])
 def list_suggestions(
-    q: str | None = Query(None, description="Substring to match anywhere in the item name"),
+    q: str | None = Query(
+        None, description="Substring to match anywhere in the item name"
+    ),
     limit: int = Query(8, ge=1),
     db: Session = Depends(get_db),
 ):
@@ -505,7 +529,9 @@ def list_suggestions(
         escaped = _escape_like(term.lower())
         lowered = func.lower(ShoppingItemHistory.name)
         query = query.filter(lowered.like(f"%{escaped}%", escape=_LIKE_ESCAPE))
-        prefix_first = case((lowered.like(f"{escaped}%", escape=_LIKE_ESCAPE), 0), else_=1)
+        prefix_first = case(
+            (lowered.like(f"{escaped}%", escape=_LIKE_ESCAPE), 0), else_=1
+        )
         query = query.order_by(prefix_first, *ranking)
     else:
         query = query.order_by(*ranking)
@@ -520,7 +546,11 @@ def delete_suggestion(history_id: int, db: Session = Depends(get_db)):
     History is permanent, so a typo'd add ("mikl") would otherwise haunt
     autocomplete forever. Shopping items are left alone.
     """
-    row = db.query(ShoppingItemHistory).filter(ShoppingItemHistory.id == history_id).first()
+    row = (
+        db.query(ShoppingItemHistory)
+        .filter(ShoppingItemHistory.id == history_id)
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Suggestion not found")
 

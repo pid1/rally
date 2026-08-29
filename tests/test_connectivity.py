@@ -35,7 +35,9 @@ def test_llm_anthropic_success(client, make_setting, mock_llm):
     assert mock_llm.calls[0][0] == "anthropic"
 
 
-def test_llm_anthropic_success_includes_configured_budget(client, make_setting, mock_llm):
+def test_llm_anthropic_success_includes_configured_budget(
+    client, make_setting, mock_llm
+):
     """The verify modal auto-closes, so this is the one place a freshly
     resolved "Model maximum" budget is confirmed back to the operator."""
     make_setting("llm_provider", "anthropic")
@@ -151,7 +153,9 @@ def test_weather_request_error_returns_failure(client, make_setting, mock_reques
 def test_calendar_test_ics_success(client, make_member, mock_requests):
     member = make_member("Dad")
     cal = _make_calendar(client, member.id, cal_type="ics")
-    mock_requests.set_response(text="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", status_code=200)
+    mock_requests.set_response(
+        text="BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR", status_code=200
+    )
 
     body = client.post(f"/api/calendars/{cal['id']}/test").json()
 
@@ -187,7 +191,9 @@ def test_calendar_test_caldav_success(client, make_member, mock_caldav):
 
 def test_calendar_test_caldav_missing_credentials(client, make_member):
     member = make_member("Dad")
-    cal = _make_calendar(client, member.id, cal_type="caldav_apple")  # no username/password
+    cal = _make_calendar(
+        client, member.id, cal_type="caldav_apple"
+    )  # no username/password
 
     body = client.post(f"/api/calendars/{cal['id']}/test").json()
 
