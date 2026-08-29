@@ -37,4 +37,8 @@ jobs:
           # Flags intentional repetition (generated files, repeated markup) far more
           # often than real duplication.
           VALIDATE_JSCPD: false
+          # biome and prettier disagree on indentation (tabs vs spaces) and both
+          # run on the same files, so no formatting satisfies both. prettier wins
+          # here because it covers more file types; BIOME_LINT stays on.
+          VALIDATE_BIOME_FORMAT: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
