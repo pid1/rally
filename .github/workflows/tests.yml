@@ -5,9 +5,15 @@ on:
   push:
     branches: ["main"]
 
+# Least privilege by default; jobs opt in to what they need.
+permissions: {}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,6 +43,9 @@ jobs:
   # above, where Playwright is deliberately not installed.
   visual:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

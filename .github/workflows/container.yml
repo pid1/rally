@@ -8,6 +8,9 @@ on:
 env:
   IMAGE: ghcr.io/${{ github.repository }}
 
+# Least privilege by default; jobs opt in to what they need.
+permissions: {}
+
 jobs:
   build:
     runs-on: ubuntu-latest
