@@ -1,0 +1,35 @@
+---
+name: Lint
+
+on: # yamllint disable-line rule:truthy
+  push:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  build:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+      statuses: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # zizmor/artipacked: keep the token out of .git/config; this job
+          # only reads the tree, it never pushes.
+          persist-credentials: false
+          # super-linter diffs against the base, so it needs full history.
+          fetch-depth: 0
+
+      - name: Super-linter
+        uses: super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918 # v8.7.0
+        env:
+          VALIDATE_ALL_CODEBASE: true
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
