@@ -613,3 +613,239 @@ class TestCaldavSyncTokens:
         row = db_session.query(CalendarCache).one()
         assert "unauthorised" in row.last_error
         assert len(row.occurrences) == 1, "a failed probe must not blank the calendar"
+
+
+class TestOrphanedCacheRows:
+    """A cache row whose calendar was deleted.
+
+    The production bug: `/calendar` reported "External calendars updated 272
+    hours ago" while every live feed had in fact been fetched two minutes
+    earlier. The 272 hours was the age of a row belonging to calendar 2, which
+    had been deleted — nothing refreshes such a row, so its `fetched_at` is
+    frozen at the deletion and drags the whole freshness summary back with it.
+    """
+
+    def _orphan(self, db_session, calendar_id=999, age_hours=272):
+        row = CalendarCache(
+            calendar_id=calendar_id,
+            occurrences=[],
+            window_start="2026-08-01",
+            window_end="2026-09-01",
+            fetched_at=datetime.now(UTC) - timedelta(hours=age_hours),
+        )
+        db_session.add(row)
+        db_session.commit()
+        return row
+
+    def test_status_ignores_a_row_whose_calendar_is_gone(
+        self, db_session, ics_calendar, mock_requests
+    ):
+        mock_requests.set_response(text=TestSyncing()._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        self._orphan(db_session)
+
+        status = calendar_cache.cache_status(db_session)
+
+        age = datetime.now(UTC) - status["oldest_fetched_at"]
+        assert age < timedelta(minutes=1), "the orphan must not set the reported age"
+        assert status["cached"] == 1
+        assert status["expected"] == 1
+
+    def test_an_orphan_does_not_report_a_sync_every_pass(
+        self, db_session, ics_calendar, mock_requests
+    ):
+        """The second, quieter half of the bug.
+
+        `sync_if_stale` treated the frozen orphan as permanently stale, so it
+        reported work on every call. Measured, this cost no network traffic —
+        `sync_calendars` found no live target behind the orphan id and returned
+        immediately — so the real feeds were always fetched on their proper
+        interval. What it cost was truth: a caller could not use the return
+        value to tell whether anything had actually been synced.
+        """
+        mock_requests.set_response(text=TestSyncing()._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        self._orphan(db_session)
+        before = len(mock_requests.calls)
+
+        assert calendar_cache.sync_if_stale(db_session, TZ) is None
+        assert len(mock_requests.calls) == before, "a warm cache must not touch the network"
+
+    def test_a_sync_pass_prunes_orphans(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(text=TestSyncing()._feed())
+        self._orphan(db_session)
+
+        calendar_cache.sync_calendars(db_session, TZ)
+
+        remaining = {r.calendar_id for r in db_session.query(CalendarCache).all()}
+        assert remaining == {ics_calendar.id}
+
+    def test_deleting_a_calendar_removes_its_cache_row(
+        self, client, db_session, ics_calendar, mock_requests
+    ):
+        mock_requests.set_response(text=TestSyncing()._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+        assert db_session.query(CalendarCache).count() == 1
+
+        response = client.delete(f"/api/calendars/{ics_calendar.id}")
+
+        assert response.status_code in (200, 204)
+        db_session.expire_all()
+        assert db_session.query(CalendarCache).count() == 0
+
+
+class TestRateLimitBackoff:
+    """Syncing every five minutes is enough traffic to get told off for it."""
+
+    def _sync_once(self, db_session, mock_requests):
+        mock_requests.set_response(text=TestSyncing()._feed())
+        calendar_cache.sync_calendars(db_session, TZ)
+
+    def test_retry_after_seconds_is_honored(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["rate_limited"] == 1
+        assert summary["failed"] == 1
+        row = db_session.query(CalendarCache).one()
+        wait = calendar_cache.ensure_utc(row.retry_after) - datetime.now(UTC)
+        assert timedelta(minutes=14) < wait <= timedelta(minutes=15)
+
+    def test_retry_after_http_date_is_honored(self, db_session, ics_calendar, mock_requests):
+        from email.utils import format_datetime
+
+        when = datetime.now(UTC) + timedelta(minutes=30)
+        mock_requests.set_response(status_code=429, headers={"Retry-After": format_datetime(when)})
+
+        calendar_cache.sync_calendars(db_session, TZ)
+
+        row = db_session.query(CalendarCache).one()
+        wait = calendar_cache.ensure_utc(row.retry_after) - datetime.now(UTC)
+        assert timedelta(minutes=29) < wait <= timedelta(minutes=30)
+
+    def test_a_bare_429_falls_back_to_exponential_backoff(
+        self, db_session, ics_calendar, mock_requests
+    ):
+        mock_requests.set_response(status_code=429)
+
+        waits = []
+        for _ in range(3):
+            calendar_cache.sync_calendars(db_session, TZ)
+            row = db_session.query(CalendarCache).one()
+            waits.append(calendar_cache.ensure_utc(row.retry_after) - datetime.now(UTC))
+            row.retry_after = None  # let the next forced pass through
+            db_session.commit()
+
+        assert timedelta(minutes=4) < waits[0] <= timedelta(minutes=5)
+        assert timedelta(minutes=9) < waits[1] <= timedelta(minutes=10)
+        assert timedelta(minutes=19) < waits[2] <= timedelta(minutes=20)
+
+    def test_backoff_is_capped(self):
+        assert calendar_cache.backoff_delay(1) == timedelta(
+            minutes=calendar_cache.BACKOFF_BASE_MINUTES
+        )
+        assert calendar_cache.backoff_delay(500) == timedelta(
+            minutes=calendar_cache.BACKOFF_MAX_MINUTES
+        )
+
+    def test_a_503_backs_off_too(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(status_code=503)
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["rate_limited"] == 1
+        assert db_session.query(CalendarCache).one().retry_after is not None
+
+    def test_an_ordinary_failure_sets_no_backoff(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(status_code=500)
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert summary["failed"] == 1
+        assert summary["rate_limited"] == 0
+        assert db_session.query(CalendarCache).one().retry_after is None
+
+    def test_the_background_sync_waits_out_the_backoff(
+        self, db_session, ics_calendar, mock_requests
+    ):
+        mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
+        calendar_cache.sync_calendars(db_session, TZ)
+        before = len(mock_requests.calls)
+
+        assert calendar_cache.sync_if_stale(db_session, TZ) is None
+        assert len(mock_requests.calls) == before, "backoff must hold the automatic path back"
+
+    def test_the_backoff_expires(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
+        calendar_cache.sync_calendars(db_session, TZ)
+
+        row = db_session.query(CalendarCache).one()
+        row.retry_after = datetime.now(UTC) - timedelta(seconds=1)
+        db_session.commit()
+        mock_requests.set_response(text=TestSyncing()._feed())
+
+        assert calendar_cache.sync_if_stale(db_session, TZ) is not None
+
+    def test_the_refresh_button_ignores_the_backoff(self, db_session, ics_calendar, mock_requests):
+        """A person pressing Refresh is not the traffic we are throttling."""
+        mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
+        calendar_cache.sync_calendars(db_session, TZ)
+        before = len(mock_requests.calls)
+        mock_requests.set_response(text=TestSyncing()._feed())
+
+        summary = calendar_cache.sync_calendars(db_session, TZ)
+
+        assert len(mock_requests.calls) > before
+        assert summary["synced"] == 1
+
+    def test_a_success_clears_the_backoff(self, db_session, ics_calendar, mock_requests):
+        mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
+        calendar_cache.sync_calendars(db_session, TZ)
+        mock_requests.set_response(text=TestSyncing()._feed())
+
+        calendar_cache.sync_calendars(db_session, TZ)
+
+        row = db_session.query(CalendarCache).one()
+        assert row.retry_after is None
+        assert row.failure_count == 0
+        assert row.last_error is None
+
+    def test_one_throttled_feed_does_not_hold_back_the_others(
+        self, db_session, ics_calendar, make_member, mock_requests
+    ):
+        from rally.models import Calendar
+
+        other = Calendar(
+            label="School",
+            url="https://example.invalid/school.ics",
+            family_member_id=make_member("Ada").id,
+            cal_type="ics",
+        )
+        db_session.add(other)
+        db_session.commit()
+
+        def handler(url, *args, **kwargs):
+            from tests.conftest import FakeResponse
+
+            if "school" in url:
+                return FakeResponse(text=TestSyncing()._feed(uid="school"))
+            return FakeResponse(status_code=429, headers={"Retry-After": "900"})
+
+        mock_requests.set_handler(handler)
+        calendar_cache.sync_calendars(db_session, TZ)
+
+        rows = {r.calendar_id: r for r in db_session.query(CalendarCache).all()}
+        rows[other.id].fetched_at = datetime.now(UTC) - timedelta(hours=1)
+        db_session.commit()
+
+        summary = calendar_cache.sync_if_stale(db_session, TZ)
+
+        assert summary is not None
+        assert summary["calendars"] == 1, "only the un-throttled feed should be synced"
+
+
+class TestSyncInterval:
+    def test_the_default_is_five_minutes(self, db_session):
+        assert calendar_cache.DEFAULT_SYNC_INTERVAL_MINUTES == 5
+        assert calendar_cache.sync_interval_minutes(db_session) == 5

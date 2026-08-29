@@ -46,7 +46,21 @@ CACHE_DAYS_BACK = 30
 CACHE_DAYS_FORWARD = 210
 
 SYNC_INTERVAL_KEY = "calendar_sync_interval_minutes"
-DEFAULT_SYNC_INTERVAL_MINUTES = 15
+DEFAULT_SYNC_INTERVAL_MINUTES = 5
+
+# Statuses that mean "you are asking too often", as opposed to "this is
+# broken". 429 is the explicit one; 503 is what several calendar hosts send
+# instead, and treating it as an ordinary failure would have us retry it at
+# full rate. Both get the backoff; everything else keeps the old behaviour of
+# retrying next pass, because a 500 or a timeout is usually transient and
+# costs the server nothing to re-ask.
+RATE_LIMIT_STATUSES = (429, 503)
+
+# Backoff doubles per consecutive rate-limited pass: 5, 10, 20, 40 ... capped.
+# The cap is deliberately well under a day — a feed that has calmed down should
+# come back on its own without anyone pressing Refresh.
+BACKOFF_BASE_MINUTES = 5
+BACKOFF_MAX_MINUTES = 240
 
 # Concurrency for a sync pass. Small on purpose: these are a handful of feeds,
 # and a wide pool would trade a real problem for a rate-limit one.
@@ -93,6 +107,47 @@ def content_fingerprint(text: str) -> str:
         digest.update(line.encode("utf-8", "replace"))
         digest.update(b"\n")
     return digest.hexdigest()
+
+
+# ── Rate limiting ────────────────────────────────────────────────────────────
+
+
+def parse_retry_after(value: str | None) -> timedelta | None:
+    """Interpret a ``Retry-After`` header, in either form RFC 9110 allows.
+
+    It is either a count of seconds or an HTTP-date, and which one you get is
+    per-server: Google sends seconds, some CalDAV hosts send a date. A date
+    already in the past means "you may retry now", so it clamps to zero rather
+    than going negative and reading as no backoff at all.
+    """
+    if not value:
+        return None
+    text = value.strip()
+    if text.isdigit():
+        return timedelta(seconds=int(text))
+    try:
+        from email.utils import parsedate_to_datetime
+
+        when = parsedate_to_datetime(text)
+    except TypeError, ValueError:
+        return None
+    if when is None:
+        return None
+    return max(ensure_utc(when) - now_utc(), timedelta(0))
+
+
+def backoff_delay(failure_count: int) -> timedelta:
+    """How long to wait after ``failure_count`` consecutive rate-limited passes.
+
+    ``failure_count`` is 1 on the first refusal, so the first wait is the base
+    interval rather than zero.
+    """
+    exponent = max(0, failure_count - 1)
+    # Cap the exponent before shifting: a feed left failing for a month would
+    # otherwise compute an astronomically large number just to min() it away.
+    exponent = min(exponent, 16)
+    minutes = min(BACKOFF_BASE_MINUTES * (2**exponent), BACKOFF_MAX_MINUTES)
+    return timedelta(minutes=minutes)
 
 
 # ── Serialization ────────────────────────────────────────────────────────────
@@ -183,12 +238,19 @@ def read_cached(
 
 
 def cache_status(db: Session) -> dict:
-    """Freshness summary for the UI."""
-    rows = db.query(CalendarCache).all()
-    external = external_calendar_ids(db)
+    """Freshness summary for the UI.
+
+    Every field is computed over the calendars that still exist. A row left
+    behind by a deleted calendar is nobody's job to refresh, so counting one
+    here reported the age of the deletion rather than the age of the data —
+    which is how a cache refreshed two minutes ago came to describe itself as
+    272 hours old.
+    """
+    external = set(external_calendar_ids(db))
     if not external:
         return {"cached": 0, "expected": 0, "oldest_fetched_at": None, "failing": []}
 
+    rows = [r for r in db.query(CalendarCache).all() if r.calendar_id in external]
     labels = {cal.id: cal.label for cal in db.query(Calendar).all()}
     return {
         "cached": len(rows),
@@ -198,6 +260,23 @@ def cache_status(db: Session) -> dict:
         ),
         "failing": [labels.get(r.calendar_id, str(r.calendar_id)) for r in rows if r.last_error],
     }
+
+
+def prune_orphaned_cache(db: Session) -> int:
+    """Delete cache rows whose calendar no longer exists. Returns how many.
+
+    ``calendar_cache.calendar_id`` is a plain integer rather than a foreign
+    key, so nothing at the database level cleans these up; the delete endpoint
+    now does it directly, and this is the sweep that catches rows already
+    orphaned before it did.
+    """
+    live = {cal.id for cal in db.query(Calendar).all()}
+    orphans = [r for r in db.query(CalendarCache).all() if r.calendar_id not in live]
+    for row in orphans:
+        db.delete(row)
+    if orphans:
+        db.flush()
+    return len(orphans)
 
 
 # ── Syncing ──────────────────────────────────────────────────────────────────
@@ -282,6 +361,17 @@ def _fetch_one(
         if response.status_code == 304:
             # The cheapest possible sync: no body, no parse.
             return {"ok": True, "unchanged": True, "etag": etag, "last_modified": last_modified}
+        if response.status_code in RATE_LIMIT_STATUSES:
+            # Read the status before raise_for_status: the exception carries no
+            # response we can reach here, and the server's own Retry-After is
+            # always a better number than one we invented.
+            return {
+                "ok": False,
+                "rate_limited": True,
+                "retry_after": parse_retry_after(response.headers.get("Retry-After")),
+                "error": f"rate limited (HTTP {response.status_code})",
+                "label": label,
+            }
         response.raise_for_status()
 
         body = response.text
@@ -306,6 +396,22 @@ def _fetch_one(
             ),
         }
     except Exception as exc:
+        # CalDAV goes through its own client, and a raised HTTPError from any
+        # path still carries the response. Catching the rate limit here too
+        # means a throttled CalDAV feed backs off like an ICS one instead of
+        # being retried at full rate as a generic failure.
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if status in RATE_LIMIT_STATUSES:
+            return {
+                "ok": False,
+                "rate_limited": True,
+                "retry_after": parse_retry_after(
+                    getattr(response, "headers", {}).get("Retry-After")
+                ),
+                "error": f"rate limited (HTTP {status})",
+                "label": label,
+            }
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "label": label}
 
 
@@ -320,8 +426,8 @@ def _restamp_member_color(row: CalendarCache, owner: FamilyMember | None) -> boo
     about it moves when the change was on this side.
 
     Returns whether anything moved, so the overwhelmingly common case — nobody
-    changed a color — stays a no-op rather than rewriting the whole blob every
-    fifteen minutes.
+    changed a color — stays a no-op rather than rewriting the whole blob on
+    every sync pass.
     """
     color = owner.color if owner else None
     stored = row.occurrences or []
@@ -347,6 +453,12 @@ def sync_calendars(
 
     window_start, window_end = window_bounds(start_day, end_day, local_tz)
 
+    # Before anything else, drop cache rows whose calendar is gone. Deleting a
+    # calendar used to leave its row behind, and a row nothing syncs is frozen
+    # at the moment the calendar was deleted — which is what made the whole
+    # cache report itself as stale forever.
+    pruned = prune_orphaned_cache(db)
+
     pairs = (
         db.query(Calendar, FamilyMember)
         .outerjoin(FamilyMember, Calendar.family_member_id == FamilyMember.id)
@@ -358,7 +470,11 @@ def sync_calendars(
         if (cal.cal_type or "ics") != "native" and (calendar_ids is None or cal.id in calendar_ids)
     ]
     if not targets:
-        return {"synced": 0, "unchanged": 0, "failed": 0, "calendars": 0}
+        # The prune only flushed. Nothing below will reach the commit on this
+        # path, and an uncommitted delete is no delete at all.
+        if pruned:
+            db.commit()
+        return {"synced": 0, "unchanged": 0, "failed": 0, "rate_limited": 0, "calendars": 0}
 
     rows = {c.calendar_id: c for c in db.query(CalendarCache).all()}
 
@@ -384,7 +500,7 @@ def sync_calendars(
         for future in concurrent.futures.as_completed(futures):
             results[futures[future]] = future.result()
 
-    synced = unchanged = failed = 0
+    synced = unchanged = failed = rate_limited = 0
     now = now_utc()
 
     for cal, owner in targets:
@@ -405,6 +521,12 @@ def sync_calendars(
             # nothing and blank nothing; it only adds a note.
             row.last_error = outcome.get("error", "unknown error")
             row.failure_count = (row.failure_count or 0) + 1
+            if outcome.get("rate_limited"):
+                # Honor the server's own number when it gave one, and fall back
+                # to doubling from our failure count when it did not.
+                delay = outcome.get("retry_after") or backoff_delay(row.failure_count)
+                row.retry_after = now + delay
+                rate_limited += 1
             failed += 1
             continue
 
@@ -415,6 +537,7 @@ def sync_calendars(
                 row.sync_tokens = outcome["sync_tokens"]
             row.last_error = None
             row.failure_count = 0
+            row.retry_after = None
             unchanged += 1
             continue
 
@@ -427,6 +550,7 @@ def sync_calendars(
             row.fetched_at = now
             row.last_error = None
             row.failure_count = 0
+            row.retry_after = None
             unchanged += 1
             continue
 
@@ -451,6 +575,7 @@ def sync_calendars(
         row.changed_at = now
         row.last_error = None
         row.failure_count = 0
+        row.retry_after = None
         synced += 1
 
     db.commit()
@@ -458,34 +583,56 @@ def sync_calendars(
         "synced": synced,
         "unchanged": unchanged,
         "failed": failed,
+        "rate_limited": rate_limited,
         "calendars": len(targets),
     }
 
 
 def sync_if_stale(db: Session, local_tz: ZoneInfo) -> dict | None:
-    """Sync when the oldest cache entry is older than the configured interval.
+    """Sync the calendars whose cache has aged past the configured interval.
 
     Called from the minute loop and opportunistically from the API, the same
     arrangement event reminders use. Returns ``None`` when nothing was due.
+
+    Two things narrow what counts as due. Only rows belonging to a calendar
+    that still exists are considered: an orphan is refreshed by nothing, so it
+    is stale forever, and this used to report work on every pass — harmlessly,
+    since ``sync_calendars`` then found no target and touched no network, but
+    it meant the return value said "synced" when nothing had been. And a
+    calendar inside its rate-limit backoff is held back until ``retry_after``
+    passes, which is the whole point of having recorded it.
     """
     external = external_calendar_ids(db)
     if not external:
         return None
 
-    rows = db.query(CalendarCache).all()
+    now = now_utc()
+    live = set(external)
+    rows = [r for r in db.query(CalendarCache).all() if r.calendar_id in live]
     cached_ids = {r.calendar_id for r in rows}
     missing = [cid for cid in external if cid not in cached_ids]
 
-    if missing:
-        return sync_calendars(db, local_tz)
-
-    cutoff = now_utc() - timedelta(minutes=sync_interval_minutes(db))
     # SQLite hands back naive datetimes, so a bare comparison against an aware
     # `now_utc()` raises — and this runs from a background loop, where that
     # would mean the cache silently never refreshed.
-    stale = [
-        r.calendar_id for r in rows if r.fetched_at is None or ensure_utc(r.fetched_at) < cutoff
-    ]
-    if not stale:
+    cutoff = now - timedelta(minutes=sync_interval_minutes(db))
+
+    def is_due(row: CalendarCache) -> bool:
+        if row.retry_after is not None:
+            # While a backoff is set it *replaces* the interval for this
+            # calendar. Not just to hold it back: `fetched_at` records the last
+            # successful contact and does not move while a feed is refusing us,
+            # so once the backoff expired the interval test would still say
+            # "recently fetched" and the calendar would never be retried at all.
+            return ensure_utc(row.retry_after) <= now
+        return row.fetched_at is None or ensure_utc(row.fetched_at) < cutoff
+
+    stale = [r.calendar_id for r in rows if is_due(r)]
+
+    # A calendar with no row at all has never been fetched, so it is due by
+    # definition — but it joins the same list rather than triggering a full
+    # sweep, which used to drag every backed-off feed along with it.
+    due_ids = sorted(set(stale) | set(missing))
+    if not due_ids:
         return None
-    return sync_calendars(db, local_tz, calendar_ids=stale)
+    return sync_calendars(db, local_tz, calendar_ids=due_ids)

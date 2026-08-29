@@ -50,7 +50,9 @@ Every family member also gets a **Rally-owned calendar** automatically. Events y
 4. Generate one labeled `Rally` and copy it
 5. In Rally, add a calendar of type **Apple iCloud CalDAV** with your Apple ID and that password
 
-External calendars are fetched in the background and served from a cache, so pages render immediately. `calendar_sync_interval_minutes` (default 15) sets how stale that cache may get. The calendar page says how old the data is, and names any feed it could not reach.
+External calendars are fetched in the background and served from a cache, so pages render immediately. `calendar_sync_interval_minutes` (default 5) sets how stale that cache may get. The calendar page says how old the data is, and names any feed it could not reach.
+
+If a provider rate-limits a feed (HTTP 429, or the 503 some hosts send instead), that one calendar backs off before it is tried again — for as long as the server's `Retry-After` asks, or doubling from five minutes up to four hours when it does not say. The other calendars keep syncing on the normal interval, and the **Refresh** button on the calendar page ignores the backoff, because a person pressing it is not the traffic being throttled.
 
 ## Notifications
 

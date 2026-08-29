@@ -838,7 +838,7 @@ def main() -> int:
         # Keep the calendar cache warm. This is the reliable path; the API also
         # syncs opportunistically so a dev instance is not left behind. Both
         # gate on the configured interval, so calling this every minute costs
-        # one indexed read on all but one pass in fifteen.
+        # one indexed read on all but one pass in five.
         try:
             from zoneinfo import ZoneInfo
 
@@ -847,10 +847,16 @@ def main() -> int:
 
             summary = calendar_cache.sync_if_stale(db, ZoneInfo(local_timezone_name(db)))
             if summary and (summary["synced"] or summary["failed"]):
-                print(
+                line = (
                     f"Calendar sync: {summary['synced']} updated, "
                     f"{summary['unchanged']} unchanged, {summary['failed']} failed"
                 )
+                # Worth its own word in the log: a rate-limited feed is not
+                # broken, and it is the one failure that stops being retried
+                # next pass, so a silent one looks like a feed that vanished.
+                if summary.get("rate_limited"):
+                    line += f" ({summary['rate_limited']} rate limited, backing off)"
+                print(line)
         except Exception as exc:  # pragma: no cover - the loop must not die
             print(f"Calendar sync failed: {exc}")
 

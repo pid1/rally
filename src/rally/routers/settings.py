@@ -590,6 +590,16 @@ def delete_calendar(cal_id: int, db: Session = Depends(get_db)):
                 )
             db.query(Event).filter(Event.id.in_(event_ids)).delete(synchronize_session=False)
 
+    # The cache row is keyed by a plain integer, not a foreign key, so nothing
+    # removes it for us. Leaving it behind froze `fetched_at` at the moment of
+    # deletion, and both the freshness banner and the staleness check counted
+    # that row forever after.
+    from rally.models import CalendarCache
+
+    db.query(CalendarCache).filter(CalendarCache.calendar_id == db_cal.id).delete(
+        synchronize_session=False
+    )
+
     db.delete(db_cal)
     db.commit()
     return None

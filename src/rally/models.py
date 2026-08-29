@@ -748,5 +748,12 @@ class CalendarCache(Base):
     # blanking the calendar; the error travels alongside so the UI can say so.
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     failure_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Set when a feed rate-limits us: the earliest time the background sync may
+    # try this calendar again. Syncing every five minutes across several feeds
+    # is enough traffic that a provider will eventually say "not so fast", and
+    # the wrong answer to a 429 is to come back in five minutes and ask again.
+    # Only the automatic path honors it; the Refresh button is a person asking,
+    # and it stays able to try.
+    retry_after: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)

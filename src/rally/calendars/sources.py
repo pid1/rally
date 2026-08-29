@@ -89,7 +89,7 @@ def collect_occurrences(
     ``use_cache`` serves external calendars from ``calendar_cache`` instead of
     the network, which is what makes a page load fast. It defaults to False so
     the 4 AM summary keeps fetching live — a briefing built from a
-    fifteen-minute-old cache would be fine, but one built from a cache that has
+    five-minute-old cache would be fine, but one built from a cache that has
     been failing silently for a day would not, and the generator is the one
     caller with no user watching it.
 
