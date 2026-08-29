@@ -1,0 +1,13 @@
+# Extend the default ruleset; we only add an allowlist.
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Pushover publishes uQiRzpo4DXghDmr9QzzfQu27cmVRsG as the example user key in
+its own API documentation, and it is used here as fixture data in a visual
+test and the screenshot script. It is not a credential and grants no access.
+"""
+regexes = [
+  '''uQiRzpo4DXghDmr9QzzfQu27cmVRsG''',
+]
