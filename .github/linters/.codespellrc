@@ -1,0 +1,9 @@
+[codespell]
+# Binary and generated files produce nothing but noise: codespell reads PDFs
+# as text and lockfiles are full of package names that look like typos.
+skip = *.pdf,*.lock,*.min.js,*.min.css,*.svg,*.png,*.jpg,*.ico,./node_modules,./.git,./dist,./build,pnpm-lock.yaml,package-lock.json,uv.lock,go.sum
+# coo        — Chief Operating Officer
+# pres       — slide/presentation identifier, not "press"
+# unparseable— an accepted spelling
+# lifes      — "still lifes" is the Conway's Game of Life term of art
+ignore-words-list = coo,pres,unparseable,lifes
