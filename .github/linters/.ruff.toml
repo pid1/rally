@@ -1,0 +1,3 @@
+# super-linter reads linter configs from LINTER_RULES_PATH, not from
+# pyproject.toml, so the project settings are mirrored here.
+line-length = 100
