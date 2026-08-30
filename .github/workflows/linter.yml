@@ -41,4 +41,7 @@ jobs:
           # run on the same files, so no formatting satisfies both. prettier wins
           # here because it covers more file types; BIOME_LINT stays on.
           VALIDATE_BIOME_FORMAT: false
+          # stylelint and biome both lint CSS with different opinions. biome is the
+          # more widely used of the two and also covers js/ts, so it is the one kept.
+          VALIDATE_CSS: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
