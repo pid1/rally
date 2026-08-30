@@ -569,9 +569,9 @@ class TestReadPath:
         response = client.get("/api/events?start=2026-08-01&end=2026-09-01")
 
         assert response.status_code == 200
-        assert (
-            len(mock_requests.calls) == before
-        ), "a warm cache must serve the page without any remote fetch"
+        assert len(mock_requests.calls) == before, (
+            "a warm cache must serve the page without any remote fetch"
+        )
 
     def test_sync_status_reports_freshness(self, client, db_session, ics_calendar):
         db_session.add(

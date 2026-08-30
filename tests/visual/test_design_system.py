@@ -35,9 +35,9 @@ def test_page_blocks_share_a_left_edge(measure, page, viewport):
 def test_no_horizontal_overflow(measure, page, viewport):
     """The body never scrolls sideways at any supported width."""
     frame = measure(page, viewport)["frame"]
-    assert not frame[
-        "horizontalOverflow"
-    ], f"{page}/{viewport} scrolls horizontally: {frame['scrollWidth']} > {frame['clientWidth']}"
+    assert not frame["horizontalOverflow"], (
+        f"{page}/{viewport} scrolls horizontally: {frame['scrollWidth']} > {frame['clientWidth']}"
+    )
 
 
 @pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
@@ -112,9 +112,9 @@ def test_content_starts_above_the_fold_on_a_phone(measure, page):
     data = measure(page, "mobile")
     first, height = data["firstContent"], data["frame"]["viewportHeight"]
     assert first, f"{page} renders no content container"
-    assert (
-        first["y"] < height
-    ), f"{page}: first content row at {first['y']}px, below the {height}px fold"
+    assert first["y"] < height, (
+        f"{page}: first content row at {first['y']}px, below the {height}px fold"
+    )
 
 
 @pytest.mark.parametrize("page", ALL_PAGES)
@@ -197,9 +197,9 @@ def test_every_modal_uses_the_shared_chassis(measure, page):
         # form, a single centered status block.
         if not modal["hasTitle"]:
             continue
-        assert (
-            modal["hasScroll"] and modal["hasBody"]
-        ), f"{page}: modal #{modal['id']} is missing the .modal-scroll/.modal-body chassis"
+        assert modal["hasScroll"] and modal["hasBody"], (
+            f"{page}: modal #{modal['id']} is missing the .modal-scroll/.modal-body chassis"
+        )
 
 
 def _open(browser, live_server, path: str, height: int = 900):
@@ -281,9 +281,9 @@ def test_every_view_is_reachable_on_a_phone(browser, live_server):
         assert page.is_visible("#view-select"), "the selector must not be hidden on a phone"
         assert page.is_visible("#range-select"), "the selector must not be hidden on a phone"
 
-        assert page.eval_on_selector(
-            "#range-select option[value=rolling30]", "el => el.hidden"
-        ), "Calendar cannot draw a rolling 30 days, so it must not offer it"
+        assert page.eval_on_selector("#range-select option[value=rolling30]", "el => el.hidden"), (
+            "Calendar cannot draw a rolling 30 days, so it must not offer it"
+        )
         page.select_option("#view-select", "agenda")
         page.wait_for_timeout(400)
         assert not page.eval_on_selector("#range-select option[value=rolling30]", "el => el.hidden")
@@ -385,9 +385,9 @@ def test_the_range_title_leads_the_content_in_every_mode(browser, live_server):
     header, so switching View moved it — the inconsistency this replaces."""
     context, page = _calendar(browser, live_server)
     try:
-        assert (
-            page.query_selector("#range-label") is None
-        ), "the page-header caption is gone; the title leads the content instead"
+        assert page.query_selector("#range-label") is None, (
+            "the page-header caption is gone; the title leads the content instead"
+        )
         for view, rng in [
             ("calendar", "month"),
             ("calendar", "week"),
@@ -427,9 +427,9 @@ def test_a_day_view_is_titled_once_and_says_when_it_is_today(browser, live_serve
         page.click("#btn-today")
         page.wait_for_timeout(600)
 
-        assert (
-            page.query_selector(".agenda-heading") is None
-        ), "Agenda + Day must not repeat the date the title already carries"
+        assert page.query_selector(".agenda-heading") is None, (
+            "Agenda + Day must not repeat the date the title already carries"
+        )
         title = page.inner_text(".calendar-range-title")
         assert "Today" in title.title(), f"the Today marker must move to the title, got {title!r}"
 
@@ -438,9 +438,9 @@ def test_a_day_view_is_titled_once_and_says_when_it_is_today(browser, live_serve
         page.wait_for_timeout(600)
         headings = page.query_selector_all(".agenda-heading")
         assert headings, "Agenda + Week still needs headings to separate days"
-        assert (
-            "Today" not in page.inner_text(".calendar-range-title").title()
-        ), "the marker belongs to the single-day case only"
+        assert "Today" not in page.inner_text(".calendar-range-title").title(), (
+            "the marker belongs to the single-day case only"
+        )
 
         # Both Day views say it, since both name exactly one date.
         page.select_option("#view-select", "calendar")
@@ -449,16 +449,16 @@ def test_a_day_view_is_titled_once_and_says_when_it_is_today(browser, live_serve
         page.wait_for_timeout(600)
         page.click("#btn-today")
         page.wait_for_timeout(600)
-        assert (
-            "Today" in page.inner_text(".calendar-range-title").title()
-        ), "Calendar + Day names one date too, so it carries the marker as well"
+        assert "Today" in page.inner_text(".calendar-range-title").title(), (
+            "Calendar + Day names one date too, so it carries the marker as well"
+        )
 
         # ...and only when that date really is today.
         page.click("#btn-next")
         page.wait_for_timeout(600)
-        assert (
-            "Today" not in page.inner_text(".calendar-range-title").title()
-        ), "the marker must follow the anchor, not the range"
+        assert "Today" not in page.inner_text(".calendar-range-title").title(), (
+            "the marker must follow the anchor, not the range"
+        )
     finally:
         context.close()
 

@@ -44,4 +44,8 @@ jobs:
           # stylelint and biome both lint CSS with different opinions. biome is the
           # more widely used of the two and also covers js/ts, so it is the one kept.
           VALIDATE_CSS: false
+          # black and ruff format disagree on assert-message wrapping, and both
+          # run here. ruff is the more widely used of the two and its formatter
+          # is >99.9% black-compatible, so ruff format is the authority.
+          VALIDATE_PYTHON_BLACK: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

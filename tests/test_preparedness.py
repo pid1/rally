@@ -268,9 +268,9 @@ class TestSendDigest:
 
         assert failed.sent is False
         assert failed.failed
-        assert (
-            db_session.query(PrepRefreshNotice).count() == 0
-        ), "a failed send must not be recorded as delivered"
+        assert db_session.query(PrepRefreshNotice).count() == 0, (
+            "a failed send must not be recorded as delivered"
+        )
 
     def test_missing_app_token_skips_cleanly(
         self, db_session, make_prep_item, mock_pushover, make_setting
