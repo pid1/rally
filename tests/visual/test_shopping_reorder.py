@@ -153,9 +153,7 @@ def test_dragging_a_row_onto_another_store_moves_it_there(shopping, live_server)
 
     # And the store change is what the server holds, not only what is rendered.
     stores = {s["name"]: s["id"] for s in api_get(live_server, "/api/shopping/stores")}
-    stamps = next(
-        i for i in api_get(live_server, "/api/shopping/items") if i["name"] == "Stamps"
-    )
+    stamps = next(i for i in api_get(live_server, "/api/shopping/items") if i["name"] == "Stamps")
     assert stamps["store_id"] == stores["Trader Joe's"]
     assert stamps["sort_order"] == 0
 
@@ -192,9 +190,7 @@ def test_focus_follows_the_row_it_moved(shopping):
     shopping.keyboard.press("ArrowDown")
     shopping.wait_for_timeout(400)
 
-    focused = shopping.evaluate(
-        "() => document.activeElement.getAttribute('aria-label')"
-    )
+    focused = shopping.evaluate("() => document.activeElement.getAttribute('aria-label')")
     assert focused == "Reorder Paper towels"
 
 
@@ -203,9 +199,7 @@ def test_a_move_is_announced(shopping):
     shopping.keyboard.press("ArrowDown")
     shopping.wait_for_timeout(400)
 
-    assert shopping.locator("#reorder-status").text_content() == (
-        "Paper towels, 2 of 2 in Costco"
-    )
+    assert shopping.locator("#reorder-status").text_content() == ("Paper towels, 2 of 2 in Costco")
 
 
 def test_a_group_emptied_by_dragging_is_still_a_drop_target(shopping):
@@ -220,9 +214,7 @@ def test_a_group_emptied_by_dragging_is_still_a_drop_target(shopping):
     shopping.click('.filter-chip[data-value="2"]')
     shopping.wait_for_timeout(200)
 
-    costco = shopping.locator(
-        '.shopping-group:has(.shopping-group-name:text-is("Costco"))'
-    )
+    costco = shopping.locator('.shopping-group:has(.shopping-group-name:text-is("Costco"))')
     for name in ["Almond milk", "Frozen dumplings"]:
         box = costco.bounding_box()
         drag_to(shopping, name, box["x"] + 200, box["y"] + 40)

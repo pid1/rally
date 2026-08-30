@@ -58,9 +58,7 @@ def _vevent(summary, dtstart, dtend=None, uid=None, extra=""):
 def _parse(text, *, start="2026-08-01", end="2026-09-01", tz=CHICAGO, **kwargs):
     from rally.calendars.sources import window_bounds
 
-    window_start, window_end = window_bounds(
-        date.fromisoformat(start), date.fromisoformat(end), tz
-    )
+    window_start, window_end = window_bounds(date.fromisoformat(start), date.fromisoformat(end), tz)
     return occurrences_from_ical_text(
         text, window_start=window_start, window_end=window_end, local_tz=tz, **kwargs
     )
@@ -108,9 +106,9 @@ def test_window_is_measured_in_local_dates():
     day, which a UTC-dated window excludes.
     """
     text = _ics(_vevent("Late", "20260901T040000Z"))  # 11:00 PM local, Aug 31
-    assert [
-        o.start_local_date for o in _parse(text, start="2026-08-25", end="2026-09-01")
-    ] == ["2026-08-31"]
+    assert [o.start_local_date for o in _parse(text, start="2026-08-25", end="2026-09-01")] == [
+        "2026-08-31"
+    ]
 
 
 # --- Timezones and DST ---------------------------------------------------------
@@ -130,9 +128,7 @@ def test_ambiguous_local_time_takes_the_first_instant():
 
 def test_all_day_anchors_to_local_midnight_not_utc_midnight():
     """Anchoring at 00:00Z puts a birthday on the previous day in Chicago."""
-    assert local_midnight_utc(date(2026, 8, 14), CHICAGO) == datetime(
-        2026, 8, 14, 5, 0, tzinfo=UTC
-    )
+    assert local_midnight_utc(date(2026, 8, 14), CHICAGO) == datetime(2026, 8, 14, 5, 0, tzinfo=UTC)
 
 
 def test_weekly_event_keeps_its_local_time_across_a_dst_transition(make_event):
@@ -151,9 +147,7 @@ def test_weekly_event_keeps_its_local_time_across_a_dst_transition(make_event):
         local_tz=CHICAGO,
     )
 
-    local_times = {
-        o.start.astimezone(CHICAGO).strftime("%I:%M %p") for o in occurrences
-    }
+    local_times = {o.start.astimezone(CHICAGO).strftime("%I:%M %p") for o in occurrences}
     assert local_times == {"07:00 PM"}
     # And the UTC instant really does move, which is what proves the wall time
     # was preserved rather than the offset.
@@ -176,8 +170,7 @@ def test_changing_the_family_timezone_does_not_move_an_event(make_event):
     assert occurrences[0].start == original.replace(tzinfo=UTC)
     # Same instant, shown an hour later on the new wall clock.
     assert (
-        occurrences[0].start.astimezone(ZoneInfo("America/New_York")).strftime("%H:%M")
-        == "10:00"
+        occurrences[0].start.astimezone(ZoneInfo("America/New_York")).strftime("%H:%M") == "10:00"
     )
 
 
@@ -267,9 +260,7 @@ def test_native_wins_when_the_same_event_arrives_from_a_feed():
 
 def test_events_without_uids_dedupe_on_title_and_instants():
     start = datetime(2026, 8, 15, 14, tzinfo=UTC)
-    merged = merge_occurrences(
-        [[_occurrence("Recital", start)], [_occurrence("recital ", start)]]
-    )
+    merged = merge_occurrences([[_occurrence("Recital", start)], [_occurrence("recital ", start)]])
     assert len(merged) == 1
 
 
@@ -321,9 +312,7 @@ def test_series_end_date_reads_until():
     assert series_end_date("FREQ=WEEKLY;COUNT=5") is None
 
 
-def test_override_moves_one_occurrence_and_keeps_its_original_identity(
-    db_session, make_event
-):
+def test_override_moves_one_occurrence_and_keeps_its_original_identity(db_session, make_event):
     """An override is keyed on the date the occurrence *was*, not where it went."""
     event = make_event(
         "Soccer",
@@ -360,12 +349,8 @@ def test_override_moves_one_occurrence_and_keeps_its_original_identity(
 
 
 def test_cancelled_override_removes_only_that_occurrence(db_session, make_event):
-    event = make_event(
-        "Scouts", start="2026-08-04T19:00", rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=3"
-    )
-    db_session.add(
-        EventOverride(event_id=event.id, occurrence_date="2026-08-11", cancelled=True)
-    )
+    event = make_event("Scouts", start="2026-08-04T19:00", rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=3")
+    db_session.add(EventOverride(event_id=event.id, occurrence_date="2026-08-11", cancelled=True))
     db_session.commit()
 
     occurrences = expand_event(
@@ -378,9 +363,7 @@ def test_cancelled_override_removes_only_that_occurrence(db_session, make_event)
     assert [o.occurrence_date for o in occurrences] == ["2026-08-04", "2026-08-18"]
 
 
-def test_unbounded_daily_rule_is_capped_rather_than_expanded_forever(
-    make_event, capsys
-):
+def test_unbounded_daily_rule_is_capped_rather_than_expanded_forever(make_event, capsys):
     from rally.calendars.native import MAX_OCCURRENCES_PER_EVENT
 
     event = make_event("Vitamins", start="2020-01-01T08:00", rrule="FREQ=DAILY")
@@ -430,17 +413,13 @@ def test_end_before_start_is_rejected():
 
 
 def test_missing_end_defaults_to_an_hour():
-    times = resolve_event_times(
-        start="2026-08-11T09:00", end=None, all_day=False, tzid="UTC"
-    )
+    times = resolve_event_times(start="2026-08-11T09:00", end=None, all_day=False, tzid="UTC")
     assert times["end_utc"] - times["start_utc"] == timedelta(hours=1)
 
 
 def test_unknown_timezone_is_rejected():
     with pytest.raises(EventTimeError):
-        resolve_event_times(
-            start="2026-08-11", end=None, all_day=True, tzid="Mars/Olympus"
-        )
+        resolve_event_times(start="2026-08-11", end=None, all_day=True, tzid="Mars/Olympus")
 
 
 # --- Source collection ---------------------------------------------------------
@@ -457,14 +436,10 @@ def test_collect_occurrences_merges_native_and_ics(
     make_event("Dentist", start="2026-08-11T09:00", calendar=native)
 
     db_session.add(
-        Calendar(
-            label="Work", url="https://cal.example/w.ics", family_member_id=owner.id
-        )
+        Calendar(label="Work", url="https://cal.example/w.ics", family_member_id=owner.id)
     )
     db_session.commit()
-    mock_requests.set_response(
-        text=_ics(_vevent("Offsite", "20260812T140000Z")), status_code=200
-    )
+    mock_requests.set_response(text=_ics(_vevent("Offsite", "20260812T140000Z")), status_code=200)
 
     result = collect_occurrences(
         db_session,
@@ -487,9 +462,7 @@ def test_a_failing_feed_names_itself_and_does_not_hide_the_rest(
     native = make_native_calendar(owner)
     make_event("Dentist", start="2026-08-11T09:00", calendar=native)
     db_session.add(
-        Calendar(
-            label="Work", url="https://cal.example/w.ics", family_member_id=owner.id
-        )
+        Calendar(label="Work", url="https://cal.example/w.ics", family_member_id=owner.id)
     )
     db_session.commit()
     mock_requests.set_response(status_code=500)

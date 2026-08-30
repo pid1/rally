@@ -45,9 +45,7 @@ def subscriber(db_session, make_member):
     """Dad, who ticked *Shopping list additions*."""
     member = make_member("Dad", pushover_user_key="dad-key")
     db_session.add(
-        MemberNotificationPref(
-            family_member_id=member.id, kind=SHOPPING_ADDED, enabled=True
-        )
+        MemberNotificationPref(family_member_id=member.id, kind=SHOPPING_ADDED, enabled=True)
     )
     db_session.commit()
     return member
@@ -216,9 +214,7 @@ def test_a_long_batch_names_three_and_counts_the_rest(db_session, make_shopping_
     )
 
 
-def test_a_batch_that_shares_a_store_says_where(
-    db_session, make_store, make_shopping_item
-):
+def test_a_batch_that_shares_a_store_says_where(db_session, make_store, make_shopping_item):
     store = make_store("Costco")
     items = [make_shopping_item(name, store_id=store.id) for name in ["Milk", "Eggs"]]
 
@@ -242,9 +238,7 @@ def test_the_catch_all_is_not_a_place(db_session, make_shopping_item):
     assert build_message(db_session, items) == "Milk and Eggs added"
 
 
-def test_a_very_long_batch_stays_under_the_pushover_ceiling(
-    db_session, make_shopping_item
-):
+def test_a_very_long_batch_stays_under_the_pushover_ceiling(db_session, make_shopping_item):
     items = [make_shopping_item("x" * 600) for _ in range(4)]
 
     assert len(build_message(db_session, items)) <= 1024
@@ -337,9 +331,7 @@ def test_nothing_added_since_the_last_pass_is_silent(
 ):
     watermarked()
 
-    assert (
-        scan_once(db_session, NOW).skipped_reason == "nothing added since the last pass"
-    )
+    assert scan_once(db_session, NOW).skipped_reason == "nothing added since the last pass"
     assert mock_pushover.sent == []
 
 

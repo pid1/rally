@@ -63,12 +63,8 @@ def test_entries_stay_separable_with_color_removed():
     ordered = sorted(member_colors.MEMBER_COLORS, key=relative_luminance)
 
     for darker, lighter in zip(ordered, ordered[1:], strict=False):
-        step = (relative_luminance(lighter) + 0.05) / (
-            relative_luminance(darker) + 0.05
-        )
-        assert (
-            step >= 1.2
-        ), f"{darker} and {lighter} are only {step:.2f}x apart in luminance"
+        step = (relative_luminance(lighter) + 0.05) / (relative_luminance(darker) + 0.05)
+        assert step >= 1.2, f"{darker} and {lighter} are only {step:.2f}x apart in luminance"
 
 
 def test_the_palette_is_ordered_darkest_first():

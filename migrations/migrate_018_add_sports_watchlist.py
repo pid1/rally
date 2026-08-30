@@ -75,9 +75,7 @@ def migrate():
             "ON sports_event_notices (event_key)"
         )
         conn.commit()
-        print(
-            "✓ Migration 018 complete: followed_teams and sports_event_notices created"
-        )
+        print("✓ Migration 018 complete: followed_teams and sports_event_notices created")
         return True
 
     except sqlite3.Error as e:

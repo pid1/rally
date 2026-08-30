@@ -75,16 +75,12 @@ def _ai_pointer_key(field_name: str) -> str:
 
 def _validate_ai_field(field_name: str) -> None:
     if field_name not in AI_SETTINGS_FIELDS:
-        raise HTTPException(
-            status_code=404, detail=f"Unknown AI settings field: {field_name}"
-        )
+        raise HTTPException(status_code=404, detail=f"Unknown AI settings field: {field_name}")
 
 
 def _get_current_ai_snapshot(db: Session, field_name: str) -> AISettingsHistory | None:
     """Resolve the active history row for a field via its settings pointer."""
-    pointer = (
-        db.query(Setting).filter(Setting.key == _ai_pointer_key(field_name)).first()
-    )
+    pointer = db.query(Setting).filter(Setting.key == _ai_pointer_key(field_name)).first()
     if not pointer:
         return None
     return db.get(AISettingsHistory, int(pointer.value))
@@ -119,9 +115,7 @@ def get_ai_settings(db: Session = Depends(get_db)):
 
 
 @router.put("/api/settings/ai/{field_name}", response_model=AISettingState)
-def save_ai_setting(
-    field_name: str, payload: AISettingValueUpdate, db: Session = Depends(get_db)
-):
+def save_ai_setting(field_name: str, payload: AISettingValueUpdate, db: Session = Depends(get_db)):
     """Explicitly save an AI settings field — inserts a new history snapshot."""
     _validate_ai_field(field_name)
     now = now_utc()  # Single timestamp so created_at == last_used_at on insert
@@ -136,9 +130,7 @@ def save_ai_setting(
     return AISettingState(field_name=field_name, value=row.value, history_id=row.id)
 
 
-@router.get(
-    "/api/settings/ai/{field_name}/history", response_model=AISettingHistoryResponse
-)
+@router.get("/api/settings/ai/{field_name}/history", response_model=AISettingHistoryResponse)
 def get_ai_setting_history(field_name: str, db: Session = Depends(get_db)):
     """List all snapshots for a field, newest first."""
     _validate_ai_field(field_name)
@@ -157,9 +149,7 @@ def get_ai_setting_history(field_name: str, db: Session = Depends(get_db)):
 
 
 @router.post("/api/settings/ai/{field_name}/rollback", response_model=AISettingState)
-def rollback_ai_setting(
-    field_name: str, payload: AISettingRollback, db: Session = Depends(get_db)
-):
+def rollback_ai_setting(field_name: str, payload: AISettingRollback, db: Session = Depends(get_db)):
     """Make an existing snapshot the active version — no new history row."""
     _validate_ai_field(field_name)
     row = db.get(AISettingsHistory, payload.history_id)
@@ -214,9 +204,7 @@ def _apply_llm_config(
     model_key = "llm_anthropic_model" if provider == "anthropic" else "llm_local_model"
     _upsert_setting(db, model_key, model)
     max_tokens_key = (
-        "llm_anthropic_max_tokens"
-        if provider == "anthropic"
-        else "llm_local_max_tokens"
+        "llm_anthropic_max_tokens" if provider == "anthropic" else "llm_local_max_tokens"
     )
     _upsert_setting(db, max_tokens_key, str(max_tokens))
     if provider == "anthropic":
@@ -232,9 +220,7 @@ def _resolve_model_max_tokens(model: str, api_key: str) -> int:
     never called for the local provider.
     """
     if not model:
-        raise HTTPException(
-            status_code=400, detail="Set a model before resolving its maximum."
-        )
+        raise HTTPException(status_code=400, detail="Set a model before resolving its maximum.")
     if not api_key:
         raise HTTPException(
             status_code=400,
@@ -258,9 +244,7 @@ def get_llm_config(db: Session = Depends(get_db)):
     """Get the currently active LLM provider + model configuration."""
     row = _get_current_llm_snapshot(db)
     if not row:
-        return LLMConfigState(
-            provider="", model="", max_tokens=None, max_tokens_mode=None
-        )
+        return LLMConfigState(provider="", model="", max_tokens=None, max_tokens_mode=None)
     return LLMConfigState(**_llm_config_from_row(row), history_id=row.id)
 
 
@@ -276,18 +260,14 @@ def save_llm_config(payload: LLMConfigUpdate, db: Session = Depends(get_db)):
     mode = payload.max_tokens_mode if payload.provider == "anthropic" else "custom"
     max_tokens = payload.max_tokens
     if mode == "model_max":
-        api_key_row = (
-            db.query(Setting).filter(Setting.key == "llm_anthropic_api_key").first()
-        )
+        api_key_row = db.query(Setting).filter(Setting.key == "llm_anthropic_api_key").first()
         api_key = api_key_row.value if api_key_row else ""
         max_tokens = _resolve_model_max_tokens(payload.model, api_key)
     elif max_tokens <= 0:
         # Only validated in custom mode — model_max ignores the submitted
         # value entirely (the browser sends a blank/0 placeholder while it's
         # unresolved, and that must not fail the request before it gets here).
-        raise HTTPException(
-            status_code=422, detail="max_tokens must be a positive integer."
-        )
+        raise HTTPException(status_code=422, detail="max_tokens must be a positive integer.")
 
     now = now_utc()  # Single timestamp so created_at == last_used_at on insert
     row = LLMSettingsHistory(
@@ -473,9 +453,7 @@ def notifications_overview(db: Session = Depends(get_db)):
 
     return NotificationOverviewResponse(
         token_configured=bool(app_token(db)),
-        kinds=[
-            NotificationKindOverview(**row) for row in notification_prefs.overview(db)
-        ],
+        kinds=[NotificationKindOverview(**row) for row in notification_prefs.overview(db)],
     )
 
 
@@ -496,9 +474,7 @@ def test_weather_connection(db: Session = Depends(get_db)):
         response = requests.get(
             url,
             timeout=10,
-            headers={
-                "User-Agent": "Rally family dashboard (https://github.com/pid1/rally)"
-            },
+            headers={"User-Agent": "Rally family dashboard (https://github.com/pid1/rally)"},
         )
         response.raise_for_status()
 
@@ -518,24 +494,16 @@ def test_weather_connection(db: Session = Depends(get_db)):
 
         # Surface the current temperature/conditions when available
         current = root.find(".//data[@type='current observations']")
-        temp = (
-            current.find("parameters/temperature/value")
-            if current is not None
-            else None
-        )
+        temp = current.find("parameters/temperature/value") if current is not None else None
         conditions = (
-            current.find("parameters/weather/weather-conditions")
-            if current is not None
-            else None
+            current.find("parameters/weather/weather-conditions") if current is not None else None
         )
         detail = []
         if temp is not None and temp.text:
             detail.append(f"{temp.text.strip()}\u00b0F")
         if conditions is not None and conditions.get("weather-summary"):
             detail.append(conditions.get("weather-summary"))
-        message = (
-            "Connected: " + ", ".join(detail) if detail else "Connected to NWS forecast"
-        )
+        message = "Connected: " + ", ".join(detail) if detail else "Connected to NWS forecast"
         return {"success": True, "message": message}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -624,18 +592,13 @@ def delete_calendar(cal_id: int, db: Session = Depends(get_db)):
     if (db_cal.cal_type or "ics") == "native":
         from rally.models import Event, EventAttendee, EventNotification, EventOverride
 
-        event_ids = [
-            row.id
-            for row in db.query(Event).filter(Event.calendar_id == db_cal.id).all()
-        ]
+        event_ids = [row.id for row in db.query(Event).filter(Event.calendar_id == db_cal.id).all()]
         if event_ids:
             for model in (EventAttendee, EventOverride, EventNotification):
                 db.query(model).filter(model.event_id.in_(event_ids)).delete(
                     synchronize_session=False
                 )
-            db.query(Event).filter(Event.id.in_(event_ids)).delete(
-                synchronize_session=False
-            )
+            db.query(Event).filter(Event.id.in_(event_ids)).delete(synchronize_session=False)
 
     # The cache row is keyed by a plain integer, not a foreign key, so nothing
     # removes it for us. Leaving it behind froze `fetched_at` at the moment of
@@ -722,9 +685,7 @@ def list_followed_teams(db: Session = Depends(get_db)):
     return db.query(FollowedTeam).order_by(FollowedTeam.label.asc()).all()
 
 
-@router.post(
-    "/api/followed-teams", response_model=FollowedTeamResponse, status_code=201
-)
+@router.post("/api/followed-teams", response_model=FollowedTeamResponse, status_code=201)
 def create_followed_team(team: FollowedTeamCreate, db: Session = Depends(get_db)):
     """Follow a team or racing series."""
     db_team = FollowedTeam(
@@ -742,9 +703,7 @@ def create_followed_team(team: FollowedTeamCreate, db: Session = Depends(get_db)
 
 
 @router.put("/api/followed-teams/{team_id}", response_model=FollowedTeamResponse)
-def update_followed_team(
-    team_id: int, team: FollowedTeamUpdate, db: Session = Depends(get_db)
-):
+def update_followed_team(team_id: int, team: FollowedTeamUpdate, db: Session = Depends(get_db)):
     """Update a followed team. Omitted fields are left alone."""
     db_team = db.query(FollowedTeam).filter(FollowedTeam.id == team_id).first()
     if not db_team:
@@ -805,9 +764,7 @@ def test_followed_team(team_id: int, db: Session = Depends(get_db)):
 
     try:
         adapter = mlb if db_team.provider == "mlb" else espn
-        schedule = adapter.fetch_schedule(
-            db_team, tz, today, today + timedelta(days=WINDOW_DAYS)
-        )
+        schedule = adapter.fetch_schedule(db_team, tz, today, today + timedelta(days=WINDOW_DAYS))
     except Exception as e:  # noqa: BLE001
         return {
             "success": False,

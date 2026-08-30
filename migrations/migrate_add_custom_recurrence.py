@@ -38,16 +38,12 @@ def migrate():
         columns = [col[1] for col in cursor.fetchall()]
 
         if not columns:
-            print(
-                "✓ recurring_todos table does not exist yet (migration 004 will create it)"
-            )
+            print("✓ recurring_todos table does not exist yet (migration 004 will create it)")
             print("  No migration needed - table will be created with correct schema.")
             return True
 
         if "custom_rule" in columns:
-            print(
-                "✓ Migration: recurring_todos.custom_rule already exists (idempotent)"
-            )
+            print("✓ Migration: recurring_todos.custom_rule already exists (idempotent)")
         else:
             print("  Adding 'custom_rule' column to recurring_todos table...")
             cursor.execute("ALTER TABLE recurring_todos ADD COLUMN custom_rule TEXT")

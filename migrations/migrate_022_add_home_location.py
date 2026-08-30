@@ -36,9 +36,7 @@ def migrate():
     cursor = conn.cursor()
 
     try:
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
         if not cursor.fetchone():
             print("✓ No settings table yet; nothing to seed")
             return True

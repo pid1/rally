@@ -128,9 +128,7 @@ def test_get_found_and_404(client, make_recurring_todo):
 
 
 def test_update_none_checked_fields(client, make_recurring_todo):
-    rt = make_recurring_todo(
-        "Vitamins", recurrence_type="daily", has_due_date=False, active=True
-    )
+    rt = make_recurring_todo("Vitamins", recurrence_type="daily", has_due_date=False, active=True)
 
     body = client.put(
         f"/api/recurring-todos/{rt.id}",
@@ -185,9 +183,7 @@ def test_update_unset_semantics(client, make_recurring_todo, make_member):
 
 
 def test_update_404(client):
-    assert (
-        client.put("/api/recurring-todos/9999", json={"title": "x"}).status_code == 404
-    )
+    assert client.put("/api/recurring-todos/9999", json={"title": "x"}).status_code == 404
 
 
 # --- delete --------------------------------------------------------------------
@@ -207,33 +203,25 @@ def test_delete_and_404(client, db_session, make_recurring_todo):
 
 def test_format_local_completion_today(frozen_now):
     frozen_now(datetime(2026, 3, 15, 15, 0, tzinfo=UTC))
-    out = format_local_completion(
-        datetime(2026, 3, 15, 14, 30, tzinfo=UTC), ZoneInfo("UTC")
-    )
+    out = format_local_completion(datetime(2026, 3, 15, 14, 30, tzinfo=UTC), ZoneInfo("UTC"))
     assert out == "Today at 2:30 PM"
 
 
 def test_format_local_completion_yesterday(frozen_now):
     frozen_now(datetime(2026, 3, 15, 15, 0, tzinfo=UTC))
-    out = format_local_completion(
-        datetime(2026, 3, 14, 9, 5, tzinfo=UTC), ZoneInfo("UTC")
-    )
+    out = format_local_completion(datetime(2026, 3, 14, 9, 5, tzinfo=UTC), ZoneInfo("UTC"))
     assert out == "Yesterday at 9:05 AM"
 
 
 def test_format_local_completion_older_date_ordinal(frozen_now):
     frozen_now(datetime(2026, 3, 15, 15, 0, tzinfo=UTC))
-    out = format_local_completion(
-        datetime(2026, 3, 3, 10, 0, tzinfo=UTC), ZoneInfo("UTC")
-    )
+    out = format_local_completion(datetime(2026, 3, 3, 10, 0, tzinfo=UTC), ZoneInfo("UTC"))
     assert out == "Mar 3rd, 2026 at 10:00 AM"
 
 
 def test_format_local_completion_teens_ordinal(frozen_now):
     frozen_now(datetime(2026, 3, 20, 15, 0, tzinfo=UTC))
-    out = format_local_completion(
-        datetime(2026, 3, 12, 13, 0, tzinfo=UTC), ZoneInfo("UTC")
-    )
+    out = format_local_completion(datetime(2026, 3, 12, 13, 0, tzinfo=UTC), ZoneInfo("UTC"))
     assert out == "Mar 12th, 2026 at 1:00 PM"
 
 
@@ -241,15 +229,10 @@ def test_format_local_completion_teens_ordinal(frozen_now):
 
 
 def test_create_with_start_date_reads_back(client):
-    body = _create(
-        client, title="Replace smoke detector battery", start_date="2027-01-01"
-    )
+    body = _create(client, title="Replace smoke detector battery", start_date="2027-01-01")
 
     assert body["start_date"] == "2027-01-01"
-    assert (
-        client.get(f"/api/recurring-todos/{body['id']}").json()["start_date"]
-        == "2027-01-01"
-    )
+    assert client.get(f"/api/recurring-todos/{body['id']}").json()["start_date"] == "2027-01-01"
 
 
 def test_create_without_start_date_is_null(client):
@@ -287,9 +270,7 @@ def test_create_rejects_a_start_date_that_is_not_yyyy_mm_dd(client):
 def test_update_start_date_while_nothing_is_generated(client, make_recurring_todo):
     rt = make_recurring_todo("Batteries", start_date="2026-01-01")
 
-    body = client.put(
-        f"/api/recurring-todos/{rt.id}", json={"start_date": "2027-01-01"}
-    ).json()
+    body = client.put(f"/api/recurring-todos/{rt.id}", json={"start_date": "2027-01-01"}).json()
 
     assert body["start_date"] == "2027-01-01"
     assert body["last_generated_date"] is None
@@ -300,17 +281,13 @@ def test_update_start_date_unset_semantics(client, make_recurring_todo):
 
     # Omitted -> untouched.
     assert (
-        client.put(f"/api/recurring-todos/{rt.id}", json={"title": "Renamed"}).json()[
-            "start_date"
-        ]
+        client.put(f"/api/recurring-todos/{rt.id}", json={"title": "Renamed"}).json()["start_date"]
         == "2027-01-01"
     )
 
     # Explicit null -> cleared.
     assert (
-        client.put(f"/api/recurring-todos/{rt.id}", json={"start_date": None}).json()[
-            "start_date"
-        ]
+        client.put(f"/api/recurring-todos/{rt.id}", json={"start_date": None}).json()["start_date"]
         is None
     )
 
@@ -318,9 +295,7 @@ def test_update_start_date_unset_semantics(client, make_recurring_todo):
 def test_update_rejects_a_malformed_start_date(client, make_recurring_todo):
     rt = make_recurring_todo("Batteries")
 
-    resp = client.put(
-        f"/api/recurring-todos/{rt.id}", json={"start_date": "01/01/2027"}
-    )
+    resp = client.put(f"/api/recurring-todos/{rt.id}", json={"start_date": "01/01/2027"})
 
     assert resp.status_code == 422
 
@@ -347,9 +322,7 @@ def test_update_after_generation_reschedules_the_open_instance(
         recurring_todo_id=rt.id,
     )
 
-    body = client.put(
-        f"/api/recurring-todos/{rt.id}", json={"start_date": "2027-01-01"}
-    ).json()
+    body = client.put(f"/api/recurring-todos/{rt.id}", json={"start_date": "2027-01-01"}).json()
 
     assert body["start_date"] == "2027-01-01"
     assert body["last_generated_date"] == "2027-01-01"
@@ -377,21 +350,15 @@ def test_update_after_generation_leaves_a_dateless_instance_alone(
         recurring_todo_id=rt.id,
     )
 
-    body = client.put(
-        f"/api/recurring-todos/{rt.id}", json={"start_date": "2026-10-01"}
-    ).json()
+    body = client.put(f"/api/recurring-todos/{rt.id}", json={"start_date": "2026-10-01"}).json()
 
     assert body["last_generated_date"] == "2026-10-01"
     db_session.refresh(instance)
     assert instance.due_date is None
 
 
-def test_update_start_date_refused_after_a_completion(
-    client, make_recurring_todo, make_todo
-):
-    rt = make_recurring_todo(
-        "Batteries", start_date="2026-01-01", last_generated_date="2026-01-01"
-    )
+def test_update_start_date_refused_after_a_completion(client, make_recurring_todo, make_todo):
+    rt = make_recurring_todo("Batteries", start_date="2026-01-01", last_generated_date="2026-01-01")
     make_todo(
         "Batteries",
         completed=True,
@@ -400,15 +367,11 @@ def test_update_start_date_refused_after_a_completion(
         recurring_todo_id=rt.id,
     )
 
-    resp = client.put(
-        f"/api/recurring-todos/{rt.id}", json={"start_date": "2027-01-01"}
-    )
+    resp = client.put(f"/api/recurring-todos/{rt.id}", json={"start_date": "2027-01-01"})
 
     assert resp.status_code == 409
     assert "completed" in resp.json()["detail"]
-    assert (
-        client.get(f"/api/recurring-todos/{rt.id}").json()["start_date"] == "2026-01-01"
-    )
+    assert client.get(f"/api/recurring-todos/{rt.id}").json()["start_date"] == "2026-01-01"
 
 
 def test_update_a_completed_series_with_its_own_start_date_is_not_a_change(
@@ -416,9 +379,7 @@ def test_update_a_completed_series_with_its_own_start_date_is_not_a_change(
 ):
     # The modal shows the locked field's value; re-sending it must not refuse an
     # edit to the rest of the form.
-    rt = make_recurring_todo(
-        "Batteries", start_date="2026-01-01", last_generated_date="2026-01-01"
-    )
+    rt = make_recurring_todo("Batteries", start_date="2026-01-01", last_generated_date="2026-01-01")
     make_todo(
         "Batteries",
         completed=True,
@@ -459,9 +420,7 @@ def test_update_start_date_does_not_touch_a_completed_instance(
 
     db_session.refresh(open_instance)
     assert open_instance.due_date == "2026-09-01"
-    assert (
-        db_session.query(Todo).filter(Todo.completed == True).count() == 0
-    )  # noqa: E712
+    assert db_session.query(Todo).filter(Todo.completed == True).count() == 0  # noqa: E712
 
 
 # --- preview -------------------------------------------------------------------

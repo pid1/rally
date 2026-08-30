@@ -43,6 +43,16 @@ pythonpath = ["src"]
 source = ["rally"]
 omit = ["*/tests/*"]
 
+# black and ruff format both run in CI. ruff reads line-length from
+# [tool.ruff]; black does not, and would otherwise wrap at its default 88,
+# so the two disagree on every line between 88 and 100 characters.
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"

@@ -86,13 +86,9 @@ def migrate():
             updates.append((position, item_id))
             position += 1
 
-        cursor.executemany(
-            "UPDATE shopping_items SET sort_order = ? WHERE id = ?", updates
-        )
+        cursor.executemany("UPDATE shopping_items SET sort_order = ? WHERE id = ?", updates)
         conn.commit()
-        print(
-            f"✓ Migration complete: shopping_items.sort_order added ({len(updates)} rows ranked)"
-        )
+        print(f"✓ Migration complete: shopping_items.sort_order added ({len(updates)} rows ranked)")
         return True
 
     except sqlite3.Error as e:

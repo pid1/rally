@@ -72,9 +72,7 @@ def resolve_event_times(
         }
 
     start_local = _parse_local(start, all_day=False)
-    end_local = (
-        _parse_local(end, all_day=False) if end else start_local + timedelta(hours=1)
-    )
+    end_local = _parse_local(end, all_day=False) if end else start_local + timedelta(hours=1)
     if end_local < start_local:
         raise EventTimeError("End time is before the start time")
 

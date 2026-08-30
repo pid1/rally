@@ -24,9 +24,7 @@ def migrate():
 
     if not db_path.exists():
         print(f"✓ Database not found at {db_path}")
-        print(
-            "  No migration needed - database will be created with correct schema on first run."
-        )
+        print("  No migration needed - database will be created with correct schema on first run.")
         return  # Exit successfully, not an error
 
     print(f"Checking database at {db_path}...")
@@ -40,9 +38,7 @@ def migrate():
         columns = [col[1] for col in cursor.fetchall()]
 
         if "due_date" in columns:
-            print(
-                "✓ Migration: todos.due_date column already exists (idempotent check)"
-            )
+            print("✓ Migration: todos.due_date column already exists (idempotent check)")
             return True
 
         # Add the column

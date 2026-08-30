@@ -40,21 +40,15 @@ def migrate():
         columns = [col[1] for col in cursor.fetchall()]
 
         if not columns:
-            print(
-                "✓ recurring_todos table does not exist yet (migration 004 will create it)"
-            )
+            print("✓ recurring_todos table does not exist yet (migration 004 will create it)")
             print("  No migration needed - table will be created with correct schema.")
             return True
 
         if "last_generated_date" in columns:
-            print(
-                "✓ Migration: recurring_todos.last_generated_date already exists (idempotent)"
-            )
+            print("✓ Migration: recurring_todos.last_generated_date already exists (idempotent)")
         else:
             print("  Adding 'last_generated_date' column to recurring_todos table...")
-            cursor.execute(
-                "ALTER TABLE recurring_todos ADD COLUMN last_generated_date VARCHAR(10)"
-            )
+            cursor.execute("ALTER TABLE recurring_todos ADD COLUMN last_generated_date VARCHAR(10)")
 
             # Backfill: set last_generated_date from existing todo instances.
             # For each recurring todo, find the most recent instance's due_date.
@@ -77,9 +71,7 @@ def migrate():
             """)
 
             conn.commit()
-            print(
-                "✓ Migration complete: recurring_todos.last_generated_date added and backfilled"
-            )
+            print("✓ Migration complete: recurring_todos.last_generated_date added and backfilled")
 
         return True
 

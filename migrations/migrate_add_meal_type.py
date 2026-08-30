@@ -23,9 +23,7 @@ def migrate():
 
     if not db_path.exists():
         print(f"✓ Database not found at {db_path}")
-        print(
-            "  No migration needed - database will be created with correct schema on first run."
-        )
+        print("  No migration needed - database will be created with correct schema on first run.")
         return True
 
     print(f"Checking database at {db_path}...")
@@ -34,9 +32,7 @@ def migrate():
     cursor = conn.cursor()
 
     try:
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='dinner_plans'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='dinner_plans'")
         if not cursor.fetchone():
             print(
                 "✓ Migration: dinner_plans table does not exist yet (will be created on first run)"
@@ -55,9 +51,7 @@ def migrate():
                 "✓ Migration: dinner_plans.meal_type column added (existing records set to 'Dinner')"
             )
         else:
-            print(
-                "✓ Migration: dinner_plans.meal_type column already exists (idempotent check)"
-            )
+            print("✓ Migration: dinner_plans.meal_type column already exists (idempotent check)")
 
         conn.commit()
         return True

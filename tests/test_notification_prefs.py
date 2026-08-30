@@ -50,9 +50,7 @@ def unreachable(make_member):
 
 
 def _pref(db_session, member, kind, enabled):
-    db_session.add(
-        MemberNotificationPref(family_member_id=member.id, kind=kind, enabled=enabled)
-    )
+    db_session.add(MemberNotificationPref(family_member_id=member.id, kind=kind, enabled=enabled))
     db_session.commit()
 
 
@@ -119,9 +117,7 @@ def test_a_member_with_no_key_wants_nothing(db_session, unreachable):
     assert preferences(db_session, unreachable.id)[SHOPPING_ADDED] is True
 
 
-def test_an_install_wide_switch_off_overrides_a_ticked_box(
-    db_session, reachable, make_setting
-):
+def test_an_install_wide_switch_off_overrides_a_ticked_box(db_session, reachable, make_setting):
     _pref(db_session, reachable, TASK_ASSIGNMENT, True)
     make_setting("todo_notify_enabled", "false")
 
@@ -174,9 +170,7 @@ def test_ticking_every_box_does_not_add_anybody_to_an_audience(
     assert [push["user"] for push in mock_pushover.sent] == ["jon-key"]
 
 
-def test_filter_recipients_names_the_muted_rather_than_dropping_them(
-    db_session, make_member
-):
+def test_filter_recipients_names_the_muted_rather_than_dropping_them(db_session, make_member):
     emma = make_member("Emma", pushover_user_key="emma-key")
     jon = make_member("Jon", pushover_user_key="jon-key")
     _pref(db_session, emma, EVENT_CHANGE, False)
@@ -199,9 +193,7 @@ def test_filter_recipients_leaves_a_keyless_member_out_of_both_lists(
     assert muted == []
 
 
-def test_subscribers_are_only_the_people_who_asked(
-    db_session, make_member, make_setting
-):
+def test_subscribers_are_only_the_people_who_asked(db_session, make_member, make_setting):
     make_setting("shopping_notify_enabled", "true")
     dad = make_member("Dad", pushover_user_key="dad-key")
     make_member("Mom", pushover_user_key="mom-key")
@@ -224,9 +216,7 @@ def test_set_preferences_leaves_unmentioned_kinds_alone(db_session, reachable):
     assert resolved[EVENT_REMINDER] is True
 
 
-def test_set_preferences_rewrites_an_existing_row_rather_than_adding_one(
-    db_session, reachable
-):
+def test_set_preferences_rewrites_an_existing_row_rather_than_adding_one(db_session, reachable):
     set_preferences(db_session, reachable.id, {EVENT_CHANGE: False})
     set_preferences(db_session, reachable.id, {EVENT_CHANGE: True})
 
@@ -248,9 +238,7 @@ def test_set_preferences_ignores_a_kind_rally_does_not_send(db_session, reachabl
 # --- The overview --------------------------------------------------------------
 
 
-def test_overview_splits_receiving_muted_and_keyless(
-    db_session, make_member, make_setting
-):
+def test_overview_splits_receiving_muted_and_keyless(db_session, make_member, make_setting):
     make_setting("shopping_notify_enabled", "true")
     dad = make_member("Dad", pushover_user_key="dad-key")
     emma = make_member("Emma", pushover_user_key="emma-key")
@@ -267,9 +255,7 @@ def test_overview_splits_receiving_muted_and_keyless(
     assert rows[EVENT_CHANGE]["muted"] == ["Emma"]
 
 
-def test_overview_reports_an_install_wide_switch_that_is_off(
-    db_session, make_member, make_setting
-):
+def test_overview_reports_an_install_wide_switch_that_is_off(db_session, make_member, make_setting):
     make_member("Dad", pushover_user_key="dad-key")
     make_setting("prep_notify_enabled", "false")
 
@@ -321,10 +307,7 @@ def test_the_migration_creates_the_table_and_runs_twice_cleanly(tmp_path, monkey
         }
         assert "ix_member_notification_prefs_unique" in indexes
         # No rows: shipping the feature is not the same as turning it on.
-        assert (
-            conn.execute("SELECT COUNT(*) FROM member_notification_prefs").fetchone()[0]
-            == 0
-        )
+        assert conn.execute("SELECT COUNT(*) FROM member_notification_prefs").fetchone()[0] == 0
     finally:
         conn.close()
 

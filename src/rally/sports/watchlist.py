@@ -62,9 +62,7 @@ def build_sections(
         events.extend(schedule.window)
         if schedule.season:
             openers.update(season_opener_reasons(schedule.season))
-            meetings |= first_meetings(
-                schedule.season, standings.get(schedule.season[0].league)
-            )
+            meetings |= first_meetings(schedule.season, standings.get(schedule.season[0].league))
 
     if not events:
         return EMPTY_SECTION, []
@@ -78,9 +76,7 @@ def build_sections(
     for event in upcoming:
         if event.event_key in announced_keys:
             continue
-        is_notable, reason = evaluate(
-            event, standings.get(event.league), openers, meetings
-        )
+        is_notable, reason = evaluate(event, standings.get(event.league), openers, meetings)
         if is_notable:
             notable.append((event, reason))
 
@@ -149,7 +145,7 @@ def record_notices(db, notices: list[tuple[SportsEvent, str]], today: date) -> N
         existing.add(event.event_key)
 
     cutoff = (today - timedelta(days=NOTICE_RETENTION_DAYS)).strftime("%Y-%m-%d")
-    db.query(SportsEventNotice).filter(
-        SportsEventNotice.event_local_date < cutoff
-    ).delete(synchronize_session=False)
+    db.query(SportsEventNotice).filter(SportsEventNotice.event_local_date < cutoff).delete(
+        synchronize_session=False
+    )
     db.commit()

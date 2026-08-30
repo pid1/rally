@@ -27,9 +27,7 @@ def migrate():
 
     if not db_path.exists():
         print(f"✓ Database not found at {db_path}")
-        print(
-            "  No migration needed - database will be created with correct schema on first run."
-        )
+        print("  No migration needed - database will be created with correct schema on first run.")
         return True
 
     print(f"Checking database at {db_path}...")
@@ -39,9 +37,7 @@ def migrate():
 
     try:
         # Check if dinner_plans table exists at all
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='dinner_plans'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='dinner_plans'")
         if not cursor.fetchone():
             print(
                 "✓ Migration: dinner_plans table does not exist yet (will be created on first run)"
@@ -57,30 +53,22 @@ def migrate():
             cursor.execute("ALTER TABLE dinner_plans ADD COLUMN attendee_ids TEXT")
             print("✓ Migration: dinner_plans.attendee_ids column added")
         else:
-            print(
-                "✓ Migration: dinner_plans.attendee_ids column already exists (idempotent check)"
-            )
+            print("✓ Migration: dinner_plans.attendee_ids column already exists (idempotent check)")
 
         if "cook_id" not in columns:
             print("  Adding 'cook_id' column to dinner_plans table...")
             cursor.execute("ALTER TABLE dinner_plans ADD COLUMN cook_id INTEGER")
             print("✓ Migration: dinner_plans.cook_id column added")
         else:
-            print(
-                "✓ Migration: dinner_plans.cook_id column already exists (idempotent check)"
-            )
+            print("✓ Migration: dinner_plans.cook_id column already exists (idempotent check)")
 
         # Step 2: Drop UNIQUE constraint on date by recreating the table
         # Check if the UNIQUE constraint still exists by inspecting the CREATE TABLE SQL
-        cursor.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='dinner_plans'"
-        )
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='dinner_plans'")
         create_sql = cursor.fetchone()[0]
 
         if "UNIQUE" in create_sql.upper():
-            print(
-                "  Removing UNIQUE constraint on dinner_plans.date (recreating table)..."
-            )
+            print("  Removing UNIQUE constraint on dinner_plans.date (recreating table)...")
 
             # Refresh column info after potential additions above
             cursor.execute("PRAGMA table_info(dinner_plans)")

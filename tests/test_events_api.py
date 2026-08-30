@@ -130,16 +130,12 @@ def test_list_occurrences_filters_by_member(client, make_member):
 
 
 def test_list_occurrences_rejects_an_oversized_window(client):
-    response = client.get(
-        "/api/events", params={"start": "2026-01-01", "end": "2030-01-01"}
-    )
+    response = client.get("/api/events", params={"start": "2026-01-01", "end": "2030-01-01"})
     assert response.status_code == 422
 
 
 def test_list_occurrences_rejects_malformed_dates(client):
-    assert (
-        client.get("/api/events", params={"start": "last tuesday"}).status_code == 422
-    )
+    assert client.get("/api/events", params={"start": "last tuesday"}).status_code == 422
 
 
 def test_get_event_returns_the_series_not_an_occurrence(client):
@@ -172,9 +168,7 @@ def test_event_occurrences_endpoint_lists_one_series(client):
 
 def test_update_all_changes_the_series(client):
     created = _create(client, rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=3")
-    response = client.put(
-        f"/api/events/{created['id']}", json={"title": "Orthodontist"}
-    )
+    response = client.put(f"/api/events/{created['id']}", json={"title": "Orthodontist"})
     assert response.status_code == 200
     assert {o["title"] for o in _occurrences(client)} == {"Orthodontist"}
 
@@ -238,9 +232,7 @@ def test_update_this_writes_an_override_and_leaves_the_series(client):
 
 def test_update_this_requires_an_occurrence_date(client):
     created = _create(client, rrule="FREQ=WEEKLY;BYDAY=TU")
-    response = client.put(
-        f"/api/events/{created['id']}", params={"scope": "this"}, json={}
-    )
+    response = client.put(f"/api/events/{created['id']}", params={"scope": "this"}, json={})
     assert response.status_code == 422
 
 
@@ -386,9 +378,7 @@ def test_delete_all_removes_the_event_and_its_rows(client, db_session, make_memb
     from rally.models import EventAttendee, EventOverride
 
     emma = make_member("Emma")
-    created = _create(
-        client, rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=3", attendee_ids=[emma.id]
-    )
+    created = _create(client, rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=3", attendee_ids=[emma.id])
     client.put(
         f"/api/events/{created['id']}",
         params={"scope": "this", "occurrence_date": "2026-08-18"},
@@ -398,12 +388,8 @@ def test_delete_all_removes_the_event_and_its_rows(client, db_session, make_memb
     assert client.delete(f"/api/events/{created['id']}").status_code == 204
     assert _occurrences(client) == []
     # The cascade is explicit because SQLite does not enforce the references.
-    assert (
-        db_session.query(EventAttendee).filter_by(event_id=created["id"]).count() == 0
-    )
-    assert (
-        db_session.query(EventOverride).filter_by(event_id=created["id"]).count() == 0
-    )
+    assert db_session.query(EventAttendee).filter_by(event_id=created["id"]).count() == 0
+    assert db_session.query(EventOverride).filter_by(event_id=created["id"]).count() == 0
 
 
 def test_delete_missing_event_is_404(client):

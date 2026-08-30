@@ -25,9 +25,7 @@ def _columns(cursor, table):
 
 
 def _table_exists(cursor, table):
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
-    )
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
     return cursor.fetchone() is not None
 
 
@@ -150,30 +148,20 @@ def migrate():
 
         member_columns = _columns(cursor, "family_members")
         if "pushover_user_key" not in member_columns:
-            cursor.execute(
-                "ALTER TABLE family_members ADD COLUMN pushover_user_key VARCHAR(64)"
-            )
+            cursor.execute("ALTER TABLE family_members ADD COLUMN pushover_user_key VARCHAR(64)")
             print("✓ Migration: family_members.pushover_user_key added")
         else:
-            print(
-                "✓ Migration: family_members.pushover_user_key already exists (idempotent)"
-            )
+            print("✓ Migration: family_members.pushover_user_key already exists (idempotent)")
 
         if "pushover_device" not in member_columns:
-            cursor.execute(
-                "ALTER TABLE family_members ADD COLUMN pushover_device VARCHAR(64)"
-            )
+            cursor.execute("ALTER TABLE family_members ADD COLUMN pushover_device VARCHAR(64)")
             print("✓ Migration: family_members.pushover_device added")
         else:
-            print(
-                "✓ Migration: family_members.pushover_device already exists (idempotent)"
-            )
+            print("✓ Migration: family_members.pushover_device already exists (idempotent)")
 
         # Seed one native calendar per family member that has none, so the
         # feature has somewhere to write the moment it is deployed.
-        if _table_exists(cursor, "calendars") and _table_exists(
-            cursor, "family_members"
-        ):
+        if _table_exists(cursor, "calendars") and _table_exists(cursor, "family_members"):
             cursor.execute("""
                 SELECT fm.id, fm.name FROM family_members fm
                 WHERE NOT EXISTS (

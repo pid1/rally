@@ -30,9 +30,7 @@ def format_local_completion(completed_at: datetime, local_tz: ZoneInfo) -> str:
     today = now_utc().astimezone(local_tz).date()
     if local_dt.date() == today:
         date_label = "Today"
-    elif local_dt.date() == today.replace(day=today.day) - __import__(
-        "datetime"
-    ).timedelta(days=1):
+    elif local_dt.date() == today.replace(day=today.day) - __import__("datetime").timedelta(days=1):
         date_label = "Yesterday"
     else:
         suffix = (
@@ -40,9 +38,7 @@ def format_local_completion(completed_at: datetime, local_tz: ZoneInfo) -> str:
             if 11 <= local_dt.day % 100 <= 13
             else {1: "st", 2: "nd", 3: "rd"}.get(local_dt.day % 10, "th")
         )
-        date_label = (
-            f"{local_dt.strftime('%b')} {local_dt.day}{suffix}, {local_dt.year}"
-        )
+        date_label = f"{local_dt.strftime('%b')} {local_dt.day}{suffix}, {local_dt.year}"
     time_label = local_dt.strftime("%I:%M %p").lstrip("0")
     return f"{date_label} at {time_label}"
 
@@ -60,9 +56,7 @@ def normalize_start_date(value: str | None) -> str | None:
     try:
         parsed = date.fromisoformat(value)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=422, detail="start_date must be YYYY-MM-DD"
-        ) from exc
+        raise HTTPException(status_code=422, detail="start_date must be YYYY-MM-DD") from exc
     if parsed.isoformat() != value:
         raise HTTPException(status_code=422, detail="start_date must be YYYY-MM-DD")
     return value
@@ -114,9 +108,7 @@ def list_recurring_todos(db: Session = Depends(get_db)):
     completed_rows = (
         db.query(
             Todo.recurring_todo_id,
-            func.max(func.coalesce(Todo.completed_at, Todo.updated_at)).label(
-                "last_completed_at"
-            ),
+            func.max(func.coalesce(Todo.completed_at, Todo.updated_at)).label("last_completed_at"),
         )
         .filter(
             Todo.completed == True,  # noqa: E712
@@ -210,9 +202,7 @@ def get_recurring_todo(rt_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{rt_id}", response_model=RecurringTodoResponse)
-def update_recurring_todo(
-    rt_id: int, rt: RecurringTodoUpdate, db: Session = Depends(get_db)
-):
+def update_recurring_todo(rt_id: int, rt: RecurringTodoUpdate, db: Session = Depends(get_db)):
     """Update a recurring todo template."""
     db_rt = db.query(RecurringTodo).filter(RecurringTodo.id == rt_id).first()
     if not db_rt:

@@ -37,9 +37,7 @@ def migrate():
     cursor = conn.cursor()
 
     try:
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='prep_reviews'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='prep_reviews'")
         if cursor.fetchone():
             print("✓ Migration: prep_reviews already exists (idempotent)")
             return True

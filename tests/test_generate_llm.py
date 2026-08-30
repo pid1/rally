@@ -40,9 +40,7 @@ def _occurrence(
         end_local_date=end.astimezone(local).date().isoformat(),
         all_day=all_day,
         member=member,
-        attendees=(
-            tuple(attendees) if attendees is not None else ((member,) if member else ())
-        ),
+        attendees=(tuple(attendees) if attendees is not None else ((member,) if member else ())),
         location=location,
         description=description,
     )
@@ -99,9 +97,7 @@ class FakeAnthropic:
     def stream(self, **kwargs):
         self.last_kwargs = kwargs
         content = self._blocks or [SimpleNamespace(type="text", text=self._text)]
-        message = SimpleNamespace(
-            content=content, stop_reason=self._stop_reason, usage=self._usage
-        )
+        message = SimpleNamespace(content=content, stop_reason=self._stop_reason, usage=self._usage)
         return _FakeStream(message)
 
 
@@ -144,9 +140,7 @@ def test_call_llm_anthropic_sends_system_block():
 
     assert out == "hello"
     assert gen.client.last_kwargs["model"] == "claude-x"
-    assert gen.client.last_kwargs["messages"] == [
-        {"role": "user", "content": "user text"}
-    ]
+    assert gen.client.last_kwargs["messages"] == [{"role": "user", "content": "user text"}]
     assert gen.client.last_kwargs["system"][0]["text"] == "system text"
 
 
@@ -188,9 +182,7 @@ def test_call_llm_local_without_system_prompt():
 
     gen._call_llm("only user")
 
-    assert gen.client.last_kwargs["messages"] == [
-        {"role": "user", "content": "only user"}
-    ]
+    assert gen.client.last_kwargs["messages"] == [{"role": "user", "content": "only user"}]
 
 
 def test_call_llm_local_empty_choices_returns_empty_string():
@@ -353,9 +345,7 @@ def _summary_gen(response_text, *, provider="anthropic"):
     gen.model = "m"
     gen._db_settings = {"family_context": "ctx", "agent_voice": "voice"}
     gen.client = (
-        FakeAnthropic(response_text)
-        if provider == "anthropic"
-        else FakeOpenAI(response_text)
+        FakeAnthropic(response_text) if provider == "anthropic" else FakeOpenAI(response_text)
     )
     # Stub the data loaders (covered in Phase 8) so this focuses on assembly/parsing.
     gen.fetch_calendars = lambda: []
@@ -368,9 +358,7 @@ def _summary_gen(response_text, *, provider="anthropic"):
 
 def test_generate_summary_parses_strict_json(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"Sunny","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"Sunny","schedule":[],"briefing":""}')
 
     data = gen.generate_summary()
 
@@ -399,9 +387,7 @@ def test_generate_summary_unparseable_returns_error_dict(frozen_now):
     assert data["schedule"] == []
 
 
-def test_generate_summary_truncation_is_not_reported_as_a_json_error(
-    frozen_now, capsys
-):
+def test_generate_summary_truncation_is_not_reported_as_a_json_error(frozen_now, capsys):
     """The regression this guards: a cut-off response used to surface as
     'Unable to parse JSON ... line 1 column 1 (char 0)', pointing reviewers at
     the JSON instead of at the token budget."""
@@ -439,9 +425,7 @@ def test_generate_summary_local_provider(frozen_now):
 
 def test_generate_summary_formats_calendar_events_into_prompt(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.fetch_calendars = lambda: [
         _occurrence(
             "Soccer",
@@ -463,9 +447,7 @@ def test_generate_summary_formats_calendar_events_into_prompt(frozen_now):
 
 def test_generate_summary_dedupes_and_annotates_shared_events(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     start = datetime(2026, 3, 15, 15, 0, tzinfo=UTC)
     # The merge layer has already collapsed the three feeds into one
     # occurrence carrying both named attendees.
@@ -507,9 +489,7 @@ def _shopping_prompts(gen):
 
 def test_generate_summary_omits_shopping_section_when_disabled(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.load_shopping_items = lambda: "Costco:\n  - Paper towels"
 
     gen.generate_summary()
@@ -522,9 +502,7 @@ def test_generate_summary_omits_shopping_section_when_disabled(frozen_now):
 
 def test_generate_summary_includes_shopping_section_when_enabled(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.shopping_list_in_summary_enabled = True
     gen.load_shopping_items = lambda: "Costco:\n  - Paper towels\nAnywhere:\n  - Stamps"
 
@@ -539,9 +517,7 @@ def test_generate_summary_includes_shopping_section_when_enabled(frozen_now):
 
 def test_generate_summary_shopping_empty_list_phrasing(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.shopping_list_in_summary_enabled = True
     gen.load_shopping_items = lambda: "No shopping items currently active."
 
@@ -555,9 +531,7 @@ def test_optional_guidelines_are_numbered_sequentially(frozen_now):
     """With both toggles on the appended guidelines must run 11 then 12 — no
     collision, no gap, whichever combination of features is enabled."""
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.stem_concept_enabled = True
     gen.shopping_list_in_summary_enabled = True
     gen.load_recent_stem_concepts = lambda: []
@@ -573,9 +547,7 @@ def test_optional_guidelines_are_numbered_sequentially(frozen_now):
 
 def test_shopping_guideline_is_11_when_stem_is_off(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.shopping_list_in_summary_enabled = True
     gen.load_shopping_items = lambda: "Anywhere:\n  - Stamps"
 
@@ -684,9 +656,7 @@ def _sports_gen(
 
 def test_generate_summary_omits_sports_section_when_disabled(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.load_sports_watchlist = lambda: "Tonight:\n- 7:05 PM — Astros at Rangers"
 
     gen.generate_summary()
@@ -728,9 +698,7 @@ def test_empty_sports_section_adds_neither_prompt_nor_guideline(frozen_now):
     """An outage returns an empty string; an empty section would burn tokens and
     invite the model to reference a list that is not there."""
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.sports_watchlist_enabled = True
     gen.load_sports_watchlist = lambda: ""
 
@@ -784,9 +752,7 @@ def test_a_sports_failure_still_produces_a_summary(frozen_now, monkeypatch):
 
     monkeypatch.setattr(watchlist_module, "load_followed_teams", explode)
 
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"","schedule":[],"briefing":""}')
     gen.sports_watchlist_enabled = True
 
     data = gen.generate_summary()
@@ -813,9 +779,7 @@ def _prompt_from(gen) -> str:
 def test_home_location_reaches_the_system_prompt(frozen_now):
     """It is sent alongside FAMILY CONTEXT, not buried inside it."""
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
     gen._db_settings["home_location"] = "Highland Village, TX"
 
     gen.generate_summary()
@@ -828,9 +792,7 @@ def test_home_location_reaches_the_system_prompt(frozen_now):
 def test_home_block_is_omitted_when_unset(frozen_now):
     """An empty labeled section invites the model to invent a value."""
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
 
     gen.generate_summary()
 
@@ -839,9 +801,7 @@ def test_home_block_is_omitted_when_unset(frozen_now):
 
 def test_whitespace_only_home_is_treated_as_unset(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
     gen._db_settings["home_location"] = "   "
 
     gen.generate_summary()
@@ -851,9 +811,7 @@ def test_whitespace_only_home_is_treated_as_unset(frozen_now):
 
 def test_home_location_is_recorded_for_eval_ground_truth(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
     gen._db_settings["home_location"] = "Highland Village, TX"
 
     gen.generate_summary()
@@ -865,9 +823,7 @@ def test_home_location_is_recorded_for_eval_ground_truth(frozen_now):
 
 
 def _prep_gen(overdue: str):
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
     gen.prep_overdue_in_summary_enabled = True
     gen.load_overdue_prep_items = lambda: overdue
     return gen
@@ -900,9 +856,7 @@ def test_the_section_is_omitted_when_nothing_is_overdue(frozen_now):
 
 def test_the_section_is_omitted_when_the_toggle_is_off(frozen_now):
     frozen_now(FROZEN)
-    gen = _summary_gen(
-        '{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}'
-    )
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
     gen.prep_overdue_in_summary_enabled = False
     gen.load_overdue_prep_items = lambda: "- Water drums (Garage) — overdue"
 

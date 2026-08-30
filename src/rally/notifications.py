@@ -125,9 +125,7 @@ def send_pushover(
         payload["device"] = device
 
     try:
-        response = requests.post(
-            PUSHOVER_URL, data=payload, timeout=PUSHOVER_TIMEOUT_SECONDS
-        )
+        response = requests.post(PUSHOVER_URL, data=payload, timeout=PUSHOVER_TIMEOUT_SECONDS)
     except Exception as exc:
         raise PushoverError(str(exc)) from exc
 
@@ -142,9 +140,7 @@ def send_pushover(
         raise PushoverError(detail)
 
 
-def recipients_for_event(
-    db: Session, event_id: int
-) -> tuple[list[FamilyMember], list[str]]:
+def recipients_for_event(db: Session, event_id: int) -> tuple[list[FamilyMember], list[str]]:
     """Split an event's attendees into the reachable and the unreachable.
 
     Returning both is the point: the UI has to be able to say *sent to Emma,
@@ -267,11 +263,7 @@ def _join_names(names: list[str]) -> str:
 
 
 def _ordinal(day: int) -> str:
-    suffix = (
-        "th"
-        if 11 <= day % 100 <= 13
-        else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-    )
+    suffix = "th" if 11 <= day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
     return f"{day}{suffix}"
 
 
@@ -350,9 +342,7 @@ def attendee_names(db: Session, event_id: int) -> list[str]:
         .filter(FamilyMember.id.in_([row.family_member_id for row in rows]))
         .all()
     }
-    return [
-        names[row.family_member_id] for row in rows if row.family_member_id in names
-    ]
+    return [names[row.family_member_id] for row in rows if row.family_member_id in names]
 
 
 def format_change_message(
@@ -643,9 +633,7 @@ def plan_change_notice(
     """
     try:
         tz = ZoneInfo(local_timezone_name(db))
-        occurrence = change_occurrence(
-            db, event, tz=tz, occurrence_date=occurrence_date, now=now
-        )
+        occurrence = change_occurrence(db, event, tz=tz, occurrence_date=occurrence_date, now=now)
         if occurrence is None:
             return None
 
@@ -704,15 +692,11 @@ def notify_event_change(
     """
     return send_change_notice(
         db,
-        plan_change_notice(
-            db, event, kind=kind, occurrence_date=occurrence_date, now=now
-        ),
+        plan_change_notice(db, event, kind=kind, occurrence_date=occurrence_date, now=now),
     )
 
 
-def _already_sent(
-    db: Session, event_id: int, occurrence_date: str, member_ids: list[int]
-) -> bool:
+def _already_sent(db: Session, event_id: int, occurrence_date: str, member_ids: list[int]) -> bool:
     """Whether every reachable attendee already has a successful reminder."""
     if not member_ids:
         return True
@@ -752,9 +736,7 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
     window_end = now + timedelta(minutes=MAX_LEAD_MINUTES)
 
     for event in events:
-        overrides = (
-            db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
-        )
+        overrides = db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
         calendar = calendars.get(event.calendar_id)
         occurrences = expand_event(
             event,
@@ -791,9 +773,7 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
             if _already_sent(db, event.id, occurrence_date, member_ids):
                 continue
 
-            outcome = notify_occurrence(
-                db, event, occurrence, kind=KIND_REMINDER, tz=tz
-            )
+            outcome = notify_occurrence(db, event, occurrence, kind=KIND_REMINDER, tz=tz)
             sent_count += len(outcome["sent"])
 
     return sent_count
@@ -802,10 +782,7 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
 def purge_old_notifications(db: Session, today_local: str) -> int:
     """Drop notification records older than the retention window."""
     cutoff = (
-        (
-            datetime.fromisoformat(today_local)
-            - timedelta(days=NOTIFICATION_RETENTION_DAYS)
-        )
+        (datetime.fromisoformat(today_local) - timedelta(days=NOTIFICATION_RETENTION_DAYS))
         .date()
         .isoformat()
     )
@@ -880,9 +857,7 @@ def main() -> int:
             from rally.calendars import cache as calendar_cache
             from rally.utils.settings import local_timezone_name
 
-            summary = calendar_cache.sync_if_stale(
-                db, ZoneInfo(local_timezone_name(db))
-            )
+            summary = calendar_cache.sync_if_stale(db, ZoneInfo(local_timezone_name(db)))
             if summary and (summary["synced"] or summary["failed"]):
                 line = (
                     f"Calendar sync: {summary['synced']} updated, "

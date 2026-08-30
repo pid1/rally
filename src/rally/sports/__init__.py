@@ -209,22 +209,14 @@ def collect_events(
     schedule_tasks = []
     for team in followed:
         if team.provider == "mlb":
-            schedule_tasks.append(
-                lambda t=team: mlb.fetch_schedule(t, tz, today, window_end)
-            )
+            schedule_tasks.append(lambda t=team: mlb.fetch_schedule(t, tz, today, window_end))
         else:
-            schedule_tasks.append(
-                lambda t=team: espn.fetch_schedule(t, tz, today, window_end)
-            )
+            schedule_tasks.append(lambda t=team: espn.fetch_schedule(t, tz, today, window_end))
 
     # One standings call per distinct league that has a team-based rule. Racing
     # standings are driver-centric, so a series subscription needs none.
     leagues = sorted(
-        {
-            t.league
-            for t in followed
-            if t.team_key and not t.league.startswith("racing/")
-        }
+        {t.league for t in followed if t.team_key and not t.league.startswith("racing/")}
     )
     standings_tasks = [
         (
@@ -242,8 +234,6 @@ def collect_events(
     schedules = [result for result in schedule_results if result]
 
     standings = {
-        league: result
-        for league, result in zip(leagues, standings_results, strict=True)
-        if result
+        league: result for league, result in zip(leagues, standings_results, strict=True) if result
     }
     return schedules, standings

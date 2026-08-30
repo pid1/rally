@@ -287,9 +287,7 @@ def scan_once(db: Session, now: datetime | None = None) -> ShoppingNotifyResult:
     return result
 
 
-def run_once_per_minute(
-    db: Session, now: datetime | None = None
-) -> ShoppingNotifyResult:
+def run_once_per_minute(db: Session, now: datetime | None = None) -> ShoppingNotifyResult:
     """Opportunistic hook for the API, gated to at most one pass a minute.
 
     The container's minute loop lives in ``entrypoint.sh`` and only runs under

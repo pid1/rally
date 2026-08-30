@@ -95,9 +95,7 @@ def _fetch_caldav(
     member_color: str | None = None,
 ) -> list[Occurrence]:
     if not calendar_record.username or not calendar_record.password:
-        print(
-            f"  Skipping {calendar_record.label}: missing {provider} CalDAV credentials"
-        )
+        print(f"  Skipping {calendar_record.label}: missing {provider} CalDAV credentials")
         return []
 
     client = caldav.DAVClient(
@@ -183,9 +181,7 @@ def fetch_apple_caldav(
     )
 
 
-def sync_probe(
-    calendar, stored_tokens: dict | None
-) -> tuple[dict[str, str] | None, bool]:
+def sync_probe(calendar, stored_tokens: dict | None) -> tuple[dict[str, str] | None, bool]:
     """Ask a CalDAV server whether anything changed, without downloading events.
 
     RFC 6578 sync-collection. Handing back the token from last time returns
@@ -207,15 +203,11 @@ def sync_probe(
     from rally.calendars.occurrence import SOURCE_CALDAV_APPLE
 
     url = calendar.url or (
-        APPLE_CALDAV_URL
-        if (calendar.cal_type or "") == SOURCE_CALDAV_APPLE
-        else GOOGLE_CALDAV_URL
+        APPLE_CALDAV_URL if (calendar.cal_type or "") == SOURCE_CALDAV_APPLE else GOOGLE_CALDAV_URL
     )
 
     try:
-        client = caldav.DAVClient(
-            url=url, username=calendar.username, password=calendar.password
-        )
+        client = caldav.DAVClient(url=url, username=calendar.username, password=calendar.password)
         server_calendars = client.principal().calendars()
     except Exception as exc:
         # Reaching the principal is the same work a real fetch would do, so a
@@ -226,9 +218,7 @@ def sync_probe(
     changed = False
 
     for server_cal in server_calendars:
-        key = str(
-            getattr(server_cal, "url", "") or getattr(server_cal, "name", "") or "?"
-        )
+        key = str(getattr(server_cal, "url", "") or getattr(server_cal, "name", "") or "?")
         previous = (stored_tokens or {}).get(key)
 
         try:

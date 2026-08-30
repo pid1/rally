@@ -169,9 +169,7 @@ def make_dinner_plan(db_session: Session):
         rating: int | None = None,
         **kwargs,
     ) -> DinnerPlan:
-        dp = DinnerPlan(
-            date=date, plan=plan, meal_type=meal_type, rating=rating, **kwargs
-        )
+        dp = DinnerPlan(date=date, plan=plan, meal_type=meal_type, rating=rating, **kwargs)
         db_session.add(dp)
         db_session.commit()
         db_session.refresh(dp)
@@ -527,9 +525,7 @@ def mock_llm(monkeypatch):
     class FakeCompletions:
         def create(self, **kwargs):
             calls.append(("openai", kwargs))
-            return SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
-            )
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))])
 
     class FakeOpenAI:
         def __init__(self, **kwargs):
@@ -627,9 +623,7 @@ def make_prep_item(db_session: Session):
 
 @pytest.fixture
 def make_prep_notice(db_session: Session):
-    def _make(
-        item_id: int, refresh_date: str, *, sent_on: str = "2026-08-15"
-    ) -> PrepRefreshNotice:
+    def _make(item_id: int, refresh_date: str, *, sent_on: str = "2026-08-15") -> PrepRefreshNotice:
         row = PrepRefreshNotice(
             notice_key=f"{item_id}:{refresh_date}",
             item_id=item_id,

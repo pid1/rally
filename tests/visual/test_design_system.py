@@ -27,9 +27,7 @@ def test_page_blocks_share_a_left_edge(measure, page, viewport):
     its own header rule.
     """
     edges = measure(page, viewport)["leftEdges"]
-    assert (
-        len(set(edges.values())) == 1
-    ), f"left edges disagree on {page}/{viewport}: {edges}"
+    assert len(set(edges.values())) == 1, f"left edges disagree on {page}/{viewport}: {edges}"
 
 
 @pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
@@ -79,25 +77,17 @@ def test_clear_filters_occupies_one_fixed_slot_on_every_page(measure, viewport):
         toolbar = measure(page, viewport)["toolbar"]
         assert toolbar["reset"], f"{page} has no toolbar reset slot"
         assert toolbar["resetText"] == "Clear Filters"
-        assert not toolbar[
-            "resetInsideGroup"
-        ], f"{page}: the reset is inside a filter group again"
-        assert toolbar[
-            "resetIsLastChild"
-        ], f"{page}: the reset is not the toolbar's last block"
+        assert not toolbar["resetInsideGroup"], f"{page}: the reset is inside a filter group again"
+        assert toolbar["resetIsLastChild"], f"{page}: the reset is not the toolbar's last block"
         reset = toolbar["reset"]
         seen[page] = (reset["x"], round(reset["bottom"] - toolbar["box"]["bottom"], 1))
 
     positions = set(seen.values())
-    assert (
-        len(positions) == 1
-    ), f"Clear Filters sits differently across pages at {viewport}: {seen}"
+    assert len(positions) == 1, f"Clear Filters sits differently across pages at {viewport}: {seen}"
 
 
 @pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
-def test_page_header_is_the_same_distance_from_the_next_block_everywhere(
-    measure, viewport
-):
+def test_page_header_is_the_same_distance_from_the_next_block_everywhere(measure, viewport):
     """A2/A3 — the band under the title rule comes from the stack, not luck.
 
     It used to be 32, 61 or 92px depending on whether a page happened to carry
@@ -108,12 +98,8 @@ def test_page_header_is_the_same_distance_from_the_next_block_everywhere(
         data = measure(page, viewport)
         if data.get("headerToNext") is not None:
             gaps[page] = data["headerToNext"]
-    assert (
-        len(gaps) >= 6
-    ), f"expected most pages to use .page-header, got {sorted(gaps)}"
-    assert (
-        len(set(gaps.values())) == 1
-    ), f"header-to-content gap varies at {viewport}: {gaps}"
+    assert len(gaps) >= 6, f"expected most pages to use .page-header, got {sorted(gaps)}"
+    assert len(set(gaps.values())) == 1, f"header-to-content gap varies at {viewport}: {gaps}"
 
 
 @pytest.mark.parametrize("page", ALL_PAGES)
@@ -139,9 +125,7 @@ def test_touch_targets_meet_44px_on_a_phone(measure, page):
     the label, so the label is what has to be big enough.
     """
     too_small = [
-        t
-        for t in measure(page, "mobile")["targets"]
-        if t["w"] < TARGET_MIN or t["h"] < TARGET_MIN
+        t for t in measure(page, "mobile")["targets"] if t["w"] < TARGET_MIN or t["h"] < TARGET_MIN
     ]
     assert not too_small, f"{page} has undersized touch targets: {too_small[:6]}"
 
@@ -182,15 +166,11 @@ def test_colours_come_from_the_palette(measure, page):
         if value.startswith("#"):
             v = value.lstrip("#")
             return tuple(int(v[i : i + 2], 16) for i in (0, 2, 4))
-        return tuple(
-            int(float(n)) for n in __import__("re").findall(r"\d+(?:\.\d+)?", value)[:3]
-        )
+        return tuple(int(float(n)) for n in __import__("re").findall(r"\d+(?:\.\d+)?", value)[:3])
 
     allowed = {norm(c) for c in data["tokens"]["colors"]}
     used = {norm(c) for c in data["colors"]}
-    assert (
-        used <= allowed
-    ), f"{page} renders off-palette colors: {sorted(used - allowed)}"
+    assert used <= allowed, f"{page} renders off-palette colors: {sorted(used - allowed)}"
 
 
 @pytest.mark.parametrize("page", ALL_PAGES)
@@ -246,9 +226,7 @@ def test_empty_inventory_does_not_blame_the_filters(browser, live_server):
         # data every other test on this server depends on.
         page.route(
             "**/api/preparedness/items?**",
-            lambda route: route.fulfill(
-                status=200, content_type="application/json", body="[]"
-            ),
+            lambda route: route.fulfill(status=200, content_type="application/json", body="[]"),
         )
         page.goto(live_server + "/preparedness", wait_until="networkidle")
         page.wait_for_selector("#groups-container .container-empty-state")
@@ -263,9 +241,7 @@ def test_over_filtered_inventory_does_blame_the_filters(browser, live_server):
     """With a filter actually applied, the filter message is the right one."""
     context, page = _open(browser, live_server, "/preparedness")
     try:
-        page.wait_for_selector(
-            "#groups-container .prep-group, #groups-container .editable-item"
-        )
+        page.wait_for_selector("#groups-container .prep-group, #groups-container .editable-item")
         page.fill("#search-input", "kryptonite")
         page.wait_for_function(
             "() => document.querySelector('#groups-container .container-empty-state')"
@@ -298,29 +274,19 @@ def test_every_view_is_reachable_on_a_phone(browser, live_server):
     """
     context, page = _calendar(browser, live_server)
     try:
-        views = page.eval_on_selector_all(
-            "#view-select option", "els => els.map(e => e.value)"
-        )
+        views = page.eval_on_selector_all("#view-select option", "els => els.map(e => e.value)")
         assert views == ["calendar", "agenda"]
-        ranges = page.eval_on_selector_all(
-            "#range-select option", "els => els.map(e => e.value)"
-        )
+        ranges = page.eval_on_selector_all("#range-select option", "els => els.map(e => e.value)")
         assert ranges == ["day", "week", "month", "rolling30"]
-        assert page.is_visible(
-            "#view-select"
-        ), "the selector must not be hidden on a phone"
-        assert page.is_visible(
-            "#range-select"
-        ), "the selector must not be hidden on a phone"
+        assert page.is_visible("#view-select"), "the selector must not be hidden on a phone"
+        assert page.is_visible("#range-select"), "the selector must not be hidden on a phone"
 
         assert page.eval_on_selector(
             "#range-select option[value=rolling30]", "el => el.hidden"
         ), "Calendar cannot draw a rolling 30 days, so it must not offer it"
         page.select_option("#view-select", "agenda")
         page.wait_for_timeout(400)
-        assert not page.eval_on_selector(
-            "#range-select option[value=rolling30]", "el => el.hidden"
-        )
+        assert not page.eval_on_selector("#range-select option[value=rolling30]", "el => el.hidden")
     finally:
         context.close()
 
@@ -465,9 +431,7 @@ def test_a_day_view_is_titled_once_and_says_when_it_is_today(browser, live_serve
             page.query_selector(".agenda-heading") is None
         ), "Agenda + Day must not repeat the date the title already carries"
         title = page.inner_text(".calendar-range-title")
-        assert (
-            "Today" in title.title()
-        ), f"the Today marker must move to the title, got {title!r}"
+        assert "Today" in title.title(), f"the Today marker must move to the title, got {title!r}"
 
         # Every other range still separates its days.
         page.select_option("#range-select", "week")
@@ -512,9 +476,7 @@ def test_add_event_defaults_to_the_day_on_screen(browser, live_server):
         page.click("#btn-next")
         page.wait_for_timeout(500)
         viewed = page.evaluate("() => isoDate(anchor)")
-        assert viewed != page.evaluate(
-            "() => todayIso()"
-        ), "Next did not move off today"
+        assert viewed != page.evaluate("() => todayIso()"), "Next did not move off today"
 
         page.click("#btn-add-event")
         page.wait_for_selector("#event-modal-overlay", state="visible")
@@ -695,9 +657,7 @@ def test_a_label_centres_the_control_it_wraps(browser, live_server, page):
             pytest.skip(f"{page} has no label-wrapped checkboxes")
         # A row taller than its control has wrapped onto more than one line;
         # centering a control against a paragraph is not what this measures.
-        single_line = [
-            r for r in rows if r["rowHeight"] <= r["controlHeight"] + TARGET_MIN
-        ]
+        single_line = [r for r in rows if r["rowHeight"] <= r["controlHeight"] + TARGET_MIN]
         off_centre = [r for r in single_line if abs(r["offset"]) > 1]
         assert not off_centre, f"{page} has off-center controls: {off_centre[:4]}"
     finally:
@@ -804,9 +764,7 @@ def _grid(browser, live_server):
     return context, page
 
 
-def test_block_heights_round_to_five_minutes_with_a_thirty_minute_floor(
-    browser, live_server
-):
+def test_block_heights_round_to_five_minutes_with_a_thirty_minute_floor(browser, live_server):
     """The body is never under thirty minutes; above that it is proportional.
 
     Rounding happens *before* the short test, which is why twenty-eight minutes
@@ -854,9 +812,7 @@ def test_starts_snap_to_five_minutes(browser, live_server):
         context.close()
 
 
-def test_a_floored_body_pushes_its_neighbour_aside_rather_than_covering_it(
-    browser, live_server
-):
+def test_a_floored_body_pushes_its_neighbour_aside_rather_than_covering_it(browser, live_server):
     """Packing is on the painted rectangle, not the true span.
 
     A 15-minute event at 3:45 is drawn thirty minutes tall, so it runs into a
@@ -905,9 +861,7 @@ def test_three_overlapping_events_each_take_a_third(browser, live_server):
             ],
         )
         assert sorted(b["widthPct"] for b in result["blocks"]) == [33, 33, 33]
-        assert (
-            len({b["leftPct"] for b in result["blocks"]}) == 3
-        ), "each needs its own column"
+        assert len({b["leftPct"] for b in result["blocks"]}) == 3, "each needs its own column"
     finally:
         context.close()
 
@@ -940,9 +894,7 @@ def test_an_event_crossing_midnight_is_drawn_on_both_days(browser, live_server):
         assert blocks[0]["blockMin"] == 180, "9 PM to midnight"
         assert blocks[1]["startMin"] == 0
         assert blocks[1]["blockMin"] == 300, "midnight to 5 AM"
-        assert (
-            blocks[1]["colIndex"] == blocks[0]["colIndex"] + 1
-        ), "and on consecutive days"
+        assert blocks[1]["colIndex"] == blocks[0]["colIndex"] + 1, "and on consecutive days"
     finally:
         context.close()
 

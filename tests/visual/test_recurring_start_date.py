@@ -84,9 +84,7 @@ def recurring_modal(browser, live_server):
 
 
 @pytest.mark.parametrize("viewport", list(VIEWPORTS))
-def test_the_starts_row_reads_back_the_dates_the_rule_produces(
-    recurring_modal, viewport
-):
+def test_the_starts_row_reads_back_the_dates_the_rule_produces(recurring_modal, viewport):
     data = recurring_modal(viewport)
 
     # Monthly on the 1st from 1 January: the floor lands on the start date.
@@ -100,9 +98,7 @@ def test_the_starts_row_reads_back_the_dates_the_rule_produces(
 def test_the_new_row_fits_the_modal_at_every_width(recurring_modal, viewport):
     data = recurring_modal(viewport)
 
-    assert not data[
-        "horizontalOverflow"
-    ], f"{viewport}: the Starts row pushes the page sideways"
+    assert not data["horizontalOverflow"], f"{viewport}: the Starts row pushes the page sideways"
     assert data["previewWidth"] <= data["bodyWidth"] + 1
     assert data["start"]["w"] <= data["bodyWidth"] + 1
     # The chassis caps the modal at 90vh and scrolls inside it; a taller modal

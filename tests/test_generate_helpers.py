@@ -187,9 +187,7 @@ def test_load_dinner_plans_next_7_days(gen_db, frozen_now):
     frozen_now(datetime(2026, 5, 10, 12, tzinfo=UTC))
     gen_db.add(DinnerPlan(date="2026-05-10", meal_type="Dinner", plan="Tacos"))
     gen_db.add(DinnerPlan(date="2026-05-11", meal_type="Dinner", plan="Pizza"))
-    gen_db.add(
-        DinnerPlan(date="2026-05-20", meal_type="Dinner", plan="TooFar")
-    )  # beyond 7 days
+    gen_db.add(DinnerPlan(date="2026-05-20", meal_type="Dinner", plan="TooFar"))  # beyond 7 days
     gen_db.commit()
 
     out = make_generator().load_dinner_plans()
@@ -281,11 +279,7 @@ def test_load_todos_formats_assignee_due_and_description_dates(gen_db, frozen_no
 
 def test_load_todos_includes_todo_with_unparseable_due_date(gen_db, frozen_now):
     frozen_now(datetime(2026, 3, 1, 12, tzinfo=UTC))
-    gen_db.add(
-        Todo(
-            title="Weird", completed=False, due_date="not-a-date", remind_days_before=1
-        )
-    )
+    gen_db.add(Todo(title="Weird", completed=False, due_date="not-a-date", remind_days_before=1))
     gen_db.commit()
 
     out = make_generator().load_todos()
@@ -322,9 +316,7 @@ def test_load_shopping_items_groups_by_store_with_anywhere_last(gen_db):
 def test_load_shopping_items_excludes_completed_items(gen_db):
     gen_db.add_all(
         [
-            ShoppingItem(
-                name="Milk", completed=True, completed_at=datetime(2026, 3, 1, 12)
-            ),
+            ShoppingItem(name="Milk", completed=True, completed_at=datetime(2026, 3, 1, 12)),
             ShoppingItem(name="Eggs"),
         ]
     )
@@ -337,9 +329,7 @@ def test_load_shopping_items_excludes_completed_items(gen_db):
 
 
 def test_load_shopping_items_empty(gen_db):
-    assert (
-        make_generator().load_shopping_items() == "No shopping items currently active."
-    )
+    assert make_generator().load_shopping_items() == "No shopping items currently active."
 
 
 def test_load_shopping_items_falls_back_when_store_was_deleted(gen_db):
@@ -430,17 +420,13 @@ def test_fetch_calendars_ics(gen_db, frozen_now, mock_requests):
 def test_fetch_calendars_ics_skips_declined(gen_db, frozen_now, mock_requests):
     frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
     _seed_calendar(gen_db, cal_type="ics")
-    mock_requests.set_response(
-        text=_ics("Dead", extra="STATUS:CANCELLED\r\n"), status_code=200
-    )
+    mock_requests.set_response(text=_ics("Dead", extra="STATUS:CANCELLED\r\n"), status_code=200)
 
     # The only event is cancelled -> no events -> calendar dropped.
     assert make_generator().fetch_calendars() == []
 
 
-def test_fetch_calendars_skips_calendar_on_fetch_error(
-    gen_db, frozen_now, mock_requests
-):
+def test_fetch_calendars_skips_calendar_on_fetch_error(gen_db, frozen_now, mock_requests):
     frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
     _seed_calendar(gen_db, cal_type="ics")
     mock_requests.set_response(status_code=500)
@@ -450,12 +436,8 @@ def test_fetch_calendars_skips_calendar_on_fetch_error(
 
 def test_fetch_calendars_caldav_google(gen_db, frozen_now, mock_caldav):
     frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
-    _seed_calendar(
-        gen_db, cal_type="caldav_google", url="https://dav", username="u", password="p"
-    )
-    mock_caldav.set_events(
-        [SimpleNamespace(data=_ics("Standup", dtstart="20260316T090000Z"))]
-    )
+    _seed_calendar(gen_db, cal_type="caldav_google", url="https://dav", username="u", password="p")
+    mock_caldav.set_events([SimpleNamespace(data=_ics("Standup", dtstart="20260316T090000Z"))])
 
     occurrences = make_generator().fetch_calendars()
 
@@ -464,12 +446,8 @@ def test_fetch_calendars_caldav_google(gen_db, frozen_now, mock_caldav):
 
 def test_fetch_calendars_caldav_apple(gen_db, frozen_now, mock_caldav):
     frozen_now(datetime(2026, 3, 15, 12, tzinfo=UTC))
-    _seed_calendar(
-        gen_db, cal_type="caldav_apple", url="https://dav", username="u", password="p"
-    )
-    mock_caldav.set_events(
-        [SimpleNamespace(data=_ics("Recital", dtstart="20260317T180000Z"))]
-    )
+    _seed_calendar(gen_db, cal_type="caldav_apple", url="https://dav", username="u", password="p")
+    mock_caldav.set_events([SimpleNamespace(data=_ics("Recital", dtstart="20260317T180000Z"))])
 
     occurrences = make_generator().fetch_calendars()
 

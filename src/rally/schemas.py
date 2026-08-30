@@ -57,9 +57,7 @@ def _check_notification_kinds(values: dict[str, bool] | None) -> dict[str, bool]
     unknown = sorted(set(values) - set(notification_prefs.KIND_KEYS))
     if unknown:
         known = ", ".join(notification_prefs.KIND_KEYS)
-        raise ValueError(
-            f"Unknown notification kind(s): {', '.join(unknown)}. Known: {known}"
-        )
+        raise ValueError(f"Unknown notification kind(s): {', '.join(unknown)}. Known: {known}")
     return values
 
 
@@ -81,9 +79,7 @@ class FamilyMemberCreate(FamilyMemberBase):
 class FamilyMemberUpdate(BaseModel):
     name: str | None = None
     color: str | None = None
-    pushover_user_key: str | None = (
-        UNSET  # None means "clear"; UNSET means "not provided"
-    )
+    pushover_user_key: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     pushover_device: str | None = UNSET
     # A *partial* map: kinds left out keep whatever they resolve to today.
     # UNSET means "not provided", the same distinction the fields above draw.
@@ -331,9 +327,7 @@ class CompletedTodoPage(BaseModel):
 
     items: list[TodoResponse]
     has_more: bool  # True when another page exists beyond this one
-    total: (
-        int  # Total matches across all pages for the current query (search + filters)
-    )
+    total: int  # Total matches across all pages for the current query (search + filters)
 
 
 # Recurring Todos
@@ -486,9 +480,7 @@ class DinnerPlanBase(BaseModel):
     date: str  # YYYY-MM-DD format
     meal_type: str = "Dinner"  # Breakfast, Lunch, Dinner, Snacks
     plan: str
-    attendee_ids: list[int] | None = (
-        None  # family_member IDs (who's eating); None = everyone
-    )
+    attendee_ids: list[int] | None = None  # family_member IDs (who's eating); None = everyone
     cook_id: int | None = None  # family_member ID (who's cooking)
     rating: int | None = None  # 1-5 star rating; null = not yet reviewed
     review: str | None = None  # Free-text review
@@ -502,9 +494,7 @@ class DinnerPlanUpdate(BaseModel):
     date: str | None = None
     meal_type: str | None = None
     plan: str | None = None
-    attendee_ids: list[int] | None = (
-        UNSET  # None means "clear"; UNSET means "not provided"
-    )
+    attendee_ids: list[int] | None = UNSET  # None means "clear"; UNSET means "not provided"
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
 
 
@@ -762,9 +752,7 @@ class PrepLocationResponse(PrepLocationBase):
 PrepRefreshMode = Literal["none", "date", "interval"]
 
 
-def validate_prep_schedule(
-    mode: str | None, interval: int | None, next_date: str | None
-) -> None:
+def validate_prep_schedule(mode: str | None, interval: int | None, next_date: str | None) -> None:
     """Enforce the refresh mode/field triangle.
 
     These are the combinations that would otherwise produce an item which
@@ -784,9 +772,7 @@ def validate_prep_schedule(
             raise ValueError("refresh_mode 'date' cannot carry refresh_interval_months")
     elif mode == "interval":
         if not interval or interval < 1:
-            raise ValueError(
-                "refresh_mode 'interval' requires refresh_interval_months >= 1"
-            )
+            raise ValueError("refresh_mode 'interval' requires refresh_interval_months >= 1")
 
 
 class PrepItemBase(BaseModel):

@@ -23,9 +23,7 @@ def _advance_months(year: int, month: int, interval: int) -> tuple[int, int]:
     return year, month
 
 
-def _find_nth_weekday_in_month(
-    year: int, month: int, ordinal: str, weekday: int
-) -> date:
+def _find_nth_weekday_in_month(year: int, month: int, ordinal: str, weekday: int) -> date:
     """Find the nth occurrence of a weekday in a month.
 
     ordinal: one of "first", "second", "third", "fourth", "last" — the values
@@ -77,9 +75,7 @@ def _next_custom(rule: dict, after_date: date) -> date:
         mode = rule.get("mode", "day")
         if mode == "day":
             day = int(rule["day"])
-            clamped = min(
-                day, cal_module.monthrange(after_date.year, after_date.month)[1]
-            )
+            clamped = min(day, cal_module.monthrange(after_date.year, after_date.month)[1])
             candidate = after_date.replace(day=clamped)
             if candidate > after_date:
                 return candidate
@@ -135,16 +131,12 @@ def _last_custom(rule: dict, today: date) -> date:
         if mode == "weekday":
             ordinal = rule["ordinal"]
             weekday = int(rule["weekday"])
-            candidate = _find_nth_weekday_in_month(
-                today.year, today.month, ordinal, weekday
-            )
+            candidate = _find_nth_weekday_in_month(today.year, today.month, ordinal, weekday)
             if candidate <= today:
                 return candidate
             first = today.replace(day=1)
             prev_end = first - timedelta(days=1)
-            return _find_nth_weekday_in_month(
-                prev_end.year, prev_end.month, ordinal, weekday
-            )
+            return _find_nth_weekday_in_month(prev_end.year, prev_end.month, ordinal, weekday)
 
     return today
 
@@ -181,9 +173,7 @@ def _first_custom(rule: dict, today: date) -> date:
         if mode == "weekday":
             ordinal = rule["ordinal"]
             weekday = int(rule["weekday"])
-            candidate = _find_nth_weekday_in_month(
-                today.year, today.month, ordinal, weekday
-            )
+            candidate = _find_nth_weekday_in_month(today.year, today.month, ordinal, weekday)
             if candidate >= today:
                 return candidate
             interval = int(rule.get("interval", 1))
@@ -212,9 +202,7 @@ def get_last_recurrence_date(rt: RecurringTodo, today: date) -> date:
         else:
             first_of_month = today.replace(day=1)
             last_month_end = first_of_month - timedelta(days=1)
-            clamped = min(
-                day, cal_module.monthrange(last_month_end.year, last_month_end.month)[1]
-            )
+            clamped = min(day, cal_module.monthrange(last_month_end.year, last_month_end.month)[1])
             return last_month_end.replace(day=clamped)
     elif rt.recurrence_type == "custom" and rt.custom_rule:
         return _last_custom(rt.custom_rule, today)
@@ -238,9 +226,7 @@ def get_next_recurrence_date(rt: RecurringTodo, after_date: date) -> date:
     elif rt.recurrence_type == "monthly":
         day = rt.recurrence_day or 1
         # Check if this month's recurrence date is still after after_date
-        clamped_this = min(
-            day, cal_module.monthrange(after_date.year, after_date.month)[1]
-        )
+        clamped_this = min(day, cal_module.monthrange(after_date.year, after_date.month)[1])
         this_month_date = after_date.replace(day=clamped_this)
         if this_month_date > after_date:
             return this_month_date
@@ -338,9 +324,7 @@ def _anchor_reference(
       overdue.
     """
     anchor = rt.custom_rule.get("next_due_from", "due_date")
-    completion_ref = (
-        latest_completion.completed_at.date() if latest_completion else None
-    )
+    completion_ref = latest_completion.completed_at.date() if latest_completion else None
 
     if anchor == "completion_date" and completion_ref is not None:
         return completion_ref
@@ -425,9 +409,7 @@ def process_recurring_todos(db: Session) -> int:
     today = today_utc()
     created_count = 0
 
-    recurring = (
-        db.query(RecurringTodo).filter(RecurringTodo.active == True).all()
-    )  # noqa: E712
+    recurring = db.query(RecurringTodo).filter(RecurringTodo.active == True).all()  # noqa: E712
 
     for rt in recurring:
         # A start date is the earliest day the series may fire. A series that

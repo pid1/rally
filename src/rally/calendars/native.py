@@ -141,9 +141,7 @@ def _apply_override(
         changes["all_day"] = all_day
         changes["start"] = start
         changes["end"] = end
-        changes["start_local_date"] = (
-            override.start_date or start.astimezone(tz).date().isoformat()
-        )
+        changes["start_local_date"] = override.start_date or start.astimezone(tz).date().isoformat()
         changes["end_local_date"] = override.end_date or changes["start_local_date"]
 
     return occurrence if not changes else _replace(occurrence, changes)
@@ -184,9 +182,7 @@ def expand_event(
         original = datetime.fromisoformat(override.occurrence_date).replace(tzinfo=UTC)
         pad = max(pad, abs(moved - original) + timedelta(days=1))
 
-    expanded = recurring_ical_events.of(calendar).between(
-        window_start - pad, window_end + pad
-    )
+    expanded = recurring_ical_events.of(calendar).between(window_start - pad, window_end + pad)
 
     override_by_date = {override.occurrence_date: override for override in overrides}
     occurrences: list[Occurrence] = []
@@ -203,10 +199,7 @@ def expand_event(
 
         if event.all_day:
             start_day = date.fromisoformat(occurrence_date)
-            span = (
-                date.fromisoformat(event.end_date)
-                - date.fromisoformat(event.start_date)
-            ).days
+            span = (date.fromisoformat(event.end_date) - date.fromisoformat(event.start_date)).days
             start, end, start_local, end_local = all_day_bounds(
                 start_day, start_day + timedelta(days=span + 1), local_tz
             )
@@ -279,15 +272,11 @@ def collect_native(
 
     event_ids = [event.id for event in events]
     overrides_by_event: dict[int, list[EventOverride]] = {}
-    for override in (
-        db.query(EventOverride).filter(EventOverride.event_id.in_(event_ids)).all()
-    ):
+    for override in db.query(EventOverride).filter(EventOverride.event_id.in_(event_ids)).all():
         overrides_by_event.setdefault(override.event_id, []).append(override)
 
     members = {member.id: member for member in db.query(FamilyMember).all()}
-    attendee_rows = (
-        db.query(EventAttendee).filter(EventAttendee.event_id.in_(event_ids)).all()
-    )
+    attendee_rows = db.query(EventAttendee).filter(EventAttendee.event_id.in_(event_ids)).all()
     attendees_by_event: dict[int, list[str]] = {}
     for row in attendee_rows:
         member = members.get(row.family_member_id)

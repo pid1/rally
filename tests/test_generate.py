@@ -77,9 +77,7 @@ def test_format_weather_none_returns_placeholder():
 
 
 def test_format_weather_invalid_xml_returns_placeholder():
-    assert (
-        make_generator().format_weather("not xml <<<") == "No weather data available."
-    )
+    assert make_generator().format_weather("not xml <<<") == "No weather data available."
 
 
 def test_format_weather_current_conditions():
@@ -104,16 +102,12 @@ def test_extract_json_strips_code_fence():
 
 
 def test_extract_json_ignores_surrounding_noise():
-    assert make_generator()._extract_json_object('Here you go: {"a": 1}. Thanks!') == {
-        "a": 1
-    }
+    assert make_generator()._extract_json_object('Here you go: {"a": 1}. Thanks!') == {"a": 1}
 
 
 def test_extract_json_is_brace_and_string_aware():
     # Braces inside a string value must not end the object early.
-    assert make_generator()._extract_json_object('{"a": {"b": "}"}}') == {
-        "a": {"b": "}"}
-    }
+    assert make_generator()._extract_json_object('{"a": {"b": "}"}}') == {"a": {"b": "}"}}
 
 
 def test_extract_json_returns_none_when_absent():
@@ -223,20 +217,10 @@ def test_load_todos_respects_reminder_window(gen_db, frozen_now):
 def test_load_recent_stem_concepts_windows_and_dedupes(gen_db, frozen_now):
     frozen_now(datetime(2026, 3, 1, 12, tzinfo=UTC))
     # Within the 60-day window (cutoff = 2026-01-30), inserted oldest-id first.
-    gen_db.add(
-        StemConceptHistory(
-            title="Photosynthesis", field="Biology", used_on="2026-02-15"
-        )
-    )
-    gen_db.add(
-        StemConceptHistory(
-            title="photosynthesis", field="Biology", used_on="2026-02-20"
-        )
-    )
+    gen_db.add(StemConceptHistory(title="Photosynthesis", field="Biology", used_on="2026-02-15"))
+    gen_db.add(StemConceptHistory(title="photosynthesis", field="Biology", used_on="2026-02-20"))
     # Older than the window -> excluded.
-    gen_db.add(
-        StemConceptHistory(title="Gravity", field="Physics", used_on="2025-12-01")
-    )
+    gen_db.add(StemConceptHistory(title="Gravity", field="Physics", used_on="2025-12-01"))
     gen_db.commit()
 
     titles = make_generator().load_recent_stem_concepts()
@@ -280,11 +264,7 @@ def test_save_snapshot_deactivates_prior_same_day(gen_db, frozen_now):
     gen.save_snapshot({"summary": "first"})
     gen.save_snapshot({"summary": "second"})
 
-    snapshots = (
-        gen_db.query(DashboardSnapshot)
-        .filter(DashboardSnapshot.date == "2026-03-01")
-        .all()
-    )
+    snapshots = gen_db.query(DashboardSnapshot).filter(DashboardSnapshot.date == "2026-03-01").all()
     active = [s for s in snapshots if s.is_active]
     assert len(snapshots) == 2
     assert len(active) == 1
@@ -371,9 +351,7 @@ class TestOverdueInDailyContext:
     def test_unassigned_items_are_labelled(self, gen_db, monkeypatch):
         from rally.models import PrepItem
 
-        gen_db.add(
-            PrepItem(name="Orphan", refresh_mode="date", next_refresh_date="2020-01-01")
-        )
+        gen_db.add(PrepItem(name="Orphan", refresh_mode="date", next_refresh_date="2020-01-01"))
         gen_db.commit()
 
         assert "Unassigned" in self._gen(gen_db, monkeypatch).load_overdue_prep_items()
@@ -383,9 +361,7 @@ class TestOverdueInDailyContext:
         from rally.models import PrepItem, PrepRefreshNotice
 
         gen_db.add(
-            PrepItem(
-                name="Water drums", refresh_mode="date", next_refresh_date="2020-01-01"
-            )
+            PrepItem(name="Water drums", refresh_mode="date", next_refresh_date="2020-01-01")
         )
         gen_db.commit()
 

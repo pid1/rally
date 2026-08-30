@@ -25,29 +25,15 @@ def run_migrations():
         from migrate_016_add_stem_concept_history import (
             migrate as migrate_016_add_stem_concept_history,
         )
-        from migrate_017_add_shopping_lists import (
-            migrate as migrate_017_add_shopping_lists,
-        )
-        from migrate_018_add_sports_watchlist import (
-            migrate as migrate_018_add_sports_watchlist,
-        )
-        from migrate_019_add_llm_max_tokens import (
-            migrate as migrate_019_add_llm_max_tokens,
-        )
-        from migrate_020_add_native_calendaring import (
-            migrate as migrate_020_add_native_calendaring,
-        )
+        from migrate_017_add_shopping_lists import migrate as migrate_017_add_shopping_lists
+        from migrate_018_add_sports_watchlist import migrate as migrate_018_add_sports_watchlist
+        from migrate_019_add_llm_max_tokens import migrate as migrate_019_add_llm_max_tokens
+        from migrate_020_add_native_calendaring import migrate as migrate_020_add_native_calendaring
         from migrate_021_add_preparedness import migrate as migrate_021_add_preparedness
-        from migrate_022_add_home_location import (
-            migrate as migrate_022_add_home_location,
-        )
+        from migrate_022_add_home_location import migrate as migrate_022_add_home_location
         from migrate_023_add_prep_reviews import migrate as migrate_023_add_prep_reviews
-        from migrate_024_add_calendar_cache import (
-            migrate as migrate_024_add_calendar_cache,
-        )
-        from migrate_025_add_caldav_sync_tokens import (
-            migrate as migrate_025_add_caldav_sync_tokens,
-        )
+        from migrate_024_add_calendar_cache import migrate as migrate_024_add_calendar_cache
+        from migrate_025_add_caldav_sync_tokens import migrate as migrate_025_add_caldav_sync_tokens
         from migrate_026_add_shopping_sort_order import (
             migrate as migrate_026_add_shopping_sort_order,
         )
@@ -57,32 +43,20 @@ def run_migrations():
         from migrate_028_add_recurring_todo_start_date import (
             migrate as migrate_028_add_recurring_todo_start_date,
         )
-        from migrate_029_member_color_palette import (
-            migrate as migrate_029_member_color_palette,
-        )
-        from migrate_030_calendar_sync_backoff import (
-            migrate as migrate_030_calendar_sync_backoff,
-        )
+        from migrate_029_member_color_palette import migrate as migrate_029_member_color_palette
+        from migrate_030_calendar_sync_backoff import migrate as migrate_030_calendar_sync_backoff
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
-        from migrate_add_custom_recurrence import (
-            migrate as migrate_009_add_custom_recurrence,
-        )
+        from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
         from migrate_add_dinner_plan_assignees import (
             migrate as migrate_005_add_dinner_plan_assignees,
         )
         from migrate_add_due_date import migrate as migrate_001_add_due_date
         from migrate_add_family_members import migrate as migrate_002_add_family_members
-        from migrate_add_last_generated_date import (
-            migrate as migrate_007_add_last_generated_date,
-        )
+        from migrate_add_last_generated_date import migrate as migrate_007_add_last_generated_date
         from migrate_add_meal_type import migrate as migrate_010_add_meal_type
-        from migrate_add_recurring_todos import (
-            migrate as migrate_004_add_recurring_todos,
-        )
-        from migrate_add_reminder_window import (
-            migrate as migrate_006_add_reminder_window,
-        )
+        from migrate_add_recurring_todos import migrate as migrate_004_add_recurring_todos
+        from migrate_add_reminder_window import migrate as migrate_006_add_reminder_window
         from migrate_add_settings import migrate as migrate_003_add_settings
     except ImportError as e:
         print(f"✗ Failed to import migrations: {e}")

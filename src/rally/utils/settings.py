@@ -47,7 +47,5 @@ def today_start_utc(db: Session) -> datetime:
     appear on both sides of the boundary or neither.
     """
     tz_name = local_timezone_name(db)
-    local_midnight = datetime.combine(
-        today_local(tz_name), time.min, tzinfo=ZoneInfo(tz_name)
-    )
+    local_midnight = datetime.combine(today_local(tz_name), time.min, tzinfo=ZoneInfo(tz_name))
     return local_midnight.astimezone(UTC)

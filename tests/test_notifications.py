@@ -91,9 +91,7 @@ def test_send_pushover_treats_a_200_without_status_1_as_a_failure(monkeypatch):
     """Pushover reports rejection in the body, not only in the status code."""
     monkeypatch.setattr(
         "requests.post",
-        lambda *a, **k: _Response(
-            200, {"status": 0, "errors": ["user identifier is invalid"]}
-        ),
+        lambda *a, **k: _Response(200, {"status": 0, "errors": ["user identifier is invalid"]}),
     )
     with pytest.raises(PushoverError, match="user identifier is invalid"):
         send_pushover("tok", "bad-user", "hi")
@@ -167,9 +165,7 @@ def test_missing_app_token_skips_cleanly_rather_than_crashing(
 def test_notify_uses_the_members_device_when_set(
     client, token, make_member, make_event, mock_pushover
 ):
-    member = make_member(
-        "Emma", pushover_user_key="emma-key", pushover_device="kitchen"
-    )
+    member = make_member("Emma", pushover_user_key="emma-key", pushover_device="kitchen")
     event = make_event("Dentist", attendees=[member])
     client.post(f"/api/events/{event.id}/notify", json={})
     assert mock_pushover.sent[0]["device"] == "kitchen"
@@ -191,19 +187,13 @@ def test_notify_defaults_to_the_next_upcoming_occurrence(
     assert "7:00 PM" in mock_pushover.sent[0]["message"]
 
 
-def test_notify_accepts_a_message_override(
-    client, token, reachable, make_event, mock_pushover
-):
+def test_notify_accepts_a_message_override(client, token, reachable, make_event, mock_pushover):
     event = make_event("Dentist", attendees=[reachable])
-    client.post(
-        f"/api/events/{event.id}/notify", json={"message": "Leaving now, meet me there"}
-    )
+    client.post(f"/api/events/{event.id}/notify", json={"message": "Leaving now, meet me there"})
     assert mock_pushover.sent[0]["message"] == "Leaving now, meet me there"
 
 
-def test_notify_rejects_a_malformed_occurrence_date(
-    client, token, reachable, make_event
-):
+def test_notify_rejects_a_malformed_occurrence_date(client, token, reachable, make_event):
     event = make_event("Dentist", attendees=[reachable])
     response = client.post(
         f"/api/events/{event.id}/notify", json={"occurrence_date": "next tuesday"}
@@ -238,9 +228,7 @@ def test_reminder_fires_once_its_moment_arrives(
     assert mock_pushover.sent[0]["title"] == "Dentist"
 
 
-def test_reminder_does_not_fire_early(
-    db_session, token, reachable, make_event, mock_pushover
-):
+def test_reminder_does_not_fire_early(db_session, token, reachable, make_event, mock_pushover):
     make_event(
         "Dentist",
         start="2026-08-11T09:00",
@@ -251,9 +239,7 @@ def test_reminder_does_not_fire_early(
     assert mock_pushover.sent == []
 
 
-def test_a_reminder_is_sent_exactly_once(
-    db_session, token, reachable, make_event, mock_pushover
-):
+def test_a_reminder_is_sent_exactly_once(db_session, token, reachable, make_event, mock_pushover):
     make_event(
         "Dentist",
         start="2026-08-11T09:00",
@@ -282,9 +268,7 @@ def test_each_occurrence_of_a_series_reminds_independently(
     assert len(mock_pushover.sent) == 2
     dates = {
         row.occurrence_date
-        for row in db_session.query(EventNotification)
-        .filter_by(kind=KIND_REMINDER)
-        .all()
+        for row in db_session.query(EventNotification).filter_by(kind=KIND_REMINDER).all()
     }
     assert dates == {"2026-08-04", "2026-08-11"}
 
@@ -395,9 +379,7 @@ def test_all_day_reminder_message_says_all_day(
     assert "All day" in mock_pushover.sent[0]["message"]
 
 
-def test_location_is_included_when_known(
-    db_session, token, reachable, make_event, mock_pushover
-):
+def test_location_is_included_when_known(db_session, token, reachable, make_event, mock_pushover):
     make_event(
         "Dentist",
         start="2026-08-11T09:00",
@@ -426,10 +408,7 @@ def test_the_hook_runs_at_most_once_a_minute(
     assert run_due_reminders_once_per_minute(db_session, now=now) == 1
     # A second call in the same minute is a no-op even though nothing has been
     # sent since — the gate is the minute, not the outcome.
-    assert (
-        run_due_reminders_once_per_minute(db_session, now=now + timedelta(seconds=20))
-        == 0
-    )
+    assert run_due_reminders_once_per_minute(db_session, now=now + timedelta(seconds=20)) == 0
     assert db_session.get(Setting, "reminder_last_check_at").value == "2026-08-11T13:30"
 
 
@@ -551,9 +530,7 @@ def test_a_repeating_addition_reads_as_the_whole_notice(
 # --- How long it runs ----------------------------------------------------------
 
 
-def test_a_time_crossing_noon_states_both_meridiems(
-    client, token, reachable, mock_pushover
-):
+def test_a_time_crossing_noon_states_both_meridiems(client, token, reachable, mock_pushover):
     """ "11:30 to 1:00 PM" would be an hour and a half of guesswork."""
     _create(
         client,
@@ -562,14 +539,10 @@ def test_a_time_crossing_noon_states_both_meridiems(
         attendee_ids=[reachable.id],
     )
 
-    assert (
-        "When: 2026-08-14 · 11:30 AM to 1:00 PM CDT" in mock_pushover.sent[0]["message"]
-    )
+    assert "When: 2026-08-14 · 11:30 AM to 1:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
-def test_an_event_with_no_duration_states_one_time(
-    client, token, reachable, mock_pushover
-):
+def test_an_event_with_no_duration_states_one_time(client, token, reachable, mock_pushover):
     _create(
         client,
         start="2026-08-14T09:00",
@@ -580,9 +553,7 @@ def test_an_event_with_no_duration_states_one_time(
     assert "When: 2026-08-14 · 9:00 AM CDT" in mock_pushover.sent[0]["message"]
 
 
-def test_a_timed_event_spanning_days_dates_both_ends(
-    client, token, reachable, mock_pushover
-):
+def test_a_timed_event_spanning_days_dates_both_ends(client, token, reachable, mock_pushover):
     """Which end is which has to be readable without doing arithmetic."""
     _create(
         client,
@@ -592,10 +563,7 @@ def test_a_timed_event_spanning_days_dates_both_ends(
         attendee_ids=[reachable.id],
     )
 
-    assert (
-        "When: 2026-08-14 10:30 PM – 2026-08-15 6:15 AM CDT"
-        in mock_pushover.sent[0]["message"]
-    )
+    assert "When: 2026-08-14 10:30 PM – 2026-08-15 6:15 AM CDT" in mock_pushover.sent[0]["message"]
 
 
 # --- How often it repeats ------------------------------------------------------
@@ -629,23 +597,17 @@ def test_a_rule_richer_than_the_form_stays_vague_rather_than_wrong(
 ):
     """An imported rule may say things the five choices cannot."""
     _create(client, rrule="FREQ=HOURLY;INTERVAL=6", attendee_ids=[reachable.id])
-    assert mock_pushover.sent[0]["message"].endswith(
-        "This event repeats on a custom schedule"
-    )
+    assert mock_pushover.sent[0]["message"].endswith("This event repeats on a custom schedule")
 
 
-def test_a_multi_day_weekly_rule_names_every_day(
-    client, token, reachable, mock_pushover
-):
+def test_a_multi_day_weekly_rule_names_every_day(client, token, reachable, mock_pushover):
     _create(client, rrule="FREQ=WEEKLY;BYDAY=MO,WE,FR", attendee_ids=[reachable.id])
     assert mock_pushover.sent[0]["message"].endswith(
         "This event repeats weekly on Monday, Wednesday and Friday"
     )
 
 
-def test_a_one_off_event_says_nothing_about_repeating(
-    client, token, reachable, mock_pushover
-):
+def test_a_one_off_event_says_nothing_about_repeating(client, token, reachable, mock_pushover):
     _create(client, attendee_ids=[reachable.id])
     assert "repeats" not in mock_pushover.sent[0]["message"]
 
@@ -664,14 +626,10 @@ def test_a_deletion_still_says_what_it_was_repeating(
     client.delete(f"/api/events/{event.id}")
 
     assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Scouts"
-    assert mock_pushover.sent[0]["message"].endswith(
-        "This event repeats weekly on Tuesday"
-    )
+    assert mock_pushover.sent[0]["message"].endswith("This event repeats weekly on Tuesday")
 
 
-def test_every_recipient_gets_the_same_body(
-    client, token, reachable, make_member, mock_pushover
-):
+def test_every_recipient_gets_the_same_body(client, token, reachable, make_member, mock_pushover):
     maya = make_member("Maya", pushover_user_key="maya-key")
     alex = make_member("Alex", pushover_user_key="alex-key")
 
@@ -719,9 +677,7 @@ def test_a_multi_day_notice_names_both_ends(client, token, reachable, mock_pusho
     assert "When: 2026-08-14 – 2026-08-16 · All day" in mock_pushover.sent[0]["message"]
 
 
-def test_a_notice_without_a_location_simply_omits_the_line(
-    client, token, reachable, mock_pushover
-):
+def test_a_notice_without_a_location_simply_omits_the_line(client, token, reachable, mock_pushover):
     _create(client, attendee_ids=[reachable.id])
     assert "Where:" not in mock_pushover.sent[0]["message"]
 
@@ -736,9 +692,7 @@ def test_the_attendee_line_names_everybody_including_the_unreachable(
     assert "Attendees: Emma, Jon" in mock_pushover.sent[0]["message"]
 
 
-def test_a_recurring_notice_describes_the_next_occurrence(
-    client, token, reachable, mock_pushover
-):
+def test_a_recurring_notice_describes_the_next_occurrence(client, token, reachable, mock_pushover):
     """ "Scouts moved" means the next Scouts, not the one three months out."""
     _create(
         client,
@@ -752,9 +706,7 @@ def test_a_recurring_notice_describes_the_next_occurrence(
     assert "When: 2026-08-11 · 7:00 to 8:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
-def test_an_event_with_no_attendees_announces_nothing(
-    client, token, reachable, mock_pushover
-):
+def test_an_event_with_no_attendees_announces_nothing(client, token, reachable, mock_pushover):
     _create(client)
     assert mock_pushover.sent == []
 
@@ -766,9 +718,7 @@ def test_a_modification_says_so(client, token, reachable, make_event, mock_pusho
 
     assert response.status_code == 200
     assert mock_pushover.sent[0]["title"] == "Calendar Modification: Dentist"
-    assert (
-        "When: 2026-08-14 · 10:30 to 11:30 AM CDT" in mock_pushover.sent[0]["message"]
-    )
+    assert "When: 2026-08-14 · 10:30 to 11:30 AM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_modifying_one_occurrence_names_that_occurrence_not_the_next_one(
@@ -914,11 +864,7 @@ def test_the_change_still_happens_when_pushover_is_down(
     created = _create(client, attendee_ids=[reachable.id])
 
     assert client.get(f"/api/events/{created['id']}").status_code == 200
-    row = (
-        db_session.query(EventNotification)
-        .filter(EventNotification.kind == KIND_CREATED)
-        .one()
-    )
+    row = db_session.query(EventNotification).filter(EventNotification.kind == KIND_CREATED).one()
     assert row.status == "failed"
 
 
@@ -932,9 +878,7 @@ def test_a_deletion_still_happens_when_pushover_is_down(
     assert client.get(f"/api/events/{event.id}").status_code == 404
 
 
-def test_a_notice_records_who_it_reached(
-    client, db_session, token, reachable, mock_pushover
-):
+def test_a_notice_records_who_it_reached(client, db_session, token, reachable, mock_pushover):
     created = _create(client, attendee_ids=[reachable.id])
 
     row = db_session.query(EventNotification).one()
@@ -968,9 +912,7 @@ def test_change_notices_do_not_consume_the_reminder_slot(
 
 
 def _mute(db_session, member, kind):
-    db_session.add(
-        MemberNotificationPref(family_member_id=member.id, kind=kind, enabled=False)
-    )
+    db_session.add(MemberNotificationPref(family_member_id=member.id, kind=kind, enabled=False))
     db_session.commit()
 
 
@@ -1052,9 +994,7 @@ def test_a_muted_attendee_does_not_leave_the_reminder_permanently_outstanding(
 # --- Connectivity tests --------------------------------------------------------
 
 
-def test_member_pushover_test_sends_a_real_message(
-    client, token, reachable, mock_pushover
-):
+def test_member_pushover_test_sends_a_real_message(client, token, reachable, mock_pushover):
     response = client.post(f"/api/family/{reachable.id}/test-pushover")
     assert response.json()["success"] is True
     assert len(mock_pushover.sent) == 1
@@ -1068,9 +1008,7 @@ def test_member_pushover_test_without_a_key_explains_itself(client, token, unrea
     }
 
 
-def test_member_pushover_test_reports_a_provider_error(
-    client, token, reachable, mock_pushover
-):
+def test_member_pushover_test_reports_a_provider_error(client, token, reachable, mock_pushover):
     mock_pushover.fail_with("application token is invalid")
     response = client.post(f"/api/family/{reachable.id}/test-pushover")
     assert response.json() == {

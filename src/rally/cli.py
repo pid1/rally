@@ -335,9 +335,7 @@ def seed():
                 sort_order=2,
             ),
             ShoppingItem(name="Almond milk", store_id=trader_joes.id, sort_order=0),
-            ShoppingItem(
-                name="Frozen dumplings", store_id=trader_joes.id, sort_order=1
-            ),
+            ShoppingItem(name="Frozen dumplings", store_id=trader_joes.id, sort_order=1),
             ShoppingItem(name="Stamps", sort_order=0),
             ShoppingItem(name="Batteries", note="AA", sort_order=1),
         ]

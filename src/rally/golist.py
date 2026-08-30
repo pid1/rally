@@ -167,9 +167,7 @@ def render_pdf(groups, generated_on: date) -> bytes:
 
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_fill_color(235, 235, 235)
-        pdf.cell(
-            0, 8, _latin1(f"  {name.upper()}"), new_x="LMARGIN", new_y="NEXT", fill=True
-        )
+        pdf.cell(0, 8, _latin1(f"  {name.upper()}"), new_x="LMARGIN", new_y="NEXT", fill=True)
         pdf.ln(2)
 
         for item in items:
@@ -185,9 +183,7 @@ def render_pdf(groups, generated_on: date) -> bytes:
                 pdf.set_font("Helvetica", "I", 8)
                 pdf.set_text_color(110, 110, 110)
                 pdf.set_x(pdf.l_margin + 6)
-                pdf.multi_cell(
-                    0, 4.5, _latin1(" | ".join(detail)), new_x="LMARGIN", new_y="NEXT"
-                )
+                pdf.multi_cell(0, 4.5, _latin1(" | ".join(detail)), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_text_color(0, 0, 0)
             total += 1
         pdf.ln(3)

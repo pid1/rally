@@ -48,9 +48,7 @@ def db(tmp_path, monkeypatch):
 
 def _seed(db_path, rows):
     conn = sqlite3.connect(db_path)
-    conn.executemany(
-        "INSERT INTO family_members (id, name, color) VALUES (?, ?, ?)", rows
-    )
+    conn.executemany("INSERT INTO family_members (id, name, color) VALUES (?, ?, ?)", rows)
     conn.commit()
     conn.close()
 
@@ -58,10 +56,7 @@ def _seed(db_path, rows):
 def _colors(db_path):
     conn = sqlite3.connect(db_path)
     try:
-        return [
-            row[0]
-            for row in conn.execute("SELECT color FROM family_members ORDER BY id")
-        ]
+        return [row[0] for row in conn.execute("SELECT color FROM family_members ORDER BY id")]
     finally:
         conn.close()
 

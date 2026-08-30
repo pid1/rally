@@ -87,9 +87,7 @@ def test_colours_are_defined_only_as_tokens():
 def test_type_sizes_are_defined_only_as_tokens():
     """C1 — 17 declared font sizes became six tokens; keep it that way."""
     sizes = re.findall(r"font-size:\s*([^;]+);", DECLARATIONS_ONLY)
-    off_scale = [
-        s.strip() for s in sizes if "var(--text-" not in s and s.strip() != "inherit"
-    ]
+    off_scale = [s.strip() for s in sizes if "var(--text-" not in s and s.strip() != "inherit"]
     assert not off_scale, f"font sizes not taken from the type scale: {off_scale}"
 
 
@@ -106,9 +104,7 @@ def test_spacing_comes_from_the_scale(prop):
         for token in value.split():
             if re.fullmatch(r"-?[0-9.]+px", token) and token not in {"1px", "-1px"}:
                 offenders.append(value.strip())
-    assert (
-        not offenders
-    ), f"{prop} values outside the space scale: {sorted(set(offenders))}"
+    assert not offenders, f"{prop} values outside the space scale: {sorted(set(offenders))}"
 
 
 def test_the_stylesheet_declares_the_documented_token_set():

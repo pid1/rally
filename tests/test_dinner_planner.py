@@ -32,9 +32,7 @@ def test_create_with_attendees_and_cook(client, make_member):
     dad = make_member("Dad")
     mom = make_member("Mom")
 
-    body = _create(
-        client, meal_type="Lunch", attendee_ids=[dad.id, mom.id], cook_id=dad.id
-    )
+    body = _create(client, meal_type="Lunch", attendee_ids=[dad.id, mom.id], cook_id=dad.id)
 
     assert body["meal_type"] == "Lunch"
     assert body["attendee_ids"] == [dad.id, mom.id]
@@ -60,9 +58,7 @@ def test_get_by_date_ordered_by_meal_type(client):
     _create(client, date="2026-05-01", meal_type="Breakfast")
     _create(client, date="2026-05-02", meal_type="Dinner")
 
-    types = [
-        p["meal_type"] for p in client.get("/api/dinner-plans/date/2026-05-01").json()
-    ]
+    types = [p["meal_type"] for p in client.get("/api/dinner-plans/date/2026-05-01").json()]
 
     assert types == ["Breakfast", "Dinner"]
 
@@ -141,9 +137,7 @@ def test_review_clear_rating_via_null(client):
     plan = _create(client)
     client.put(f"/api/dinner-plans/{plan['id']}/review", json={"rating": 4})
 
-    body = client.put(
-        f"/api/dinner-plans/{plan['id']}/review", json={"rating": None}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan['id']}/review", json={"rating": None}).json()
 
     assert body["rating"] is None
 
@@ -153,9 +147,7 @@ def test_review_omitting_rating_leaves_it(client):
     client.put(f"/api/dinner-plans/{plan['id']}/review", json={"rating": 4})
 
     # Omit rating, set review only -> rating stays.
-    body = client.put(
-        f"/api/dinner-plans/{plan['id']}/review", json={"review": "ok"}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan['id']}/review", json={"review": "ok"}).json()
 
     assert body["rating"] == 4
     assert body["review"] == "ok"
@@ -165,18 +157,13 @@ def test_review_clear_review_via_null(client):
     plan = _create(client)
     client.put(f"/api/dinner-plans/{plan['id']}/review", json={"review": "tasty"})
 
-    body = client.put(
-        f"/api/dinner-plans/{plan['id']}/review", json={"review": None}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan['id']}/review", json={"review": None}).json()
 
     assert body["review"] is None
 
 
 def test_review_404(client):
-    assert (
-        client.put("/api/dinner-plans/9999/review", json={"rating": 5}).status_code
-        == 404
-    )
+    assert client.put("/api/dinner-plans/9999/review", json={"rating": 5}).status_code == 404
 
 
 # --- Meal history --------------------------------------------------------------
@@ -184,16 +171,12 @@ def test_review_404(client):
 TODAY = datetime(2026, 5, 10, 12, tzinfo=UTC)
 
 
-def test_history_filters_past_only_and_rating_desc(
-    client, make_dinner_plan, frozen_now
-):
+def test_history_filters_past_only_and_rating_desc(client, make_dinner_plan, frozen_now):
     frozen_now(TODAY)
     make_dinner_plan("2026-05-01", plan="A", rating=5)
     make_dinner_plan("2026-05-02", plan="B", rating=3)
     make_dinner_plan("2026-05-03", plan="C", rating=None)
-    make_dinner_plan(
-        "2026-05-10", plan="Today", rating=5
-    )  # not before today -> excluded
+    make_dinner_plan("2026-05-10", plan="Today", rating=5)  # not before today -> excluded
     make_dinner_plan("2026-05-15", plan="Future", rating=5)  # excluded
 
     hist = client.get("/api/dinner-plans/history").json()  # default rating_desc
@@ -232,9 +215,7 @@ def test_history_meal_type_filter(client, make_dinner_plan, frozen_now):
     make_dinner_plan("2026-05-01", plan="Eggs", meal_type="Breakfast", rating=4)
     make_dinner_plan("2026-05-02", plan="Steak", meal_type="Dinner", rating=4)
 
-    hist = client.get(
-        "/api/dinner-plans/history", params={"meal_type": "Breakfast"}
-    ).json()
+    hist = client.get("/api/dinner-plans/history", params={"meal_type": "Breakfast"}).json()
 
     assert [p["plan"] for p in hist] == ["Eggs"]
 
@@ -252,9 +233,7 @@ def test_history_meal_type_filter_multiple(client, make_dinner_plan, frozen_now)
     assert sorted(p["plan"] for p in hist) == ["Eggs", "Sandwich"]
 
 
-def test_history_meal_type_composes_with_min_rating(
-    client, make_dinner_plan, frozen_now
-):
+def test_history_meal_type_composes_with_min_rating(client, make_dinner_plan, frozen_now):
     frozen_now(TODAY)
     make_dinner_plan("2026-05-01", plan="GoodDinner", meal_type="Dinner", rating=5)
     make_dinner_plan("2026-05-02", plan="BadDinner", meal_type="Dinner", rating=2)
@@ -277,9 +256,7 @@ def test_history_invalid_meal_type_returns_422(client, make_dinner_plan, frozen_
     assert resp.status_code == 422
 
 
-def test_history_respects_local_timezone(
-    client, make_dinner_plan, frozen_now, local_timezone
-):
+def test_history_respects_local_timezone(client, make_dinner_plan, frozen_now, local_timezone):
     # At 02:00Z the local date in Kolkata (+05:30) is already the next day, so a
     # plan dated that local day counts as "today" and is excluded from history.
     frozen_now(datetime(2026, 5, 10, 2, 0, tzinfo=UTC))
@@ -299,61 +276,45 @@ def test_history_respects_local_timezone(
 # rating and review. The frozen "today" here is TODAY (2026-05-10, UTC).
 
 
-def test_update_date_to_today_discards_rating_and_review(
-    client, make_dinner_plan, frozen_now
-):
+def test_update_date_to_today_discards_rating_and_review(client, make_dinner_plan, frozen_now):
     frozen_now(TODAY)
     plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=5, review="Great")
 
-    body = client.put(
-        f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-10"}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-10"}).json()
 
     assert body["date"] == "2026-05-10"
     assert body["rating"] is None
     assert body["review"] is None
 
 
-def test_update_date_to_future_discards_rating_and_review(
-    client, make_dinner_plan, frozen_now
-):
+def test_update_date_to_future_discards_rating_and_review(client, make_dinner_plan, frozen_now):
     frozen_now(TODAY)
     plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=4, review="Yum")
 
-    body = client.put(
-        f"/api/dinner-plans/{plan.id}", json={"date": "2026-06-01"}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-06-01"}).json()
 
     assert body["rating"] is None
     assert body["review"] is None
 
 
-def test_update_date_still_past_keeps_rating_and_review(
-    client, make_dinner_plan, frozen_now
-):
+def test_update_date_still_past_keeps_rating_and_review(client, make_dinner_plan, frozen_now):
     frozen_now(TODAY)
     plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=5, review="Great")
 
-    body = client.put(
-        f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-05"}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-05"}).json()
 
     assert body["date"] == "2026-05-05"
     assert body["rating"] == 5
     assert body["review"] == "Great"
 
 
-def test_update_without_date_change_keeps_rating_and_review(
-    client, make_dinner_plan, frozen_now
-):
+def test_update_without_date_change_keeps_rating_and_review(client, make_dinner_plan, frozen_now):
     frozen_now(TODAY)
     plan = make_dinner_plan("2026-05-01", plan="Tacos", rating=5, review="Great")
 
     # No date field in the payload -> rating/review untouched even though the
     # meal's date remains in the past.
-    body = client.put(
-        f"/api/dinner-plans/{plan.id}", json={"plan": "Tacos al pastor"}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"plan": "Tacos al pastor"}).json()
 
     assert body["plan"] == "Tacos al pastor"
     assert body["rating"] == 5
@@ -369,9 +330,7 @@ def test_update_respects_local_timezone_for_planner_boundary(
     local_timezone("Asia/Kolkata")
     plan = make_dinner_plan("2026-05-08", plan="Tacos", rating=5, review="Great")
 
-    body = client.put(
-        f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-10"}
-    ).json()
+    body = client.put(f"/api/dinner-plans/{plan.id}", json={"date": "2026-05-10"}).json()
 
     assert body["rating"] is None
     assert body["review"] is None

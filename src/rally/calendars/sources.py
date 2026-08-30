@@ -109,9 +109,7 @@ def collect_occurrences(
     )
 
     native_calendar_ids = [
-        calendar.id
-        for calendar, _ in calendars
-        if (calendar.cal_type or "ics") == "native"
+        calendar.id for calendar, _ in calendars if (calendar.cal_type or "ics") == "native"
     ]
     if native_calendar_ids and (sources is None or "native" in sources):
         try:

@@ -56,22 +56,16 @@ def ics_calendar(db_session, make_member):
 class TestSerialisation:
     def test_round_trips_every_field(self):
         original = _occ()
-        restored = calendar_cache.occurrence_from_dict(
-            calendar_cache.occurrence_to_dict(original)
-        )
+        restored = calendar_cache.occurrence_from_dict(calendar_cache.occurrence_to_dict(original))
         assert restored == original
 
     def test_attendees_survive_as_a_tuple(self):
         """A list would break dedupe_key, which hashes the occurrence."""
-        restored = calendar_cache.occurrence_from_dict(
-            calendar_cache.occurrence_to_dict(_occ())
-        )
+        restored = calendar_cache.occurrence_from_dict(calendar_cache.occurrence_to_dict(_occ()))
         assert isinstance(restored.attendees, tuple)
 
     def test_instants_keep_their_timezone(self):
-        restored = calendar_cache.occurrence_from_dict(
-            calendar_cache.occurrence_to_dict(_occ())
-        )
+        restored = calendar_cache.occurrence_from_dict(calendar_cache.occurrence_to_dict(_occ()))
         assert restored.start.tzinfo is not None
         assert restored.start == datetime(2026, 8, 20, 15, 0, tzinfo=UTC)
 
@@ -94,9 +88,9 @@ class TestContentFingerprint:
     def test_a_new_dtstamp_is_not_a_change(self):
         """Google rewrites DTSTAMP on every response."""
         later = self.BASE.replace("20260815T235044Z", "20260815T235149Z")
-        assert calendar_cache.content_fingerprint(
-            self.BASE
-        ) == calendar_cache.content_fingerprint(later)
+        assert calendar_cache.content_fingerprint(self.BASE) == calendar_cache.content_fingerprint(
+            later
+        )
 
     def test_reordered_events_are_not_a_change(self):
         """The same feed comes back with its VEVENTs in a different order."""
@@ -106,34 +100,34 @@ class TestContentFingerprint:
             "BEGIN:VEVENT\r\nUID:a\r\nSUMMARY:Dentist\r\nDTSTAMP:20260815T235044Z\r\nEND:VEVENT\r\n"
             "END:VCALENDAR\r\n"
         )
-        assert calendar_cache.content_fingerprint(
-            self.BASE
-        ) == calendar_cache.content_fingerprint(reordered)
+        assert calendar_cache.content_fingerprint(self.BASE) == calendar_cache.content_fingerprint(
+            reordered
+        )
 
     def test_a_real_edit_is_a_change(self):
         """The fingerprint must not be so loose that it misses an actual edit."""
         edited = self.BASE.replace("SUMMARY:Dentist", "SUMMARY:Dentist (moved)")
-        assert calendar_cache.content_fingerprint(
-            self.BASE
-        ) != calendar_cache.content_fingerprint(edited)
+        assert calendar_cache.content_fingerprint(self.BASE) != calendar_cache.content_fingerprint(
+            edited
+        )
 
     def test_a_new_event_is_a_change(self):
         added = self.BASE.replace(
             "END:VCALENDAR",
             "BEGIN:VEVENT\r\nUID:c\r\nSUMMARY:School run\r\nEND:VEVENT\r\nEND:VCALENDAR",
         )
-        assert calendar_cache.content_fingerprint(
-            self.BASE
-        ) != calendar_cache.content_fingerprint(added)
+        assert calendar_cache.content_fingerprint(self.BASE) != calendar_cache.content_fingerprint(
+            added
+        )
 
     def test_folded_lines_are_unfolded_before_sorting(self):
         """Sorting raw lines would tear a folded value away from its property,
         which could collide two genuinely different feeds."""
         folded = "BEGIN:VEVENT\r\nUID:a\r\nLOCATION:Lucy's Alterations\r\n 108 N Main St\r\nEND:VEVENT\r\n"
         other = "BEGIN:VEVENT\r\nUID:a\r\nLOCATION:Lucy's Alterations\r\n 999 S Other Rd\r\nEND:VEVENT\r\n"
-        assert calendar_cache.content_fingerprint(
-            folded
-        ) != calendar_cache.content_fingerprint(other)
+        assert calendar_cache.content_fingerprint(folded) != calendar_cache.content_fingerprint(
+            other
+        )
 
 
 class TestReading:
@@ -141,9 +135,7 @@ class TestReading:
         db_session.add(
             CalendarCache(
                 calendar_id=ics_calendar.id,
-                occurrences=[
-                    calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))
-                ],
+                occurrences=[calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))],
                 window_start="2026-08-01",
                 window_end="2027-01-01",
             )
@@ -164,9 +156,7 @@ class TestReading:
         db_session.add(
             CalendarCache(
                 calendar_id=ics_calendar.id,
-                occurrences=[
-                    calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))
-                ],
+                occurrences=[calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))],
                 window_start="2026-08-01",
                 window_end="2027-01-01",
             )
@@ -180,9 +170,7 @@ class TestReading:
         )
         assert occ == []
 
-    def test_an_uncached_calendar_is_reported_not_silently_empty(
-        self, db_session, ics_calendar
-    ):
+    def test_an_uncached_calendar_is_reported_not_silently_empty(self, db_session, ics_calendar):
         """A fresh install must fall back to a live fetch, not show nothing."""
         _occ_list, _f, uncached = calendar_cache.read_cached(
             db_session,
@@ -191,16 +179,12 @@ class TestReading:
         )
         assert uncached == [ics_calendar.id]
 
-    def test_a_failing_feed_still_serves_its_last_good_data(
-        self, db_session, ics_calendar
-    ):
+    def test_a_failing_feed_still_serves_its_last_good_data(self, db_session, ics_calendar):
         """A stale calendar beats an empty one; the failure travels alongside."""
         db_session.add(
             CalendarCache(
                 calendar_id=ics_calendar.id,
-                occurrences=[
-                    calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))
-                ],
+                occurrences=[calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))],
                 window_start="2026-08-01",
                 window_end="2027-01-01",
                 last_error="ConnectionError: unreachable",
@@ -242,9 +226,7 @@ class TestSyncing:
         assert row.content_hash
         assert row.last_error is None
 
-    def test_an_unchanged_body_skips_re_expansion(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_an_unchanged_body_skips_re_expansion(self, db_session, ics_calendar, mock_requests):
         """The incremental path that actually fires here: neither production
         feed sends a validator, so the fingerprint is what saves the parse."""
         mock_requests.set_response(text=self._feed())
@@ -257,9 +239,7 @@ class TestSyncing:
         assert second["unchanged"] == 1
         assert second["synced"] == 0
         row = db_session.query(CalendarCache).one()
-        assert (
-            row.changed_at == changed_at
-        ), "an unchanged body must not restamp changed_at"
+        assert row.changed_at == changed_at, "an unchanged body must not restamp changed_at"
 
     def test_a_rewritten_dtstamp_still_counts_as_unchanged(
         self, db_session, ics_calendar, mock_requests
@@ -286,13 +266,9 @@ class TestSyncing:
         summary = calendar_cache.sync_calendars(db_session, TZ)
 
         assert summary["synced"] == 1
-        assert (
-            db_session.query(CalendarCache).one().occurrences[0]["title"] == "Optician"
-        )
+        assert db_session.query(CalendarCache).one().occurrences[0]["title"] == "Optician"
 
-    def test_a_304_keeps_the_cache_and_costs_nothing(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_a_304_keeps_the_cache_and_costs_nothing(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(text=self._feed())
         calendar_cache.sync_calendars(db_session, TZ)
         row = db_session.query(CalendarCache).one()
@@ -313,9 +289,7 @@ class TestSyncing:
         db_session.commit()
         return color
 
-    def test_a_304_picks_up_a_new_member_color(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_a_304_picks_up_a_new_member_color(self, db_session, ics_calendar, mock_requests):
         """A member's color is ours, not the feed's, so the paths that skip
         re-expansion must still revisit it. Otherwise a calendar nobody edits
         upstream pins the old dot forever — and Refresh lands here too, so
@@ -361,9 +335,7 @@ class TestSyncing:
         owner = db_session.query(FamilyMember).filter_by(name="Jon").one()
 
         assert calendar_cache._restamp_owner_fields(row, ics_calendar, owner) is False
-        assert (
-            row.occurrences is before
-        ), "unchanged owner fields must not reassign the column"
+        assert row.occurrences is before, "unchanged owner fields must not reassign the column"
 
     def test_a_failure_keeps_the_previous_occurrences(
         self, db_session, ics_calendar, mock_requests
@@ -397,18 +369,14 @@ class TestSyncing:
         assert row.last_error is None
         assert row.failure_count == 0
 
-    def test_native_calendars_are_never_cached(
-        self, db_session, make_member, mock_requests
-    ):
+    def test_native_calendars_are_never_cached(self, db_session, make_member, mock_requests):
         """They are a local query, and the events most likely to have just been
         edited. Serving them stale would make Rally feel broken."""
         from rally.models import Calendar
 
         member = make_member("Jon")
         db_session.add(
-            Calendar(
-                label="Rally", url="", family_member_id=member.id, cal_type="native"
-            )
+            Calendar(label="Rally", url="", family_member_id=member.id, cal_type="native")
         )
         db_session.commit()
 
@@ -435,9 +403,7 @@ class TestSyncing:
         db_session.commit()
         return member
 
-    def test_a_rename_reaches_the_304_path(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_a_rename_reaches_the_304_path(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(text=self._feed(), headers={"ETag": "v1"})
         calendar_cache.sync_calendars(db_session, TZ)
         self._rename(db_session, "Jon", "Jonathan")
@@ -451,9 +417,7 @@ class TestSyncing:
         assert stored["calendar_label"] == "Work (Jonathan)"
         assert stored["attendees"] == ["Jonathan"]
 
-    def test_a_rename_reaches_the_content_hash_path(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_a_rename_reaches_the_content_hash_path(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(text=self._feed())
         calendar_cache.sync_calendars(db_session, TZ)
         self._rename(db_session, "Jon", "Jonathan")
@@ -480,9 +444,7 @@ class TestSyncing:
 
         assert self._stored(db_session)["calendar_label"] == "Day Job (Jon)"
 
-    def test_a_rename_reaches_the_failure_path(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_a_rename_reaches_the_failure_path(self, db_session, ics_calendar, mock_requests):
         """A member should not have to wait out somebody else's outage."""
         mock_requests.set_response(text=self._feed())
         calendar_cache.sync_calendars(db_session, TZ)
@@ -527,9 +489,7 @@ class TestSyncing:
         titles = [o["title"] for o in response.json()["occurrences"]]
         assert "Dentist" in titles
 
-    def test_a_restamp_does_not_touch_changed_at(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_a_restamp_does_not_touch_changed_at(self, db_session, ics_calendar, mock_requests):
         """`changed_at` tracks the feed's content. A rename is not that."""
         mock_requests.set_response(text=self._feed())
         calendar_cache.sync_calendars(db_session, TZ)
@@ -551,17 +511,13 @@ class TestStaleness:
         mock_requests.set_response(text=TestSyncing()._feed())
         assert calendar_cache.sync_if_stale(db_session, TZ) is not None
 
-    def test_does_nothing_while_the_cache_is_warm(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_does_nothing_while_the_cache_is_warm(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(text=TestSyncing()._feed())
         calendar_cache.sync_calendars(db_session, TZ)
         before = len(mock_requests.calls)
 
         assert calendar_cache.sync_if_stale(db_session, TZ) is None
-        assert (
-            len(mock_requests.calls) == before
-        ), "a warm cache must not touch the network"
+        assert len(mock_requests.calls) == before, "a warm cache must not touch the network"
 
     def test_syncs_once_the_interval_has_elapsed(
         self, db_session, ics_calendar, mock_requests, make_setting
@@ -601,9 +557,7 @@ class TestReadPath:
         db_session.add(
             CalendarCache(
                 calendar_id=ics_calendar.id,
-                occurrences=[
-                    calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))
-                ],
+                occurrences=[calendar_cache.occurrence_to_dict(_occ(calendar_id=ics_calendar.id))],
                 window_start="2026-01-01",
                 window_end="2027-12-31",
                 fetched_at=datetime.now(UTC),
@@ -690,9 +644,7 @@ class TestCaldavSyncTokens:
 
         import rally.caldav_client as cc
 
-        monkeypatch.setattr(
-            cc, "sync_probe", lambda cal, stored: ({"cal-a": "tok-1"}, True)
-        )
+        monkeypatch.setattr(cc, "sync_probe", lambda cal, stored: ({"cal-a": "tok-1"}, True))
 
         def must_not_run(*a, **k):
             raise AssertionError("a full fetch must not happen when nothing changed")
@@ -711,9 +663,7 @@ class TestCaldavSyncTokens:
 
         import rally.caldav_client as cc
 
-        monkeypatch.setattr(
-            cc, "sync_probe", lambda cal, stored: ({"cal-a": "tok-2"}, False)
-        )
+        monkeypatch.setattr(cc, "sync_probe", lambda cal, stored: ({"cal-a": "tok-2"}, False))
         monkeypatch.setattr(
             cc,
             "fetch_apple_caldav",
@@ -746,9 +696,7 @@ class TestCaldavSyncTokens:
 
         assert summary["synced"] == 1, "an unsupported server must fall back, not fail"
 
-    def test_the_first_sync_never_probes(
-        self, db_session, caldav_calendar, monkeypatch
-    ):
+    def test_the_first_sync_never_probes(self, db_session, caldav_calendar, monkeypatch):
         """With no cached occurrences there is nothing to skip, and no baseline
         token to compare against."""
         import rally.caldav_client as cc
@@ -847,9 +795,7 @@ class TestOrphanedCacheRows:
         before = len(mock_requests.calls)
 
         assert calendar_cache.sync_if_stale(db_session, TZ) is None
-        assert (
-            len(mock_requests.calls) == before
-        ), "a warm cache must not touch the network"
+        assert len(mock_requests.calls) == before, "a warm cache must not touch the network"
 
     def test_a_sync_pass_prunes_orphans(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(text=TestSyncing()._feed())
@@ -881,9 +827,7 @@ class TestRateLimitBackoff:
         mock_requests.set_response(text=TestSyncing()._feed())
         calendar_cache.sync_calendars(db_session, TZ)
 
-    def test_retry_after_seconds_is_honored(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_retry_after_seconds_is_honored(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
 
         summary = calendar_cache.sync_calendars(db_session, TZ)
@@ -894,15 +838,11 @@ class TestRateLimitBackoff:
         wait = calendar_cache.ensure_utc(row.retry_after) - datetime.now(UTC)
         assert timedelta(minutes=14) < wait <= timedelta(minutes=15)
 
-    def test_retry_after_http_date_is_honored(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_retry_after_http_date_is_honored(self, db_session, ics_calendar, mock_requests):
         from email.utils import format_datetime
 
         when = datetime.now(UTC) + timedelta(minutes=30)
-        mock_requests.set_response(
-            status_code=429, headers={"Retry-After": format_datetime(when)}
-        )
+        mock_requests.set_response(status_code=429, headers={"Retry-After": format_datetime(when)})
 
         calendar_cache.sync_calendars(db_session, TZ)
 
@@ -943,9 +883,7 @@ class TestRateLimitBackoff:
         assert summary["rate_limited"] == 1
         assert db_session.query(CalendarCache).one().retry_after is not None
 
-    def test_an_ordinary_failure_sets_no_backoff(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_an_ordinary_failure_sets_no_backoff(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(status_code=500)
 
         summary = calendar_cache.sync_calendars(db_session, TZ)
@@ -962,9 +900,7 @@ class TestRateLimitBackoff:
         before = len(mock_requests.calls)
 
         assert calendar_cache.sync_if_stale(db_session, TZ) is None
-        assert (
-            len(mock_requests.calls) == before
-        ), "backoff must hold the automatic path back"
+        assert len(mock_requests.calls) == before, "backoff must hold the automatic path back"
 
     def test_the_backoff_expires(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
@@ -977,9 +913,7 @@ class TestRateLimitBackoff:
 
         assert calendar_cache.sync_if_stale(db_session, TZ) is not None
 
-    def test_the_refresh_button_ignores_the_backoff(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_the_refresh_button_ignores_the_backoff(self, db_session, ics_calendar, mock_requests):
         """A person pressing Refresh is not the traffic we are throttling."""
         mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
         calendar_cache.sync_calendars(db_session, TZ)
@@ -991,9 +925,7 @@ class TestRateLimitBackoff:
         assert len(mock_requests.calls) > before
         assert summary["synced"] == 1
 
-    def test_a_success_clears_the_backoff(
-        self, db_session, ics_calendar, mock_requests
-    ):
+    def test_a_success_clears_the_backoff(self, db_session, ics_calendar, mock_requests):
         mock_requests.set_response(status_code=429, headers={"Retry-After": "900"})
         calendar_cache.sync_calendars(db_session, TZ)
         mock_requests.set_response(text=TestSyncing()._feed())

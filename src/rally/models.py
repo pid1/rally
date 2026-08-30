@@ -62,12 +62,8 @@ class Calendar(Base):
     __tablename__ = "calendars"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    label: Mapped[str] = mapped_column(
-        String(100)
-    )  # Display name, e.g. "Google Family"
-    url: Mapped[str] = mapped_column(
-        Text, default=""
-    )  # Feed/server URL; empty for native
+    label: Mapped[str] = mapped_column(String(100))  # Display name, e.g. "Google Family"
+    url: Mapped[str] = mapped_column(Text, default="")  # Feed/server URL; empty for native
     family_member_id: Mapped[int] = mapped_column(Integer)  # FK to family_members.id
     owner_email: Mapped[str | None] = mapped_column(
         String(200), nullable=True
@@ -179,9 +175,7 @@ class FollowedTeam(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     provider: Mapped[str] = mapped_column(String(20))  # espn | mlb
-    league: Mapped[str] = mapped_column(
-        String(30)
-    )  # e.g. hockey/nhl, racing/nascar-premier
+    league: Mapped[str] = mapped_column(String(30))  # e.g. hockey/nhl, racing/nascar-premier
     team_key: Mapped[str | None] = mapped_column(
         String(30), nullable=True
     )  # NULL for a racing series, which has no team
@@ -207,9 +201,7 @@ class SportsEventNotice(Base):
     __tablename__ = "sports_event_notices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    event_key: Mapped[str] = mapped_column(
-        String(80), unique=True, index=True
-    )  # provider + id
+    event_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)  # provider + id
     event_local_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
     announced_on: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
     notability_reason: Mapped[str | None] = mapped_column(
@@ -241,12 +233,8 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    calendar_id: Mapped[int] = mapped_column(
-        Integer
-    )  # FK to calendars.id (cal_type='native')
-    uid: Mapped[str] = mapped_column(
-        String(200), unique=True, index=True
-    )  # RFC 5545 UID
+    calendar_id: Mapped[int] = mapped_column(Integer)  # FK to calendars.id (cal_type='native')
+    uid: Mapped[str] = mapped_column(String(200), unique=True, index=True)  # RFC 5545 UID
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     location: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -310,9 +298,7 @@ class EventOverride(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     event_id: Mapped[int] = mapped_column(Integer, index=True)
-    occurrence_date: Mapped[str] = mapped_column(
-        String(10)
-    )  # YYYY-MM-DD, original local date
+    occurrence_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, original local date
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -431,9 +417,7 @@ class Todo(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    due_date: Mapped[str | None] = mapped_column(
-        String(10), nullable=True
-    )  # YYYY-MM-DD
+    due_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
     assigned_to: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # FK to family_members.id
@@ -457,9 +441,7 @@ class RecurringTodo(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    recurrence_type: Mapped[str] = mapped_column(
-        String(20)
-    )  # daily, weekly, monthly, custom
+    recurrence_type: Mapped[str] = mapped_column(String(20))  # daily, weekly, monthly, custom
     recurrence_day: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # 0-6 for weekly, 1-31 for monthly
@@ -493,9 +475,7 @@ class ShoppingStore(Base):
     __tablename__ = "shopping_stores"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(
-        String(100)
-    )  # Unique case-insensitively (see index below)
+    name: Mapped[str] = mapped_column(String(100))  # Unique case-insensitively (see index below)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
@@ -556,12 +536,8 @@ class ShoppingItemHistory(Base):
     name_key: Mapped[str] = mapped_column(
         String(200), unique=True, index=True
     )  # Trimmed + casefolded name; the dedupe key
-    name: Mapped[str] = mapped_column(
-        String(200)
-    )  # Display casing from the most recent add
-    store_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )  # Most recently used store
+    name: Mapped[str] = mapped_column(String(200))  # Display casing from the most recent add
+    store_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Most recently used store
     times_added: Mapped[int] = mapped_column(Integer, default=1)
     last_added_at: Mapped[datetime] = mapped_column(default=now_utc)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
@@ -573,9 +549,7 @@ class DinnerPlan(Base):
     __tablename__ = "dinner_plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    date: Mapped[str] = mapped_column(
-        String(10)
-    )  # YYYY-MM-DD (multiple plans per date allowed)
+    date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD (multiple plans per date allowed)
     meal_type: Mapped[str] = mapped_column(
         String(20), default="Dinner"
     )  # Breakfast, Lunch, Dinner, Snacks
@@ -589,9 +563,7 @@ class DinnerPlan(Base):
     rating: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # 1-5 star rating; null means not yet reviewed
-    review: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )  # Free-text review of the meal
+    review: Mapped[str | None] = mapped_column(Text, nullable=True)  # Free-text review of the meal
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
@@ -625,9 +597,7 @@ class PrepLocation(Base):
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
     __table_args__ = (
-        Index(
-            "ix_prep_locations_name_nocase", text("name COLLATE NOCASE"), unique=True
-        ),
+        Index("ix_prep_locations_name_nocase", text("name COLLATE NOCASE"), unique=True),
     )
 
 
@@ -662,9 +632,7 @@ class PrepItem(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # --- refresh schedule ---
-    refresh_mode: Mapped[str] = mapped_column(
-        String(10), default="none"
-    )  # none | date | interval
+    refresh_mode: Mapped[str] = mapped_column(String(10), default="none")  # none | date | interval
     refresh_interval_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     next_refresh_date: Mapped[str | None] = mapped_column(
         String(10), nullable=True, index=True
@@ -672,9 +640,7 @@ class PrepItem(Base):
     remind_days_before: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # Lead time, same name and semantics as Todo.remind_days_before
-    last_refreshed_on: Mapped[str | None] = mapped_column(
-        String(10), nullable=True
-    )  # YYYY-MM-DD
+    last_refreshed_on: Mapped[str | None] = mapped_column(String(10), nullable=True)  # YYYY-MM-DD
 
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
@@ -736,12 +702,8 @@ class PrepReview(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     data: Mapped[dict] = mapped_column(JSON)  # The parsed review object
-    model: Mapped[str | None] = mapped_column(
-        String(100), nullable=True
-    )  # Which model produced it
-    item_count: Mapped[int] = mapped_column(
-        Integer, default=0
-    )  # Inventory size at review time
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Which model produced it
+    item_count: Mapped[int] = mapped_column(Integer, default=0)  # Inventory size at review time
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
 
 
@@ -772,9 +734,7 @@ class CalendarCache(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     calendar_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
-    occurrences: Mapped[list] = mapped_column(
-        JSON, default=list
-    )  # serialized Occurrence dicts
+    occurrences: Mapped[list] = mapped_column(JSON, default=list)  # serialized Occurrence dicts
     window_start: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local
     window_end: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD, local, exclusive
 
@@ -787,9 +747,7 @@ class CalendarCache(Base):
     sync_tokens: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     last_modified: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    fetched_at: Mapped[datetime] = mapped_column(
-        default=now_utc
-    )  # last successful contact
+    fetched_at: Mapped[datetime] = mapped_column(default=now_utc)  # last successful contact
     changed_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True
     )  # last time the content actually differed

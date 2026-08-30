@@ -98,10 +98,7 @@ def _default_native_calendar(db: Session) -> Calendar:
     that has not added anybody yet still needs somewhere to put an event.
     """
     calendar = (
-        db.query(Calendar)
-        .filter(Calendar.cal_type == "native")
-        .order_by(Calendar.id.asc())
-        .first()
+        db.query(Calendar).filter(Calendar.cal_type == "native").order_by(Calendar.id.asc()).first()
     )
     if calendar:
         return calendar
@@ -137,9 +134,7 @@ def _set_attendees(db: Session, event_id: int, member_ids: list[int]) -> None:
     """
     valid = {
         member.id
-        for member in db.query(FamilyMember)
-        .filter(FamilyMember.id.in_(member_ids or []))
-        .all()
+        for member in db.query(FamilyMember).filter(FamilyMember.id.in_(member_ids or [])).all()
     }
     db.query(EventAttendee).filter(EventAttendee.event_id == event_id).delete(
         synchronize_session=False
@@ -207,9 +202,7 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         end_date=occurrence.end_local_date,
         time_label=occurrence.time_label(tz),
         end_time_label=(
-            ""
-            if occurrence.all_day
-            else occurrence.local_end(tz).strftime("%I:%M %p").lstrip("0")
+            "" if occurrence.all_day else occurrence.local_end(tz).strftime("%I:%M %p").lstrip("0")
         ),
         dates=dates_covered(occurrence),
         calendar_id=occurrence.calendar_id,
@@ -232,13 +225,9 @@ def _load_event(db: Session, event_id: int) -> Event:
     return event
 
 
-def _apply_times(
-    payload: dict, *, start: str, end: str | None, all_day: bool, tzid: str
-) -> None:
+def _apply_times(payload: dict, *, start: str, end: str | None, all_day: bool, tzid: str) -> None:
     try:
-        payload.update(
-            resolve_event_times(start=start, end=end, all_day=all_day, tzid=tzid)
-        )
+        payload.update(resolve_event_times(start=start, end=end, all_day=all_day, tzid=tzid))
     except EventTimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -266,11 +255,7 @@ def _until_value(event: Event, last_day: date) -> str:
 def _truncate_series(event: Event, before: date) -> None:
     """End ``event``'s recurrence the day before ``before``."""
     last_day = before - timedelta(days=1)
-    parts = [
-        p
-        for p in (event.rrule or "").split(";")
-        if p and not p.upper().startswith("UNTIL=")
-    ]
+    parts = [p for p in (event.rrule or "").split(";") if p and not p.upper().startswith("UNTIL=")]
     parts = [p for p in parts if not p.upper().startswith("COUNT=")]
     parts.append(f"UNTIL={_until_value(event, last_day)}")
     event.rrule = ";".join(parts)
@@ -307,9 +292,7 @@ def list_occurrences(
     if end_day <= start_day:
         end_day = start_day + timedelta(days=1)
     if (end_day - start_day).days > MAX_WINDOW_DAYS:
-        raise HTTPException(
-            status_code=422, detail=f"Window may not exceed {MAX_WINDOW_DAYS} days"
-        )
+        raise HTTPException(status_code=422, detail=f"Window may not exceed {MAX_WINDOW_DAYS} days")
 
     run_due_reminders_once_per_minute(db)
 
@@ -348,9 +331,7 @@ def list_occurrences(
         ]
 
     return OccurrencePage(
-        occurrences=[
-            _occurrence_response(occurrence, tz) for occurrence in occurrences
-        ],
+        occurrences=[_occurrence_response(occurrence, tz) for occurrence in occurrences],
         failures=result.failures,
     )
 
@@ -446,9 +427,7 @@ def list_event_occurrences(
     return [_occurrence_response(occurrence, tz) for occurrence in occurrences]
 
 
-def _require_occurrence_date(
-    event: Event, scope: str, occurrence_date: str | None
-) -> date:
+def _require_occurrence_date(event: Event, scope: str, occurrence_date: str | None) -> date:
     if not event.rrule:
         raise HTTPException(
             status_code=422,
@@ -461,9 +440,7 @@ def _require_occurrence_date(
     try:
         return date.fromisoformat(occurrence_date)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=422, detail="occurrence_date must be YYYY-MM-DD"
-        ) from exc
+        raise HTTPException(status_code=422, detail="occurrence_date must be YYYY-MM-DD") from exc
 
 
 @router.put("/{event_id}", response_model=EventResponse)
@@ -497,9 +474,7 @@ def update_event(
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
         response = _update_single_occurrence(db, event, payload, split_day, tz_name)
-        notify_event_change(
-            db, event, kind=KIND_UPDATED, occurrence_date=split_day.isoformat()
-        )
+        notify_event_change(db, event, kind=KIND_UPDATED, occurrence_date=split_day.isoformat())
         return response
 
     if scope == SCOPE_FOLLOWING:
@@ -518,9 +493,7 @@ def update_event(
     return _event_response(db, event)
 
 
-def _apply_event_fields(
-    db: Session, event: Event, payload: EventUpdate, tz_name: str
-) -> None:
+def _apply_event_fields(db: Session, event: Event, payload: EventUpdate, tz_name: str) -> None:
     """Fold an update payload onto a series row."""
     if payload.title is not None:
         event.title = payload.title.strip() or event.title
@@ -540,9 +513,7 @@ def _apply_event_fields(
         all_day = event.all_day if payload.all_day is None else payload.all_day
         end = payload.end if payload.end is not UNSET else None
         fields: dict = {}
-        _apply_times(
-            fields, start=payload.start, end=end, all_day=all_day, tzid=tz_name
-        )
+        _apply_times(fields, start=payload.start, end=end, all_day=all_day, tzid=tz_name)
         for key, value in fields.items():
             setattr(event, key, value)
 
@@ -563,9 +534,7 @@ def _update_single_occurrence(
         .first()
     )
     if override is None:
-        override = EventOverride(
-            event_id=event.id, occurrence_date=split_day.isoformat()
-        )
+        override = EventOverride(event_id=event.id, occurrence_date=split_day.isoformat())
         db.add(override)
 
     override.cancelled = False
@@ -580,9 +549,7 @@ def _update_single_occurrence(
         all_day = event.all_day if payload.all_day is None else payload.all_day
         end = payload.end if payload.end is not UNSET else None
         fields: dict = {}
-        _apply_times(
-            fields, start=payload.start, end=end, all_day=all_day, tzid=tz_name
-        )
+        _apply_times(fields, start=payload.start, end=end, all_day=all_day, tzid=tz_name)
         override.all_day = fields["all_day"]
         override.start_utc = fields["start_utc"]
         override.end_utc = fields["end_utc"]
@@ -608,18 +575,13 @@ def _split_series(
 
     # The new series starts at the split occurrence unless the edit moves it.
     if payload.start is not None:
-        new_start, new_end = payload.start, (
-            payload.end if payload.end is not UNSET else None
-        )
+        new_start, new_end = payload.start, (payload.end if payload.end is not UNSET else None)
     elif event.all_day:
         new_start, new_end = (
             split_day.isoformat(),
             (
                 split_day
-                + (
-                    date.fromisoformat(event.end_date)
-                    - date.fromisoformat(event.start_date)
-                )
+                + (date.fromisoformat(event.end_date) - date.fromisoformat(event.start_date))
             ).isoformat(),
         )
     else:
@@ -633,23 +595,17 @@ def _split_series(
     fields: dict = {}
     _apply_times(fields, start=new_start, end=new_end, all_day=all_day, tzid=tz_name)
 
-    rrule = (
-        original_rrule if payload.rrule is UNSET else _validated_rrule(payload.rrule)
-    )
+    rrule = original_rrule if payload.rrule is UNSET else _validated_rrule(payload.rrule)
     # A COUNT on the tail would restart the count, so the split drops it and
     # relies on the original UNTIL, if any.
     if rrule:
-        rrule = ";".join(
-            p for p in rrule.split(";") if not p.upper().startswith("COUNT=")
-        )
+        rrule = ";".join(p for p in rrule.split(";") if not p.upper().startswith("COUNT="))
 
     tail = Event(
         calendar_id=payload.calendar_id or event.calendar_id,
         uid=f"rally-{uuid.uuid4().hex[:16]}@rally.local",
         title=(payload.title if payload.title is not None else event.title),
-        description=(
-            event.description if payload.description is UNSET else payload.description
-        ),
+        description=(event.description if payload.description is UNSET else payload.description),
         location=(event.location if payload.location is UNSET else payload.location),
         rrule=rrule,
         series_end_date=series_end_date(rrule),
@@ -665,9 +621,7 @@ def _split_series(
     db.refresh(tail)
 
     attendee_ids = (
-        payload.attendee_ids
-        if payload.attendee_ids is not None
-        else _attendee_ids(db, event.id)
+        payload.attendee_ids if payload.attendee_ids is not None else _attendee_ids(db, event.id)
     )
     _set_attendees(db, tail.id, attendee_ids)
 
@@ -714,9 +668,7 @@ def delete_event(
             .first()
         )
         if override is None:
-            override = EventOverride(
-                event_id=event.id, occurrence_date=split_day.isoformat()
-            )
+            override = EventOverride(event_id=event.id, occurrence_date=split_day.isoformat())
             db.add(override)
         override.cancelled = True
         db.commit()
@@ -791,9 +743,7 @@ def notify_event(
         window_start, window_end = window_bounds(target, target + timedelta(days=1), tz)
     else:
         today = now.astimezone(tz).date()
-        window_start, window_end = window_bounds(
-            today, today + timedelta(days=MAX_WINDOW_DAYS), tz
-        )
+        window_start, window_end = window_bounds(today, today + timedelta(days=MAX_WINDOW_DAYS), tz)
 
     occurrences = expand_event(
         event,
@@ -803,9 +753,7 @@ def notify_event(
         local_tz=tz,
     )
     if not occurrences:
-        raise HTTPException(
-            status_code=404, detail="No occurrence found to notify about"
-        )
+        raise HTTPException(status_code=404, detail="No occurrence found to notify about")
 
     upcoming = [o for o in occurrences if o.end >= now]
     occurrence = upcoming[0] if upcoming else occurrences[-1]

@@ -60,14 +60,10 @@ def migrate():
         """)
 
         # Settings table may not exist yet on a fresh database
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
         if not cursor.fetchone():
             conn.commit()
-            print(
-                "  Migration 015: llm_settings_history created; no settings table to seed from"
-            )
+            print("  Migration 015: llm_settings_history created; no settings table to seed from")
             return True
 
         # CHECK: Is the config already seeded?
@@ -85,18 +81,14 @@ def migrate():
             return True
 
         provider = row[0]
-        model_key = (
-            "llm_anthropic_model" if provider == "anthropic" else "llm_local_model"
-        )
+        model_key = "llm_anthropic_model" if provider == "anthropic" else "llm_local_model"
         cursor.execute("SELECT value FROM settings WHERE key = ?", (model_key,))
         model_row = cursor.fetchone()
         model = model_row[0] if model_row else ""
 
         # EXECUTE: Seed a coupled snapshot and point the setting at it.
         # The original llm_provider / model settings rows are kept as-is.
-        now = datetime.now(UTC).strftime(
-            "%Y-%m-%d %H:%M:%S.%f"
-        )  # SQLAlchemy naive-UTC format
+        now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")  # SQLAlchemy naive-UTC format
         cursor.execute(
             """
             INSERT INTO llm_settings_history (field_name, value, created_at, last_used_at)
