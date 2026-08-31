@@ -573,7 +573,7 @@ cursor.execute("""
 
 ## Project Structure
 
-```
+```text
 rally/
 ├── src/rally/
 │   ├── __init__.py
@@ -1125,7 +1125,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `FamilyMember` - Family members with name, color, and timestamps
 - `Calendar` - ICS calendar feeds linked to family members, with optional owner email
 - `Setting` - Key-value settings store (LLM provider, API keys, timezone, etc.)
-- `AISettingsHistory` - Versioned snapshots of `agent_voice` / `family_context` with field_name discriminator, value, created_at, and last_used_at; active snapshot per field referenced via `current_<field>_history_id` settings keys
+- `AISettingsHistory` - Versioned snapshots of `agent_voice` / `family_context` with field*name discriminator, value, created_at, and last_used_at; active snapshot per field referenced via `current*<field>\_history_id` settings keys
 - `LLMSettingsHistory` - Versioned snapshots of the coupled LLM provider + model configuration (JSON value `{"provider": ..., "model": ...}`, field_name always `llm_config`); active snapshot referenced via the `current_llm_config_history_id` settings key
 - `StemConceptHistory` - Records used STEM "concept of the day" topics (title, field, used_on date) so the generator avoids repeating a specific topic within 60 days; one row per (title, used_on)
 - `DashboardSnapshot` - Stores generated dashboard data with date, timestamp, JSON data, and active flag

@@ -135,7 +135,7 @@ To add one: write `migrations/migrate_XXX_description.py`, test it locally, and 
 
 ## Project layout
 
-```
+```text
 src/rally/          Application code
   main.py           FastAPI app and page routes
   models.py         SQLAlchemy models
