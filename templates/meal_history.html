@@ -210,7 +210,7 @@
       let familyMembers = [];
       let currentSort = "rating_desc";
       let currentMinRating = "";
-      let selectedMealTypes = new Set();
+      const selectedMealTypes = new Set();
       let defaultMealType = "Dinner";
       let localTimezone = "UTC";
       let mealModal = null; // shared MealEditModal instance
@@ -238,13 +238,13 @@
         }
       }
 
-      function getMemberById(id) {
+      function _getMemberById(id) {
         return familyMembers.find((m) => m.id === id);
       }
 
       // Format date for display
       function formatDate(dateStr) {
-        const date = new Date(dateStr + "T00:00:00");
+        const date = new Date(`${dateStr}T00:00:00`);
         return date.toLocaleDateString("en-US", {
           weekday: "long",
           month: "short",
@@ -338,12 +338,12 @@
       // Edit modal — the shared MealEditModal (static/meal_edit_modal.js) owns
       // the edit/delete behavior. Editing a meal's date onto the planner
       // (today or later) discards its rating/review after a confirm prompt.
-      function openEditModal(planId) {
+      function _openEditModal(planId) {
         mealModal.openEdit(historyPlans.find((p) => p.id === planId));
       }
 
       // Review modal
-      function openReviewModal(planId) {
+      function _openReviewModal(planId) {
         const plan = historyPlans.find((p) => p.id === planId);
         if (!plan) return;
 
@@ -368,7 +368,7 @@
       function updateStarDisplay() {
         const stars = document.querySelectorAll("#star-rating-input .star");
         stars.forEach((star) => {
-          const val = parseInt(star.dataset.value);
+          const val = parseInt(star.dataset.value, 10);
           const isSelected = val <= selectedRating;
           star.classList.toggle("filled", isSelected);
           star.textContent = isSelected ? "\u2605" : "\u2606";
@@ -379,22 +379,22 @@
       // Star rating interaction
       document.querySelectorAll("#star-rating-input .star").forEach((star) => {
         star.addEventListener("click", function () {
-          selectedRating = parseInt(this.dataset.value);
+          selectedRating = parseInt(this.dataset.value, 10);
           updateStarDisplay();
         });
 
         star.addEventListener("keydown", function (e) {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            selectedRating = parseInt(this.dataset.value);
+            selectedRating = parseInt(this.dataset.value, 10);
             updateStarDisplay();
           }
         });
 
         star.addEventListener("mouseenter", function () {
-          const hoverVal = parseInt(this.dataset.value);
+          const hoverVal = parseInt(this.dataset.value, 10);
           document.querySelectorAll("#star-rating-input .star").forEach((s) => {
-            const val = parseInt(s.dataset.value);
+            const val = parseInt(s.dataset.value, 10);
             const isHover = val <= hoverVal && val > selectedRating;
             s.classList.toggle("hover", isHover);
             if (isHover) {
@@ -405,9 +405,9 @@
           });
         });
 
-        star.addEventListener("mouseleave", function () {
+        star.addEventListener("mouseleave", () => {
           document.querySelectorAll("#star-rating-input .star").forEach((s) => {
-            const val = parseInt(s.dataset.value);
+            const val = parseInt(s.dataset.value, 10);
             s.classList.remove("hover");
             s.textContent = val <= selectedRating ? "\u2605" : "\u2606";
           });
@@ -425,7 +425,7 @@
       // Meal type: multi-select (any of the selected types).
       document
         .getElementById("meal-type-filters")
-        .addEventListener("click", function (e) {
+        .addEventListener("click", (e) => {
           const chip = e.target.closest(".filter-chip");
           if (!chip) return;
 
@@ -443,7 +443,7 @@
       // Rating: single-select; clicking the active chip clears it.
       document
         .getElementById("rating-filters")
-        .addEventListener("click", function (e) {
+        .addEventListener("click", (e) => {
           const chip = e.target.closest(".filter-chip");
           if (!chip) return;
 
@@ -462,7 +462,7 @@
 
       document
         .getElementById("filter-clear")
-        .addEventListener("click", function () {
+        .addEventListener("click", () => {
           selectedMealTypes.clear();
           currentMinRating = "";
           currentSort = "rating_desc";
@@ -479,16 +479,16 @@
         .addEventListener("click", closeReviewModal);
       document
         .getElementById("review-modal-overlay")
-        .addEventListener("click", function (e) {
+        .addEventListener("click", (e) => {
           if (e.target.id === "review-modal-overlay") closeReviewModal();
         });
 
       document
         .getElementById("review-form")
-        .addEventListener("submit", async function (e) {
+        .addEventListener("submit", async (e) => {
           e.preventDefault();
           const planId = parseInt(
-            document.getElementById("review-plan-id").value,
+            document.getElementById("review-plan-id").value, 10
           );
           const reviewText = document
             .getElementById("review-text")
@@ -505,12 +505,12 @@
         });
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });

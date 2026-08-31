@@ -280,7 +280,7 @@
       // ── State ──
       let items = [];
       let locations = [];
-      let selectedLocations = new Set(); // chip values: location ids as strings, or 'unassigned'
+      const selectedLocations = new Set(); // chip values: location ids as strings, or 'unassigned'
       let selectedStatus = null;
       let editingItemId = null;
       let searchTerm = "";
@@ -316,7 +316,7 @@
       }
 
       async function fetchItems() {
-        const r = await fetch("/api/preparedness/items?" + itemsQuery());
+        const r = await fetch(`/api/preparedness/items?${itemsQuery()}`);
         items = r.ok ? await r.json() : [];
       }
 
@@ -430,11 +430,11 @@
         let html = "";
         order.forEach((key) => {
           const rows = byLocation.get(key);
-          if (!rows || !rows.length) return;
+          if (!rows?.length) return;
           const name =
             key === UNASSIGNED
               ? "Unassigned"
-              : (locations.find((l) => String(l.id) === key) || {}).name ||
+              : locations.find((l) => String(l.id) === key)?.name ||
                 "Unassigned";
           const attention = rows.filter((r) => r.status !== "ok").length;
           const flag = attention ? ` · ${attention} need attention` : "";
@@ -744,7 +744,7 @@
           const rename = e.target.closest("[data-rename]");
           if (rename) {
             const next = prompt("Rename location", rename.dataset.name);
-            if (!next || !next.trim()) return;
+            if (!next?.trim()) return;
             const r = await fetch(
               `/api/preparedness/locations/${rename.dataset.rename}`,
               {
@@ -775,12 +775,12 @@
         });
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });
@@ -829,7 +829,7 @@
           .join("");
 
         const list = (items, title) =>
-          items && items.length
+          items?.length
             ? `<div class="prep-notes"><strong>${title}:</strong> ${items.map(escapeHtml).join(" · ")}</div>`
             : "";
 

@@ -9,9 +9,7 @@
 // Ratings/reviews live only on past meals (Meal History). When an edit moves a
 // meal's date onto the planner (today or later), any existing rating/review is
 // discarded: this class warns and confirms first, and the server clears them.
-(function (global) {
-  "use strict";
-
+((global) => {
   const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snacks"];
 
   function escapeHtml(text) {
@@ -95,13 +93,13 @@
 
     _getSelectedAttendeeIds() {
       const checked = document.querySelectorAll(".attendee-cb:checked");
-      const ids = Array.from(checked).map((cb) => parseInt(cb.value));
+      const ids = Array.from(checked).map((cb) => parseInt(cb.value, 10));
       return ids.length > 0 ? ids : null; // null = everyone
     }
 
     _getSelectedCookId() {
       const val = document.getElementById("plan-cook").value;
-      return val ? parseInt(val) : null;
+      return val ? parseInt(val, 10) : null;
     }
 
     // --- Open / close -----------------------------------------------------
@@ -139,8 +137,7 @@
         plan.meal_type || "Dinner";
       document.getElementById("plan-text").value = plan.plan;
       document.querySelectorAll(".attendee-cb").forEach((cb) => {
-        cb.checked =
-          plan.attendee_ids && plan.attendee_ids.includes(parseInt(cb.value));
+        cb.checked = plan.attendee_ids?.includes(parseInt(cb.value, 10));
       });
       document.getElementById("plan-cook").value = plan.cook_id || "";
       document.getElementById("btn-delete-plan").style.display = "";

@@ -446,7 +446,7 @@
       }
 
       // Track selected assignee filter values
-      let selectedFilters = new Set();
+      const selectedFilters = new Set();
 
       function populateAssigneeDropdown() {
         const select = document.getElementById("todo-assigned-to");
@@ -686,7 +686,7 @@
       function formatDueDate(dateStr) {
         if (!dateStr) return "";
 
-        const date = new Date(dateStr + "T00:00:00");
+        const date = new Date(`${dateStr}T00:00:00`);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -762,7 +762,7 @@
         showModalOverlay("modal-overlay");
       }
 
-      function openEditModal(id) {
+      function _openEditModal(id) {
         const todo = todos.find((t) => t.id === id);
         if (!todo) return;
 
@@ -788,7 +788,7 @@
       }
 
       // Actions
-      async function toggleComplete(id, completed) {
+      async function _toggleComplete(id, completed) {
         try {
           await updateTodo(id, { completed });
           await fetchTodos();
@@ -799,7 +799,7 @@
         }
       }
 
-      async function confirmDelete(id) {
+      async function _confirmDelete(id) {
         if (!confirm("Are you sure you want to delete this task?")) return;
 
         try {
@@ -811,7 +811,7 @@
         }
       }
 
-      async function confirmDeleteFromModal() {
+      async function _confirmDeleteFromModal() {
         if (!editingId) return;
         if (!confirm("Are you sure you want to delete this task?")) return;
         try {
@@ -874,9 +874,9 @@
             title: document.getElementById("todo-title").value,
             description:
               document.getElementById("todo-description").value || null,
-            assigned_to: assignedTo ? parseInt(assignedTo) : null,
+            assigned_to: assignedTo ? parseInt(assignedTo, 10) : null,
             due_date: document.getElementById("todo-due-date").value || null,
-            remind_days_before: remindDays !== "" ? parseInt(remindDays) : null,
+            remind_days_before: remindDays !== "" ? parseInt(remindDays, 10) : null,
           };
 
           try {
@@ -1007,7 +1007,7 @@
       }
 
       function parseLocalDate(value) {
-        return new Date(value + "T00:00:00");
+        return new Date(`${value}T00:00:00`);
       }
 
       function formatShortDate(date) {
@@ -1030,7 +1030,7 @@
         if (!value) return "Never";
         const completed = value.includes("T")
           ? new Date(value)
-          : new Date(value + "T00:00:00");
+          : new Date(`${value}T00:00:00`);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const yesterday = new Date(today);
@@ -1185,7 +1185,7 @@
           recurrence_type: type,
           recurrence_day:
             isBuiltIn && type !== "daily"
-              ? parseInt(document.getElementById("recurring-day").value)
+              ? parseInt(document.getElementById("recurring-day").value, 10)
               : null,
           custom_rule: type === "custom" ? buildCustomRule() : null,
           start_date:
@@ -1224,7 +1224,7 @@
           rt &&
           (rt.last_completed_at || rt.last_completed_date)
         );
-        input.value = (rt && rt.start_date) || "";
+        input.value = (rt?.start_date) || "";
         input.disabled = startDateLocked;
         const started =
           startDateLocked && rt.start_date
@@ -1276,7 +1276,7 @@
           document
             .querySelectorAll('#custom-weekdays input[type="checkbox"]')
             .forEach((cb) => {
-              cb.checked = wds.includes(parseInt(cb.value));
+              cb.checked = wds.includes(parseInt(cb.value, 10));
             });
         } else if (rule.freq === "monthly") {
           const mode = rule.mode || "day";
@@ -1298,7 +1298,7 @@
       function buildCustomRule() {
         const freq = document.getElementById("custom-freq").value;
         const interval =
-          parseInt(document.getElementById("custom-interval").value) || 1;
+          parseInt(document.getElementById("custom-interval").value, 10) || 1;
         const rule = { freq, interval };
         if (
           freq === "daily" &&
@@ -1320,7 +1320,7 @@
             ...document.querySelectorAll(
               '#custom-weekdays input[type="checkbox"]:checked',
             ),
-          ].map((cb) => parseInt(cb.value));
+          ].map((cb) => parseInt(cb.value, 10));
           if (rule.weekdays.length === 0) rule.weekdays = [0]; // default Monday
         } else if (freq === "monthly") {
           rule.mode = document.querySelector(
@@ -1328,12 +1328,12 @@
           ).value;
           if (rule.mode === "day") {
             rule.day = parseInt(
-              document.getElementById("custom-monthly-day").value,
+              document.getElementById("custom-monthly-day").value, 10
             );
           } else {
             rule.ordinal = document.getElementById("custom-ordinal").value;
             rule.weekday = parseInt(
-              document.getElementById("custom-weekday").value,
+              document.getElementById("custom-weekday").value, 10
             );
           }
         }
@@ -1358,7 +1358,7 @@
         showModalOverlay("recurring-modal-overlay");
       }
 
-      function openEditRecurringModal(id) {
+      function _openEditRecurringModal(id) {
         const rt = recurringTodos.find((r) => r.id === id);
         if (!rt) return;
 
@@ -1395,7 +1395,7 @@
         editingRecurringId = null;
       }
 
-      async function toggleRecurringActive(id, currentlyActive) {
+      async function _toggleRecurringActive(id, currentlyActive) {
         try {
           await fetch(`/api/recurring-todos/${id}`, {
             method: "PUT",
@@ -1408,7 +1408,7 @@
         }
       }
 
-      async function confirmDeleteRecurring(id) {
+      async function _confirmDeleteRecurring(id) {
         if (
           !confirm(
             "Delete this recurring task? Existing generated todos will remain.",
@@ -1423,7 +1423,7 @@
         }
       }
 
-      async function confirmDeleteRecurringFromModal() {
+      async function _confirmDeleteRecurringFromModal() {
         if (!editingRecurringId) return;
         if (
           !confirm(
@@ -1476,13 +1476,13 @@
             recurrence_type: type,
             recurrence_day:
               isBuiltIn && type !== "daily"
-                ? parseInt(document.getElementById("recurring-day").value)
+                ? parseInt(document.getElementById("recurring-day").value, 10)
                 : null,
-            assigned_to: assignedTo ? parseInt(assignedTo) : null,
+            assigned_to: assignedTo ? parseInt(assignedTo, 10) : null,
             has_due_date: document.getElementById("recurring-has-due-date")
               .checked,
             remind_days_before:
-              recurringRemindDays !== "" ? parseInt(recurringRemindDays) : null,
+              recurringRemindDays !== "" ? parseInt(recurringRemindDays, 10) : null,
             custom_rule: type === "custom" ? buildCustomRule() : null,
           };
           // A locked start date is read-back, not input: omitting it leaves the
@@ -1528,12 +1528,12 @@
       });
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });

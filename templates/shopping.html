@@ -195,7 +195,7 @@
       // ── State ──
       let items = [];
       let stores = [];
-      let selectedStores = new Set(); // chip values: store ids as strings, or 'anywhere'
+      const selectedStores = new Set(); // chip values: store ids as strings, or 'anywhere'
       let editingItemId = null;
 
       const ANYWHERE = "anywhere";
@@ -483,9 +483,9 @@
       function formatCompletedAgo(value) {
         if (!value) return "";
         const date = new Date(
-          value.endsWith("Z") || value.includes("+") ? value : value + "Z",
+          value.endsWith("Z") || value.includes("+") ? value : `${value}Z`,
         );
-        if (isNaN(date)) return "";
+        if (Number.isNaN(date)) return "";
         const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
         if (minutes < 1) return "Completed just now";
         if (minutes < 60) return `Completed ${minutes}m ago`;
@@ -664,7 +664,7 @@
       });
 
       // ── Item actions ──
-      async function toggleComplete(id, completed) {
+      async function _toggleComplete(id, completed) {
         try {
           await updateItem(id, { completed });
           await fetchItems();
@@ -690,7 +690,7 @@
         nameInput.focus();
       }
 
-      function openEditModal(id) {
+      function _openEditModal(id) {
         const item = items.find((i) => i.id === id);
         if (!item) return;
         editingItemId = id;
@@ -942,17 +942,17 @@
       // It is skipped mid-drag, because re-rendering the list would delete the
       // row out of the user's hand.
       setInterval(() => {
-        if (dragging && dragging.isDragging()) return;
+        if (dragging?.isDragging()) return;
         fetchStores().then(fetchItems);
       }, REFRESH_MS);
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });

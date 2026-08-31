@@ -557,7 +557,7 @@
         let editingCalendarId = null;
 
         // Populate timezone dropdown
-        (function() {
+        (() => {
             const select = document.getElementById('general-timezone');
             const timezones = Intl.supportedValuesOf('timeZone');
             timezones.forEach(tz => {
@@ -577,7 +577,7 @@
 
         function truncateUrl(url, maxLen) {
             if (!url || url.length <= maxLen) return url || '';
-            return url.substring(0, maxLen) + '…';
+            return `${url.substring(0, maxLen)}…`;
         }
 
         function getMemberById(id) {
@@ -671,13 +671,13 @@
         function recipientSummary(kind) {
             const parts = [];
             parts.push(kind.receiving.length
-                ? 'Goes to ' + kind.receiving.map(escapeHtml).join(', ')
+                ? `Goes to ${kind.receiving.map(escapeHtml).join(', ')}`
                 : 'Goes to nobody right now');
             if (kind.muted.length) {
-                parts.push(kind.muted.map(escapeHtml).join(', ') + ' turned it off');
+                parts.push(`${kind.muted.map(escapeHtml).join(', ')} turned it off`);
             }
             if (kind.no_key.length) {
-                parts.push(kind.no_key.map(escapeHtml).join(', ') + ' — no Pushover key');
+                parts.push(`${kind.no_key.map(escapeHtml).join(', ')} — no Pushover key`);
             }
             return parts.join(' · ');
         }
@@ -710,7 +710,7 @@
 
         function renderMemberNotifyOptions(member) {
             const container = document.getElementById('member-notify-options');
-            const prefs = (member && member.notifications) || {};
+            const prefs = (member?.notifications) || {};
 
             container.innerHTML = notificationKinds.map(kind => {
                 const on = (kind.kind in prefs) ? prefs[kind.kind] : kind.default_on;
@@ -808,7 +808,7 @@
             showModalOverlay('member-modal-overlay');
         }
 
-        function openEditMemberModal(id) {
+        function _openEditMemberModal(id) {
             const member = familyMembers.find(m => m.id === id);
             if (!member) return;
 
@@ -831,7 +831,7 @@
         }
 
 
-        async function confirmDeleteMember(id) {
+        async function _confirmDeleteMember(id) {
             if (!confirm('Are you sure you want to remove this family member?')) return;
 
             try {
@@ -960,7 +960,7 @@
             showModalOverlay('calendar-modal-overlay');
         }
 
-        function openEditCalendarModal(id) {
+        function _openEditCalendarModal(id) {
             const cal = calendars.find(c => c.id === id);
             if (!cal) return;
 
@@ -984,7 +984,7 @@
             editingCalendarId = null;
         }
 
-        async function confirmDeleteCalendar(id) {
+        async function _confirmDeleteCalendar(id) {
             if (!confirm('Are you sure you want to delete this calendar?')) return;
 
             try {
@@ -1104,10 +1104,10 @@
 
             if (mode === 'model_max') {
                 help.textContent = isResolved
-                    ? value + ' — maximum for ' + model + '. Covers thinking and output together.'
+                    ? `${value} — maximum for ${model}. Covers thinking and output together.`
                     : 'Resolved from the model when you save. Covers thinking and output together.';
             } else {
-                help.textContent = (value ? value + '. ' : '')
+                help.textContent = (value ? `${value}. ` : '')
                     + 'Covers thinking and output together. Raise this if summaries are cut off mid-sentence.';
             }
         }
@@ -1126,7 +1126,7 @@
             const meta = AI_FIELD_META[field];
             return {
                 label: meta.label,
-                baseUrl: '/api/settings/ai/' + field,
+                baseUrl: `/api/settings/ai/${field}`,
                 formatValue: entry => escapeHtml(entry.value),
                 applyRollback: data => { document.getElementById(meta.inputId).value = data.value; }
             };
@@ -1181,39 +1181,39 @@
             const response = await fetch('/api/settings/ai');
             const data = await response.json();
             for (const [field, meta] of Object.entries(AI_FIELD_META)) {
-                document.getElementById(meta.inputId).value = (data[field] && data[field].value) || '';
+                document.getElementById(meta.inputId).value = (data[field]?.value) || '';
             }
         }
 
-        async function saveAiField(field) {
+        async function _saveAiField(field) {
             const meta = AI_FIELD_META[field];
             try {
-                const response = await fetch('/api/settings/ai/' + field, {
+                const response = await fetch(`/api/settings/ai/${field}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ value: document.getElementById(meta.inputId).value })
                 });
                 if (!response.ok) throw new Error('Failed to save');
-                alert(meta.label + ' saved.');
+                alert(`${meta.label} saved.`);
             } catch (error) {
-                console.error('Error saving ' + field + ':', error);
-                alert('Failed to save ' + meta.label);
+                console.error(`Error saving ${field}:`, error);
+                alert(`Failed to save ${meta.label}`);
             }
         }
 
-        async function openHistoryModal(field) {
+        async function _openHistoryModal(field) {
             historyField = field;
             historyEntries = [];
             currentHistoryId = null;
             selectedHistoryId = null;
             expandedHistoryIds = new Set();
 
-            document.getElementById('history-modal-title').textContent = HISTORY_FIELD_META[field].label + ' Version History';
+            document.getElementById('history-modal-title').textContent = `${HISTORY_FIELD_META[field].label} Version History`;
             document.getElementById('history-list').innerHTML = '<div class="container-loading-state">Loading version history...</div>';
             showModalOverlay('history-modal-overlay');
 
             try {
-                const response = await fetch(HISTORY_FIELD_META[field].baseUrl + '/history');
+                const response = await fetch(`${HISTORY_FIELD_META[field].baseUrl}/history`);
                 if (!response.ok) throw new Error('Failed to load history');
                 const data = await response.json();
                 historyEntries = data.history;
@@ -1234,7 +1234,7 @@
         function formatUtcTimestamp(isoString) {
             // Timestamps are stored as naive UTC; tag them so Date parses correctly
             const hasZone = isoString.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(isoString);
-            const d = new Date(hasZone ? isoString : isoString + 'Z');
+            const d = new Date(hasZone ? isoString : `${isoString}Z`);
             const pad = n => String(n).padStart(2, '0');
             return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} `
                 + `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
@@ -1269,12 +1269,12 @@
             }).join('');
         }
 
-        function selectHistoryEntry(id) {
+        function _selectHistoryEntry(id) {
             selectedHistoryId = id;
             renderHistoryList();
         }
 
-        function toggleHistoryValue(event, id) {
+        function _toggleHistoryValue(event, id) {
             event.stopPropagation();
             if (expandedHistoryIds.has(id)) {
                 expandedHistoryIds.delete(id);
@@ -1291,7 +1291,7 @@
             }
             const meta = HISTORY_FIELD_META[historyField];
             try {
-                const response = await fetch(meta.baseUrl + '/rollback', {
+                const response = await fetch(`${meta.baseUrl}/rollback`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ history_id: selectedHistoryId })
@@ -1425,7 +1425,7 @@
             showModalOverlay('team-modal-overlay');
         }
 
-        function openEditTeamModal(id) {
+        function _openEditTeamModal(id) {
             const team = followedTeams.find(t => t.id === id);
             if (!team) return;
             editingTeamId = id;
@@ -1445,7 +1445,7 @@
             editingTeamId = null;
         }
 
-        async function confirmDeleteTeam(id) {
+        async function _confirmDeleteTeam(id) {
             const team = followedTeams.find(t => t.id === id);
             if (!confirm(`Stop following ${team ? team.label : 'this team'}?`)) return;
             try {
@@ -1458,7 +1458,7 @@
             }
         }
 
-        async function testFollowedTeam(id) {
+        async function _testFollowedTeam(id) {
             await verifyConnection(`/api/followed-teams/${id}/test`, 'sports provider');
         }
 
@@ -1544,7 +1544,7 @@
             const calType = document.getElementById('calendar-type').value;
             const data = {
                 label: document.getElementById('calendar-label').value,
-                family_member_id: parseInt(document.getElementById('calendar-member').value),
+                family_member_id: parseInt(document.getElementById('calendar-member').value, 10),
                 owner_email: document.getElementById('calendar-owner-email').value || null,
                 cal_type: calType,
             };
@@ -1577,7 +1577,7 @@
                 }
                 closeCalendarModal();
                 await fetchCalendars();
-                await verifyConnection('/api/calendars/' + calId + '/test', 'calendar');
+                await verifyConnection(`/api/calendars/${calId}/test`, 'calendar');
             } catch (error) {
                 console.error('Error saving calendar:', error);
                 alert('Failed to save calendar');
@@ -1804,7 +1804,7 @@
         document.getElementById('btn-test-member-pushover').addEventListener('click', async () => {
             const id = document.getElementById('member-id').value;
             if (!id) return;
-            await verifyConnection('/api/family/' + id + '/test-pushover', 'Pushover');
+            await verifyConnection(`/api/family/${id}/test-pushover`, 'Pushover');
         });
 
         // Preparedness form
@@ -1835,11 +1835,11 @@
                 const response = await fetch('/api/preparedness/digest/run?dry_run=true', { method: 'POST' });
                 const body = await response.json();
                 if (!body.count) {
-                    const why = body.skipped_reason ? ' (' + body.skipped_reason + ')' : '';
-                    target.innerHTML = '<div class="container-empty-state">Nothing is due today' + why + '.</div>';
+                    const why = body.skipped_reason ? ` (${body.skipped_reason})` : '';
+                    target.innerHTML = `<div class="container-empty-state">Nothing is due today${why}.</div>`;
                     return;
                 }
-                const rows = body.items.map(function (i) {
+                const rows = body.items.map((i) => {
                     const tone = i.status === 'overdue' ? 'overdue' : 'due';
                     return '<div class="prep-row"><div class="prep-main">' +
                         '<div class="prep-name">' + escapeHtml(i.name) + '</div>' +
@@ -1905,12 +1905,12 @@
         Promise.all([fetchMembers(), fetchCalendars(), fetchFollowedTeams(), fetchSettings(), fetchAiSettings(), fetchNotificationOverview()]);
 
         // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
+        function _toggleOtherDropdown(e) {
             e.stopPropagation();
             document.getElementById('other-dropdown').classList.toggle('open');
         }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.nav-dropdown').forEach((d) => {
                 d.classList.remove('open');
             });
         });

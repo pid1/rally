@@ -72,7 +72,7 @@
 
     <script>
       // Format current date in user's local timezone
-      (function () {
+      (() => {
         const dateElement = document.getElementById("current-date");
         const today = new Date();
         const formatted = today.toLocaleDateString("en-US", {
@@ -85,7 +85,7 @@
       })();
 
       // Format timestamp in user's local timezone
-      (function () {
+      (() => {
         const timestampElement = document.getElementById("timestamp");
         const utcTimestamp = "{{timestamp_utc}}";
 
@@ -110,19 +110,19 @@
 
       // Auto-refresh every 30 minutes
       setTimeout(
-        function () {
+        () => {
           location.reload();
         },
         30 * 60 * 1000,
       );
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });

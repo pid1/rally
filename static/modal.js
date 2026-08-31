@@ -13,9 +13,7 @@
  * Loaded on every page that owns a modal; the wiring below is idempotent and
  * runs against whatever is in the DOM at load.
  */
-(function () {
-  "use strict";
-
+(() => {
   function updateModalFade(scroll) {
     const body = scroll.querySelector(".modal-body");
     if (!body) return;

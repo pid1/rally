@@ -22,9 +22,7 @@
  * keyboard: focus it and press the arrow keys. Moving between groups by
  * keyboard is the Edit form's Store field, which already does it.
  */
-(function () {
-  "use strict";
-
+(() => {
   // Far enough that a tap on the handle is never mistaken for a drag, close
   // enough that a deliberate drag feels immediate.
   const DRAG_THRESHOLD_PX = 5;
@@ -120,7 +118,7 @@
 
     // --- the drag itself -------------------------------------------------
 
-    function beginDrag(event) {
+    function beginDrag(_event) {
       const item = drag.item;
       const rect = item.getBoundingClientRect();
 
@@ -135,8 +133,8 @@
       ghost.classList.add("drag-ghost");
       ghost.removeAttribute("data-id");
       ghost.setAttribute("aria-hidden", "true");
-      ghost.style.width = rect.width + "px";
-      ghost.style.height = rect.height + "px";
+      ghost.style.width = `${rect.width}px`;
+      ghost.style.height = `${rect.height}px`;
       document.body.appendChild(ghost);
       drag.ghost = ghost;
 
@@ -150,7 +148,7 @@
     function moveGhost() {
       const x = drag.pointerX - drag.offsetX;
       const y = drag.pointerY - drag.offsetY;
-      drag.ghost.style.transform = "translate3d(" + x + "px, " + y + "px, 0)";
+      drag.ghost.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     }
 
     /* Decide where the row would land if you let go now, and put it there.
@@ -188,7 +186,7 @@
 
     function startEdgeScroll() {
       const step = () => {
-        if (!drag || !drag.started) return;
+        if (!drag?.started) return;
         const height = window.innerHeight;
         let delta = 0;
         if (drag.pointerY < EDGE_ZONE_PX) {
@@ -218,7 +216,7 @@
       restoreNotices();
       try {
         state.handle.releasePointerCapture(state.pointerId);
-      } catch (error) {
+      } catch (_error) {
         /* Already released — the pointer left the document, or the row
          * was re-rendered out from under the capture. Nothing to undo. */
       }
@@ -368,14 +366,13 @@
      * in a row is impossible. */
     function refocus() {
       if (!refocusId) return;
-      const selector =
-        itemSelector + '[data-id="' + refocusId + '"] ' + handleSelector;
+      const selector = `${itemSelector}[data-id="${refocusId}"] ${handleSelector}`;
       refocusId = null;
       const handle = container.querySelector(selector);
       if (handle) handle.focus();
     }
 
-    return { cancel: cancelDrag, isDragging: () => !!(drag && drag.started) };
+    return { cancel: cancelDrag, isDragging: () => !!drag?.started };
   }
 
   window.initDragReorder = initDragReorder;

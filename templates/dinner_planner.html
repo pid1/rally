@@ -99,7 +99,7 @@
       let familyMembers = [];
       let defaultMealType = "Dinner";
       let localTimezone = "UTC";
-      let selectedMealTypes = new Set();
+      const selectedMealTypes = new Set();
       let mealModal = null; // shared MealEditModal instance
 
       const MEAL_TYPE_ORDER = { Breakfast: 0, Lunch: 1, Dinner: 2, Snacks: 3 };
@@ -116,7 +116,7 @@
       // Get date N days from today (YYYY-MM-DD) in the configured local timezone.
       function getDateInDays(days) {
         // Anchor to local calendar midnight so day arithmetic isn't skewed by UTC.
-        const base = new Date(todayLocal() + "T00:00:00");
+        const base = new Date(`${todayLocal()}T00:00:00`);
         base.setDate(base.getDate() + days);
         const y = base.getFullYear();
         const m = String(base.getMonth() + 1).padStart(2, "0");
@@ -126,7 +126,7 @@
 
       // Format date for display
       function formatDate(dateStr) {
-        const date = new Date(dateStr + "T00:00:00");
+        const date = new Date(`${dateStr}T00:00:00`);
         const today = todayLocal();
         const tomorrow = getDateInDays(1);
 
@@ -251,7 +251,7 @@
 
       // Modal — the shared MealEditModal (static/meal_edit_modal.js) owns the
       // add/edit/delete behavior. Called from the per-card Edit button.
-      function openEditModal(id) {
+      function _openEditModal(id) {
         mealModal.openEdit(plans.find((p) => p.id === id));
       }
 
@@ -299,12 +299,12 @@
       });
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });

@@ -106,7 +106,7 @@
       // ── State ──
       let items = [];
       let stores = [];
-      let selectedStores = new Set(); // chip values: store ids as strings, or 'anywhere'
+      const selectedStores = new Set(); // chip values: store ids as strings, or 'anywhere'
 
       const ANYWHERE = "anywhere";
 
@@ -143,7 +143,7 @@
         const query = params.toString();
         try {
           const response = await fetch(
-            `/api/shopping/purchased${query ? "?" + query : ""}`,
+            `/api/shopping/purchased${query ? `?${query}` : ""}`,
           );
           if (!response.ok) throw new Error("Failed to load purchased items");
           const data = await response.json();
@@ -309,9 +309,9 @@
       function formatPurchasedDate(value) {
         if (!value) return "";
         const date = new Date(
-          value.endsWith("Z") || value.includes("+") ? value : value + "Z",
+          value.endsWith("Z") || value.includes("+") ? value : `${value}Z`,
         );
-        if (isNaN(date)) return "";
+        if (Number.isNaN(date)) return "";
         return `<div class="shopping-completed-at">Purchased ${formatDayMonth(date)}</div>`;
       }
 
@@ -407,12 +407,12 @@
       fetchStores().then(fetchItems);
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });

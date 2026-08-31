@@ -353,7 +353,7 @@
       // State
       let familyMembers = [];
       let occurrences = [];
-      let selectedMembers = new Set();
+      const selectedMembers = new Set();
       /* Two orthogonal choices, not one. `mode` is the renderer — a grid or
            a list — and `range` is how much time it covers. Conflating them is
            what made Day and Week render agenda lists: the dropdown had no way
@@ -371,7 +371,7 @@
       // honest.
       let anchor = startOfMonth(new Date());
       let editingEvent = null; // Full event record while the modal is open
-      let editingOccurrence = null; // The occurrence that was clicked
+      let _editingOccurrence = null; // The occurrence that was clicked
       let detailOccurrence = null;
 
       const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -700,7 +700,7 @@
           }
           html += "</div>";
         }
-        return html + "</div></div>";
+        return `${html}</div></div>`;
       }
 
       /* --- Time grid (Calendar + Day/Week)
@@ -883,7 +883,7 @@
               : `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`;
           html += `<div class="calendar-timegrid-hour"><span>${label}</span></div>`;
         }
-        return html + "</div>";
+        return `${html}</div>`;
       }
 
       function timeGridHtml() {
@@ -1056,7 +1056,7 @@
                             </div>
                         </div>`;
           });
-          rows.push(html + "</div>");
+          rows.push(`${html}</div>`);
         }
         if (!rows.length) {
           // The empty state names the slice you are actually looking at;
@@ -1242,7 +1242,7 @@
 
       function openAddEventModal(dateIso) {
         editingEvent = null;
-        editingOccurrence = null;
+        _editingOccurrence = null;
         document.getElementById("event-modal-title").textContent = "Add Event";
         document.getElementById("event-form").reset();
         document.getElementById("event-id").value = "";
@@ -1271,7 +1271,7 @@
           return;
         }
         editingEvent = await response.json();
-        editingOccurrence = occurrence;
+        _editingOccurrence = occurrence;
 
         document.getElementById("event-modal-title").textContent = "Edit Event";
         document.getElementById("event-id").value = editingEvent.id;
@@ -1449,7 +1449,7 @@
         document.getElementById("btn-save-event").style.display = "";
         hideDeleteScopePrompt();
         editingEvent = null;
-        editingOccurrence = null;
+        _editingOccurrence = null;
       }
 
       // --- Detail (external events, and Notify attendees)
@@ -1514,7 +1514,7 @@
       }
 
       async function notifyAttendees() {
-        if (!detailOccurrence || !detailOccurrence.event_id) return;
+        if (!detailOccurrence?.event_id) return;
         const button = document.getElementById("btn-notify-attendees");
         button.disabled = true;
         try {
@@ -1530,16 +1530,16 @@
           );
           const data = await response.json();
           const parts = [];
-          if (data.sent && data.sent.length)
+          if (data.sent?.length)
             parts.push(`Sent to ${data.sent.join(", ")}.`);
-          if (data.skipped && data.skipped.length)
+          if (data.skipped?.length)
             parts.push(`No Pushover key for ${data.skipped.join(", ")}.`);
-          if (data.failed && data.failed.length)
+          if (data.failed?.length)
             parts.push(`Failed for ${data.failed.join(", ")}.`);
           if (data.error) parts.push(data.error);
           document.getElementById("detail-notify-result").innerHTML =
             `<div class="notify-result">${escapeHtml(parts.join(" ") || "Nothing to send.")}</div>`;
-        } catch (error) {
+        } catch (_error) {
           document.getElementById("detail-notify-result").innerHTML =
             '<div class="notify-result">Could not reach Rally to send that.</div>';
         } finally {
@@ -1552,7 +1552,7 @@
       async function load() {
         try {
           await fetchOccurrences();
-        } catch (error) {
+        } catch (_error) {
           document.getElementById("calendar-view").innerHTML =
             '<div class="container-empty-state">Could not load the calendar.</div>';
         }
@@ -1599,12 +1599,12 @@
         syncRangeOptions();
       }
 
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });
@@ -1622,9 +1622,9 @@
         );
         if (mins < 1) return "just now";
         if (mins === 1) return "1 minute ago";
-        if (mins < 60) return mins + " minutes ago";
+        if (mins < 60) return `${mins} minutes ago`;
         const hrs = Math.round(mins / 60);
-        return hrs === 1 ? "1 hour ago" : hrs + " hours ago";
+        return hrs === 1 ? "1 hour ago" : `${hrs} hours ago`;
       }
 
       async function loadSyncStatus() {
@@ -1644,14 +1644,14 @@
           const parts = [];
           if (s.oldest_fetched_at) {
             parts.push(
-              "External calendars updated " + relativeAge(s.oldest_fetched_at),
+              `External calendars updated ${relativeAge(s.oldest_fetched_at)}`,
             );
           } else {
             parts.push("External calendars have not synced yet");
           }
-          if (s.failing && s.failing.length) {
+          if (s.failing?.length) {
             parts.push(
-              "showing the last good copy for " + s.failing.join(", "),
+              `showing the last good copy for ${s.failing.join(", ")}`,
             );
           }
           note.textContent = parts.join(" · ");

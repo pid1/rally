@@ -139,7 +139,7 @@
       let requestToken = 0;
 
       // Track selected assignee filter values
-      let selectedFilters = new Set();
+      const selectedFilters = new Set();
 
       // The currently submitted search term ('' when no search is active).
       // Search runs only on submit (button click or Enter), never on keystroke.
@@ -347,16 +347,16 @@
       // style — no overdue emphasis.
       function formatDueDate(dateStr) {
         if (!dateStr) return "";
-        const date = new Date(dateStr + "T00:00:00");
+        const date = new Date(`${dateStr}T00:00:00`);
         return `<div class="todo-due-date">Due ${formatDayMonth(date)}</div>`;
       }
 
       function formatCompletedDate(value) {
         if (!value) return "";
         const date = new Date(
-          value.endsWith("Z") || value.includes("+") ? value : value + "Z",
+          value.endsWith("Z") || value.includes("+") ? value : `${value}Z`,
         );
-        if (isNaN(date)) return "";
+        if (Number.isNaN(date)) return "";
         return `<div class="todo-completed-date">Completed ${formatDayMonth(date)}</div>`;
       }
 
@@ -438,12 +438,12 @@
       fetchFamilyMembers().then(reload);
 
       // Nav dropdown toggle (for touch devices)
-      function toggleOtherDropdown(e) {
+      function _toggleOtherDropdown(e) {
         e.stopPropagation();
         document.getElementById("other-dropdown").classList.toggle("open");
       }
-      document.addEventListener("click", function () {
-        document.querySelectorAll(".nav-dropdown").forEach(function (d) {
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
           d.classList.remove("open");
         });
       });
