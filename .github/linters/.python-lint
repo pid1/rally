@@ -1,0 +1,28 @@
+[MESSAGES CONTROL]
+# Disabled deliberately. Each of these fires on a pattern that is correct in
+# this codebase rather than on a defect:
+#   docstring rules      - would be 1,300+ docstrings restating function names
+#   redefined-outer-name - the pytest fixture pattern
+#   unused-argument      - required by interfaces and framework callbacks
+#   too-few-public-methods - dataclasses, pydantic models, config objects
+#   import-outside-toplevel - breaking import cycles, deferring heavy imports
+#   protected-access     - tests exercising internals
+#   duplicate-code       - same false positives that took JSCPD out
+#   invalid-name         - e.g. CircuitPython module-level variables
+#   broad-exception-caught - deliberate at long-running service boundaries
+disable =
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    redefined-outer-name,
+    unused-argument,
+    too-few-public-methods,
+    import-outside-toplevel,
+    protected-access,
+    duplicate-code,
+    invalid-name,
+    broad-exception-caught
+
+[FORMAT]
+# Matches the ruff config so one tool defines line width and the other agrees.
+max-line-length = 100
