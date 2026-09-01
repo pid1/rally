@@ -81,43 +81,43 @@ def index():
 @app.get("/todo", response_class=HTMLResponse)
 def todo_page(request: Request):
     """Serve the todo management page."""
-    return templates.TemplateResponse("todo.html", {"request": request})
+    return templates.TemplateResponse(request, "todo.html")
 
 
 @app.get("/todo/completed", response_class=HTMLResponse)
 def todo_completed_page(request: Request):
     """Serve the read-only page of previously completed tasks."""
-    return templates.TemplateResponse("todo_completed.html", {"request": request})
+    return templates.TemplateResponse(request, "todo_completed.html")
 
 
 @app.get("/calendar", response_class=HTMLResponse)
 def calendar_page(request: Request):
     """Serve the calendar page (month and agenda views)."""
-    return templates.TemplateResponse("calendar.html", {"request": request})
+    return templates.TemplateResponse(request, "calendar.html")
 
 
 @app.get("/shopping", response_class=HTMLResponse)
 def shopping_page(request: Request):
     """Serve the shopping list page."""
-    return templates.TemplateResponse("shopping.html", {"request": request})
+    return templates.TemplateResponse(request, "shopping.html")
 
 
 @app.get("/shopping/purchased", response_class=HTMLResponse)
 def shopping_purchased_page(request: Request):
     """Serve the read-only page of previously purchased shopping items."""
-    return templates.TemplateResponse("shopping_purchased.html", {"request": request})
+    return templates.TemplateResponse(request, "shopping_purchased.html")
 
 
 @app.get("/dinner-planner", response_class=HTMLResponse)
 def dinner_planner_page(request: Request):
     """Serve the meal planner page."""
-    return templates.TemplateResponse("dinner_planner.html", {"request": request})
+    return templates.TemplateResponse(request, "dinner_planner.html")
 
 
 @app.get("/meal-history", response_class=HTMLResponse)
 def meal_history_page(request: Request):
     """Serve the meal history and reviews page."""
-    return templates.TemplateResponse("meal_history.html", {"request": request})
+    return templates.TemplateResponse(request, "meal_history.html")
 
 
 @app.get("/meal-planner", response_class=RedirectResponse)
@@ -129,13 +129,13 @@ def meal_planner_redirect():
 @app.get("/preparedness", response_class=HTMLResponse)
 def preparedness_page(request: Request):
     """Serve the preparedness inventory page."""
-    return templates.TemplateResponse("preparedness.html", {"request": request})
+    return templates.TemplateResponse(request, "preparedness.html")
 
 
 @app.get("/go-list", response_class=HTMLResponse)
 def go_list_page(request: Request):
     """Serve the go list — the printable packing list, grouped by location."""
-    return templates.TemplateResponse("go_list.html", {"request": request})
+    return templates.TemplateResponse(request, "go_list.html")
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -148,7 +148,7 @@ def settings_page(request: Request):
     as slowly as e-ink.
     """
     return templates.TemplateResponse(
-        "settings.html", {"request": request, "member_palette": member_colors.PALETTE}
+        request, "settings.html", {"member_palette": member_colors.PALETTE}
     )
 
 
@@ -163,5 +163,5 @@ def styleguide_page(request: Request):
     exists in development stops matching what production actually looks like.
     """
     return templates.TemplateResponse(
-        "styleguide.html", {"request": request, "member_palette": member_colors.PALETTE}
+        request, "styleguide.html", {"member_palette": member_colors.PALETTE}
     )
