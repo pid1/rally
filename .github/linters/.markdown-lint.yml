@@ -1,6 +1,0 @@
----
-# Hard-wrapping prose at a fixed column is a style most markdown tooling has
-# moved on from.
-MD013: false
-# A README that opens with a sentence rather than a title is fine.
-MD041: false
