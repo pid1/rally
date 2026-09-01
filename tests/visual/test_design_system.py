@@ -756,6 +756,276 @@ def _measure(page, occurrences, *, mode="calendar", range_="day", day=DAY):
     )
 
 
+# --- The now line and the opening scroll ---------------------------------------
+#
+# Both read the clock, so both are stubbed rather than measured against the
+# wall: `nowMinutes()` is the single seam the grid asks the time through, and
+# overriding it is how these can assert "4:30 PM opens at 3 PM" without the
+# suite behaving differently at 3 AM. Geometry is in minutes and in pixels
+# relative to the grid body, never absolute.
+
+_NOW_MEASURE = """
+(spec) => {
+    nowMinutes = () => spec.now;
+    mode = 'calendar';
+    range = spec.range;
+    anchor = new Date(spec.year, spec.month - 1, spec.day);
+    occurrences = [];
+    render();
+    const body = document.querySelector('.calendar-timegrid-body').getBoundingClientRect();
+    const gutter = document.querySelector('.calendar-timegrid-gutter').getBoundingClientRect();
+    const cols = [...document.querySelectorAll('.calendar-timegrid-col')]
+        .map(c => c.getBoundingClientRect());
+    const lines = [...document.querySelectorAll('.calendar-timegrid-now')];
+    const rect = lines.length ? lines[0].getBoundingClientRect() : null;
+    const hour = document.querySelector('.calendar-timegrid-hour').getBoundingClientRect().height;
+    const scroller = document.querySelector('.calendar-timegrid-scroll');
+    const round = n => Math.round(n * 10) / 10;
+    return {
+        lines: lines.length,
+        todayColumns: document.querySelectorAll('.calendar-timegrid-col.is-today').length,
+        lineMin: rect ? Math.round(((rect.top - body.top) / hour) * 60) : null,
+        lineLeft: rect ? round(rect.left - body.left) : null,
+        lineRight: rect ? round(body.right - rect.right) : null,
+        gutterWidth: round(gutter.width),
+        firstColLeft: round(cols[0].left - body.left),
+        lastColRight: round(body.right - cols[cols.length - 1].right),
+        scrollMinutes: Number(scroller.dataset.scrollMinutes),
+        scrolledMin: Math.round((scroller.scrollTop / hour) * 60),
+    };
+}
+"""
+
+
+def _now_measure(page, *, now, range_="week", day=DAY):
+    year, month, dom = (int(part) for part in day.split("-"))
+    return page.evaluate(
+        _NOW_MEASURE,
+        {"now": now, "range": range_, "year": year, "month": month, "day": dom},
+    )
+
+
+def test_the_now_line_crosses_every_column_and_stops_at_the_gutter(browser, live_server):
+    """One line for the grid, not one per column.
+
+    Drawn inside today's column it was a mark on Thursday rather than a time,
+    and a column is `overflow: hidden`, so it could not have been widened in
+    place however its left and right were set.
+    """
+    context, page = _grid(browser, live_server)
+    try:
+        got = _now_measure(page, now=16 * 60 + 30, range_="week")
+        assert got["lines"] == 1, "one line for the whole grid"
+        assert got["lineLeft"] == got["gutterWidth"] == got["firstColLeft"], (
+            f"the line must start where the columns do, not inside the gutter: {got}"
+        )
+        assert got["lineRight"] == got["lastColRight"], (
+            f"the line must reach the last column's edge: {got}"
+        )
+    finally:
+        context.close()
+
+
+def test_the_now_line_is_drawn_on_a_week_that_does_not_contain_today(browser, live_server):
+    """A week three months out is where the line is doing the most work: it is
+    the only reference a 3 PM block has. Which column is today's, if any, is
+    said by `is-today` instead."""
+    context, page = _grid(browser, live_server)
+    try:
+        got = _now_measure(page, now=9 * 60, range_="week", day="2027-04-14")
+        assert got["lines"] == 1, "the line does not depend on today being in range"
+        assert got["todayColumns"] == 0, "and this week genuinely does not contain today"
+        assert got["lineMin"] == 9 * 60, "drawn at the current time, not at the week's"
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("range_", ["day", "week"])
+def test_the_now_line_sits_at_the_current_time(browser, live_server, range_):
+    """Day and Week are one component; the line must agree in both."""
+    context, page = _grid(browser, live_server)
+    try:
+        got = _now_measure(page, now=13 * 60 + 45, range_=range_)
+        assert got["lineMin"] == 13 * 60 + 45
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("now", "expected"),
+    [
+        (16 * 60 + 30, 15 * 60),  # 4:30 PM opens at 3 PM — hour-aligned, not 3:30
+        (7 * 60, 6 * 60),
+        (23 * 60 + 40, 22 * 60),  # late evening anchors normally and bottoms out
+        (0, 0),  # midnight clamps: nothing above it to show
+        (0 * 60 + 59, 0),
+        (60, 0),  # 1 AM is the first hour that has an hour above it
+    ],
+)
+def test_the_grid_opens_an_hour_before_the_current_hour(browser, live_server, now, expected):
+    """The opening scroll is a question about when you are asking, not about
+    what the day contains. The rule this replaced opened an hour ahead of the
+    day's first event, so every visit started around 6 AM."""
+    context, page = _grid(browser, live_server)
+    try:
+        got = _now_measure(page, now=now)
+        assert got["scrollMinutes"] == expected
+    finally:
+        context.close()
+
+
+def test_an_early_event_no_longer_moves_the_opening_scroll(browser, live_server):
+    """What is on the day used to decide where the grid opened. It no longer
+    does: a 5 AM start is visible one scroll up, and paying for it on every
+    visit was the whole cost being removed."""
+    context, page = _grid(browser, live_server)
+    try:
+        page.evaluate(
+            _MEASURE,
+            {
+                "mode": "calendar",
+                "range": "day",
+                "year": 2026,
+                "month": 9,
+                "day": 2,
+                "occurrences": [_timed("Early shift", (5, 0), (6, 0))],
+            },
+        )
+        got = page.evaluate(
+            "() => Number(document.querySelector('.calendar-timegrid-scroll').dataset.scrollMinutes)"
+        )
+        opens_at = page.evaluate("() => (Math.floor(nowMinutes() / 60) - 1) * 60")
+        assert got == max(0, opens_at), "the 5 AM event must not pull the grid to the top"
+    finally:
+        context.close()
+
+
+def test_the_grid_scrolls_to_where_it_says_it_opens(browser, live_server):
+    """`data-scroll-minutes` is the intent; scrollTop is whether it happened."""
+    context, page = _grid(browser, live_server)
+    try:
+        got = _now_measure(page, now=16 * 60 + 30)
+        assert got["scrollMinutes"] == 15 * 60
+        assert abs(got["scrolledMin"] - 15 * 60) <= 5, (
+            f"the scroller did not land on its own anchor: {got}"
+        )
+    finally:
+        context.close()
+
+
+_TICK_MEASURE = """
+(spec) => {
+    nowMinutes = () => spec.from_;
+    todayIso = () => spec.today;
+    tickDate = spec.today;
+    mode = 'calendar';
+    range = 'week';
+    anchor = new Date(spec.year, spec.month - 1, spec.day);
+    occurrences = [];
+    render();
+    const hour = document.querySelector('.calendar-timegrid-hour').getBoundingClientRect().height;
+    const at = () => {
+        const body = document.querySelector('.calendar-timegrid-body').getBoundingClientRect();
+        const line = document.querySelector('.calendar-timegrid-now').getBoundingClientRect();
+        return Math.round(((line.top - body.top) / hour) * 60);
+    };
+    const scroller = document.querySelector('.calendar-timegrid-scroll');
+    const before = at();
+    // Somebody has scrolled the grid to read the morning. The tick must not
+    // take that away from them.
+    scroller.scrollTop = 0;
+    nowMinutes = () => spec.to;
+    tick();
+    return { before, after: at(), scrollTop: scroller.scrollTop, anchor: isoDate(anchor) };
+}
+"""
+
+_ROLLOVER_MEASURE = """
+async (spec) => {
+    nowMinutes = () => 30;
+    todayIso = () => spec.today;
+    tickDate = spec.yesterday;
+    mode = 'calendar';
+    range = spec.range;
+    anchor = new Date(spec.year, spec.month - 1, spec.day);
+    tick();
+    await new Promise(resolve => setTimeout(resolve, 750));
+    const cols = [...document.querySelectorAll('.calendar-timegrid-col')];
+    return {
+        anchor: isoDate(anchor),
+        tickDate,
+        markedToday: cols.map((c, i) => [c, i]).filter(([c]) => c.classList.contains('is-today')).map(([, i]) => i),
+    };
+}
+"""
+
+
+def test_the_tick_moves_the_line_and_touches_nothing_else(browser, live_server):
+    """Five minutes on, the line has moved and the page has not.
+
+    Re-rendering on the tick would be the easy implementation and the wrong
+    one: it throws away an open modal and yanks the scroll out from under
+    whoever is reading the grid.
+    """
+    context, page = _grid(browser, live_server)
+    try:
+        got = page.evaluate(
+            _TICK_MEASURE,
+            {
+                "from_": 9 * 60,
+                "to": 9 * 60 + 5,
+                "today": DAY,
+                "year": 2026,
+                "month": 9,
+                "day": 2,
+            },
+        )
+        assert got["before"] == 9 * 60
+        assert got["after"] == 9 * 60 + 5, "the line must follow the clock"
+        assert got["scrollTop"] == 0, "the tick must not re-anchor the scroll"
+        assert got["anchor"] == DAY, "nor move the displayed week"
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("range_", "expected", "marked"),
+    [
+        # Day names exactly one date, so it follows the date over: a tablet
+        # nobody touches has to be showing today at breakfast.
+        ("day", "2026-09-03", [0]),
+        # Week names a span and keeps the one it is on. Sept 2 is a Wednesday,
+        # so the week it draws still contains the new date — in the next
+        # column along, which is the mark having actually moved.
+        ("week", DAY, [4]),
+    ],
+)
+def test_midnight_rollover_re_renders_and_day_follows_the_date(
+    browser, live_server, range_, expected, marked
+):
+    """Everything that says which day it is goes stale at once at midnight."""
+    context, page = _grid(browser, live_server)
+    try:
+        got = page.evaluate(
+            _ROLLOVER_MEASURE,
+            {
+                "today": "2026-09-03",
+                "yesterday": DAY,
+                "range": range_,
+                "year": 2026,
+                "month": 9,
+                "day": 2,
+            },
+        )
+        assert got["tickDate"] == "2026-09-03", "the tick must not roll over twice"
+        assert got["anchor"] == expected
+        assert got["markedToday"] == marked, (
+            "`is-today` has to move with the date, which is what the re-render is for"
+        )
+    finally:
+        context.close()
+
+
 def _grid(browser, live_server):
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     page = context.new_page()
