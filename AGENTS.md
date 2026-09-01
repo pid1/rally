@@ -454,9 +454,11 @@ python3 migrations/run_migrations.py && python3 migrations/run_migrations.py
 
 Safe to run multiple times (idempotent).
 """
+
 import os
 import sqlite3
 from pathlib import Path
+
 
 def migrate():
     """Run the migration. Return True on success, False on failure."""
@@ -484,7 +486,7 @@ def migrate():
         cursor.execute("PRAGMA table_info(your_table)")
         columns = [col[1] for col in cursor.fetchall()]
 
-        if 'your_new_column' in columns:
+        if "your_new_column" in columns:
             print("✓ Migration: your_table.your_new_column already exists (idempotent)")
             return True
 
@@ -501,8 +503,10 @@ def migrate():
     finally:
         conn.close()
 
+
 if __name__ == "__main__":
     import sys
+
     success = migrate()
     sys.exit(0 if success else 1)
 ```
@@ -528,7 +532,7 @@ if __name__ == "__main__":
 ```python
 cursor.execute("PRAGMA table_info(table_name)")
 columns = [col[1] for col in cursor.fetchall()]
-if 'new_column' not in columns:
+if "new_column" not in columns:
     cursor.execute("ALTER TABLE table_name ADD COLUMN new_column TYPE")
 ```
 
