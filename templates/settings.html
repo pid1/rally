@@ -1,924 +1,1276 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rally — Settings</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet" />
+  </head>
+  <body>
     <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Settings</div>
+      <h1>Rally</h1>
+      <div class="subtitle">Settings</div>
     </header>
 
     <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/todo">Tasks</a>
+      <a href="/shopping">Shopping</a>
+      <a href="/calendar">Calendar</a>
+      <div class="nav-dropdown" id="other-dropdown">
+        <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">
+          Other
+        </button>
+        <div class="nav-dropdown-content">
+          <a href="/dinner-planner">Meal Planner</a>
+          <a href="/meal-history">Previous Meals</a>
+          <a href="/preparedness">Preparedness</a>
         </div>
+      </div>
     </nav>
 
     <div class="page stack">
-        <header class="page-header">
-            <div class="page-header-row">
-                <h2>Settings</h2>
-            </div>
-        </header>
-
-    <!-- Family Members Section -->
-    <div class="border-container stack">
+      <header class="page-header">
         <div class="page-header-row">
-            <h3>Family Members</h3>
-            <button class="btn" id="btn-add-member">Add Member</button>
+          <h2>Settings</h2>
+        </div>
+      </header>
+
+      <!-- Family Members Section -->
+      <div class="border-container stack">
+        <div class="page-header-row">
+          <h3>Family Members</h3>
+          <button class="btn" id="btn-add-member">Add Member</button>
         </div>
 
         <div class="list-container" id="family-list">
-            <div class="container-loading-state">Loading family members...</div>
+          <div class="container-loading-state">Loading family members...</div>
         </div>
-    </div>
+      </div>
 
-    <!-- Calendars Section -->
-    <div class="border-container stack">
+      <!-- Calendars Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Calendars</h3>
-            <button class="btn" id="btn-add-calendar">Add Calendar</button>
+          <h3>Calendars</h3>
+          <button class="btn" id="btn-add-calendar">Add Calendar</button>
         </div>
 
         <div class="list-container" id="calendar-list">
-            <div class="container-loading-state">Loading calendars...</div>
+          <div class="container-loading-state">Loading calendars...</div>
         </div>
-    </div>
+      </div>
 
-    <!-- Weather Section -->
-    <div class="border-container stack">
+      <!-- Weather Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Weather</h3>
+          <h3>Weather</h3>
         </div>
         <form id="weather-form">
-            <div class="form-group">
-                <label>NWS Forecast URL</label>
-                <input type="text" id="weather-nws-url" placeholder="https://forecast.weather.gov/MapClick.php?lat=33.085&lon=-97.0542&FcstType=dwml">
-                <small>Search your location at <a href="https://forecast.weather.gov" target="_blank">forecast.weather.gov</a>, then copy the page URL and append <code>&FcstType=dwml</code>.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label>NWS Forecast URL</label>
+            <input
+              type="text"
+              id="weather-nws-url"
+              placeholder="https://forecast.weather.gov/MapClick.php?lat=33.085&lon=-97.0542&FcstType=dwml"
+            />
+            <small
+              >Search your location at
+              <a href="https://forecast.weather.gov" target="_blank"
+                >forecast.weather.gov</a
+              >, then copy the page URL and append
+              <code>&FcstType=dwml</code>.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
-    </div>
+      </div>
 
-    <!-- LLM Section -->
-    <div class="border-container stack">
+      <!-- LLM Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>LLM</h3>
+          <h3>LLM</h3>
         </div>
         <form id="llm-form">
+          <div class="form-group">
+            <label>Provider</label>
+            <select id="llm-provider">
+              <option value="local">Local</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </div>
+          <div class="llm-fields-local">
             <div class="form-group">
-                <label>Provider</label>
-                <select id="llm-provider">
-                    <option value="local">Local</option>
-                    <option value="anthropic">Anthropic</option>
-                </select>
+              <label>Base URL</label>
+              <input
+                type="text"
+                id="llm-local-base-url"
+                placeholder="e.g. http://localhost:11434/v1"
+              />
             </div>
-            <div class="llm-fields-local">
-                <div class="form-group">
-                    <label>Base URL</label>
-                    <input type="text" id="llm-local-base-url" placeholder="e.g. http://localhost:11434/v1">
-                </div>
-                <div class="form-group">
-                    <label>API Key</label>
-                    <input type="password" id="llm-local-api-key" placeholder="API key" autocomplete="off">
-                </div>
-                <div class="form-group">
-                    <label>Model</label>
-                    <input type="text" id="llm-local-model" placeholder="e.g. llama3">
-                </div>
-                <div class="form-group">
-                    <label>Max Tokens</label>
-                    <input type="number" id="llm-local-max-tokens" min="1" step="1">
-                    <small>Covers thinking and output together. Must fit within your model's context window.</small>
-                </div>
+            <div class="form-group">
+              <label>API Key</label>
+              <input
+                type="password"
+                id="llm-local-api-key"
+                placeholder="API key"
+                autocomplete="off"
+              />
             </div>
-            <div class="llm-fields-anthropic">
-                <div class="form-group">
-                    <label>API Key</label>
-                    <input type="password" id="llm-anthropic-api-key" placeholder="Anthropic API key" autocomplete="off">
-                </div>
-                <div class="form-group">
-                    <label>Model</label>
-                    <input type="text" id="llm-anthropic-model" placeholder="e.g. claude-sonnet-4-20250514">
-                </div>
-                <div class="form-group">
-                    <label>Budget</label>
-                    <div class="radio-options">
-                        <label><input type="radio" name="llm-max-tokens-mode" value="model_max" id="llm-max-tokens-mode-model-max"> Model maximum</label>
-                        <label><input type="radio" name="llm-max-tokens-mode" value="custom" id="llm-max-tokens-mode-custom" checked> Custom</label>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Max Tokens</label>
-                    <input type="number" id="llm-anthropic-max-tokens" min="1" step="1">
-                    <small id="llm-anthropic-max-tokens-help"></small>
-                </div>
+            <div class="form-group">
+              <label>Model</label>
+              <input
+                type="text"
+                id="llm-local-model"
+                placeholder="e.g. llama3"
+              />
             </div>
-            <div class="ai-field-actions">
-                <button type="submit" class="btn">Save</button>
-                <button type="button" class="btn btn--quiet" onclick="openHistoryModal('llm_config')">Version History</button>
+            <div class="form-group">
+              <label>Max Tokens</label>
+              <input type="number" id="llm-local-max-tokens" min="1" step="1" />
+              <small
+                >Covers thinking and output together. Must fit within your
+                model's context window.</small
+              >
             </div>
+          </div>
+          <div class="llm-fields-anthropic">
+            <div class="form-group">
+              <label>API Key</label>
+              <input
+                type="password"
+                id="llm-anthropic-api-key"
+                placeholder="Anthropic API key"
+                autocomplete="off"
+              />
+            </div>
+            <div class="form-group">
+              <label>Model</label>
+              <input
+                type="text"
+                id="llm-anthropic-model"
+                placeholder="e.g. claude-sonnet-4-20250514"
+              />
+            </div>
+            <div class="form-group">
+              <label>Budget</label>
+              <div class="radio-options">
+                <label
+                  ><input
+                    type="radio"
+                    name="llm-max-tokens-mode"
+                    value="model_max"
+                    id="llm-max-tokens-mode-model-max"
+                  />
+                  Model maximum</label
+                >
+                <label
+                  ><input
+                    type="radio"
+                    name="llm-max-tokens-mode"
+                    value="custom"
+                    id="llm-max-tokens-mode-custom"
+                    checked
+                  />
+                  Custom</label
+                >
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Max Tokens</label>
+              <input
+                type="number"
+                id="llm-anthropic-max-tokens"
+                min="1"
+                step="1"
+              />
+              <small id="llm-anthropic-max-tokens-help"></small>
+            </div>
+          </div>
+          <div class="ai-field-actions">
+            <button type="submit" class="btn">Save</button>
+            <button
+              type="button"
+              class="btn btn--quiet"
+              onclick="openHistoryModal('llm_config')"
+            >
+              Version History
+            </button>
+          </div>
         </form>
-    </div>
+      </div>
 
-    <!-- AI Section -->
-    <div class="border-container stack">
+      <!-- AI Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>AI</h3>
+          <h3>AI</h3>
         </div>
         <div id="ai-form">
-            <div class="form-group">
-                <label>Family Context</label>
-                <textarea id="ai-family-context" rows="12" placeholder="Describe your family, routines, values, and scheduling preferences..."></textarea>
-                <div class="ai-field-actions">
-                    <button type="button" class="btn" onclick="saveAiField('family_context')">Save</button>
-                    <button type="button" class="btn btn--quiet" onclick="openHistoryModal('family_context')">Version History</button>
-                </div>
+          <div class="form-group">
+            <label>Family Context</label>
+            <textarea
+              id="ai-family-context"
+              rows="12"
+              placeholder="Describe your family, routines, values, and scheduling preferences..."
+            ></textarea>
+            <div class="ai-field-actions">
+              <button
+                type="button"
+                class="btn"
+                onclick="saveAiField('family_context')"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                class="btn btn--quiet"
+                onclick="openHistoryModal('family_context')"
+              >
+                Version History
+              </button>
             </div>
-            <div class="form-group">
-                <label>Agent Voice</label>
-                <textarea id="ai-agent-voice" rows="8" placeholder="Describe the tone and personality for Rally's summaries..."></textarea>
-                <div class="ai-field-actions">
-                    <button type="button" class="btn" onclick="saveAiField('agent_voice')">Save</button>
-                    <button type="button" class="btn btn--quiet" onclick="openHistoryModal('agent_voice')">Version History</button>
-                </div>
+          </div>
+          <div class="form-group">
+            <label>Agent Voice</label>
+            <textarea
+              id="ai-agent-voice"
+              rows="8"
+              placeholder="Describe the tone and personality for Rally's summaries..."
+            ></textarea>
+            <div class="ai-field-actions">
+              <button
+                type="button"
+                class="btn"
+                onclick="saveAiField('agent_voice')"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                class="btn btn--quiet"
+                onclick="openHistoryModal('agent_voice')"
+              >
+                Version History
+              </button>
             </div>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- Meal Planner Section -->
-    <div class="border-container stack">
+      <!-- Meal Planner Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Meal Planner</h3>
+          <h3>Meal Planner</h3>
         </div>
         <form id="meal-planner-form">
-            <div class="form-group">
-                <label>Default Meal Type</label>
-                <select id="meal-default-type">
-                    <option value="Breakfast">Breakfast</option>
-                    <option value="Lunch">Lunch</option>
-                    <option value="Dinner">Dinner</option>
-                    <option value="Snacks">Snacks</option>
-                </select>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label>Default Meal Type</label>
+            <select id="meal-default-type">
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Snacks">Snacks</option>
+            </select>
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
-    </div>
+      </div>
 
-    <!-- Home Section -->
-    <div class="border-container stack">
+      <!-- Home Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Home</h3>
+          <h3>Home</h3>
         </div>
         <form id="home-form">
-            <div class="form-group">
-                <label>Home Location</label>
-                <input type="text" id="home-location" placeholder="e.g. Highland Village, TX">
-                <small>Where the family lives. Sent to the AI along with your family context, so the daily summary can reason about local conditions. Free text — a town and state is plenty.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label>Home Location</label>
+            <input
+              type="text"
+              id="home-location"
+              placeholder="e.g. Highland Village, TX"
+            />
+            <small
+              >Where the family lives. Sent to the AI along with your family
+              context, so the daily summary can reason about local conditions.
+              Free text — a town and state is plenty.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
-    </div>
+      </div>
 
-    <!-- Notifications Section -->
-    <div class="border-container stack">
+      <!-- Notifications Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Notifications</h3>
+          <h3>Notifications</h3>
         </div>
         <form id="pushover-form">
-            <div class="form-group">
-                <label>Pushover Application Token</label>
-                <input type="password" id="pushover-app-token" placeholder="Application token">
-                <small>Create an application at <code>pushover.net/apps/build</code>. This token identifies Rally; each person's own key goes on their family member below.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label>Pushover Application Token</label>
+            <input
+              type="password"
+              id="pushover-app-token"
+              placeholder="Application token"
+            />
+            <small
+              >Create an application at <code>pushover.net/apps/build</code>.
+              This token identifies Rally; each person's own key goes on their
+              family member below.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
 
         <div class="page-header-row">
-            <h3>What Rally sends</h3>
+          <h3>What Rally sends</h3>
         </div>
         <div class="list-container" id="notification-overview">
-            <div class="container-loading-state">Loading notifications…</div>
+          <div class="container-loading-state">Loading notifications…</div>
         </div>
-    </div>
+      </div>
 
-    <!-- Tasks Section -->
-    <div class="border-container stack">
+      <!-- Tasks Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Tasks</h3>
+          <h3>Tasks</h3>
         </div>
         <form id="tasks-form">
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="todo-notify-enabled">
-                    <span>Push a task to whoever it is assigned to</span>
-                </label>
-                <small>Sent once, when the task is created or handed to somebody new &mdash; to that person only, not the whole family. A task assigned to Everyone pushes to nobody, and recurring instances are never announced.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="todo-notify-enabled" />
+              <span>Push a task to whoever it is assigned to</span>
+            </label>
+            <small
+              >Sent once, when the task is created or handed to somebody new
+              &mdash; to that person only, not the whole family. A task assigned
+              to Everyone pushes to nobody, and recurring instances are never
+              announced.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
-    </div>
+      </div>
 
-    <!-- Learning Section -->
-    <div class="border-container stack">
+      <!-- Learning Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Learning</h3>
+          <h3>Learning</h3>
         </div>
         <form id="learning-form">
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="stem-concept-enabled">
-                    <span>STEM Concept of the Day</span>
-                </label>
-                <small>Add a family-friendly STEM concept to the daily summary, with super-easy, age-appropriate ways to explore it during your day.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="stem-concept-enabled" />
+              <span>STEM Concept of the Day</span>
+            </label>
+            <small
+              >Add a family-friendly STEM concept to the daily summary, with
+              super-easy, age-appropriate ways to explore it during your
+              day.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
-    </div>
+      </div>
 
-    <!-- Shopping List Section -->
-    <div class="border-container stack">
+      <!-- Shopping List Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Shopping List</h3>
+          <h3>Shopping List</h3>
         </div>
         <form id="shopping-form">
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="shopping-list-in-summary">
-                    <span>Include the shopping list in the daily summary</span>
-                </label>
-                <small>Adds your open shopping items, grouped by store, to The Briefing. Purchased items are never included.</small>
-            </div>
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="shopping-notify-enabled">
-                    <span>Push new items to whoever asked for them</span>
-                </label>
-                <small>A shopping list belongs to the household, so this one has no audience of its own &mdash; it goes only to the people who tick <strong>Shopping list additions</strong> on their own family member. Off by default. Purchases, edits and deletions are never announced.</small>
-            </div>
-            <div class="form-group">
-                <label>Wait for adding to stop (minutes)</label>
-                <input type="number" id="shopping-notify-settle" min="0" step="1" placeholder="5">
-                <small>Nine items added while walking the pantry is one push, not nine. Rally waits this long after the most recent addition before sending the batch.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="shopping-list-in-summary" />
+              <span>Include the shopping list in the daily summary</span>
+            </label>
+            <small
+              >Adds your open shopping items, grouped by store, to The Briefing.
+              Purchased items are never included.</small
+            >
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="shopping-notify-enabled" />
+              <span>Push new items to whoever asked for them</span>
+            </label>
+            <small
+              >A shopping list belongs to the household, so this one has no
+              audience of its own &mdash; it goes only to the people who tick
+              <strong>Shopping list additions</strong> on their own family
+              member. Off by default. Purchases, edits and deletions are never
+              announced.</small
+            >
+          </div>
+          <div class="form-group">
+            <label>Wait for adding to stop (minutes)</label>
+            <input
+              type="number"
+              id="shopping-notify-settle"
+              min="0"
+              step="1"
+              placeholder="5"
+            />
+            <small
+              >Nine items added while walking the pantry is one push, not nine.
+              Rally waits this long after the most recent addition before
+              sending the batch.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
-    </div>
+      </div>
 
-    <!-- Preparedness Section -->
-    <div class="border-container stack">
+      <!-- Preparedness Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Preparedness</h3>
+          <h3>Preparedness</h3>
         </div>
         <form id="preparedness-form">
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="prep-notify-enabled">
-                    <span>Send refresh notifications</span>
-                </label>
-                <small>One daily digest covering everything due, pushed to every family member who has a Pushover key. Each item is announced once per refresh date, not every morning until you deal with it.</small>
-            </div>
-            <div class="form-group">
-                <label>Send at</label>
-                <input type="time" id="prep-notify-time">
-                <small>Local time, using the timezone configured above.</small>
-            </div>
-            <div class="form-group">
-                <label>Default reminder lead (days)</label>
-                <input type="number" id="prep-default-remind-days" min="0" step="1" placeholder="14">
-                <small>Used by every item that does not set its own lead, so you hear about a refresh early enough to act on it. A per-item value always wins &mdash; including 0, which means the day itself.</small>
-            </div>
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="prep-overdue-in-summary">
-                    <span>Mention overdue stock in the daily summary</span>
-                </label>
-                <small>Anything past its refresh date is added to The Briefing every morning until you deal with it. Only genuinely overdue items — upcoming refreshes are the notification's job, not the summary's. Nothing is added on days when nothing is overdue.</small>
-            </div>
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="prep-review-enabled">
-                    <span>AI inventory review</span>
-                </label>
-                <small>Adds a <strong>Review</strong> button to the Preparedness page that asks your configured LLM what your kit is missing, using your family context, ages and home location. Off by default: it is a real LLM call, and it is only useful once you have entered a reasonable amount of stock.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
-            <button type="button" class="btn btn--secondary" id="btn-prep-preview">Preview what's due</button>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="prep-notify-enabled" />
+              <span>Send refresh notifications</span>
+            </label>
+            <small
+              >One daily digest covering everything due, pushed to every family
+              member who has a Pushover key. Each item is announced once per
+              refresh date, not every morning until you deal with it.</small
+            >
+          </div>
+          <div class="form-group">
+            <label>Send at</label>
+            <input type="time" id="prep-notify-time" />
+            <small>Local time, using the timezone configured above.</small>
+          </div>
+          <div class="form-group">
+            <label>Default reminder lead (days)</label>
+            <input
+              type="number"
+              id="prep-default-remind-days"
+              min="0"
+              step="1"
+              placeholder="14"
+            />
+            <small
+              >Used by every item that does not set its own lead, so you hear
+              about a refresh early enough to act on it. A per-item value always
+              wins &mdash; including 0, which means the day itself.</small
+            >
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="prep-overdue-in-summary" />
+              <span>Mention overdue stock in the daily summary</span>
+            </label>
+            <small
+              >Anything past its refresh date is added to The Briefing every
+              morning until you deal with it. Only genuinely overdue items —
+              upcoming refreshes are the notification's job, not the summary's.
+              Nothing is added on days when nothing is overdue.</small
+            >
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="prep-review-enabled" />
+              <span>AI inventory review</span>
+            </label>
+            <small
+              >Adds a <strong>Review</strong> button to the Preparedness page
+              that asks your configured LLM what your kit is missing, using your
+              family context, ages and home location. Off by default: it is a
+              real LLM call, and it is only useful once you have entered a
+              reasonable amount of stock.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
+          <button
+            type="button"
+            class="btn btn--secondary"
+            id="btn-prep-preview"
+          >
+            Preview what's due
+          </button>
         </form>
         <div id="prep-preview"></div>
-    </div>
+      </div>
 
-    <!-- Sports Section -->
-    <div class="border-container stack">
+      <!-- Sports Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Sports</h3>
-            <button class="btn" id="btn-add-team">Add Team</button>
+          <h3>Sports</h3>
+          <button class="btn" id="btn-add-team">Add Team</button>
         </div>
         <form id="sports-form">
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="sports-watchlist-enabled">
-                    <span>Include followed teams in the daily summary</span>
-                </label>
-                <small>Adds tonight's games and races with their TV channel and radio station, plus notable events in the next two weeks. Notable events are announced once, not every morning.</small>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="sports-watchlist-enabled" />
+              <span>Include followed teams in the daily summary</span>
+            </label>
+            <small
+              >Adds tonight's games and races with their TV channel and radio
+              station, plus notable events in the next two weeks. Notable events
+              are announced once, not every morning.</small
+            >
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
 
         <div class="list-container" id="followed-team-list">
-            <div class="container-loading-state">Loading followed teams…</div>
+          <div class="container-loading-state">Loading followed teams…</div>
         </div>
-    </div>
+      </div>
 
-    <!-- General Section -->
-    <div class="border-container stack">
+      <!-- General Section -->
+      <div class="border-container stack">
         <div class="page-header-row">
-            <h3>General</h3>
+          <h3>General</h3>
         </div>
         <form id="general-form">
-            <div class="form-group">
-                <label>Timezone</label>
-                <select id="general-timezone">
-                    <option value="">Select a timezone</option>
-                </select>
-            </div>
-            <button type="submit" class="btn">Save</button>
+          <div class="form-group">
+            <label>Timezone</label>
+            <select id="general-timezone">
+              <option value="">Select a timezone</option>
+            </select>
+          </div>
+          <button type="submit" class="btn">Save</button>
         </form>
-    </div>
+      </div>
     </div>
 
     <!-- Family Member Modal -->
     <div class="modal-overlay" id="member-modal-overlay">
-        <div class="modal-content">
-            <h3 id="member-modal-title">Add Family Member</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
+      <div class="modal-content">
+        <h3 id="member-modal-title">Add Family Member</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
             <form id="member-form">
-                <input type="hidden" id="member-id">
-                <div class="form-group">
-                    <label>Name</label>
-                    <input type="text" id="member-name" placeholder="Name" required>
+              <input type="hidden" id="member-id" />
+              <div class="form-group">
+                <label>Name</label>
+                <input
+                  type="text"
+                  id="member-name"
+                  placeholder="Name"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label id="member-color-label">Color</label>
+                <div
+                  class="color-swatches"
+                  role="group"
+                  aria-labelledby="member-color-label"
+                  id="member-color-swatches"
+                >
+                  {% for entry in member_palette %}
+                  <button
+                    type="button"
+                    class="color-swatch"
+                    data-color="{{ entry.value }}"
+                    aria-pressed="false"
+                    aria-label="{{ entry.label }}"
+                    title="{{ entry.label }}"
+                  >
+                    <span
+                      class="color-swatch-fill"
+                      style="--swatch-color: var({{ entry.token }})"
+                    ></span>
+                  </button>
+                  {% endfor %}
                 </div>
-                <div class="form-group">
-                    <label id="member-color-label">Color</label>
-                    <div class="color-swatches" role="group" aria-labelledby="member-color-label" id="member-color-swatches">
-                        {% for entry in member_palette %}
-                        <button type="button" class="color-swatch" data-color="{{ entry.value }}"
-                                aria-pressed="false" aria-label="{{ entry.label }}" title="{{ entry.label }}">
-                            <span class="color-swatch-fill" style="--swatch-color: var({{ entry.token }})"></span>
-                        </button>
-                        {% endfor %}
-                    </div>
-                    <small>Shown on the calendar next to this person's events.</small>
-                </div>
-                <div class="form-group">
-                    <label>Pushover User Key (optional)</label>
-                    <input type="text" id="member-pushover-key" placeholder="e.g. uQiRzpo4DXghDmr9QzzfQu27cmVRsG">
-                    <small>Found on the Pushover dashboard. Leave blank and this person is simply never notified.</small>
-                </div>
-                <div class="form-group">
-                    <label>Pushover Device (optional)</label>
-                    <input type="text" id="member-pushover-device" placeholder="Leave blank for all devices">
-                </div>
-                <div class="form-group">
-                    <label id="member-notify-label">Notify about</label>
-                    <div id="member-notify-options"></div>
-                    <small id="member-notify-help"></small>
-                </div>
+                <small
+                  >Shown on the calendar next to this person's events.</small
+                >
+              </div>
+              <div class="form-group">
+                <label>Pushover User Key (optional)</label>
+                <input
+                  type="text"
+                  id="member-pushover-key"
+                  placeholder="e.g. uQiRzpo4DXghDmr9QzzfQu27cmVRsG"
+                />
+                <small
+                  >Found on the Pushover dashboard. Leave blank and this person
+                  is simply never notified.</small
+                >
+              </div>
+              <div class="form-group">
+                <label>Pushover Device (optional)</label>
+                <input
+                  type="text"
+                  id="member-pushover-device"
+                  placeholder="Leave blank for all devices"
+                />
+              </div>
+              <div class="form-group">
+                <label id="member-notify-label">Notify about</label>
+                <div id="member-notify-options"></div>
+                <small id="member-notify-help"></small>
+              </div>
 
-                <div class="modal-actions">
-                    <button type="submit" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-member">Cancel</button>
-                    <button type="button" class="btn btn--secondary" id="btn-test-member-pushover" style="display:none;">Send test push</button>
-            </div>
-            </div>
-        </div>
+              <div class="modal-actions">
+                <button type="submit" class="btn">Save</button>
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  id="btn-cancel-member"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  id="btn-test-member-pushover"
+                  style="display: none"
+                >
+                  Send test push
+                </button>
+              </div>
             </form>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Calendar Modal -->
     <div class="modal-overlay" id="calendar-modal-overlay">
-        <div class="modal-content">
-            <h3 id="calendar-modal-title">Add Calendar</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
+      <div class="modal-content">
+        <h3 id="calendar-modal-title">Add Calendar</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
             <form id="calendar-form">
-                <input type="hidden" id="calendar-id">
+              <input type="hidden" id="calendar-id" />
+              <div class="form-group">
+                <label>Type</label>
+                <select id="calendar-type">
+                  <option value="native">Rally (events created here)</option>
+                  <option value="ics">ICS Feed (Public URL)</option>
+                  <option value="caldav_google">Google CalDAV</option>
+                  <option value="caldav_apple">Apple iCloud CalDAV</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Label</label>
+                <input
+                  type="text"
+                  id="calendar-label"
+                  placeholder="e.g. Work Calendar"
+                  required
+                />
+              </div>
+              <div class="form-group cal-field-ics">
+                <label>URL (ICS feed)</label>
+                <input
+                  type="text"
+                  id="calendar-url"
+                  placeholder="https://calendar.google.com/..."
+                />
+              </div>
+              <div class="form-group">
+                <label>Family Member</label>
+                <select id="calendar-member" required>
+                  <option value="">Select a family member</option>
+                </select>
+              </div>
+              <div class="form-group cal-field-owner">
+                <label>Owner Email (optional)</label>
+                <input
+                  type="text"
+                  id="calendar-owner-email"
+                  placeholder="e.g. user@gmail.com"
+                />
+                <small>Used for declined event detection</small>
+              </div>
+              <div class="cal-field-caldav">
                 <div class="form-group">
-                    <label>Type</label>
-                    <select id="calendar-type">
-                        <option value="native">Rally (events created here)</option>
-                        <option value="ics">ICS Feed (Public URL)</option>
-                        <option value="caldav_google">Google CalDAV</option>
-                        <option value="caldav_apple">Apple iCloud CalDAV</option>
-                    </select>
+                  <label>Email</label>
+                  <input
+                    type="text"
+                    id="calendar-username"
+                    placeholder="user@gmail.com"
+                  />
                 </div>
                 <div class="form-group">
-                    <label>Label</label>
-                    <input type="text" id="calendar-label" placeholder="e.g. Work Calendar" required>
+                  <label>App-Specific Password</label>
+                  <input
+                    type="password"
+                    id="calendar-password"
+                    placeholder="xxxx-xxxx-xxxx-xxxx"
+                    autocomplete="off"
+                  />
+                  <small class="cal-help-google"
+                    >Requires 2FA. Generate at
+                    <a
+                      href="https://myaccount.google.com/apppasswords"
+                      target="_blank"
+                      >myaccount.google.com/apppasswords</a
+                    ></small
+                  >
+                  <small class="cal-help-apple"
+                    >Generate at
+                    <a
+                      href="https://appleid.apple.com/account/manage"
+                      target="_blank"
+                      >appleid.apple.com</a
+                    ></small
+                  >
                 </div>
-                <div class="form-group cal-field-ics">
-                    <label>URL (ICS feed)</label>
-                    <input type="text" id="calendar-url" placeholder="https://calendar.google.com/...">
-                </div>
-                <div class="form-group">
-                    <label>Family Member</label>
-                    <select id="calendar-member" required>
-                        <option value="">Select a family member</option>
-                    </select>
-                </div>
-                <div class="form-group cal-field-owner">
-                    <label>Owner Email (optional)</label>
-                    <input type="text" id="calendar-owner-email" placeholder="e.g. user@gmail.com">
-                    <small>Used for declined event detection</small>
-                </div>
-                <div class="cal-field-caldav">
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="text" id="calendar-username" placeholder="user@gmail.com">
-                    </div>
-                    <div class="form-group">
-                        <label>App-Specific Password</label>
-                        <input type="password" id="calendar-password" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="off">
-                        <small class="cal-help-google">Requires 2FA. Generate at <a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords</a></small>
-                        <small class="cal-help-apple">Generate at <a href="https://appleid.apple.com/account/manage" target="_blank">appleid.apple.com</a></small>
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button type="submit" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-calendar">Cancel</button>
-            </div>
-            </div>
-        </div>
+              </div>
+              <div class="modal-actions">
+                <button type="submit" class="btn">Save</button>
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  id="btn-cancel-calendar"
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Followed Team Modal -->
     <div class="modal-overlay" id="team-modal-overlay">
-        <div class="modal-content">
-            <h3 id="team-modal-title">Add Team</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
+      <div class="modal-content">
+        <h3 id="team-modal-title">Add Team</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
             <form id="team-form">
-                <input type="hidden" id="team-id">
-                <div class="form-group">
-                    <label>League</label>
-                    <select id="team-league">
-                        <option value="football/nfl">NFL</option>
-                        <option value="hockey/nhl">NHL</option>
-                        <option value="baseball/mlb">MLB</option>
-                        <option value="racing/nascar-premier">NASCAR Cup Series</option>
-                        <option value="racing/nascar-secondary">NASCAR O'Reilly Auto Parts Series</option>
-                        <option value="racing/nascar-truck">NASCAR Truck Series</option>
-                    </select>
-                    <small>Baseball uses MLB's own API — the only source that carries radio. Everything else uses ESPN.</small>
-                </div>
-                <div class="form-group">
-                    <label>Label</label>
-                    <input type="text" id="team-label" placeholder="e.g. Dallas Stars" required>
-                    <small>How the team appears in the summary.</small>
-                </div>
-                <div class="form-group" id="team-key-group">
-                    <label>Team key</label>
-                    <input type="text" id="team-key" placeholder="e.g. dal">
-                    <small id="team-key-help">ESPN's team abbreviation, lowercase — <code>ne</code>, <code>dal</code>, <code>tex</code>.</small>
-                </div>
-                <div class="form-group">
-                    <label>Radio station (optional)</label>
-                    <input type="text" id="team-radio" placeholder="e.g. 96.7 The Ticket">
-                    <small>A season-long constant that no feed carries, so it is configured here. Baseball overrides it per game; racing defaults to "MRN or PRN".</small>
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="team-active" checked>
-                        <span>Active</span>
-                    </label>
-                </div>
-                <div class="modal-actions">
-                    <button type="submit" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-team">Cancel</button>
-            </div>
-            </div>
-        </div>
+              <input type="hidden" id="team-id" />
+              <div class="form-group">
+                <label>League</label>
+                <select id="team-league">
+                  <option value="football/nfl">NFL</option>
+                  <option value="hockey/nhl">NHL</option>
+                  <option value="baseball/mlb">MLB</option>
+                  <option value="racing/nascar-premier">
+                    NASCAR Cup Series
+                  </option>
+                  <option value="racing/nascar-secondary">
+                    NASCAR O'Reilly Auto Parts Series
+                  </option>
+                  <option value="racing/nascar-truck">
+                    NASCAR Truck Series
+                  </option>
+                </select>
+                <small
+                  >Baseball uses MLB's own API — the only source that carries
+                  radio. Everything else uses ESPN.</small
+                >
+              </div>
+              <div class="form-group">
+                <label>Label</label>
+                <input
+                  type="text"
+                  id="team-label"
+                  placeholder="e.g. Dallas Stars"
+                  required
+                />
+                <small>How the team appears in the summary.</small>
+              </div>
+              <div class="form-group" id="team-key-group">
+                <label>Team key</label>
+                <input type="text" id="team-key" placeholder="e.g. dal" />
+                <small id="team-key-help"
+                  >ESPN's team abbreviation, lowercase — <code>ne</code>,
+                  <code>dal</code>, <code>tex</code>.</small
+                >
+              </div>
+              <div class="form-group">
+                <label>Radio station (optional)</label>
+                <input
+                  type="text"
+                  id="team-radio"
+                  placeholder="e.g. 96.7 The Ticket"
+                />
+                <small
+                  >A season-long constant that no feed carries, so it is
+                  configured here. Baseball overrides it per game; racing
+                  defaults to "MRN or PRN".</small
+                >
+              </div>
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="team-active" checked />
+                  <span>Active</span>
+                </label>
+              </div>
+              <div class="modal-actions">
+                <button type="submit" class="btn">Save</button>
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  id="btn-cancel-team"
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Version History Modal -->
     <div class="modal-overlay" id="history-modal-overlay">
-        <div class="modal-content">
-            <h3 id="history-modal-title">Version History</h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
+      <div class="modal-content">
+        <h3 id="history-modal-title">Version History</h3>
+        <div class="modal-scroll">
+          <div class="modal-body">
             <div class="history-list" id="history-list"></div>
             <div class="modal-actions">
-                <button type="button" class="btn" id="btn-change-version">Change Version</button>
-                <button type="button" class="btn btn--secondary" id="btn-cancel-history">Cancel</button>
+              <button type="button" class="btn" id="btn-change-version">
+                Change Version
+              </button>
+              <button
+                type="button"
+                class="btn btn--secondary"
+                id="btn-cancel-history"
+              >
+                Cancel
+              </button>
             </div>
-            </div>
+          </div>
         </div>
-        </div>
+      </div>
     </div>
 
     <!-- Verification Modal -->
     <div class="modal-overlay" id="verify-modal-overlay">
-        <!-- The one modal with no title and no form: a transient status dialog.
+      <!-- The one modal with no title and no form: a transient status dialog.
              It keeps the chassis but not the scroll wrapper, because its whole
              content is a single centered status block. -->
-        <div class="modal-content modal-content--narrow">
-            <div id="verify-modal-body"></div>
-        </div>
+      <div class="modal-content modal-content--narrow">
+        <div id="verify-modal-body"></div>
+      </div>
     </div>
 
     <script>
-        // State
-        let familyMembers = [];
-        let calendars = [];
-        let editingMemberId = null;
-        let editingCalendarId = null;
+      // State
+      let familyMembers = [];
+      let calendars = [];
+      let editingMemberId = null;
+      let editingCalendarId = null;
 
-        // Populate timezone dropdown
-        (() => {
-            const select = document.getElementById('general-timezone');
-            const timezones = Intl.supportedValuesOf('timeZone');
-            timezones.forEach(tz => {
-                const opt = document.createElement('option');
-                opt.value = tz;
-                opt.textContent = tz.replace(/_/g, ' ');
-                select.appendChild(opt);
-            });
-        })();
+      // Populate timezone dropdown
+      (() => {
+        const select = document.getElementById("general-timezone");
+        const timezones = Intl.supportedValuesOf("timeZone");
+        timezones.forEach((tz) => {
+          const opt = document.createElement("option");
+          opt.value = tz;
+          opt.textContent = tz.replace(/_/g, " ");
+          select.appendChild(opt);
+        });
+      })();
 
-        // Helpers
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+      // Helpers
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function truncateUrl(url, maxLen) {
+        if (!url || url.length <= maxLen) return url || "";
+        return `${url.substring(0, maxLen)}…`;
+      }
+
+      function getMemberById(id) {
+        return familyMembers.find((m) => m.id === id);
+      }
+
+      // ── Family Members ──
+
+      async function fetchMembers() {
+        const response = await fetch("/api/family");
+        familyMembers = await response.json();
+        renderMembers();
+        populateCalendarMemberDropdown();
+      }
+
+      async function createMember(data) {
+        const response = await fetch("/api/family", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to create member");
+        return response.json();
+      }
+
+      async function updateMember(id, data) {
+        const response = await fetch(`/api/family/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to update member");
+        return response.json();
+      }
+
+      async function deleteMember(id) {
+        const response = await fetch(`/api/family/${id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) throw new Error("Failed to delete member");
+      }
+
+      function renderMembers() {
+        const container = document.getElementById("family-list");
+
+        if (familyMembers.length === 0) {
+          container.innerHTML =
+            '<div class="container-empty-state">No family members yet. Click "Add Member" to get started.</div>';
+          return;
         }
 
-        function truncateUrl(url, maxLen) {
-            if (!url || url.length <= maxLen) return url || '';
-            return `${url.substring(0, maxLen)}…`;
-        }
-
-        function getMemberById(id) {
-            return familyMembers.find(m => m.id === id);
-        }
-
-        // ── Family Members ──
-
-        async function fetchMembers() {
-            const response = await fetch('/api/family');
-            familyMembers = await response.json();
-            renderMembers();
-            populateCalendarMemberDropdown();
-        }
-
-        async function createMember(data) {
-            const response = await fetch('/api/family', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to create member');
-            return response.json();
-        }
-
-        async function updateMember(id, data) {
-            const response = await fetch(`/api/family/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to update member');
-            return response.json();
-        }
-
-        async function deleteMember(id) {
-            const response = await fetch(`/api/family/${id}`, {
-                method: 'DELETE'
-            });
-            if (!response.ok) throw new Error('Failed to delete member');
-        }
-
-        function renderMembers() {
-            const container = document.getElementById('family-list');
-
-            if (familyMembers.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No family members yet. Click "Add Member" to get started.</div>';
-                return;
-            }
-
-            container.innerHTML = familyMembers.map(member => `
+        container.innerHTML = familyMembers
+          .map(
+            (member) => `
                 <div class="editable-item" data-id="${member.id}">
                     <div class="editable-item-content">
                         <div class="editable-item-title"><span class="calendar-dot" style="background:${escapeHtml(member.color)}"></span>${escapeHtml(member.name)}</div>
-                        <div class="assignee-label">${member.pushover_user_key ? 'Push notifications on' : 'No Pushover key'}</div>
+                        <div class="assignee-label">${member.pushover_user_key ? "Push notifications on" : "No Pushover key"}</div>
                     </div>
                     <div class="editable-item-actions">
                         <button class="btn btn--sm" onclick="openEditMemberModal(${member.id})">Edit</button>
                         <button class="btn btn--secondary btn--sm" onclick="confirmDeleteMember(${member.id})">Delete</button>
                     </div>
                 </div>
-            `).join('');
+            `,
+          )
+          .join("");
+      }
+
+      // ── Notifications ──
+      //
+      // One fetch feeds both surfaces: the read-only "what Rally sends" list
+      // in the Notifications section, and the switches inside the family
+      // member modal. The catalog lives on the server, so a kind added
+      // later appears in both without a template change.
+
+      let notificationKinds = [];
+      let notificationTokenConfigured = false;
+
+      async function fetchNotificationOverview() {
+        try {
+          const response = await fetch("/api/notifications/overview");
+          const body = await response.json();
+          notificationKinds = body.kinds || [];
+          notificationTokenConfigured = !!body.token_configured;
+        } catch (error) {
+          console.error("Error loading notification overview:", error);
+          notificationKinds = [];
+        }
+        renderNotificationOverview();
+      }
+
+      // Three different silences, named separately: nobody hearing something
+      // because they muted it is a different problem from nobody having a
+      // key, and "why didn't Jake get that?" is answered by saying which.
+      function recipientSummary(kind) {
+        const parts = [];
+        parts.push(
+          kind.receiving.length
+            ? `Goes to ${kind.receiving.map(escapeHtml).join(", ")}`
+            : "Goes to nobody right now",
+        );
+        if (kind.muted.length) {
+          parts.push(`${kind.muted.map(escapeHtml).join(", ")} turned it off`);
+        }
+        if (kind.no_key.length) {
+          parts.push(
+            `${kind.no_key.map(escapeHtml).join(", ")} — no Pushover key`,
+          );
+        }
+        return parts.join(" · ");
+      }
+
+      function renderNotificationOverview() {
+        const container = document.getElementById("notification-overview");
+
+        if (!notificationKinds.length) {
+          container.innerHTML =
+            '<div class="container-empty-state">Could not load what Rally sends.</div>';
+          return;
         }
 
-        // ── Notifications ──
-        //
-        // One fetch feeds both surfaces: the read-only "what Rally sends" list
-        // in the Notifications section, and the switches inside the family
-        // member modal. The catalog lives on the server, so a kind added
-        // later appears in both without a template change.
-
-        let notificationKinds = [];
-        let notificationTokenConfigured = false;
-
-        async function fetchNotificationOverview() {
-            try {
-                const response = await fetch('/api/notifications/overview');
-                const body = await response.json();
-                notificationKinds = body.kinds || [];
-                notificationTokenConfigured = !!body.token_configured;
-            } catch (error) {
-                console.error('Error loading notification overview:', error);
-                notificationKinds = [];
-            }
-            renderNotificationOverview();
-        }
-
-        // Three different silences, named separately: nobody hearing something
-        // because they muted it is a different problem from nobody having a
-        // key, and "why didn't Jake get that?" is answered by saying which.
-        function recipientSummary(kind) {
-            const parts = [];
-            parts.push(kind.receiving.length
-                ? `Goes to ${kind.receiving.map(escapeHtml).join(', ')}`
-                : 'Goes to nobody right now');
-            if (kind.muted.length) {
-                parts.push(`${kind.muted.map(escapeHtml).join(', ')} turned it off`);
-            }
-            if (kind.no_key.length) {
-                parts.push(`${kind.no_key.map(escapeHtml).join(', ')} — no Pushover key`);
-            }
-            return parts.join(' · ');
-        }
-
-        function renderNotificationOverview() {
-            const container = document.getElementById('notification-overview');
-
-            if (!notificationKinds.length) {
-                container.innerHTML = '<div class="container-empty-state">Could not load what Rally sends.</div>';
-                return;
-            }
-
-            const rows = notificationKinds.map(kind => `
+        const rows = notificationKinds
+          .map(
+            (kind) => `
                 <div class="editable-item" data-kind="${kind.kind}">
                     <div class="editable-item-content">
-                        <div class="editable-item-title">${escapeHtml(kind.label)}${kind.enabled ? '' : ' — switched off for everybody'}</div>
+                        <div class="editable-item-title">${escapeHtml(kind.label)}${kind.enabled ? "" : " — switched off for everybody"}</div>
                         <div class="editable-item-description">${escapeHtml(kind.audience)}</div>
                         <div class="assignee-label">${recipientSummary(kind)}</div>
                     </div>
                 </div>
-            `).join('');
+            `,
+          )
+          .join("");
 
-            // The token is the first of the five gates. Without it a carefully
-            // configured list of recipients would read as working.
-            const warning = notificationTokenConfigured ? '' :
-                '<div class="container-empty-state">No Pushover application token yet — nothing sends until one is saved above.</div>';
+        // The token is the first of the five gates. Without it a carefully
+        // configured list of recipients would read as working.
+        const warning = notificationTokenConfigured
+          ? ""
+          : '<div class="container-empty-state">No Pushover application token yet — nothing sends until one is saved above.</div>';
 
-            container.innerHTML = warning + rows;
-        }
+        container.innerHTML = warning + rows;
+      }
 
-        function renderMemberNotifyOptions(member) {
-            const container = document.getElementById('member-notify-options');
-            const prefs = (member?.notifications) || {};
+      function renderMemberNotifyOptions(member) {
+        const container = document.getElementById("member-notify-options");
+        const prefs = member?.notifications || {};
 
-            container.innerHTML = notificationKinds.map(kind => {
-                const on = (kind.kind in prefs) ? prefs[kind.kind] : kind.default_on;
-                return `<div><label class="checkbox-label">
-                    <input type="checkbox" data-notify-kind="${kind.kind}"${on ? ' checked' : ''}>
+        container.innerHTML = notificationKinds
+          .map((kind) => {
+            const on = kind.kind in prefs ? prefs[kind.kind] : kind.default_on;
+            return `<div><label class="checkbox-label">
+                    <input type="checkbox" data-notify-kind="${kind.kind}"${on ? " checked" : ""}>
                     <span>${escapeHtml(kind.label)}</span>
                 </label></div>`;
-            }).join('');
+          })
+          .join("");
 
-            updateMemberNotifyLabel();
-            updateMemberNotifyState();
+        updateMemberNotifyLabel();
+        updateMemberNotifyState();
+      }
+
+      function updateMemberNotifyLabel() {
+        const name = document.getElementById("member-name").value.trim();
+        document.getElementById("member-notify-label").textContent = name
+          ? `Notify ${name} about`
+          : "Notify about";
+      }
+
+      // Held and explained rather than silently ineffective: a member with no
+      // key is never notified, whatever these say. The values are still
+      // saved, so they take effect the moment a key is added rather than
+      // needing a second trip through Settings.
+      function updateMemberNotifyState() {
+        const hasKey =
+          document.getElementById("member-pushover-key").value.trim() !== "";
+        document
+          .querySelectorAll('#member-notify-options input[type="checkbox"]')
+          .forEach((box) => {
+            box.disabled = !hasKey;
+          });
+        document.getElementById("member-notify-help").textContent = hasKey
+          ? "Each of these only ever narrows what this person already receives — ticking one never sends them somebody else's appointments."
+          : "Add a Pushover user key above to switch these on. They are saved either way, and take effect the moment a key is added.";
+      }
+
+      function collectMemberNotifications() {
+        const values = {};
+        document
+          .querySelectorAll('#member-notify-options input[type="checkbox"]')
+          .forEach((box) => {
+            values[box.dataset.notifyKind] = box.checked;
+          });
+        return values;
+      }
+
+      // ── Member color ──
+      //
+      // The palette is server-rendered, so these read the swatches rather
+      // than carrying a second copy of the list that could drift from
+      // rally.member_colors.
+
+      function memberColorSwatches() {
+        return [
+          ...document.querySelectorAll("#member-color-swatches .color-swatch"),
+        ];
+      }
+
+      // The same rule POST /api/family applies, mirrored here so the form
+      // shows what it is about to do instead of leaving it to the server.
+      function firstUnusedMemberColor(excludeId) {
+        const taken = new Set(
+          familyMembers
+            .filter((m) => m.id !== excludeId)
+            .map((m) => (m.color || "").toLowerCase()),
+        );
+        const swatches = memberColorSwatches();
+        const free = swatches.find(
+          (s) => !taken.has(s.dataset.color.toLowerCase()),
+        );
+        return (free || swatches[0]).dataset.color;
+      }
+
+      // A stored value outside the palette can only come from a hand-edited
+      // database — the migration and the API enum rule it out otherwise. It
+      // resolves to an unused entry so saving repairs the row, rather than
+      // showing nothing selected and posting a null.
+      function selectMemberColor(color) {
+        const swatches = memberColorSwatches();
+        const wanted = (color || "").toLowerCase();
+        let chosen = swatches.find(
+          (s) => s.dataset.color.toLowerCase() === wanted,
+        );
+        if (!chosen) {
+          const fallback =
+            firstUnusedMemberColor(editingMemberId).toLowerCase();
+          chosen = swatches.find(
+            (s) => s.dataset.color.toLowerCase() === fallback,
+          );
+        }
+        swatches.forEach((s) =>
+          s.setAttribute("aria-pressed", String(s === chosen)),
+        );
+      }
+
+      function selectedMemberColor() {
+        const on = document.querySelector(
+          '#member-color-swatches .color-swatch[aria-pressed="true"]',
+        );
+        return on ? on.dataset.color : null;
+      }
+
+      function openAddMemberModal() {
+        editingMemberId = null;
+        document.getElementById("member-modal-title").textContent =
+          "Add Family Member";
+        document.getElementById("member-form").reset();
+        document.getElementById("member-id").value = "";
+        // Testing a key that has not been saved yet would test nothing.
+        document.getElementById("btn-test-member-pushover").style.display =
+          "none";
+        // form.reset() does not clear aria-pressed, so the selection is set
+        // explicitly rather than left showing the last member edited.
+        selectMemberColor(firstUnusedMemberColor(null));
+        renderMemberNotifyOptions(null);
+        showModalOverlay("member-modal-overlay");
+      }
+
+      function _openEditMemberModal(id) {
+        const member = familyMembers.find((m) => m.id === id);
+        if (!member) return;
+
+        editingMemberId = id;
+        document.getElementById("member-modal-title").textContent =
+          "Edit Family Member";
+        document.getElementById("member-id").value = id;
+        document.getElementById("member-name").value = member.name;
+        document.getElementById("member-pushover-key").value =
+          member.pushover_user_key || "";
+        document.getElementById("member-pushover-device").value =
+          member.pushover_device || "";
+        document.getElementById("btn-test-member-pushover").style.display =
+          member.pushover_user_key ? "" : "none";
+        selectMemberColor(member.color);
+        renderMemberNotifyOptions(member);
+        showModalOverlay("member-modal-overlay");
+      }
+
+      function closeMemberModal() {
+        hideModalOverlay("member-modal-overlay");
+        editingMemberId = null;
+      }
+
+      async function _confirmDeleteMember(id) {
+        if (!confirm("Are you sure you want to remove this family member?"))
+          return;
+
+        try {
+          await deleteMember(id);
+          await fetchMembers();
+          await fetchCalendars();
+        } catch (error) {
+          console.error("Error deleting member:", error);
+          alert("Failed to remove family member");
+        }
+      }
+
+      // ── Calendars ──
+
+      async function fetchCalendars() {
+        const response = await fetch("/api/calendars");
+        calendars = await response.json();
+        renderCalendars();
+      }
+
+      async function createCalendar(data) {
+        const response = await fetch("/api/calendars", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to create calendar");
+        return response.json();
+      }
+
+      async function updateCalendar(id, data) {
+        const response = await fetch(`/api/calendars/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to update calendar");
+        return response.json();
+      }
+
+      async function deleteCalendar(id) {
+        const response = await fetch(`/api/calendars/${id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) throw new Error("Failed to delete calendar");
+      }
+
+      function populateCalendarMemberDropdown() {
+        const select = document.getElementById("calendar-member");
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Select a family member</option>';
+        familyMembers.forEach((m) => {
+          select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
+        });
+        if (currentValue) select.value = currentValue;
+      }
+
+      function calTypeLabel(type) {
+        if (type === "caldav_google") return "Google CalDAV";
+        if (type === "caldav_apple") return "Apple CalDAV";
+        return "ICS";
+      }
+
+      function renderCalendars() {
+        const container = document.getElementById("calendar-list");
+
+        if (calendars.length === 0) {
+          container.innerHTML =
+            '<div class="container-empty-state">No calendars yet. Click "Add Calendar" to get started.</div>';
+          return;
         }
 
-        function updateMemberNotifyLabel() {
-            const name = document.getElementById('member-name').value.trim();
-            document.getElementById('member-notify-label').textContent =
-                name ? `Notify ${name} about` : 'Notify about';
-        }
+        container.innerHTML = calendars
+          .map((cal) => {
+            const member = getMemberById(cal.family_member_id);
+            const memberHtml = member
+              ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
+              : "";
+            const typeHtml = `<span class="assignee-label">[${calTypeLabel(cal.cal_type)}]</span>`;
 
-        // Held and explained rather than silently ineffective: a member with no
-        // key is never notified, whatever these say. The values are still
-        // saved, so they take effect the moment a key is added rather than
-        // needing a second trip through Settings.
-        function updateMemberNotifyState() {
-            const hasKey = document.getElementById('member-pushover-key').value.trim() !== '';
-            document.querySelectorAll('#member-notify-options input[type="checkbox"]').forEach(box => {
-                box.disabled = !hasKey;
-            });
-            document.getElementById('member-notify-help').textContent = hasKey
-                ? 'Each of these only ever narrows what this person already receives — ticking one never sends them somebody else\'s appointments.'
-                : 'Add a Pushover user key above to switch these on. They are saved either way, and take effect the moment a key is added.';
-        }
-
-        function collectMemberNotifications() {
-            const values = {};
-            document.querySelectorAll('#member-notify-options input[type="checkbox"]').forEach(box => {
-                values[box.dataset.notifyKind] = box.checked;
-            });
-            return values;
-        }
-
-        // ── Member color ──
-        //
-        // The palette is server-rendered, so these read the swatches rather
-        // than carrying a second copy of the list that could drift from
-        // rally.member_colors.
-
-        function memberColorSwatches() {
-            return [...document.querySelectorAll('#member-color-swatches .color-swatch')];
-        }
-
-        // The same rule POST /api/family applies, mirrored here so the form
-        // shows what it is about to do instead of leaving it to the server.
-        function firstUnusedMemberColor(excludeId) {
-            const taken = new Set(
-                familyMembers.filter(m => m.id !== excludeId)
-                             .map(m => (m.color || '').toLowerCase())
-            );
-            const swatches = memberColorSwatches();
-            const free = swatches.find(s => !taken.has(s.dataset.color.toLowerCase()));
-            return (free || swatches[0]).dataset.color;
-        }
-
-        // A stored value outside the palette can only come from a hand-edited
-        // database — the migration and the API enum rule it out otherwise. It
-        // resolves to an unused entry so saving repairs the row, rather than
-        // showing nothing selected and posting a null.
-        function selectMemberColor(color) {
-            const swatches = memberColorSwatches();
-            const wanted = (color || '').toLowerCase();
-            let chosen = swatches.find(s => s.dataset.color.toLowerCase() === wanted);
-            if (!chosen) {
-                const fallback = firstUnusedMemberColor(editingMemberId).toLowerCase();
-                chosen = swatches.find(s => s.dataset.color.toLowerCase() === fallback);
+            // Description line
+            let descHtml = "";
+            if (cal.cal_type === "ics") {
+              descHtml = `<div class="editable-item-description">${escapeHtml(truncateUrl(cal.url, 60))}</div>`;
+            } else if (cal.username) {
+              descHtml = `<div class="editable-item-description">${escapeHtml(cal.username)}</div>`;
             }
-            swatches.forEach(s => s.setAttribute('aria-pressed', String(s === chosen)));
-        }
 
-        function selectedMemberColor() {
-            const on = document.querySelector('#member-color-swatches .color-swatch[aria-pressed="true"]');
-            return on ? on.dataset.color : null;
-        }
-
-        function openAddMemberModal() {
-            editingMemberId = null;
-            document.getElementById('member-modal-title').textContent = 'Add Family Member';
-            document.getElementById('member-form').reset();
-            document.getElementById('member-id').value = '';
-            // Testing a key that has not been saved yet would test nothing.
-            document.getElementById('btn-test-member-pushover').style.display = 'none';
-            // form.reset() does not clear aria-pressed, so the selection is set
-            // explicitly rather than left showing the last member edited.
-            selectMemberColor(firstUnusedMemberColor(null));
-            renderMemberNotifyOptions(null);
-            showModalOverlay('member-modal-overlay');
-        }
-
-        function _openEditMemberModal(id) {
-            const member = familyMembers.find(m => m.id === id);
-            if (!member) return;
-
-            editingMemberId = id;
-            document.getElementById('member-modal-title').textContent = 'Edit Family Member';
-            document.getElementById('member-id').value = id;
-            document.getElementById('member-name').value = member.name;
-            document.getElementById('member-pushover-key').value = member.pushover_user_key || '';
-            document.getElementById('member-pushover-device').value = member.pushover_device || '';
-            document.getElementById('btn-test-member-pushover').style.display =
-                member.pushover_user_key ? '' : 'none';
-            selectMemberColor(member.color);
-            renderMemberNotifyOptions(member);
-            showModalOverlay('member-modal-overlay');
-        }
-
-        function closeMemberModal() {
-            hideModalOverlay('member-modal-overlay');
-            editingMemberId = null;
-        }
-
-
-        async function _confirmDeleteMember(id) {
-            if (!confirm('Are you sure you want to remove this family member?')) return;
-
-            try {
-                await deleteMember(id);
-                await fetchMembers();
-                await fetchCalendars();
-            } catch (error) {
-                console.error('Error deleting member:', error);
-                alert('Failed to remove family member');
-            }
-        }
-
-        // ── Calendars ──
-
-        async function fetchCalendars() {
-            const response = await fetch('/api/calendars');
-            calendars = await response.json();
-            renderCalendars();
-        }
-
-        async function createCalendar(data) {
-            const response = await fetch('/api/calendars', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to create calendar');
-            return response.json();
-        }
-
-        async function updateCalendar(id, data) {
-            const response = await fetch(`/api/calendars/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('Failed to update calendar');
-            return response.json();
-        }
-
-        async function deleteCalendar(id) {
-            const response = await fetch(`/api/calendars/${id}`, {
-                method: 'DELETE'
-            });
-            if (!response.ok) throw new Error('Failed to delete calendar');
-        }
-
-        function populateCalendarMemberDropdown() {
-            const select = document.getElementById('calendar-member');
-            const currentValue = select.value;
-            select.innerHTML = '<option value="">Select a family member</option>';
-            familyMembers.forEach(m => {
-                select.innerHTML += `<option value="${m.id}">${escapeHtml(m.name)}</option>`;
-            });
-            if (currentValue) select.value = currentValue;
-        }
-
-        function calTypeLabel(type) {
-            if (type === 'caldav_google') return 'Google CalDAV';
-            if (type === 'caldav_apple') return 'Apple CalDAV';
-            return 'ICS';
-        }
-
-        function renderCalendars() {
-            const container = document.getElementById('calendar-list');
-
-            if (calendars.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No calendars yet. Click "Add Calendar" to get started.</div>';
-                return;
-            }
-
-            container.innerHTML = calendars.map(cal => {
-                const member = getMemberById(cal.family_member_id);
-                const memberHtml = member
-                    ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
-                    : '';
-                const typeHtml = `<span class="assignee-label">[${calTypeLabel(cal.cal_type)}]</span>`;
-
-                // Description line
-                let descHtml = '';
-                if (cal.cal_type === 'ics') {
-                    descHtml = `<div class="editable-item-description">${escapeHtml(truncateUrl(cal.url, 60))}</div>`;
-                } else if (cal.username) {
-                    descHtml = `<div class="editable-item-description">${escapeHtml(cal.username)}</div>`;
-                }
-
-                return `
+            return `
                     <div class="editable-item" data-id="${cal.id}">
                         <div class="editable-item-content">
                             <div class="editable-item-title">${escapeHtml(cal.label)} ${memberHtml} ${typeHtml}</div>
@@ -930,464 +1282,583 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+          })
+          .join("");
+      }
+
+      function toggleCalendarTypeFields(type) {
+        const isCaldav = type === "caldav_google" || type === "caldav_apple";
+        // A native calendar has no URL, no credentials and nothing to
+        // connect to — the owner-email field only exists for declined-event
+        // detection on feeds Rally does not own.
+        document
+          .querySelectorAll(".cal-field-owner")
+          .forEach(
+            (el) => (el.style.display = type === "native" ? "none" : ""),
+          );
+        document
+          .querySelectorAll(".cal-field-ics")
+          .forEach((el) => (el.style.display = type === "ics" ? "" : "none"));
+        document
+          .querySelectorAll(".cal-field-caldav")
+          .forEach((el) => (el.style.display = isCaldav ? "" : "none"));
+        document
+          .querySelectorAll(".cal-help-google")
+          .forEach(
+            (el) => (el.style.display = type === "caldav_google" ? "" : "none"),
+          );
+        document
+          .querySelectorAll(".cal-help-apple")
+          .forEach(
+            (el) => (el.style.display = type === "caldav_apple" ? "" : "none"),
+          );
+        // Update email placeholder based on type
+        const usernameInput = document.getElementById("calendar-username");
+        if (type === "caldav_google")
+          usernameInput.placeholder = "user@gmail.com";
+        else if (type === "caldav_apple")
+          usernameInput.placeholder = "user@icloud.com";
+      }
+
+      function openAddCalendarModal() {
+        editingCalendarId = null;
+        document.getElementById("calendar-modal-title").textContent =
+          "Add Calendar";
+        document.getElementById("calendar-form").reset();
+        document.getElementById("calendar-id").value = "";
+        document.getElementById("calendar-type").value = "ics";
+        toggleCalendarTypeFields("ics");
+        populateCalendarMemberDropdown();
+        showModalOverlay("calendar-modal-overlay");
+      }
+
+      function _openEditCalendarModal(id) {
+        const cal = calendars.find((c) => c.id === id);
+        if (!cal) return;
+
+        editingCalendarId = id;
+        document.getElementById("calendar-modal-title").textContent =
+          "Edit Calendar";
+        document.getElementById("calendar-id").value = id;
+        document.getElementById("calendar-type").value = cal.cal_type || "ics";
+        document.getElementById("calendar-label").value = cal.label;
+        document.getElementById("calendar-url").value = cal.url || "";
+        document.getElementById("calendar-username").value = cal.username || "";
+        document.getElementById("calendar-password").value = ""; // Never pre-fill passwords
+        toggleCalendarTypeFields(cal.cal_type || "ics");
+        populateCalendarMemberDropdown();
+        document.getElementById("calendar-member").value =
+          cal.family_member_id || "";
+        document.getElementById("calendar-owner-email").value =
+          cal.owner_email || "";
+        showModalOverlay("calendar-modal-overlay");
+      }
+
+      function closeCalendarModal() {
+        hideModalOverlay("calendar-modal-overlay");
+        editingCalendarId = null;
+      }
+
+      async function _confirmDeleteCalendar(id) {
+        if (!confirm("Are you sure you want to delete this calendar?")) return;
+
+        try {
+          await deleteCalendar(id);
+          await fetchCalendars();
+        } catch (error) {
+          console.error("Error deleting calendar:", error);
+          alert("Failed to delete calendar");
+        }
+      }
+
+      // ── Settings (Weather, LLM, General) ──
+
+      async function fetchSettings() {
+        const response = await fetch("/api/settings");
+        const data = await response.json();
+        const s = data.settings || {};
+
+        // Weather
+        document.getElementById("weather-nws-url").value =
+          s.weather_nws_url || "";
+
+        // LLM
+        const provider = s.llm_provider || "local";
+        document.getElementById("llm-provider").value = provider;
+        document.getElementById("llm-local-base-url").value =
+          s.llm_local_base_url || "";
+        document.getElementById("llm-local-api-key").value =
+          s.llm_local_api_key || "";
+        document.getElementById("llm-local-model").value =
+          s.llm_local_model || "";
+        document.getElementById("llm-local-max-tokens").value =
+          s.llm_local_max_tokens || "";
+        document.getElementById("llm-anthropic-api-key").value =
+          s.llm_anthropic_api_key || "";
+        document.getElementById("llm-anthropic-model").value =
+          s.llm_anthropic_model || "";
+        const anthropicMaxTokensInput = document.getElementById(
+          "llm-anthropic-max-tokens",
+        );
+        anthropicMaxTokensInput.value = s.llm_anthropic_max_tokens || "";
+        const mode =
+          s.llm_anthropic_max_tokens_mode === "model_max"
+            ? "model_max"
+            : "custom";
+        // A value loaded from settings is authoritative for its mode — mark
+        // it resolved so updateLlmMaxTokensHelp() doesn't blank it on load.
+        anthropicMaxTokensInput.dataset.resolvedMode = mode;
+        anthropicMaxTokensInput.dataset.resolvedModel =
+          s.llm_anthropic_model || "";
+        document.getElementById(
+          mode === "model_max"
+            ? "llm-max-tokens-mode-model-max"
+            : "llm-max-tokens-mode-custom",
+        ).checked = true;
+        toggleLlmFields(provider);
+        updateLlmMaxTokensHelp();
+
+        // Meal Planner
+        document.getElementById("meal-default-type").value =
+          s.meal_default_type || "Dinner";
+
+        // Notifications
+        document.getElementById("home-location").value = s.home_location || "";
+        document.getElementById("pushover-app-token").value =
+          s.pushover_app_token || "";
+        document.getElementById("prep-notify-enabled").checked =
+          s.prep_notify_enabled !== "false";
+        document.getElementById("prep-review-enabled").checked =
+          s.prep_review_enabled === "true";
+        document.getElementById("prep-overdue-in-summary").checked =
+          s.prep_overdue_in_summary_enabled !== "false";
+        document.getElementById("prep-notify-time").value =
+          s.prep_notify_time || "08:00";
+        document.getElementById("prep-default-remind-days").value =
+          s.prep_default_remind_days || "14";
+
+        // Tasks
+        document.getElementById("todo-notify-enabled").checked =
+          s.todo_notify_enabled !== "false";
+
+        // Learning
+        document.getElementById("stem-concept-enabled").checked =
+          s.stem_concept_enabled === "true";
+
+        // Shopping List
+        document.getElementById("shopping-list-in-summary").checked =
+          s.shopping_list_in_summary_enabled === "true";
+        document.getElementById("shopping-notify-enabled").checked =
+          s.shopping_notify_enabled === "true";
+        document.getElementById("shopping-notify-settle").value =
+          s.shopping_notify_settle_minutes || "5";
+
+        // Sports
+        document.getElementById("sports-watchlist-enabled").checked =
+          s.sports_watchlist_enabled === "true";
+
+        // General
+        document.getElementById("general-timezone").value =
+          s.local_timezone || "";
+      }
+
+      async function saveSettings(settingsObj) {
+        const response = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: settingsObj }),
+        });
+        if (!response.ok) throw new Error("Failed to save settings");
+        return response.json();
+      }
+
+      function toggleLlmFields(provider) {
+        document
+          .querySelector(".llm-fields-local")
+          .classList.toggle("active", provider === "local");
+        document
+          .querySelector(".llm-fields-anthropic")
+          .classList.toggle("active", provider === "anthropic");
+      }
+
+      // Persistent surface for the effective Anthropic budget — the verify
+      // modal that confirms it after a save auto-closes, so this small text
+      // under the field is what stays visible whenever Settings is open.
+      function llmMaxTokensMode() {
+        const checked = document.querySelector(
+          'input[name="llm-max-tokens-mode"]:checked',
+        );
+        return checked ? checked.value : "custom";
+      }
+
+      function updateLlmMaxTokensHelp() {
+        const mode = llmMaxTokensMode();
+        const input = document.getElementById("llm-anthropic-max-tokens");
+        const help = document.getElementById("llm-anthropic-max-tokens-help");
+        const model = document
+          .getElementById("llm-anthropic-model")
+          .value.trim();
+
+        input.readOnly = mode === "model_max";
+
+        // "Resolved" means the number currently in the field was actually
+        // returned by the provider for the model currently typed in — not
+        // just whatever custom value happened to be sitting there before
+        // the radio was switched. Anything else and the field is blanked
+        // rather than showing a stale number labeled as this model's max.
+        const isResolved =
+          mode === "model_max" &&
+          !!input.value &&
+          input.dataset.resolvedMode === "model_max" &&
+          input.dataset.resolvedModel === model;
+
+        if (mode === "model_max" && !isResolved) {
+          input.value = "";
         }
 
-        function toggleCalendarTypeFields(type) {
-            const isCaldav = type === 'caldav_google' || type === 'caldav_apple';
-            // A native calendar has no URL, no credentials and nothing to
-            // connect to — the owner-email field only exists for declined-event
-            // detection on feeds Rally does not own.
-            document.querySelectorAll('.cal-field-owner').forEach(el => el.style.display = type === 'native' ? 'none' : '');
-            document.querySelectorAll('.cal-field-ics').forEach(el => el.style.display = type === 'ics' ? '' : 'none');
-            document.querySelectorAll('.cal-field-caldav').forEach(el => el.style.display = isCaldav ? '' : 'none');
-            document.querySelectorAll('.cal-help-google').forEach(el => el.style.display = type === 'caldav_google' ? '' : 'none');
-            document.querySelectorAll('.cal-help-apple').forEach(el => el.style.display = type === 'caldav_apple' ? '' : 'none');
-            // Update email placeholder based on type
-            const usernameInput = document.getElementById('calendar-username');
-            if (type === 'caldav_google') usernameInput.placeholder = 'user@gmail.com';
-            else if (type === 'caldav_apple') usernameInput.placeholder = 'user@icloud.com';
+        const value = input.value ? Number(input.value).toLocaleString() : "";
+
+        if (mode === "model_max") {
+          help.textContent = isResolved
+            ? `${value} — maximum for ${model}. Covers thinking and output together.`
+            : "Resolved from the model when you save. Covers thinking and output together.";
+        } else {
+          help.textContent =
+            (value ? `${value}. ` : "") +
+            "Covers thinking and output together. Raise this if summaries are cut off mid-sentence.";
         }
+      }
 
-        function openAddCalendarModal() {
-            editingCalendarId = null;
-            document.getElementById('calendar-modal-title').textContent = 'Add Calendar';
-            document.getElementById('calendar-form').reset();
-            document.getElementById('calendar-id').value = '';
-            document.getElementById('calendar-type').value = 'ics';
-            toggleCalendarTypeFields('ics');
-            populateCalendarMemberDropdown();
-            showModalOverlay('calendar-modal-overlay');
-        }
+      // ── AI Settings (versioned agent_voice / family_context) ──
 
-        function _openEditCalendarModal(id) {
-            const cal = calendars.find(c => c.id === id);
-            if (!cal) return;
+      const AI_FIELD_META = {
+        family_context: {
+          label: "Family Context",
+          inputId: "ai-family-context",
+        },
+        agent_voice: { label: "Agent Voice", inputId: "ai-agent-voice" },
+      };
 
-            editingCalendarId = id;
-            document.getElementById('calendar-modal-title').textContent = 'Edit Calendar';
-            document.getElementById('calendar-id').value = id;
-            document.getElementById('calendar-type').value = cal.cal_type || 'ics';
-            document.getElementById('calendar-label').value = cal.label;
-            document.getElementById('calendar-url').value = cal.url || '';
-            document.getElementById('calendar-username').value = cal.username || '';
-            document.getElementById('calendar-password').value = '';  // Never pre-fill passwords
-            toggleCalendarTypeFields(cal.cal_type || 'ics');
-            populateCalendarMemberDropdown();
-            document.getElementById('calendar-member').value = cal.family_member_id || '';
-            document.getElementById('calendar-owner-email').value = cal.owner_email || '';
-            showModalOverlay('calendar-modal-overlay');
-        }
+      // Version-history metadata: AI fields plus the coupled LLM provider+model config.
+      // Each entry knows its API base URL, how to render a snapshot's value in the
+      // history modal, and how to apply a rollback response back into the form.
+      function aiHistoryMeta(field) {
+        const meta = AI_FIELD_META[field];
+        return {
+          label: meta.label,
+          baseUrl: `/api/settings/ai/${field}`,
+          formatValue: (entry) => escapeHtml(entry.value),
+          applyRollback: (data) => {
+            document.getElementById(meta.inputId).value = data.value;
+          },
+        };
+      }
 
-        function closeCalendarModal() {
-            hideModalOverlay('calendar-modal-overlay');
-            editingCalendarId = null;
-        }
+      function llmModelInputId(provider) {
+        return provider === "anthropic"
+          ? "llm-anthropic-model"
+          : "llm-local-model";
+      }
 
-        async function _confirmDeleteCalendar(id) {
-            if (!confirm('Are you sure you want to delete this calendar?')) return;
-
-            try {
-                await deleteCalendar(id);
-                await fetchCalendars();
-            } catch (error) {
-                console.error('Error deleting calendar:', error);
-                alert('Failed to delete calendar');
+      const HISTORY_FIELD_META = {
+        family_context: aiHistoryMeta("family_context"),
+        agent_voice: aiHistoryMeta("agent_voice"),
+        llm_config: {
+          label: "LLM",
+          baseUrl: "/api/settings/llm/config",
+          formatValue: (entry) => {
+            let text =
+              "Provider: " +
+              entry.provider +
+              "\nModel: " +
+              entry.model +
+              "\nMax Tokens: " +
+              entry.max_tokens;
+            if (
+              entry.provider === "anthropic" &&
+              entry.max_tokens_mode === "model_max"
+            ) {
+              text += "  (model maximum)";
             }
-        }
-
-        // ── Settings (Weather, LLM, General) ──
-
-        async function fetchSettings() {
-            const response = await fetch('/api/settings');
-            const data = await response.json();
-            const s = data.settings || {};
-
-            // Weather
-            document.getElementById('weather-nws-url').value = s.weather_nws_url || '';
-
-            // LLM
-            const provider = s.llm_provider || 'local';
-            document.getElementById('llm-provider').value = provider;
-            document.getElementById('llm-local-base-url').value = s.llm_local_base_url || '';
-            document.getElementById('llm-local-api-key').value = s.llm_local_api_key || '';
-            document.getElementById('llm-local-model').value = s.llm_local_model || '';
-            document.getElementById('llm-local-max-tokens').value = s.llm_local_max_tokens || '';
-            document.getElementById('llm-anthropic-api-key').value = s.llm_anthropic_api_key || '';
-            document.getElementById('llm-anthropic-model').value = s.llm_anthropic_model || '';
-            const anthropicMaxTokensInput = document.getElementById('llm-anthropic-max-tokens');
-            anthropicMaxTokensInput.value = s.llm_anthropic_max_tokens || '';
-            const mode = s.llm_anthropic_max_tokens_mode === 'model_max' ? 'model_max' : 'custom';
-            // A value loaded from settings is authoritative for its mode — mark
-            // it resolved so updateLlmMaxTokensHelp() doesn't blank it on load.
-            anthropicMaxTokensInput.dataset.resolvedMode = mode;
-            anthropicMaxTokensInput.dataset.resolvedModel = s.llm_anthropic_model || '';
-            document.getElementById(mode === 'model_max' ? 'llm-max-tokens-mode-model-max' : 'llm-max-tokens-mode-custom').checked = true;
-            toggleLlmFields(provider);
+            return escapeHtml(text);
+          },
+          applyRollback: (data) => {
+            document.getElementById("llm-provider").value = data.provider;
+            document.getElementById(llmModelInputId(data.provider)).value =
+              data.model;
+            const maxTokensInputId =
+              data.provider === "anthropic"
+                ? "llm-anthropic-max-tokens"
+                : "llm-local-max-tokens";
+            const maxTokensInput = document.getElementById(maxTokensInputId);
+            maxTokensInput.value = data.max_tokens;
+            if (data.provider === "anthropic") {
+              const mode =
+                data.max_tokens_mode === "model_max" ? "model_max" : "custom";
+              // The rolled-back snapshot is itself an authoritative
+              // resolved value for its mode — restored verbatim, not
+              // re-resolved (see the rollback endpoint's docstring).
+              maxTokensInput.dataset.resolvedMode = mode;
+              maxTokensInput.dataset.resolvedModel = data.model;
+              document.getElementById(
+                mode === "model_max"
+                  ? "llm-max-tokens-mode-model-max"
+                  : "llm-max-tokens-mode-custom",
+              ).checked = true;
+            }
+            toggleLlmFields(data.provider);
             updateLlmMaxTokensHelp();
+          },
+        },
+      };
 
-            // Meal Planner
-            document.getElementById('meal-default-type').value = s.meal_default_type || 'Dinner';
+      let historyField = null;
+      let historyEntries = [];
+      let currentHistoryId = null;
+      let selectedHistoryId = null;
+      let expandedHistoryIds = new Set();
 
-            // Notifications
-            document.getElementById('home-location').value = s.home_location || '';
-            document.getElementById('pushover-app-token').value = s.pushover_app_token || '';
-            document.getElementById('prep-notify-enabled').checked = s.prep_notify_enabled !== 'false';
-            document.getElementById('prep-review-enabled').checked = s.prep_review_enabled === 'true';
-            document.getElementById('prep-overdue-in-summary').checked = s.prep_overdue_in_summary_enabled !== 'false';
-            document.getElementById('prep-notify-time').value = s.prep_notify_time || '08:00';
-            document.getElementById('prep-default-remind-days').value = s.prep_default_remind_days || '14';
+      async function fetchAiSettings() {
+        const response = await fetch("/api/settings/ai");
+        const data = await response.json();
+        for (const [field, meta] of Object.entries(AI_FIELD_META)) {
+          document.getElementById(meta.inputId).value =
+            data[field]?.value || "";
+        }
+      }
 
-            // Tasks
-            document.getElementById('todo-notify-enabled').checked = s.todo_notify_enabled !== 'false';
+      async function _saveAiField(field) {
+        const meta = AI_FIELD_META[field];
+        try {
+          const response = await fetch(`/api/settings/ai/${field}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              value: document.getElementById(meta.inputId).value,
+            }),
+          });
+          if (!response.ok) throw new Error("Failed to save");
+          alert(`${meta.label} saved.`);
+        } catch (error) {
+          console.error(`Error saving ${field}:`, error);
+          alert(`Failed to save ${meta.label}`);
+        }
+      }
 
-            // Learning
-            document.getElementById('stem-concept-enabled').checked = s.stem_concept_enabled === 'true';
+      async function _openHistoryModal(field) {
+        historyField = field;
+        historyEntries = [];
+        currentHistoryId = null;
+        selectedHistoryId = null;
+        expandedHistoryIds = new Set();
 
-            // Shopping List
-            document.getElementById('shopping-list-in-summary').checked = s.shopping_list_in_summary_enabled === 'true';
-            document.getElementById('shopping-notify-enabled').checked = s.shopping_notify_enabled === 'true';
-            document.getElementById('shopping-notify-settle').value = s.shopping_notify_settle_minutes || '5';
+        document.getElementById("history-modal-title").textContent =
+          `${HISTORY_FIELD_META[field].label} Version History`;
+        document.getElementById("history-list").innerHTML =
+          '<div class="container-loading-state">Loading version history...</div>';
+        showModalOverlay("history-modal-overlay");
 
-            // Sports
-            document.getElementById('sports-watchlist-enabled').checked = s.sports_watchlist_enabled === 'true';
+        try {
+          const response = await fetch(
+            `${HISTORY_FIELD_META[field].baseUrl}/history`,
+          );
+          if (!response.ok) throw new Error("Failed to load history");
+          const data = await response.json();
+          historyEntries = data.history;
+          currentHistoryId = data.current_history_id;
+          selectedHistoryId = data.current_history_id;
+          renderHistoryList();
+        } catch (error) {
+          console.error("Error loading version history:", error);
+          document.getElementById("history-list").innerHTML =
+            '<div class="container-empty-state">Failed to load version history.</div>';
+        }
+      }
 
-            // General
-            document.getElementById('general-timezone').value = s.local_timezone || '';
+      function closeHistoryModal() {
+        hideModalOverlay("history-modal-overlay");
+        historyField = null;
+      }
+
+      function formatUtcTimestamp(isoString) {
+        // Timestamps are stored as naive UTC; tag them so Date parses correctly
+        const hasZone =
+          isoString.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(isoString);
+        const d = new Date(hasZone ? isoString : `${isoString}Z`);
+        const pad = (n) => String(n).padStart(2, "0");
+        return (
+          `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+          `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`
+        );
+      }
+
+      function renderHistoryList() {
+        const container = document.getElementById("history-list");
+
+        if (historyEntries.length === 0) {
+          container.innerHTML =
+            '<div class="container-empty-state">No saved versions yet. Click "Save" to create the first snapshot.</div>';
+          return;
         }
 
-        async function saveSettings(settingsObj) {
-            const response = await fetch('/api/settings', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ settings: settingsObj })
-            });
-            if (!response.ok) throw new Error('Failed to save settings');
-            return response.json();
-        }
-
-        function toggleLlmFields(provider) {
-            document.querySelector('.llm-fields-local').classList.toggle('active', provider === 'local');
-            document.querySelector('.llm-fields-anthropic').classList.toggle('active', provider === 'anthropic');
-        }
-
-        // Persistent surface for the effective Anthropic budget — the verify
-        // modal that confirms it after a save auto-closes, so this small text
-        // under the field is what stays visible whenever Settings is open.
-        function llmMaxTokensMode() {
-            const checked = document.querySelector('input[name="llm-max-tokens-mode"]:checked');
-            return checked ? checked.value : 'custom';
-        }
-
-        function updateLlmMaxTokensHelp() {
-            const mode = llmMaxTokensMode();
-            const input = document.getElementById('llm-anthropic-max-tokens');
-            const help = document.getElementById('llm-anthropic-max-tokens-help');
-            const model = document.getElementById('llm-anthropic-model').value.trim();
-
-            input.readOnly = mode === 'model_max';
-
-            // "Resolved" means the number currently in the field was actually
-            // returned by the provider for the model currently typed in — not
-            // just whatever custom value happened to be sitting there before
-            // the radio was switched. Anything else and the field is blanked
-            // rather than showing a stale number labeled as this model's max.
-            const isResolved = mode === 'model_max' && !!input.value
-                && input.dataset.resolvedMode === 'model_max'
-                && input.dataset.resolvedModel === model;
-
-            if (mode === 'model_max' && !isResolved) {
-                input.value = '';
-            }
-
-            const value = input.value ? Number(input.value).toLocaleString() : '';
-
-            if (mode === 'model_max') {
-                help.textContent = isResolved
-                    ? `${value} — maximum for ${model}. Covers thinking and output together.`
-                    : 'Resolved from the model when you save. Covers thinking and output together.';
-            } else {
-                help.textContent = (value ? `${value}. ` : '')
-                    + 'Covers thinking and output together. Raise this if summaries are cut off mid-sentence.';
-            }
-        }
-
-        // ── AI Settings (versioned agent_voice / family_context) ──
-
-        const AI_FIELD_META = {
-            family_context: { label: 'Family Context', inputId: 'ai-family-context' },
-            agent_voice: { label: 'Agent Voice', inputId: 'ai-agent-voice' }
-        };
-
-        // Version-history metadata: AI fields plus the coupled LLM provider+model config.
-        // Each entry knows its API base URL, how to render a snapshot's value in the
-        // history modal, and how to apply a rollback response back into the form.
-        function aiHistoryMeta(field) {
-            const meta = AI_FIELD_META[field];
-            return {
-                label: meta.label,
-                baseUrl: `/api/settings/ai/${field}`,
-                formatValue: entry => escapeHtml(entry.value),
-                applyRollback: data => { document.getElementById(meta.inputId).value = data.value; }
-            };
-        }
-
-        function llmModelInputId(provider) {
-            return provider === 'anthropic' ? 'llm-anthropic-model' : 'llm-local-model';
-        }
-
-        const HISTORY_FIELD_META = {
-            family_context: aiHistoryMeta('family_context'),
-            agent_voice: aiHistoryMeta('agent_voice'),
-            llm_config: {
-                label: 'LLM',
-                baseUrl: '/api/settings/llm/config',
-                formatValue: entry => {
-                    let text = 'Provider: ' + entry.provider + '\nModel: ' + entry.model
-                        + '\nMax Tokens: ' + entry.max_tokens;
-                    if (entry.provider === 'anthropic' && entry.max_tokens_mode === 'model_max') {
-                        text += '  (model maximum)';
-                    }
-                    return escapeHtml(text);
-                },
-                applyRollback: data => {
-                    document.getElementById('llm-provider').value = data.provider;
-                    document.getElementById(llmModelInputId(data.provider)).value = data.model;
-                    const maxTokensInputId = data.provider === 'anthropic' ? 'llm-anthropic-max-tokens' : 'llm-local-max-tokens';
-                    const maxTokensInput = document.getElementById(maxTokensInputId);
-                    maxTokensInput.value = data.max_tokens;
-                    if (data.provider === 'anthropic') {
-                        const mode = data.max_tokens_mode === 'model_max' ? 'model_max' : 'custom';
-                        // The rolled-back snapshot is itself an authoritative
-                        // resolved value for its mode — restored verbatim, not
-                        // re-resolved (see the rollback endpoint's docstring).
-                        maxTokensInput.dataset.resolvedMode = mode;
-                        maxTokensInput.dataset.resolvedModel = data.model;
-                        document.getElementById(mode === 'model_max' ? 'llm-max-tokens-mode-model-max' : 'llm-max-tokens-mode-custom').checked = true;
-                    }
-                    toggleLlmFields(data.provider);
-                    updateLlmMaxTokensHelp();
-                }
-            }
-        };
-
-        let historyField = null;
-        let historyEntries = [];
-        let currentHistoryId = null;
-        let selectedHistoryId = null;
-        let expandedHistoryIds = new Set();
-
-        async function fetchAiSettings() {
-            const response = await fetch('/api/settings/ai');
-            const data = await response.json();
-            for (const [field, meta] of Object.entries(AI_FIELD_META)) {
-                document.getElementById(meta.inputId).value = (data[field]?.value) || '';
-            }
-        }
-
-        async function _saveAiField(field) {
-            const meta = AI_FIELD_META[field];
-            try {
-                const response = await fetch(`/api/settings/ai/${field}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ value: document.getElementById(meta.inputId).value })
-                });
-                if (!response.ok) throw new Error('Failed to save');
-                alert(`${meta.label} saved.`);
-            } catch (error) {
-                console.error(`Error saving ${field}:`, error);
-                alert(`Failed to save ${meta.label}`);
-            }
-        }
-
-        async function _openHistoryModal(field) {
-            historyField = field;
-            historyEntries = [];
-            currentHistoryId = null;
-            selectedHistoryId = null;
-            expandedHistoryIds = new Set();
-
-            document.getElementById('history-modal-title').textContent = `${HISTORY_FIELD_META[field].label} Version History`;
-            document.getElementById('history-list').innerHTML = '<div class="container-loading-state">Loading version history...</div>';
-            showModalOverlay('history-modal-overlay');
-
-            try {
-                const response = await fetch(`${HISTORY_FIELD_META[field].baseUrl}/history`);
-                if (!response.ok) throw new Error('Failed to load history');
-                const data = await response.json();
-                historyEntries = data.history;
-                currentHistoryId = data.current_history_id;
-                selectedHistoryId = data.current_history_id;
-                renderHistoryList();
-            } catch (error) {
-                console.error('Error loading version history:', error);
-                document.getElementById('history-list').innerHTML = '<div class="container-empty-state">Failed to load version history.</div>';
-            }
-        }
-
-        function closeHistoryModal() {
-            hideModalOverlay('history-modal-overlay');
-            historyField = null;
-        }
-
-        function formatUtcTimestamp(isoString) {
-            // Timestamps are stored as naive UTC; tag them so Date parses correctly
-            const hasZone = isoString.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(isoString);
-            const d = new Date(hasZone ? isoString : `${isoString}Z`);
-            const pad = n => String(n).padStart(2, '0');
-            return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} `
-                + `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
-        }
-
-        function renderHistoryList() {
-            const container = document.getElementById('history-list');
-
-            if (historyEntries.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No saved versions yet. Click "Save" to create the first snapshot.</div>';
-                return;
-            }
-
-            const formatValue = HISTORY_FIELD_META[historyField].formatValue;
-            container.innerHTML = historyEntries.map(entry => {
-                const selected = entry.id === selectedHistoryId;
-                const expanded = expandedHistoryIds.has(entry.id);
-                const currentBadge = entry.id === currentHistoryId
-                    ? '<span class="history-current-badge">Current</span>'
-                    : '';
-                return `
-                    <div class="history-item ${selected ? 'selected' : ''}" onclick="selectHistoryEntry(${entry.id})">
+        const formatValue = HISTORY_FIELD_META[historyField].formatValue;
+        container.innerHTML = historyEntries
+          .map((entry) => {
+            const selected = entry.id === selectedHistoryId;
+            const expanded = expandedHistoryIds.has(entry.id);
+            const currentBadge =
+              entry.id === currentHistoryId
+                ? '<span class="history-current-badge">Current</span>'
+                : "";
+            return `
+                    <div class="history-item ${selected ? "selected" : ""}" onclick="selectHistoryEntry(${entry.id})">
                         <div class="history-item-header">
-                            <span class="history-radio">${selected ? '●' : '○'}</span>
+                            <span class="history-radio">${selected ? "●" : "○"}</span>
                             <span class="history-timestamp">${formatUtcTimestamp(entry.created_at)}</span>
                             ${currentBadge}
                         </div>
-                        <button type="button" class="history-value-toggle" onclick="toggleHistoryValue(event, ${entry.id})">${expanded ? '▼' : '►'} Value</button>
-                        <div class="history-value" style="display: ${expanded ? 'block' : 'none'}">${formatValue(entry)}</div>
+                        <button type="button" class="history-value-toggle" onclick="toggleHistoryValue(event, ${entry.id})">${expanded ? "▼" : "►"} Value</button>
+                        <div class="history-value" style="display: ${expanded ? "block" : "none"}">${formatValue(entry)}</div>
                     </div>
                 `;
-            }).join('');
+          })
+          .join("");
+      }
+
+      function _selectHistoryEntry(id) {
+        selectedHistoryId = id;
+        renderHistoryList();
+      }
+
+      function _toggleHistoryValue(event, id) {
+        event.stopPropagation();
+        if (expandedHistoryIds.has(id)) {
+          expandedHistoryIds.delete(id);
+        } else {
+          expandedHistoryIds.add(id);
         }
+        renderHistoryList();
+      }
 
-        function _selectHistoryEntry(id) {
-            selectedHistoryId = id;
-            renderHistoryList();
+      async function changeVersion() {
+        if (!historyField || selectedHistoryId == null) {
+          closeHistoryModal();
+          return;
         }
-
-        function _toggleHistoryValue(event, id) {
-            event.stopPropagation();
-            if (expandedHistoryIds.has(id)) {
-                expandedHistoryIds.delete(id);
-            } else {
-                expandedHistoryIds.add(id);
-            }
-            renderHistoryList();
+        const meta = HISTORY_FIELD_META[historyField];
+        try {
+          const response = await fetch(`${meta.baseUrl}/rollback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ history_id: selectedHistoryId }),
+          });
+          if (!response.ok) throw new Error("Failed to change version");
+          const data = await response.json();
+          meta.applyRollback(data);
+          closeHistoryModal();
+        } catch (error) {
+          console.error("Error changing version:", error);
+          alert("Failed to change version");
         }
+      }
 
-        async function changeVersion() {
-            if (!historyField || selectedHistoryId == null) {
-                closeHistoryModal();
-                return;
-            }
-            const meta = HISTORY_FIELD_META[historyField];
-            try {
-                const response = await fetch(`${meta.baseUrl}/rollback`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ history_id: selectedHistoryId })
-                });
-                if (!response.ok) throw new Error('Failed to change version');
-                const data = await response.json();
-                meta.applyRollback(data);
-                closeHistoryModal();
-            } catch (error) {
-                console.error('Error changing version:', error);
-                alert('Failed to change version');
-            }
+      // ── Connection Verification ──
+
+      let verifyAutoCloseTimer = null;
+
+      function openVerifyModal(serviceName) {
+        const body = document.getElementById("verify-modal-body");
+        body.innerHTML =
+          '<div class="verify-status">' +
+          '<div class="verify-spinner"></div>' +
+          '<div class="verify-message">Verifying ' +
+          escapeHtml(serviceName) +
+          " connection\u2026</div>" +
+          "</div>";
+        showModalOverlay("verify-modal-overlay");
+      }
+
+      function showVerifySuccess(message) {
+        const body = document.getElementById("verify-modal-body");
+        body.innerHTML =
+          '<div class="verify-status">' +
+          '<div class="verify-icon">\u2713</div>' +
+          '<div class="verify-message">' +
+          escapeHtml(message) +
+          "</div>" +
+          "</div>";
+        verifyAutoCloseTimer = setTimeout(closeVerifyModal, 1500);
+      }
+
+      function showVerifyError(errorMessage) {
+        const body = document.getElementById("verify-modal-body");
+        body.innerHTML =
+          '<div class="verify-status">' +
+          '<div class="verify-icon">\u2717</div>' +
+          '<div class="verify-message">Connection failed</div>' +
+          '<div class="verify-detail">' +
+          escapeHtml(errorMessage) +
+          "</div>" +
+          "</div>" +
+          '<div class="modal-actions" style="justify-content: center; margin-top: 20px;">' +
+          '<button class="btn btn--secondary" onclick="closeVerifyModal()">Close</button>' +
+          "</div>";
+      }
+
+      function closeVerifyModal() {
+        if (verifyAutoCloseTimer) {
+          clearTimeout(verifyAutoCloseTimer);
+          verifyAutoCloseTimer = null;
         }
+        hideModalOverlay("verify-modal-overlay");
+      }
 
-        // ── Connection Verification ──
+      // ── Followed teams ──
+      //
+      // Teams are added by league + key rather than browsed: a team-search
+      // browser is an explicit non-goal. The keys are undocumented and easy
+      // to typo, and a wrong one returns an empty schedule rather than an
+      // error, so saving runs a connection test.
 
-        let verifyAutoCloseTimer = null;
+      let followedTeams = [];
+      let editingTeamId = null;
 
-        function openVerifyModal(serviceName) {
-            const body = document.getElementById('verify-modal-body');
-            body.innerHTML = '<div class="verify-status">'
-                + '<div class="verify-spinner"></div>'
-                + '<div class="verify-message">Verifying ' + escapeHtml(serviceName) + ' connection\u2026</div>'
-                + '</div>';
-            showModalOverlay('verify-modal-overlay');
+      const MLB_LEAGUE = "baseball/mlb";
+
+      function isRacing(league) {
+        return league.startsWith("racing/");
+      }
+
+      async function fetchFollowedTeams() {
+        const response = await fetch("/api/followed-teams");
+        followedTeams = await response.json();
+        renderFollowedTeams();
+      }
+
+      function leagueLabel(league) {
+        const option = document.querySelector(
+          `#team-league option[value="${league}"]`,
+        );
+        return option ? option.textContent : league;
+      }
+
+      function renderFollowedTeams() {
+        const container = document.getElementById("followed-team-list");
+        if (followedTeams.length === 0) {
+          container.innerHTML =
+            '<div class="container-empty-state">No teams followed yet. Click "Add Team" to get started.</div>';
+          return;
         }
-
-        function showVerifySuccess(message) {
-            const body = document.getElementById('verify-modal-body');
-            body.innerHTML = '<div class="verify-status">'
-                + '<div class="verify-icon">\u2713</div>'
-                + '<div class="verify-message">' + escapeHtml(message) + '</div>'
-                + '</div>';
-            verifyAutoCloseTimer = setTimeout(closeVerifyModal, 1500);
-        }
-
-        function showVerifyError(errorMessage) {
-            const body = document.getElementById('verify-modal-body');
-            body.innerHTML = '<div class="verify-status">'
-                + '<div class="verify-icon">\u2717</div>'
-                + '<div class="verify-message">Connection failed</div>'
-                + '<div class="verify-detail">' + escapeHtml(errorMessage) + '</div>'
-                + '</div>'
-                + '<div class="modal-actions" style="justify-content: center; margin-top: 20px;">'
-                + '<button class="btn btn--secondary" onclick="closeVerifyModal()">Close</button>'
-                + '</div>';
-        }
-
-        function closeVerifyModal() {
-            if (verifyAutoCloseTimer) {
-                clearTimeout(verifyAutoCloseTimer);
-                verifyAutoCloseTimer = null;
-            }
-            hideModalOverlay('verify-modal-overlay');
-        }
-
-        // ── Followed teams ──
-        //
-        // Teams are added by league + key rather than browsed: a team-search
-        // browser is an explicit non-goal. The keys are undocumented and easy
-        // to typo, and a wrong one returns an empty schedule rather than an
-        // error, so saving runs a connection test.
-
-        let followedTeams = [];
-        let editingTeamId = null;
-
-        const MLB_LEAGUE = 'baseball/mlb';
-
-        function isRacing(league) {
-            return league.startsWith('racing/');
-        }
-
-        async function fetchFollowedTeams() {
-            const response = await fetch('/api/followed-teams');
-            followedTeams = await response.json();
-            renderFollowedTeams();
-        }
-
-        function leagueLabel(league) {
-            const option = document.querySelector(`#team-league option[value="${league}"]`);
-            return option ? option.textContent : league;
-        }
-
-        function renderFollowedTeams() {
-            const container = document.getElementById('followed-team-list');
-            if (followedTeams.length === 0) {
-                container.innerHTML = '<div class="container-empty-state">No teams followed yet. Click "Add Team" to get started.</div>';
-                return;
-            }
-            container.innerHTML = followedTeams.map(team => {
-                const inactive = team.active ? '' : '<span class="assignee-label">[Inactive]</span>';
-                const league = `<span class="assignee-label">[${escapeHtml(leagueLabel(team.league))}]</span>`;
-                const radio = team.radio_station
-                    ? `<div class="editable-item-description">Radio: ${escapeHtml(team.radio_station)}</div>`
-                    : '';
-                return `
+        container.innerHTML = followedTeams
+          .map((team) => {
+            const inactive = team.active
+              ? ""
+              : '<span class="assignee-label">[Inactive]</span>';
+            const league = `<span class="assignee-label">[${escapeHtml(leagueLabel(team.league))}]</span>`;
+            const radio = team.radio_station
+              ? `<div class="editable-item-description">Radio: ${escapeHtml(team.radio_station)}</div>`
+              : "";
+            return `
                     <div class="editable-item" data-id="${team.id}">
                         <div class="editable-item-content">
                             <div class="editable-item-title">${escapeHtml(team.label)} ${league} ${inactive}</div>
@@ -1400,525 +1871,722 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+          })
+          .join("");
+      }
+
+      // A racing series is a league-level subscription with no team, so the
+      // key field disappears rather than asking for something that cannot exist.
+      function toggleTeamKeyField() {
+        const league = document.getElementById("team-league").value;
+        const racing = isRacing(league);
+        document.getElementById("team-key-group").style.display = racing
+          ? "none"
+          : "";
+        document.getElementById("team-key").required = !racing;
+        document.getElementById("team-key-help").innerHTML =
+          league === MLB_LEAGUE
+            ? "MLB's numeric team id — <code>140</code> is the Rangers."
+            : "ESPN's team abbreviation, lowercase — <code>ne</code>, <code>dal</code>.";
+      }
+
+      function openAddTeamModal() {
+        editingTeamId = null;
+        document.getElementById("team-modal-title").textContent = "Add Team";
+        document.getElementById("team-form").reset();
+        document.getElementById("team-id").value = "";
+        document.getElementById("team-active").checked = true;
+        toggleTeamKeyField();
+        showModalOverlay("team-modal-overlay");
+      }
+
+      function _openEditTeamModal(id) {
+        const team = followedTeams.find((t) => t.id === id);
+        if (!team) return;
+        editingTeamId = id;
+        document.getElementById("team-modal-title").textContent = "Edit Team";
+        document.getElementById("team-id").value = id;
+        document.getElementById("team-league").value = team.league;
+        document.getElementById("team-label").value = team.label;
+        document.getElementById("team-key").value = team.team_key || "";
+        document.getElementById("team-radio").value = team.radio_station || "";
+        document.getElementById("team-active").checked = team.active;
+        toggleTeamKeyField();
+        showModalOverlay("team-modal-overlay");
+      }
+
+      function closeTeamModal() {
+        hideModalOverlay("team-modal-overlay");
+        editingTeamId = null;
+      }
+
+      async function _confirmDeleteTeam(id) {
+        const team = followedTeams.find((t) => t.id === id);
+        if (!confirm(`Stop following ${team ? team.label : "this team"}?`))
+          return;
+        try {
+          const response = await fetch(`/api/followed-teams/${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) throw new Error("Failed to delete");
+          await fetchFollowedTeams();
+        } catch (error) {
+          console.error("Error deleting followed team:", error);
+          alert("Failed to remove the team");
         }
+      }
 
-        // A racing series is a league-level subscription with no team, so the
-        // key field disappears rather than asking for something that cannot exist.
-        function toggleTeamKeyField() {
-            const league = document.getElementById('team-league').value;
-            const racing = isRacing(league);
-            document.getElementById('team-key-group').style.display = racing ? 'none' : '';
-            document.getElementById('team-key').required = !racing;
-            document.getElementById('team-key-help').innerHTML = league === MLB_LEAGUE
-                ? "MLB's numeric team id — <code>140</code> is the Rangers."
-                : "ESPN's team abbreviation, lowercase — <code>ne</code>, <code>dal</code>.";
+      async function _testFollowedTeam(id) {
+        await verifyConnection(
+          `/api/followed-teams/${id}/test`,
+          "sports provider",
+        );
+      }
+
+      async function verifyConnection(testUrl, serviceName) {
+        openVerifyModal(serviceName);
+        try {
+          const response = await fetch(testUrl, { method: "POST" });
+          const result = await response.json();
+          if (result.success) {
+            showVerifySuccess(result.message);
+          } else {
+            showVerifyError(result.error || "Unknown error");
+          }
+        } catch (error) {
+          showVerifyError(error.message || "Network error");
         }
+      }
 
-        function openAddTeamModal() {
-            editingTeamId = null;
-            document.getElementById('team-modal-title').textContent = 'Add Team';
-            document.getElementById('team-form').reset();
-            document.getElementById('team-id').value = '';
-            document.getElementById('team-active').checked = true;
-            toggleTeamKeyField();
-            showModalOverlay('team-modal-overlay');
-        }
+      // ── Event Handlers ──
 
-        function _openEditTeamModal(id) {
-            const team = followedTeams.find(t => t.id === id);
-            if (!team) return;
-            editingTeamId = id;
-            document.getElementById('team-modal-title').textContent = 'Edit Team';
-            document.getElementById('team-id').value = id;
-            document.getElementById('team-league').value = team.league;
-            document.getElementById('team-label').value = team.label;
-            document.getElementById('team-key').value = team.team_key || '';
-            document.getElementById('team-radio').value = team.radio_station || '';
-            document.getElementById('team-active').checked = team.active;
-            toggleTeamKeyField();
-            showModalOverlay('team-modal-overlay');
-        }
+      // Family member modal
+      document
+        .getElementById("btn-add-member")
+        .addEventListener("click", openAddMemberModal);
 
-        function closeTeamModal() {
-            hideModalOverlay('team-modal-overlay');
-            editingTeamId = null;
-        }
+      document
+        .getElementById("member-color-swatches")
+        .addEventListener("click", (e) => {
+          const swatch = e.target.closest(".color-swatch");
+          if (swatch) selectMemberColor(swatch.dataset.color);
+        });
+      document
+        .getElementById("btn-cancel-member")
+        .addEventListener("click", closeMemberModal);
 
-        async function _confirmDeleteTeam(id) {
-            const team = followedTeams.find(t => t.id === id);
-            if (!confirm(`Stop following ${team ? team.label : 'this team'}?`)) return;
-            try {
-                const response = await fetch(`/api/followed-teams/${id}`, { method: 'DELETE' });
-                if (!response.ok) throw new Error('Failed to delete');
-                await fetchFollowedTeams();
-            } catch (error) {
-                console.error('Error deleting followed team:', error);
-                alert('Failed to remove the team');
+      document
+        .getElementById("member-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "member-modal-overlay") closeMemberModal();
+        });
+
+      document
+        .getElementById("member-name")
+        .addEventListener("input", updateMemberNotifyLabel);
+      document
+        .getElementById("member-pushover-key")
+        .addEventListener("input", updateMemberNotifyState);
+
+      document
+        .getElementById("member-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const data = {
+            name: document.getElementById("member-name").value,
+            color: selectedMemberColor(),
+            pushover_user_key:
+              document.getElementById("member-pushover-key").value.trim() ||
+              null,
+            pushover_device:
+              document.getElementById("member-pushover-device").value.trim() ||
+              null,
+            notifications: collectMemberNotifications(),
+          };
+
+          try {
+            if (editingMemberId) {
+              await updateMember(editingMemberId, data);
+            } else {
+              await createMember(data);
             }
-        }
+            closeMemberModal();
+            await fetchMembers();
+            await fetchNotificationOverview();
+          } catch (error) {
+            console.error("Error saving member:", error);
+            alert("Failed to save family member");
+          }
+        });
 
-        async function _testFollowedTeam(id) {
-            await verifyConnection(`/api/followed-teams/${id}/test`, 'sports provider');
-        }
+      // Calendar modal
+      document
+        .getElementById("btn-add-calendar")
+        .addEventListener("click", openAddCalendarModal);
+      document
+        .getElementById("btn-cancel-calendar")
+        .addEventListener("click", closeCalendarModal);
 
-        async function verifyConnection(testUrl, serviceName) {
-            openVerifyModal(serviceName);
-            try {
-                const response = await fetch(testUrl, { method: 'POST' });
-                const result = await response.json();
-                if (result.success) {
-                    showVerifySuccess(result.message);
-                } else {
-                    showVerifyError(result.error || 'Unknown error');
-                }
-            } catch (error) {
-                showVerifyError(error.message || 'Network error');
+      document
+        .getElementById("calendar-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "calendar-modal-overlay") closeCalendarModal();
+        });
+
+      document
+        .getElementById("verify-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "verify-modal-overlay") closeVerifyModal();
+        });
+
+      // Calendar type toggle
+      document
+        .getElementById("calendar-type")
+        .addEventListener("change", (e) => {
+          toggleCalendarTypeFields(e.target.value);
+        });
+
+      document
+        .getElementById("calendar-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const calType = document.getElementById("calendar-type").value;
+          const data = {
+            label: document.getElementById("calendar-label").value,
+            family_member_id: parseInt(
+              document.getElementById("calendar-member").value,
+              10,
+            ),
+            owner_email:
+              document.getElementById("calendar-owner-email").value || null,
+            cal_type: calType,
+          };
+
+          // Set URL based on type
+          if (calType === "native") {
+            data.url = "";
+          } else if (calType === "ics") {
+            data.url = document.getElementById("calendar-url").value;
+          } else if (calType === "caldav_google") {
+            data.url = "https://apidata.googleusercontent.com/caldav/v2/";
+            data.username =
+              document.getElementById("calendar-username").value || null;
+            const pw = document.getElementById("calendar-password").value;
+            if (pw) data.password = pw;
+          } else if (calType === "caldav_apple") {
+            data.url = "https://caldav.icloud.com/";
+            data.username =
+              document.getElementById("calendar-username").value || null;
+            const pw = document.getElementById("calendar-password").value;
+            if (pw) data.password = pw;
+          }
+
+          try {
+            let calId;
+            if (editingCalendarId) {
+              await updateCalendar(editingCalendarId, data);
+              calId = editingCalendarId;
+            } else {
+              const created = await createCalendar(data);
+              calId = created.id;
             }
-        }
-
-        // ── Event Handlers ──
-
-        // Family member modal
-        document.getElementById('btn-add-member').addEventListener('click', openAddMemberModal);
-
-        document.getElementById('member-color-swatches').addEventListener('click', (e) => {
-            const swatch = e.target.closest('.color-swatch');
-            if (swatch) selectMemberColor(swatch.dataset.color);
-        });
-        document.getElementById('btn-cancel-member').addEventListener('click', closeMemberModal);
-
-        document.getElementById('member-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'member-modal-overlay') closeMemberModal();
+            closeCalendarModal();
+            await fetchCalendars();
+            await verifyConnection(`/api/calendars/${calId}/test`, "calendar");
+          } catch (error) {
+            console.error("Error saving calendar:", error);
+            alert("Failed to save calendar");
+          }
         });
 
-        document.getElementById('member-name').addEventListener('input', updateMemberNotifyLabel);
-        document.getElementById('member-pushover-key').addEventListener('input', updateMemberNotifyState);
+      // Followed team modal
+      document
+        .getElementById("btn-add-team")
+        .addEventListener("click", openAddTeamModal);
+      document
+        .getElementById("btn-cancel-team")
+        .addEventListener("click", closeTeamModal);
+      document
+        .getElementById("team-league")
+        .addEventListener("change", toggleTeamKeyField);
+      document
+        .getElementById("team-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "team-modal-overlay") closeTeamModal();
+        });
 
-        document.getElementById('member-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
+      document
+        .getElementById("team-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const league = document.getElementById("team-league").value;
+          const key = document.getElementById("team-key").value.trim();
+          const data = {
+            // Stored rather than inferred from the league, so moving a
+            // league to another source is a field change, not a code change.
+            provider: league === MLB_LEAGUE ? "mlb" : "espn",
+            league,
+            team_key: isRacing(league) ? null : key || null,
+            label: document.getElementById("team-label").value.trim(),
+            radio_station:
+              document.getElementById("team-radio").value.trim() || null,
+            active: document.getElementById("team-active").checked,
+          };
 
-            const data = {
-                name: document.getElementById('member-name').value,
-                color: selectedMemberColor(),
-                pushover_user_key: document.getElementById('member-pushover-key').value.trim() || null,
-                pushover_device: document.getElementById('member-pushover-device').value.trim() || null,
-                notifications: collectMemberNotifications()
-            };
-
-            try {
-                if (editingMemberId) {
-                    await updateMember(editingMemberId, data);
-                } else {
-                    await createMember(data);
-                }
-                closeMemberModal();
-                await fetchMembers();
-                await fetchNotificationOverview();
-            } catch (error) {
-                console.error('Error saving member:', error);
-                alert('Failed to save family member');
+          try {
+            let teamId = editingTeamId;
+            if (editingTeamId) {
+              const response = await fetch(
+                `/api/followed-teams/${editingTeamId}`,
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(data),
+                },
+              );
+              if (!response.ok) throw new Error("Failed to update team");
+            } else {
+              const response = await fetch("/api/followed-teams", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+              });
+              if (!response.ok) throw new Error("Failed to create team");
+              teamId = (await response.json()).id;
             }
+            closeTeamModal();
+            await fetchFollowedTeams();
+            // A wrong key returns an empty schedule rather than an error, so
+            // confirm the team actually resolves instead of failing silently
+            // for a season.
+            await verifyConnection(
+              `/api/followed-teams/${teamId}/test`,
+              "sports provider",
+            );
+          } catch (error) {
+            console.error("Error saving followed team:", error);
+            alert("Failed to save the team");
+          }
         });
 
-        // Calendar modal
-        document.getElementById('btn-add-calendar').addEventListener('click', openAddCalendarModal);
-        document.getElementById('btn-cancel-calendar').addEventListener('click', closeCalendarModal);
-
-        document.getElementById('calendar-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'calendar-modal-overlay') closeCalendarModal();
-        });
-
-        document.getElementById('verify-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'verify-modal-overlay') closeVerifyModal();
-        });
-
-        // Calendar type toggle
-        document.getElementById('calendar-type').addEventListener('change', (e) => {
-            toggleCalendarTypeFields(e.target.value);
-        });
-
-        document.getElementById('calendar-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const calType = document.getElementById('calendar-type').value;
-            const data = {
-                label: document.getElementById('calendar-label').value,
-                family_member_id: parseInt(document.getElementById('calendar-member').value, 10),
-                owner_email: document.getElementById('calendar-owner-email').value || null,
-                cal_type: calType,
-            };
-
-            // Set URL based on type
-            if (calType === 'native') {
-                data.url = '';
-            } else if (calType === 'ics') {
-                data.url = document.getElementById('calendar-url').value;
-            } else if (calType === 'caldav_google') {
-                data.url = 'https://apidata.googleusercontent.com/caldav/v2/';
-                data.username = document.getElementById('calendar-username').value || null;
-                const pw = document.getElementById('calendar-password').value;
-                if (pw) data.password = pw;
-            } else if (calType === 'caldav_apple') {
-                data.url = 'https://caldav.icloud.com/';
-                data.username = document.getElementById('calendar-username').value || null;
-                const pw = document.getElementById('calendar-password').value;
-                if (pw) data.password = pw;
-            }
-
-            try {
-                let calId;
-                if (editingCalendarId) {
-                    await updateCalendar(editingCalendarId, data);
-                    calId = editingCalendarId;
-                } else {
-                    const created = await createCalendar(data);
-                    calId = created.id;
-                }
-                closeCalendarModal();
-                await fetchCalendars();
-                await verifyConnection(`/api/calendars/${calId}/test`, 'calendar');
-            } catch (error) {
-                console.error('Error saving calendar:', error);
-                alert('Failed to save calendar');
-            }
-        });
-
-        // Followed team modal
-        document.getElementById('btn-add-team').addEventListener('click', openAddTeamModal);
-        document.getElementById('btn-cancel-team').addEventListener('click', closeTeamModal);
-        document.getElementById('team-league').addEventListener('change', toggleTeamKeyField);
-        document.getElementById('team-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'team-modal-overlay') closeTeamModal();
-        });
-
-        document.getElementById('team-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const league = document.getElementById('team-league').value;
-            const key = document.getElementById('team-key').value.trim();
-            const data = {
-                // Stored rather than inferred from the league, so moving a
-                // league to another source is a field change, not a code change.
-                provider: league === MLB_LEAGUE ? 'mlb' : 'espn',
-                league,
-                team_key: isRacing(league) ? null : (key || null),
-                label: document.getElementById('team-label').value.trim(),
-                radio_station: document.getElementById('team-radio').value.trim() || null,
-                active: document.getElementById('team-active').checked
-            };
-
-            try {
-                let teamId = editingTeamId;
-                if (editingTeamId) {
-                    const response = await fetch(`/api/followed-teams/${editingTeamId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (!response.ok) throw new Error('Failed to update team');
-                } else {
-                    const response = await fetch('/api/followed-teams', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (!response.ok) throw new Error('Failed to create team');
-                    teamId = (await response.json()).id;
-                }
-                closeTeamModal();
-                await fetchFollowedTeams();
-                // A wrong key returns an empty schedule rather than an error, so
-                // confirm the team actually resolves instead of failing silently
-                // for a season.
-                await verifyConnection(`/api/followed-teams/${teamId}/test`, 'sports provider');
-            } catch (error) {
-                console.error('Error saving followed team:', error);
-                alert('Failed to save the team');
-            }
-        });
-
-        // Sports form
-        document.getElementById('sports-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    sports_watchlist_enabled: document.getElementById('sports-watchlist-enabled').checked ? 'true' : 'false'
-                });
-                alert('Sports settings saved.');
-            } catch (error) {
-                console.error('Error saving sports settings:', error);
-                alert('Failed to save sports settings');
-            }
-        });
-
-        // LLM provider toggle
-        document.getElementById('llm-provider').addEventListener('change', (e) => {
-            toggleLlmFields(e.target.value);
-        });
-
-        // Budget mode toggle and helper-text refresh
-        document.getElementById('llm-max-tokens-mode-model-max').addEventListener('change', updateLlmMaxTokensHelp);
-        document.getElementById('llm-max-tokens-mode-custom').addEventListener('change', updateLlmMaxTokensHelp);
-        document.getElementById('llm-anthropic-max-tokens').addEventListener('input', updateLlmMaxTokensHelp);
-        document.getElementById('llm-anthropic-model').addEventListener('input', updateLlmMaxTokensHelp);
-
-        // Weather form
-        document.getElementById('weather-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    weather_nws_url: document.getElementById('weather-nws-url').value
-                });
-                await verifyConnection('/api/settings/test-weather', 'weather');
-            } catch (error) {
-                console.error('Error saving weather settings:', error);
-                alert('Failed to save weather settings');
-            }
-        });
-
-        // LLM form
-        document.getElementById('llm-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const provider = document.getElementById('llm-provider').value;
-            // The radio group only exists for Anthropic — local is always custom.
-            const mode = provider === 'anthropic' ? llmMaxTokensMode() : 'custom';
-            const maxTokensInputId = provider === 'anthropic' ? 'llm-anthropic-max-tokens' : 'llm-local-max-tokens';
-            const maxTokensInput = document.getElementById(maxTokensInputId);
-            try {
-                await saveSettings({
-                    llm_provider: provider,
-                    llm_local_base_url: document.getElementById('llm-local-base-url').value,
-                    llm_local_api_key: document.getElementById('llm-local-api-key').value,
-                    llm_local_model: document.getElementById('llm-local-model').value,
-                    llm_local_max_tokens: document.getElementById('llm-local-max-tokens').value,
-                    llm_anthropic_api_key: document.getElementById('llm-anthropic-api-key').value,
-                    llm_anthropic_model: document.getElementById('llm-anthropic-model').value,
-                    llm_anthropic_max_tokens: document.getElementById('llm-anthropic-max-tokens').value,
-                    llm_anthropic_max_tokens_mode: mode
-                });
-
-                // This call is authoritative: in "model_max" mode it resolves the
-                // real budget from the provider and is the one place the save can
-                // fail (an unresolvable model name, a missing key). It always runs
-                // before the connectivity test below, so a bad model name fails
-                // once, not twice.
-                openVerifyModal('LLM');
-                const response = await fetch('/api/settings/llm/config', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        provider: provider,
-                        model: document.getElementById(llmModelInputId(provider)).value,
-                        max_tokens_mode: mode,
-                        max_tokens: parseInt(maxTokensInput.value, 10) || 0
-                    })
-                });
-                const result = await response.json();
-                if (!response.ok) {
-                    showVerifyError(result.detail || 'Failed to save LLM configuration');
-                    return;
-                }
-
-                // Reflect the resolved value back — the input was read-only in
-                // "model_max" mode, so this is the only place it gets a value.
-                maxTokensInput.value = result.max_tokens;
-                if (provider === 'anthropic') {
-                    maxTokensInput.dataset.resolvedMode = mode;
-                    maxTokensInput.dataset.resolvedModel = document.getElementById('llm-anthropic-model').value;
-                }
-                updateLlmMaxTokensHelp();
-
-                await verifyConnection('/api/settings/test-llm', 'LLM');
-            } catch (error) {
-                console.error('Error saving LLM settings:', error);
-                alert('Failed to save LLM settings');
-            }
-        });
-
-        // Version history modal
-        document.getElementById('btn-change-version').addEventListener('click', changeVersion);
-        document.getElementById('btn-cancel-history').addEventListener('click', closeHistoryModal);
-        document.getElementById('history-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'history-modal-overlay') closeHistoryModal();
-        });
-
-        // Meal Planner form
-        document.getElementById('meal-planner-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    meal_default_type: document.getElementById('meal-default-type').value
-                });
-                alert('Meal Planner settings saved.');
-            } catch (error) {
-                console.error('Error saving meal planner settings:', error);
-                alert('Failed to save meal planner settings');
-            }
-        });
-
-        // Home form
-        document.getElementById('home-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    home_location: document.getElementById('home-location').value.trim()
-                });
-                alert('Home location saved.');
-            } catch (error) {
-                console.error('Error saving home location:', error);
-                alert('Failed to save home location');
-            }
-        });
-
-        // Notifications form. Verified like every other integration: the modal
-        // spins, ticks, and auto-closes on success.
-        document.getElementById('pushover-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    pushover_app_token: document.getElementById('pushover-app-token').value.trim()
-                });
-                await verifyConnection('/api/settings/test-pushover', 'Pushover');
-            } catch (error) {
-                console.error('Error saving Pushover settings:', error);
-                alert('Failed to save notification settings');
-            }
-        });
-
-        // Tasks form. No connectivity check: the toggle is policy, and the
-        // transport it rides on is verified by the Notifications form above.
-        document.getElementById('tasks-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    todo_notify_enabled: document.getElementById('todo-notify-enabled').checked ? 'true' : 'false'
-                });
-                await fetchNotificationOverview();
-                alert('Task settings saved.');
-            } catch (error) {
-                console.error('Error saving task settings:', error);
-                alert('Failed to save task settings');
-            }
-        });
-
-        document.getElementById('btn-test-member-pushover').addEventListener('click', async () => {
-            const id = document.getElementById('member-id').value;
-            if (!id) return;
-            await verifyConnection(`/api/family/${id}/test-pushover`, 'Pushover');
-        });
-
-        // Preparedness form
-        document.getElementById('preparedness-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    prep_notify_enabled: document.getElementById('prep-notify-enabled').checked ? 'true' : 'false',
-                    prep_notify_time: document.getElementById('prep-notify-time').value || '08:00',
-                    prep_default_remind_days: document.getElementById('prep-default-remind-days').value || '14',
-                    prep_review_enabled: document.getElementById('prep-review-enabled').checked ? 'true' : 'false',
-                    prep_overdue_in_summary_enabled: document.getElementById('prep-overdue-in-summary').checked ? 'true' : 'false'
-                });
-                await fetchNotificationOverview();
-                alert('Preparedness settings saved.');
-            } catch (error) {
-                console.error('Error saving preparedness settings:', error);
-                alert('Failed to save preparedness settings');
-            }
-        });
-
-        // Dry run. Answers "is this working" without waiting until morning and
-        // without burning the notice rows that suppress a real send.
-        document.getElementById('btn-prep-preview').addEventListener('click', async () => {
-            const target = document.getElementById('prep-preview');
-            target.innerHTML = '<div class="container-loading-state">Checking…</div>';
-            try {
-                const response = await fetch('/api/preparedness/digest/run?dry_run=true', { method: 'POST' });
-                const body = await response.json();
-                if (!body.count) {
-                    const why = body.skipped_reason ? ` (${body.skipped_reason})` : '';
-                    target.innerHTML = `<div class="container-empty-state">Nothing is due today${why}.</div>`;
-                    return;
-                }
-                const rows = body.items.map((i) => {
-                    const tone = i.status === 'overdue' ? 'overdue' : 'due';
-                    return '<div class="prep-row"><div class="prep-main">' +
-                        '<div class="prep-name">' + escapeHtml(i.name) + '</div>' +
-                        '<div class="prep-meta"><span class="pill pill--' + tone + '">' + i.status + '</span>' +
-                        '<span>' + escapeHtml(i.location_name) + ' · ' + escapeHtml(i.next_refresh_date || '') + '</span>' +
-                        '</div></div></div>';
-                }).join('');
-                target.innerHTML = '<div class="prep-group"><div class="prep-group-header">' +
-                    '<h3>Would notify</h3><span class="prep-group-count">' + body.count +
-                    ' item' + (body.count === 1 ? '' : 's') + '</span></div>' + rows + '</div>';
-            } catch (error) {
-                console.error('Preparedness preview failed:', error);
-                target.innerHTML = '<div class="container-empty-state">Could not check right now.</div>';
-            }
-        });
-
-        // Learning form
-        document.getElementById('learning-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    stem_concept_enabled: document.getElementById('stem-concept-enabled').checked ? 'true' : 'false'
-                });
-                alert('Learning settings saved.');
-            } catch (error) {
-                console.error('Error saving learning settings:', error);
-                alert('Failed to save learning settings');
-            }
-        });
-
-        // Shopping List form
-        document.getElementById('shopping-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    shopping_list_in_summary_enabled: document.getElementById('shopping-list-in-summary').checked ? 'true' : 'false',
-                    shopping_notify_enabled: document.getElementById('shopping-notify-enabled').checked ? 'true' : 'false',
-                    shopping_notify_settle_minutes: document.getElementById('shopping-notify-settle').value || '5'
-                });
-                await fetchNotificationOverview();
-                alert('Shopping List settings saved.');
-            } catch (error) {
-                console.error('Error saving shopping list settings:', error);
-                alert('Failed to save shopping list settings');
-            }
-        });
-
-        // General form
-        document.getElementById('general-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await saveSettings({
-                    local_timezone: document.getElementById('general-timezone').value
-                });
-                alert('General settings saved.');
-            } catch (error) {
-                console.error('Error saving general settings:', error);
-                alert('Failed to save general settings');
-            }
-        });
-
-        // ── Initialize ──
-        Promise.all([fetchMembers(), fetchCalendars(), fetchFollowedTeams(), fetchSettings(), fetchAiSettings(), fetchNotificationOverview()]);
-
-        // Nav dropdown toggle (for touch devices)
-        function _toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', () => {
-            document.querySelectorAll('.nav-dropdown').forEach((d) => {
-                d.classList.remove('open');
+      // Sports form
+      document
+        .getElementById("sports-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              sports_watchlist_enabled: document.getElementById(
+                "sports-watchlist-enabled",
+              ).checked
+                ? "true"
+                : "false",
             });
+            alert("Sports settings saved.");
+          } catch (error) {
+            console.error("Error saving sports settings:", error);
+            alert("Failed to save sports settings");
+          }
         });
+
+      // LLM provider toggle
+      document
+        .getElementById("llm-provider")
+        .addEventListener("change", (e) => {
+          toggleLlmFields(e.target.value);
+        });
+
+      // Budget mode toggle and helper-text refresh
+      document
+        .getElementById("llm-max-tokens-mode-model-max")
+        .addEventListener("change", updateLlmMaxTokensHelp);
+      document
+        .getElementById("llm-max-tokens-mode-custom")
+        .addEventListener("change", updateLlmMaxTokensHelp);
+      document
+        .getElementById("llm-anthropic-max-tokens")
+        .addEventListener("input", updateLlmMaxTokensHelp);
+      document
+        .getElementById("llm-anthropic-model")
+        .addEventListener("input", updateLlmMaxTokensHelp);
+
+      // Weather form
+      document
+        .getElementById("weather-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              weather_nws_url: document.getElementById("weather-nws-url").value,
+            });
+            await verifyConnection("/api/settings/test-weather", "weather");
+          } catch (error) {
+            console.error("Error saving weather settings:", error);
+            alert("Failed to save weather settings");
+          }
+        });
+
+      // LLM form
+      document
+        .getElementById("llm-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const provider = document.getElementById("llm-provider").value;
+          // The radio group only exists for Anthropic — local is always custom.
+          const mode = provider === "anthropic" ? llmMaxTokensMode() : "custom";
+          const maxTokensInputId =
+            provider === "anthropic"
+              ? "llm-anthropic-max-tokens"
+              : "llm-local-max-tokens";
+          const maxTokensInput = document.getElementById(maxTokensInputId);
+          try {
+            await saveSettings({
+              llm_provider: provider,
+              llm_local_base_url:
+                document.getElementById("llm-local-base-url").value,
+              llm_local_api_key:
+                document.getElementById("llm-local-api-key").value,
+              llm_local_model: document.getElementById("llm-local-model").value,
+              llm_local_max_tokens: document.getElementById(
+                "llm-local-max-tokens",
+              ).value,
+              llm_anthropic_api_key: document.getElementById(
+                "llm-anthropic-api-key",
+              ).value,
+              llm_anthropic_model: document.getElementById(
+                "llm-anthropic-model",
+              ).value,
+              llm_anthropic_max_tokens: document.getElementById(
+                "llm-anthropic-max-tokens",
+              ).value,
+              llm_anthropic_max_tokens_mode: mode,
+            });
+
+            // This call is authoritative: in "model_max" mode it resolves the
+            // real budget from the provider and is the one place the save can
+            // fail (an unresolvable model name, a missing key). It always runs
+            // before the connectivity test below, so a bad model name fails
+            // once, not twice.
+            openVerifyModal("LLM");
+            const response = await fetch("/api/settings/llm/config", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                provider: provider,
+                model: document.getElementById(llmModelInputId(provider)).value,
+                max_tokens_mode: mode,
+                max_tokens: parseInt(maxTokensInput.value, 10) || 0,
+              }),
+            });
+            const result = await response.json();
+            if (!response.ok) {
+              showVerifyError(
+                result.detail || "Failed to save LLM configuration",
+              );
+              return;
+            }
+
+            // Reflect the resolved value back — the input was read-only in
+            // "model_max" mode, so this is the only place it gets a value.
+            maxTokensInput.value = result.max_tokens;
+            if (provider === "anthropic") {
+              maxTokensInput.dataset.resolvedMode = mode;
+              maxTokensInput.dataset.resolvedModel = document.getElementById(
+                "llm-anthropic-model",
+              ).value;
+            }
+            updateLlmMaxTokensHelp();
+
+            await verifyConnection("/api/settings/test-llm", "LLM");
+          } catch (error) {
+            console.error("Error saving LLM settings:", error);
+            alert("Failed to save LLM settings");
+          }
+        });
+
+      // Version history modal
+      document
+        .getElementById("btn-change-version")
+        .addEventListener("click", changeVersion);
+      document
+        .getElementById("btn-cancel-history")
+        .addEventListener("click", closeHistoryModal);
+      document
+        .getElementById("history-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "history-modal-overlay") closeHistoryModal();
+        });
+
+      // Meal Planner form
+      document
+        .getElementById("meal-planner-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              meal_default_type:
+                document.getElementById("meal-default-type").value,
+            });
+            alert("Meal Planner settings saved.");
+          } catch (error) {
+            console.error("Error saving meal planner settings:", error);
+            alert("Failed to save meal planner settings");
+          }
+        });
+
+      // Home form
+      document
+        .getElementById("home-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              home_location: document
+                .getElementById("home-location")
+                .value.trim(),
+            });
+            alert("Home location saved.");
+          } catch (error) {
+            console.error("Error saving home location:", error);
+            alert("Failed to save home location");
+          }
+        });
+
+      // Notifications form. Verified like every other integration: the modal
+      // spins, ticks, and auto-closes on success.
+      document
+        .getElementById("pushover-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              pushover_app_token: document
+                .getElementById("pushover-app-token")
+                .value.trim(),
+            });
+            await verifyConnection("/api/settings/test-pushover", "Pushover");
+          } catch (error) {
+            console.error("Error saving Pushover settings:", error);
+            alert("Failed to save notification settings");
+          }
+        });
+
+      // Tasks form. No connectivity check: the toggle is policy, and the
+      // transport it rides on is verified by the Notifications form above.
+      document
+        .getElementById("tasks-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              todo_notify_enabled: document.getElementById(
+                "todo-notify-enabled",
+              ).checked
+                ? "true"
+                : "false",
+            });
+            await fetchNotificationOverview();
+            alert("Task settings saved.");
+          } catch (error) {
+            console.error("Error saving task settings:", error);
+            alert("Failed to save task settings");
+          }
+        });
+
+      document
+        .getElementById("btn-test-member-pushover")
+        .addEventListener("click", async () => {
+          const id = document.getElementById("member-id").value;
+          if (!id) return;
+          await verifyConnection(`/api/family/${id}/test-pushover`, "Pushover");
+        });
+
+      // Preparedness form
+      document
+        .getElementById("preparedness-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              prep_notify_enabled: document.getElementById(
+                "prep-notify-enabled",
+              ).checked
+                ? "true"
+                : "false",
+              prep_notify_time:
+                document.getElementById("prep-notify-time").value || "08:00",
+              prep_default_remind_days:
+                document.getElementById("prep-default-remind-days").value ||
+                "14",
+              prep_review_enabled: document.getElementById(
+                "prep-review-enabled",
+              ).checked
+                ? "true"
+                : "false",
+              prep_overdue_in_summary_enabled: document.getElementById(
+                "prep-overdue-in-summary",
+              ).checked
+                ? "true"
+                : "false",
+            });
+            await fetchNotificationOverview();
+            alert("Preparedness settings saved.");
+          } catch (error) {
+            console.error("Error saving preparedness settings:", error);
+            alert("Failed to save preparedness settings");
+          }
+        });
+
+      // Dry run. Answers "is this working" without waiting until morning and
+      // without burning the notice rows that suppress a real send.
+      document
+        .getElementById("btn-prep-preview")
+        .addEventListener("click", async () => {
+          const target = document.getElementById("prep-preview");
+          target.innerHTML =
+            '<div class="container-loading-state">Checking…</div>';
+          try {
+            const response = await fetch(
+              "/api/preparedness/digest/run?dry_run=true",
+              { method: "POST" },
+            );
+            const body = await response.json();
+            if (!body.count) {
+              const why = body.skipped_reason
+                ? ` (${body.skipped_reason})`
+                : "";
+              target.innerHTML = `<div class="container-empty-state">Nothing is due today${why}.</div>`;
+              return;
+            }
+            const rows = body.items
+              .map((i) => {
+                const tone = i.status === "overdue" ? "overdue" : "due";
+                return (
+                  '<div class="prep-row"><div class="prep-main">' +
+                  '<div class="prep-name">' +
+                  escapeHtml(i.name) +
+                  "</div>" +
+                  '<div class="prep-meta"><span class="pill pill--' +
+                  tone +
+                  '">' +
+                  i.status +
+                  "</span>" +
+                  "<span>" +
+                  escapeHtml(i.location_name) +
+                  " · " +
+                  escapeHtml(i.next_refresh_date || "") +
+                  "</span>" +
+                  "</div></div></div>"
+                );
+              })
+              .join("");
+            target.innerHTML =
+              '<div class="prep-group"><div class="prep-group-header">' +
+              '<h3>Would notify</h3><span class="prep-group-count">' +
+              body.count +
+              " item" +
+              (body.count === 1 ? "" : "s") +
+              "</span></div>" +
+              rows +
+              "</div>";
+          } catch (error) {
+            console.error("Preparedness preview failed:", error);
+            target.innerHTML =
+              '<div class="container-empty-state">Could not check right now.</div>';
+          }
+        });
+
+      // Learning form
+      document
+        .getElementById("learning-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              stem_concept_enabled: document.getElementById(
+                "stem-concept-enabled",
+              ).checked
+                ? "true"
+                : "false",
+            });
+            alert("Learning settings saved.");
+          } catch (error) {
+            console.error("Error saving learning settings:", error);
+            alert("Failed to save learning settings");
+          }
+        });
+
+      // Shopping List form
+      document
+        .getElementById("shopping-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              shopping_list_in_summary_enabled: document.getElementById(
+                "shopping-list-in-summary",
+              ).checked
+                ? "true"
+                : "false",
+              shopping_notify_enabled: document.getElementById(
+                "shopping-notify-enabled",
+              ).checked
+                ? "true"
+                : "false",
+              shopping_notify_settle_minutes:
+                document.getElementById("shopping-notify-settle").value || "5",
+            });
+            await fetchNotificationOverview();
+            alert("Shopping List settings saved.");
+          } catch (error) {
+            console.error("Error saving shopping list settings:", error);
+            alert("Failed to save shopping list settings");
+          }
+        });
+
+      // General form
+      document
+        .getElementById("general-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            await saveSettings({
+              local_timezone: document.getElementById("general-timezone").value,
+            });
+            alert("General settings saved.");
+          } catch (error) {
+            console.error("Error saving general settings:", error);
+            alert("Failed to save general settings");
+          }
+        });
+
+      // ── Initialize ──
+      Promise.all([
+        fetchMembers(),
+        fetchCalendars(),
+        fetchFollowedTeams(),
+        fetchSettings(),
+        fetchAiSettings(),
+        fetchNotificationOverview(),
+      ]);
+
+      // Nav dropdown toggle (for touch devices)
+      function _toggleOtherDropdown(e) {
+        e.stopPropagation();
+        document.getElementById("other-dropdown").classList.toggle("open");
+      }
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".nav-dropdown").forEach((d) => {
+          d.classList.remove("open");
+        });
+      });
     </script>
 
     <footer>
-        <a href="/settings">Settings</a>
+      <a href="/settings">Settings</a>
     </footer>
     <script src="/static/modal.js?v={{ css_version }}"></script>
-</body>
+  </body>
 </html>
