@@ -48,4 +48,8 @@ jobs:
           # run here. ruff is the more widely used of the two and its formatter
           # is >99.9% black-compatible, so ruff format is the authority.
           VALIDATE_PYTHON_BLACK: false
+          # super-linter warns that biome and eslint both lint JSON and may
+          # conflict. biome is the one kept, per the same call made for CSS.
+          VALIDATE_JSON: false
+          VALIDATE_JSONC: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
