@@ -308,6 +308,86 @@ def test_split_moves_only_the_overrides_at_or_after_the_split(client):
     assert [o["occurrence_date"] for o in tail["overrides"]] == ["2026-08-25"]
 
 
+# --- Recurrence is only rewritten when the caller says so ----------------------
+
+
+def test_update_without_rrule_keeps_the_bound_a_split_created(client):
+    """A `following` split writes `UNTIL`; a later unrelated edit must keep it.
+
+    This is the API half of the round-trip defect: the client used to send a
+    recompiled rule on every save, so changing a location un-ended a season and
+    left both halves of a split series expanding over the same dates.
+    """
+    created = _create(
+        client, title="Soccer", start="2026-09-05T09:00", rrule="FREQ=WEEKLY;BYDAY=SA"
+    )
+    client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "following", "occurrence_date": "2026-11-21"},
+        json={"location": "South field"},
+    )
+    truncated = client.get(f"/api/events/{created['id']}").json()
+    assert "UNTIL=" in truncated["rrule"]
+    assert truncated["series_end_date"] == "2026-11-20"
+
+    # An edit that says nothing about recurrence must leave it alone.
+    response = client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "all"},
+        json={"location": "West field"},
+    )
+    assert response.status_code == 200
+
+    after = client.get(f"/api/events/{created['id']}").json()
+    assert after["location"] == "West field"
+    assert after["rrule"] == truncated["rrule"]
+    assert after["series_end_date"] == "2026-11-20"
+
+
+def test_a_bounded_series_stops_and_does_not_double_up_with_its_split(client):
+    """The consequence the bound protects: no date is produced by both halves."""
+    created = _create(
+        client, title="Soccer", start="2026-09-05T09:00", rrule="FREQ=WEEKLY;BYDAY=SA"
+    )
+    client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "following", "occurrence_date": "2026-11-21"},
+        json={"location": "South field"},
+    )
+    client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "all"},
+        json={"location": "West field"},
+    )
+
+    dates = [o["occurrence_date"] for o in _occurrences(client, "2026-11-01", "2026-12-31")]
+    assert len(dates) == len(set(dates)), f"an occurrence is generated twice: {sorted(dates)}"
+    assert "2026-11-21" in dates
+
+
+def test_update_with_an_explicit_rrule_still_replaces_the_rule(client):
+    """Omitting the key means "leave alone"; sending one must still take effect."""
+    created = _create(
+        client, title="Scouts", start="2026-08-04T19:00", rrule="FREQ=WEEKLY;BYDAY=TU"
+    )
+    client.put(
+        f"/api/events/{created['id']}",
+        json={"rrule": "FREQ=MONTHLY;BYMONTHDAY=4"},
+    )
+    assert client.get(f"/api/events/{created['id']}").json()["rrule"] == "FREQ=MONTHLY;BYMONTHDAY=4"
+
+
+def test_update_with_a_null_rrule_clears_the_recurrence(client):
+    created = _create(
+        client, title="Scouts", start="2026-08-04T19:00", rrule="FREQ=WEEKLY;BYDAY=TU"
+    )
+    client.put(f"/api/events/{created['id']}", json={"rrule": None})
+
+    after = client.get(f"/api/events/{created['id']}").json()
+    assert after["rrule"] is None
+    assert after["series_end_date"] is None
+
+
 # --- Delete --------------------------------------------------------------------
 
 

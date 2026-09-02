@@ -146,7 +146,12 @@
                             <option value="biweekly">Every 2 weeks on this day</option>
                             <option value="monthly">Monthly on this date</option>
                             <option value="yearly">Yearly on this date</option>
+                            <!-- Selected only by `repeatFromRrule` for a stored rule
+                                 this form cannot express. Hidden so it cannot be
+                                 chosen: it names a rule, it does not build one. -->
+                            <option value="other" hidden>Custom schedule</option>
                         </select>
+                        <small id="event-repeat-help" style="display:none;">This event repeats on a schedule this form cannot edit. Leave it as it is to keep the schedule; picking another option replaces it.</small>
                     </div>
                     <div class="form-group">
                         <label>Who's involved</label>
@@ -243,6 +248,11 @@
         let anchor = startOfMonth(new Date());
         let editingEvent = null;      // Full event record while the modal is open
         let editingOccurrence = null; // The occurrence that was clicked
+        /* What the Repeats control held when the modal opened, and the start it
+           was read against. `formPayload` compares the current pair to these to
+           decide whether the recurrence was edited at all — see `rruleChange`. */
+        let loadedRepeat = '';
+        let loadedRepeatStart = '';
         let detailOccurrence = null;
         // The date the now tick last saw, so it can notice midnight passing.
         let tickDate = todayIso();
@@ -1066,6 +1076,10 @@
             document.getElementById('event-start-date').value = day;
             document.getElementById('event-end-date').value = day;
 
+            loadedRepeat = '';
+            loadedRepeatStart = day;
+            updateRepeatHelp();
+
             document.getElementById('btn-delete-event').style.display = 'none';
             document.getElementById('event-scope-group').style.display = 'none';
             document.getElementById('btn-save-event').style.display = '';
@@ -1100,7 +1114,14 @@
             }
             rememberStartValues();
 
-            document.getElementById('event-repeat').value = repeatFromRrule(editingEvent.rrule);
+            // `rruleFor` reads the date half either way; slicing keeps the
+            // baseline and the live form value in the same shape.
+            const repeatStart = editingEvent.start.slice(0, 10);
+            const repeatChoice = repeatFromRrule(editingEvent.rrule, repeatStart);
+            document.getElementById('event-repeat').value = repeatChoice;
+            loadedRepeat = repeatChoice;
+            loadedRepeatStart = repeatStart;
+            updateRepeatHelp();
             document.querySelectorAll('#event-attendees input').forEach(input => {
                 input.checked = editingEvent.attendee_ids.includes(Number(input.value));
             });
@@ -1141,15 +1162,85 @@
             }
         }
 
-        function repeatFromRrule(rrule) {
+        /* The note only belongs on screen while `other` is actually selected —
+           once somebody picks a real choice, the rule it describes is gone. */
+        function updateRepeatHelp() {
+            const isOther = document.getElementById('event-repeat').value === 'other';
+            document.getElementById('event-repeat-help').style.display = isOther ? '' : 'none';
+        }
+
+        /* The cadence half of a rule: every part except the bound, normalized so
+           two rules that say the same thing compare equal regardless of the
+           order they were written in. `UNTIL`/`COUNT` are excluded because they
+           answer "until when", not "how often" — a weekly series that stops in
+           December is still weekly, and the form has no control for the bound. */
+        function cadenceParts(rrule) {
             if (!rrule) return '';
-            const upper = rrule.toUpperCase();
-            if (upper.startsWith('FREQ=DAILY')) return 'daily';
-            if (upper.startsWith('FREQ=YEARLY')) return 'yearly';
-            if (upper.startsWith('FREQ=MONTHLY')) return 'monthly';
-            if (upper.includes('INTERVAL=2')) return 'biweekly';
-            if (upper.startsWith('FREQ=WEEKLY')) return 'weekly';
-            return '';
+            return rrule.toUpperCase().split(';')
+                .map(part => part.trim())
+                .filter(part => part && !part.startsWith('UNTIL=') && !part.startsWith('COUNT='))
+                .sort()
+                .join(';');
+        }
+
+        function sameCadence(a, b) {
+            return cadenceParts(a) === cadenceParts(b);
+        }
+
+        /* Which choice a stored rule came from — a comparison against what each
+           choice compiles to, never a prefix test. `FREQ=WEEKLY;BYDAY=TU,TH`
+           starts with `FREQ=WEEKLY` but is not "Weekly on this day", and
+           answering that it is, is how a rule gets narrowed on the next save.
+           Anything the five choices cannot express answers `other`, which the
+           form preserves rather than offering to rewrite. */
+        function repeatFromRrule(rrule, startIso) {
+            if (!rrule) return '';
+            for (const choice of ['daily', 'weekly', 'biweekly', 'monthly', 'yearly']) {
+                if (sameCadence(rrule, rruleFor(choice, startIso))) return choice;
+            }
+            return 'other';
+        }
+
+        /* Re-express a stored bound for an event whose all-day flag may have just
+           changed. RFC 5545 requires `UNTIL` to match `DTSTART`'s value type, so
+           a timed bound on an all-day event is invalid — the same rule
+           `_until_value` follows server-side. `COUNT` carries either way. */
+        function retypeBound(bound, allDay) {
+            if (!bound.startsWith('UNTIL=')) return bound;
+            const day = bound.slice('UNTIL='.length, 'UNTIL='.length + 8);
+            if (!/^\d{8}$/.test(day)) return bound;
+            return allDay ? `UNTIL=${day}` : `UNTIL=${day}T235959Z`;
+        }
+
+        /* A recompiled rule inherits the previous rule's bound. The form cannot
+           express one, so rebuilding without this would silently un-end a series
+           every time somebody changed its cadence. */
+        function carryBound(rule, previousRrule, allDay) {
+            if (!rule || !previousRrule) return rule;
+            const bound = previousRrule.toUpperCase().split(';')
+                .map(part => part.trim())
+                .find(part => part.startsWith('UNTIL=') || part.startsWith('COUNT='));
+            return bound ? `${rule};${retypeBound(bound, allDay)}` : rule;
+        }
+
+        /* What to send for `rrule`, as a zero- or one-entry object spread into
+           the payload. Omitting the key entirely is meaningful: `EventUpdate`
+           defaults it to `UNSET`, which tells the API to leave the stored rule
+           alone. That is the whole fix — the form only speaks about recurrence
+           when the user actually changed it. */
+        function rruleChange(choice, startIso, allDay) {
+            // `other` names the stored rule rather than building one, so choosing
+            // it can only mean "leave it". The option is hidden, but relying on
+            // that to hold would make a cleared recurrence the failure mode.
+            if (choice === 'other') return {};
+            const compiled = rruleFor(choice, startIso);
+            if (!editingEvent) return { rrule: compiled };
+            // What this form would have compiled when it opened. Comparing
+            // against it catches a changed choice *and* a moved start day, which
+            // rewrites `BYDAY` on a weekly rule.
+            const baseline = rruleFor(loadedRepeat, loadedRepeatStart);
+            if (sameCadence(compiled, baseline)) return {};
+            return { rrule: carryBound(compiled, editingEvent.rrule, allDay) };
         }
 
         function formPayload() {
@@ -1168,7 +1259,7 @@
                 all_day: allDay,
                 start,
                 end,
-                rrule: rruleFor(document.getElementById('event-repeat').value, start),
+                ...rruleChange(document.getElementById('event-repeat').value, start, allDay),
                 notify_minutes_before: notify ? Number(notify) : null,
                 attendee_ids: checkedAttendeeIds()
             };
@@ -1220,6 +1311,8 @@
             hideDeleteScopePrompt();
             editingEvent = null;
             editingOccurrence = null;
+            loadedRepeat = '';
+            loadedRepeatStart = '';
         }
 
         // --- Detail (external events, and Notify attendees)
@@ -1413,6 +1506,7 @@
 
         document.getElementById('event-all-day').addEventListener('change', toggleAllDayFields);
         document.getElementById('event-notify').addEventListener('change', updateNotifyHelp);
+        document.getElementById('event-repeat').addEventListener('change', updateRepeatHelp);
 
         document.getElementById('event-start-time').addEventListener('change', shiftTimedEnd);
         document.getElementById('event-start-date').addEventListener('change', shiftAllDayEnd);
