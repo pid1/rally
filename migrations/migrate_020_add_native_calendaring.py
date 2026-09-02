@@ -20,9 +20,9 @@ from pathlib import Path
 
 
 def _columns(cursor, table):
-    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query,python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     # `table` is a literal passed by this migration, never user input, and
     # PRAGMA does not accept a bound parameter for the table name.
+    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query,python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
     cursor.execute(f"PRAGMA table_info({table})")
     return [col[1] for col in cursor.fetchall()]
 

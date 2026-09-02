@@ -618,9 +618,9 @@ def test_calendar_connection(cal_id: int, db: Session = Depends(get_db)):
         if cal_type == "ics":
             import requests
 
-            # nosemgrep: python.flask.security.injection.ssrf-requests.ssrf-requests
             # The URL is a calendar feed the account holder configured in settings;
             # anyone who can set it already administers this instance.
+            # nosemgrep: python.flask.security.injection.ssrf-requests.ssrf-requests
             response = requests.get(cal.url, timeout=10)
             response.raise_for_status()
             if "BEGIN:VCALENDAR" not in response.text[:1000]:
