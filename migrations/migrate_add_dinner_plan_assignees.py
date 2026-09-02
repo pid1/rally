@@ -87,6 +87,9 @@ def migrate():
                 )
             """)
 
+            # `col_list` is assembled from this migration's own column names, never
+            # from request data, and a column list cannot be a bound parameter.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query,python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
             cursor.execute(f"""
                 INSERT INTO dinner_plans_new ({col_list})
                 SELECT {col_list} FROM dinner_plans
