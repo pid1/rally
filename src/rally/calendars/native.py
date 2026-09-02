@@ -234,6 +234,7 @@ def expand_event(
             event_id=event.id,
             occurrence_date=occurrence_date,
             recurring=bool(event.rrule),
+            rrule=event.rrule,
             editable=True,
             notify_minutes_before=event.notify_minutes_before,
         )

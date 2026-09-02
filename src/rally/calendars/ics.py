@@ -70,8 +70,21 @@ def component_to_occurrence(
     calendar_label: str = "",
     member: str | None = None,
     member_color: str | None = None,
+    rrule: str | None = None,
+    recurring: bool | None = None,
 ) -> Occurrence | None:
-    """Convert one VEVENT into an ``Occurrence``, or ``None`` if unusable."""
+    """Convert one VEVENT into an ``Occurrence``, or ``None`` if unusable.
+
+    ``rrule`` is supplied by the caller rather than read off ``component``:
+    ``recurring_ical_events`` strips ``RRULE`` from the components it expands,
+    so by the time an occurrence exists the rule is only knowable from the
+    source document. A caller that cannot know it passes nothing.
+
+    ``recurring`` defaults to "there is a rule", which is right whenever the
+    rule is knowable. CalDAV is the case where it is not: the server expands
+    remotely, so an instance arrives with no ``RRULE`` but *is* part of a
+    series, and that caller says so explicitly.
+    """
     start_raw, end_raw = _bounds(component)
     if start_raw is None:
         return None
@@ -113,8 +126,31 @@ def component_to_occurrence(
         member=member,
         attendees=(member,) if member else (),
         member_color=member_color,
+        recurring=bool(rrule) if recurring is None else recurring,
+        rrule=rrule,
         editable=False,
     )
+
+
+def _rrules_by_uid(calendar) -> dict[str, str]:
+    """Every recurring VEVENT's rule, keyed by UID, read before expansion.
+
+    The expander drops ``RRULE`` from the occurrences it produces, so this is
+    the only point at which a feed's rule is still visible. CalDAV has no
+    equivalent — the server expands remotely and Rally never sees the original
+    component — so occurrences from that transport carry no rule at all.
+    """
+    rules: dict[str, str] = {}
+    for component in calendar.walk("VEVENT"):
+        rule = component.get("rrule")
+        uid = str(component.get("uid", "") or "")
+        if rule is None or not uid or uid in rules:
+            continue
+        try:
+            rules[uid] = rule.to_ical().decode()
+        except Exception:  # a rule we cannot render is one we cannot describe
+            continue
+    return rules
 
 
 def occurrences_from_ical_text(
@@ -132,6 +168,7 @@ def occurrences_from_ical_text(
 ) -> list[Occurrence]:
     """Parse an ICS document and expand its recurrences across the window."""
     calendar = ICalCalendar.from_ical(text)
+    rules_by_uid = _rrules_by_uid(calendar)
     expanded = recurring_ical_events.of(calendar).between(window_start, window_end)
 
     occurrences: list[Occurrence] = []
@@ -146,6 +183,7 @@ def occurrences_from_ical_text(
             calendar_label=calendar_label,
             member=member,
             member_color=member_color,
+            rrule=rules_by_uid.get(str(component.get("uid", "") or "")),
         )
         if occurrence is not None:
             occurrences.append(occurrence)
@@ -183,6 +221,13 @@ def occurrences_from_components(
             calendar_label=calendar_label,
             member=member,
             member_color=member_color,
+            # No rule survives a server-side expansion, but an instance of a
+            # series still carries the RECURRENCE-ID it was expanded to. That is
+            # enough to say *that* it repeats, which is what lets the detail view
+            # explain the missing schedule instead of silently omitting it. A
+            # server that omits the property degrades to "not recurring", which
+            # is exactly today's behaviour.
+            recurring=component.get("recurrence-id") is not None,
         )
         if occurrence is None:
             continue

@@ -30,6 +30,7 @@ from rally.calendars import (
     validate_rrule,
 )
 from rally.calendars import cache as calendar_cache
+from rally.calendars.describe import describe_recurrence
 from rally.calendars.inputs import EventTimeError, local_form_values, resolve_event_times
 from rally.database import get_db
 from rally.models import (
@@ -61,6 +62,8 @@ from rally.schemas import (
     EventUpdate,
     OccurrencePage,
     OccurrenceResponse,
+    RecurrenceDescribeRequest,
+    RecurrenceDescribeResponse,
 )
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc
@@ -207,6 +210,8 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         event_id=occurrence.event_id,
         occurrence_date=occurrence.occurrence_date,
         recurring=occurrence.recurring,
+        rrule=occurrence.rrule,
+        recurrence_text=describe_recurrence(occurrence.rrule),
         editable=occurrence.editable,
         notify_minutes_before=occurrence.notify_minutes_before,
     )
@@ -752,6 +757,26 @@ def notify_event(
         db, event, occurrence, kind=KIND_MANUAL, tz=tz, message=payload.message
     )
     return EventNotifyResponse(**outcome)
+
+
+@router.post("/describe-recurrence", response_model=RecurrenceDescribeResponse)
+def describe_rule(payload: RecurrenceDescribeRequest) -> RecurrenceDescribeResponse:
+    """Read an **unsaved** rule back as the phrase the form would use.
+
+    The modal needs to describe a rule that does not exist server-side yet, and
+    the alternative is a second implementation of the vocabulary in JavaScript —
+    which is how the two drift. Same reasoning as
+    ``POST /api/recurring-todos/preview``: one place knows what a rule means.
+
+    A malformed rule is *described* rather than rejected. The form asks this on
+    every keystroke, so a half-typed rule is the normal case, not an error; the
+    save path still validates through ``validate_rrule``.
+    """
+    try:
+        rrule = validate_rrule(payload.rrule)
+    except RecurrenceError:
+        return RecurrenceDescribeResponse(description="")
+    return RecurrenceDescribeResponse(description=describe_recurrence(rrule))
 
 
 @router.get("/sync/status")

@@ -1334,11 +1334,23 @@
 
             const rows = [
                 ['When', `${occurrence.start_date} · ${when}`],
+            ];
+            /* "Is this the one Tuesday or every Tuesday?" is asked here, and
+               until now could only be answered by opening the edit form. A
+               CalDAV server expands its own recurrences, so those instances
+               arrive knowing they repeat but not how — say that, rather than
+               omitting the row and implying a one-off. */
+            if (occurrence.recurrence_text) {
+                rows.push(['Repeats', occurrence.recurrence_text]);
+            } else if (occurrence.recurring) {
+                rows.push(['Repeats', 'Yes — this calendar does not share the schedule.']);
+            }
+            rows.push(
                 ['Where', occurrence.location || '—'],
                 ['Who', occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || 'Nobody in particular')],
                 ['Calendar', occurrence.calendar_label || occurrence.source],
                 ['Notes', occurrence.description || '—']
-            ];
+            );
             if (occurrence.notify_minutes_before) {
                 rows.push(['Reminder', `${occurrence.notify_minutes_before} minutes before`]);
             }
