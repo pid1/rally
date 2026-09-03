@@ -146,13 +146,100 @@
                             <option value="biweekly">Every 2 weeks on this day</option>
                             <option value="monthly">Monthly on this date</option>
                             <option value="yearly">Yearly on this date</option>
+                            <option value="custom">Custom…</option>
                             <!-- Selected only by `repeatFromRrule` for a stored rule
-                                 this form cannot express. Hidden so it cannot be
-                                 chosen: it names a rule, it does not build one. -->
+                                 richer than even the custom controls. Hidden so it
+                                 cannot be chosen: it names a rule, it does not build one. -->
                             <option value="other" hidden>Custom schedule</option>
                         </select>
                         <small id="event-repeat-help" style="display:none;">This event repeats on a schedule this form cannot edit. Leave it as it is to keep the schedule; picking another option replaces it.</small>
                     </div>
+
+                    <div id="event-custom-group" style="display:none;">
+                        <div class="form-group">
+                            <label for="event-custom-interval">Repeat every</label>
+                            <div class="custom-recurrence-row">
+                                <input type="number" id="event-custom-interval" min="1" value="1" class="remind-days-input">
+                                <select id="event-custom-freq" style="flex:1;">
+                                    <option value="daily">Days</option>
+                                    <option value="weekly">Weeks</option>
+                                    <option value="monthly">Months</option>
+                                    <option value="yearly">Years</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" id="event-custom-weekdays-only-group" style="display:none;">
+                            <label>
+                                <input type="checkbox" id="event-custom-weekdays-only">
+                                Every weekday
+                            </label>
+                            <small>Monday to Friday. This has no interval — “every 3 weekdays” is not something a calendar rule can say.</small>
+                        </div>
+                        <div class="form-group" id="event-custom-weekly-group" style="display:none;">
+                            <label>On</label>
+                            <div class="weekday-checkboxes" id="event-custom-weekdays">
+                                <label class="weekday-label"><input type="checkbox" value="MO"> Mon</label>
+                                <label class="weekday-label"><input type="checkbox" value="TU"> Tue</label>
+                                <label class="weekday-label"><input type="checkbox" value="WE"> Wed</label>
+                                <label class="weekday-label"><input type="checkbox" value="TH"> Thu</label>
+                                <label class="weekday-label"><input type="checkbox" value="FR"> Fri</label>
+                                <label class="weekday-label"><input type="checkbox" value="SA"> Sat</label>
+                                <label class="weekday-label"><input type="checkbox" value="SU"> Sun</label>
+                            </div>
+                        </div>
+                        <div class="form-group" id="event-custom-monthly-group" style="display:none;">
+                            <label>On</label>
+                            <div class="radio-options" style="margin-bottom:8px;">
+                                <label><input type="radio" name="event-custom-monthly-mode" value="day" checked> Day of month</label>
+                                <label><input type="radio" name="event-custom-monthly-mode" value="weekday"> Relative weekday</label>
+                            </div>
+                            <div id="event-custom-monthly-day-group">
+                                <select id="event-custom-monthly-day"></select>
+                                <small id="event-custom-monthly-day-hint" style="display:none;">Months without that day are skipped. Choose <strong>Last day</strong> if you mean the end of every month.</small>
+                            </div>
+                            <div id="event-custom-monthly-weekday-group" style="display:none;">
+                                <div class="custom-recurrence-row">
+                                    <select id="event-custom-ordinal" style="flex:1;">
+                                        <option value="1">First</option>
+                                        <option value="2">Second</option>
+                                        <option value="3">Third</option>
+                                        <option value="4">Fourth</option>
+                                        <option value="-1">Last</option>
+                                    </select>
+                                    <select id="event-custom-weekday" style="flex:1;">
+                                        <option value="MO">Monday</option>
+                                        <option value="TU">Tuesday</option>
+                                        <option value="WE">Wednesday</option>
+                                        <option value="TH">Thursday</option>
+                                        <option value="FR">Friday</option>
+                                        <option value="SA">Saturday</option>
+                                        <option value="SU">Sunday</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="event-ends-group" style="display:none;">
+                        <label>Ends</label>
+                        <div class="radio-options">
+                            <label><input type="radio" name="event-ends" value="never" checked> Never</label>
+                            <label><input type="radio" name="event-ends" value="until"> On date</label>
+                            <label><input type="radio" name="event-ends" value="count"> After a number of times</label>
+                        </div>
+                        <div id="event-ends-until-group" style="display:none;">
+                            <input type="date" id="event-ends-until">
+                            <small>The last day it can fall on. That day is included.</small>
+                        </div>
+                        <div id="event-ends-count-group" style="display:none;">
+                            <div class="custom-recurrence-row">
+                                <input type="number" id="event-ends-count" min="1" value="10" class="remind-days-input">
+                                <span>occurrences</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="recurrence-preview" id="event-recurrence-preview" aria-live="polite"></div>
                     <div class="form-group">
                         <label>Who's involved</label>
                         <div class="weekday-checkboxes" id="event-attendees"></div>
@@ -248,11 +335,6 @@
         let anchor = startOfMonth(new Date());
         let editingEvent = null;      // Full event record while the modal is open
         let editingOccurrence = null; // The occurrence that was clicked
-        /* What the Repeats control held when the modal opened, and the start it
-           was read against. `formPayload` compares the current pair to these to
-           decide whether the recurrence was edited at all — see `rruleChange`. */
-        let loadedRepeat = '';
-        let loadedRepeatStart = '';
         let detailOccurrence = null;
         // The date the now tick last saw, so it can notice midnight passing.
         let tickDate = todayIso();
@@ -1076,9 +1158,7 @@
             document.getElementById('event-start-date').value = day;
             document.getElementById('event-end-date').value = day;
 
-            loadedRepeat = '';
-            loadedRepeatStart = day;
-            updateRepeatHelp();
+            applyRuleToForm(null, day);
 
             document.getElementById('btn-delete-event').style.display = 'none';
             document.getElementById('event-scope-group').style.display = 'none';
@@ -1115,13 +1195,8 @@
             rememberStartValues();
 
             // `rruleFor` reads the date half either way; slicing keeps the
-            // baseline and the live form value in the same shape.
-            const repeatStart = editingEvent.start.slice(0, 10);
-            const repeatChoice = repeatFromRrule(editingEvent.rrule, repeatStart);
-            document.getElementById('event-repeat').value = repeatChoice;
-            loadedRepeat = repeatChoice;
-            loadedRepeatStart = repeatStart;
-            updateRepeatHelp();
+            // stored rule and the live form value in the same shape.
+            applyRuleToForm(editingEvent.rrule, editingEvent.start.slice(0, 10));
             document.querySelectorAll('#event-attendees input').forEach(input => {
                 input.checked = editingEvent.attendee_ids.includes(Number(input.value));
             });
@@ -1187,60 +1262,368 @@
             return cadenceParts(a) === cadenceParts(b);
         }
 
+        // Everything the custom controls can build. A rule using anything else
+        // — BYSETPOS, BYMONTH, BYWEEKNO — is beyond the form and stays read-only.
+        const CUSTOM_RULE_PARTS = new Set(['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'UNTIL', 'COUNT']);
+        const WEEKDAY_CODES = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+
+        function ruleParts(rrule) {
+            const out = {};
+            for (const chunk of (rrule || '').toUpperCase().replace(/^RRULE:/, '').split(';')) {
+                const [name, ...rest] = chunk.split('=');
+                if (name.trim()) out[name.trim()] = rest.join('=').trim();
+            }
+            return out;
+        }
+
+        /* Every part, sorted — the bound included this time. The `Ends` control
+           owns the bound now, so a rule differing only by its end date is a real
+           edit rather than something to preserve behind the form's back. */
+        function normalizeRule(rrule) {
+            if (!rrule) return '';
+            return rrule.toUpperCase().replace(/^RRULE:/, '').split(';')
+                .map(part => part.trim()).filter(Boolean).sort().join(';');
+        }
+
+        /* RFC 5545 requires `UNTIL` to match `DTSTART`'s value type: a bare date
+           for an all-day event, a UTC instant otherwise. `_until_value` applies
+           the same rule server-side, and end-of-day is what makes the chosen day
+           inclusive, as the field says it is. */
+        function untilPart(dateIso, allDay) {
+            const day = (dateIso || '').replaceAll('-', '');
+            if (!/^\d{8}$/.test(day)) return '';
+            return allDay ? `UNTIL=${day}` : `UNTIL=${day}T235959Z`;
+        }
+
+        function endsMode() {
+            const checked = document.querySelector('input[name="event-ends"]:checked');
+            return checked ? checked.value : 'never';
+        }
+
+        function endsPart(allDay) {
+            const mode = endsMode();
+            if (mode === 'until') {
+                return untilPart(document.getElementById('event-ends-until').value, allDay);
+            }
+            if (mode === 'count') {
+                const times = parseInt(document.getElementById('event-ends-count').value, 10);
+                return times > 0 ? `COUNT=${times}` : '';
+            }
+            return '';
+        }
+
+        /* The custom controls as a cadence, or null when they do not describe one
+           — an unchecked weekly rule has no days, and a rule with no days is not
+           a rule. Returning null keeps that state out of the payload entirely
+           rather than saving something the user did not mean. */
+        function customCadence() {
+            const freq = document.getElementById('event-custom-freq').value;
+            const raw = parseInt(document.getElementById('event-custom-interval').value, 10);
+            const interval = raw > 0 ? raw : 1;
+            const every = interval > 1 ? `;INTERVAL=${interval}` : '';
+
+            if (freq === 'daily') {
+                // `BYDAY` on a daily rule is how "every weekday" is written, and
+                // an interval cannot ride along with it: RRULE has no way to say
+                // "every third weekday", so the control forces the interval to 1.
+                if (document.getElementById('event-custom-weekdays-only').checked) {
+                    return 'FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR';
+                }
+                return `FREQ=DAILY${every}`;
+            }
+            if (freq === 'weekly') {
+                const days = [...document.querySelectorAll('#event-custom-weekdays input:checked')]
+                    .map(input => input.value);
+                if (!days.length) return null;
+                // Written in week order rather than click order, so the same
+                // selection always compiles to the same string.
+                days.sort((a, b) => WEEKDAY_CODES.indexOf(a) - WEEKDAY_CODES.indexOf(b));
+                return `FREQ=WEEKLY${every};BYDAY=${days.join(',')}`;
+            }
+            if (freq === 'monthly') {
+                const mode = document.querySelector('input[name="event-custom-monthly-mode"]:checked');
+                if (mode && mode.value === 'weekday') {
+                    const ordinal = document.getElementById('event-custom-ordinal').value;
+                    const weekday = document.getElementById('event-custom-weekday').value;
+                    return `FREQ=MONTHLY${every};BYDAY=${ordinal}${weekday}`;
+                }
+                const day = document.getElementById('event-custom-monthly-day').value;
+                return `FREQ=MONTHLY${every};BYMONTHDAY=${day}`;
+            }
+            if (freq === 'yearly') return `FREQ=YEARLY${every}`;
+            return null;
+        }
+
+        /* A complete rule from whatever the Repeats row is showing. */
+        function compileRepeat(choice, startIso, allDay) {
+            const cadence = choice === 'custom' ? customCadence() : rruleFor(choice, startIso);
+            if (!cadence) return null;
+            const bound = endsPart(allDay);
+            return bound ? `${cadence};${bound}` : cadence;
+        }
+
+        /* A stored rule as custom-control values, or null when the controls
+           cannot hold it. This is what decides `custom` against `other`. */
+        function customFromRrule(rrule) {
+            const parts = ruleParts(rrule);
+            if (Object.keys(parts).some(name => !CUSTOM_RULE_PARTS.has(name))) return null;
+
+            const freq = (parts.FREQ || '').toLowerCase();
+            if (!['daily', 'weekly', 'monthly', 'yearly'].includes(freq)) return null;
+            const interval = parts.INTERVAL ? parseInt(parts.INTERVAL, 10) : 1;
+            if (!(interval > 0)) return null;
+            const byday = parts.BYDAY ? parts.BYDAY.split(',').map(day => day.trim()) : [];
+
+            if (freq === 'daily') {
+                if (!byday.length) return { freq, interval, weekdaysOnly: false };
+                const chosen = new Set(byday);
+                const isWeekdays = chosen.size === 5
+                    && ['MO', 'TU', 'WE', 'TH', 'FR'].every(day => chosen.has(day));
+                // A partial weekday set on a daily rule is legal but not
+                // something these controls can build, so it stays read-only.
+                return isWeekdays && interval === 1
+                    ? { freq, interval: 1, weekdaysOnly: true }
+                    : null;
+            }
+            if (freq === 'weekly') {
+                if (!byday.length || byday.some(day => !WEEKDAY_CODES.includes(day))) return null;
+                return { freq, interval, weekdays: byday };
+            }
+            if (freq === 'monthly') {
+                if (parts.BYMONTHDAY && !byday.length) {
+                    const day = parseInt(parts.BYMONTHDAY, 10);
+                    if (!((day >= 1 && day <= 31) || day === -1)) return null;
+                    return { freq, interval, monthlyMode: 'day', monthDay: String(day) };
+                }
+                if (byday.length === 1 && !parts.BYMONTHDAY) {
+                    const match = /^(-?\d+)(MO|TU|WE|TH|FR|SA|SU)$/.exec(byday[0]);
+                    if (!match) return null;
+                    const ordinal = parseInt(match[1], 10);
+                    if (![1, 2, 3, 4, -1].includes(ordinal)) return null;
+                    return {
+                        freq, interval, monthlyMode: 'weekday',
+                        ordinal: String(ordinal), weekday: match[2]
+                    };
+                }
+                return null;
+            }
+            // Yearly takes an interval and nothing else.
+            return byday.length || parts.BYMONTHDAY ? null : { freq, interval };
+        }
+
         /* Which choice a stored rule came from — a comparison against what each
            choice compiles to, never a prefix test. `FREQ=WEEKLY;BYDAY=TU,TH`
            starts with `FREQ=WEEKLY` but is not "Weekly on this day", and
-           answering that it is, is how a rule gets narrowed on the next save.
-           Anything the five choices cannot express answers `other`, which the
-           form preserves rather than offering to rewrite. */
+           answering that it is, is how a rule gets narrowed on the next save. */
         function repeatFromRrule(rrule, startIso) {
             if (!rrule) return '';
             for (const choice of ['daily', 'weekly', 'biweekly', 'monthly', 'yearly']) {
                 if (sameCadence(rrule, rruleFor(choice, startIso))) return choice;
             }
-            return 'other';
-        }
-
-        /* Re-express a stored bound for an event whose all-day flag may have just
-           changed. RFC 5545 requires `UNTIL` to match `DTSTART`'s value type, so
-           a timed bound on an all-day event is invalid — the same rule
-           `_until_value` follows server-side. `COUNT` carries either way. */
-        function retypeBound(bound, allDay) {
-            if (!bound.startsWith('UNTIL=')) return bound;
-            const day = bound.slice('UNTIL='.length, 'UNTIL='.length + 8);
-            if (!/^\d{8}$/.test(day)) return bound;
-            return allDay ? `UNTIL=${day}` : `UNTIL=${day}T235959Z`;
-        }
-
-        /* A recompiled rule inherits the previous rule's bound. The form cannot
-           express one, so rebuilding without this would silently un-end a series
-           every time somebody changed its cadence. */
-        function carryBound(rule, previousRrule, allDay) {
-            if (!rule || !previousRrule) return rule;
-            const bound = previousRrule.toUpperCase().split(';')
-                .map(part => part.trim())
-                .find(part => part.startsWith('UNTIL=') || part.startsWith('COUNT='));
-            return bound ? `${rule};${retypeBound(bound, allDay)}` : rule;
+            return customFromRrule(rrule) ? 'custom' : 'other';
         }
 
         /* What to send for `rrule`, as a zero- or one-entry object spread into
-           the payload. Omitting the key entirely is meaningful: `EventUpdate`
-           defaults it to `UNSET`, which tells the API to leave the stored rule
-           alone. That is the whole fix — the form only speaks about recurrence
-           when the user actually changed it. */
+           the payload. Omitting the key is meaningful: `EventUpdate` defaults it
+           to `UNSET`, which tells the API to leave the stored rule alone, so the
+           form only speaks about recurrence when the user actually changed it. */
         function rruleChange(choice, startIso, allDay) {
             // `other` names the stored rule rather than building one, so choosing
             // it can only mean "leave it". The option is hidden, but relying on
             // that to hold would make a cleared recurrence the failure mode.
             if (choice === 'other') return {};
-            const compiled = rruleFor(choice, startIso);
+            const compiled = compileRepeat(choice, startIso, allDay);
             if (!editingEvent) return { rrule: compiled };
-            // What this form would have compiled when it opened. Comparing
-            // against it catches a changed choice *and* a moved start day, which
-            // rewrites `BYDAY` on a weekly rule.
-            const baseline = rruleFor(loadedRepeat, loadedRepeatStart);
-            if (sameCadence(compiled, baseline)) return {};
-            return { rrule: carryBound(compiled, editingEvent.rrule, allDay) };
+            if (normalizeRule(compiled) === normalizeRule(editingEvent.rrule)) return {};
+            return { rrule: compiled };
+        }
+
+        // --- Showing the right controls ------------------------------------
+
+        /* Populate the day-of-month select once. `Last day` is a first-class
+           entry, not a synonym for 31: `BYMONTHDAY=31` *skips* the five months
+           without a 31st, while `-1` lands on the end of every month. Rent and
+           meter readings mean the latter and there is no other way to say it. */
+        (function initMonthlyDays() {
+            const select = document.getElementById('event-custom-monthly-day');
+            for (let day = 1; day <= 31; day++) {
+                select.add(new Option(String(day), String(day)));
+            }
+            select.add(new Option('Last day', '-1'));
+        })();
+
+        function updateCustomGroups() {
+            const freq = document.getElementById('event-custom-freq').value;
+            const weekdaysOnly = document.getElementById('event-custom-weekdays-only');
+            document.getElementById('event-custom-weekdays-only-group').style.display =
+                freq === 'daily' ? '' : 'none';
+            document.getElementById('event-custom-weekly-group').style.display =
+                freq === 'weekly' ? '' : 'none';
+            document.getElementById('event-custom-monthly-group').style.display =
+                freq === 'monthly' ? '' : 'none';
+            if (freq !== 'daily') weekdaysOnly.checked = false;
+
+            // "Every weekday" has no interval to offer, so the field is disabled
+            // and pinned rather than silently ignored.
+            const interval = document.getElementById('event-custom-interval');
+            const pinned = freq === 'daily' && weekdaysOnly.checked;
+            if (pinned) interval.value = '1';
+            interval.disabled = pinned;
+
+            const mode = document.querySelector('input[name="event-custom-monthly-mode"]:checked');
+            const byDay = !mode || mode.value === 'day';
+            document.getElementById('event-custom-monthly-day-group').style.display =
+                byDay ? '' : 'none';
+            document.getElementById('event-custom-monthly-weekday-group').style.display =
+                byDay ? 'none' : '';
+
+            // 29, 30 and 31 do not exist in every month, and RRULE skips rather
+            // than clamps. Say so where the choice is made.
+            const chosenDay = parseInt(document.getElementById('event-custom-monthly-day').value, 10);
+            document.getElementById('event-custom-monthly-day-hint').style.display =
+                byDay && chosenDay >= 29 ? '' : 'none';
+        }
+
+        function updateEndsGroups() {
+            const mode = endsMode();
+            document.getElementById('event-ends-until-group').style.display =
+                mode === 'until' ? '' : 'none';
+            document.getElementById('event-ends-count-group').style.display =
+                mode === 'count' ? '' : 'none';
+        }
+
+        /* `Ends` belongs to any repeating event, not only a custom one — a bound
+           is orthogonal to a cadence, and hiding it behind `Custom` would push
+           people into `Custom` purely to get an end date. */
+        function updateRepeatGroups() {
+            const choice = document.getElementById('event-repeat').value;
+            document.getElementById('event-custom-group').style.display =
+                choice === 'custom' ? '' : 'none';
+            document.getElementById('event-ends-group').style.display =
+                choice && choice !== 'other' ? '' : 'none';
+            updateRepeatHelp();
+            if (choice === 'custom') updateCustomGroups();
+            updateEndsGroups();
+            refreshRecurrencePreview();
+        }
+
+        // --- Reading a stored rule into the controls -------------------------
+
+        function applyCustomToForm(spec) {
+            document.getElementById('event-custom-freq').value = spec.freq;
+            document.getElementById('event-custom-interval').value = String(spec.interval);
+            document.getElementById('event-custom-weekdays-only').checked = Boolean(spec.weekdaysOnly);
+            document.querySelectorAll('#event-custom-weekdays input').forEach(input => {
+                input.checked = Boolean(spec.weekdays && spec.weekdays.includes(input.value));
+            });
+            if (spec.monthlyMode) {
+                const radio = document.querySelector(
+                    `input[name="event-custom-monthly-mode"][value="${spec.monthlyMode}"]`);
+                if (radio) radio.checked = true;
+            }
+            if (spec.monthDay) document.getElementById('event-custom-monthly-day').value = spec.monthDay;
+            if (spec.ordinal) document.getElementById('event-custom-ordinal').value = spec.ordinal;
+            if (spec.weekday) document.getElementById('event-custom-weekday').value = spec.weekday;
+        }
+
+        function applyEndsToForm(rrule) {
+            const parts = ruleParts(rrule);
+            let mode = 'never';
+            if (parts.UNTIL) {
+                mode = 'until';
+                const day = parts.UNTIL.slice(0, 8);
+                document.getElementById('event-ends-until').value =
+                    /^\d{8}$/.test(day) ? `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}` : '';
+            } else if (parts.COUNT) {
+                mode = 'count';
+                document.getElementById('event-ends-count').value = parts.COUNT;
+            }
+            const radio = document.querySelector(`input[name="event-ends"][value="${mode}"]`);
+            if (radio) radio.checked = true;
+        }
+
+        /* Set the whole Repeats row from a stored rule: the choice, the custom
+           controls behind it, and the bound. Defaults first, so a rule that says
+           nothing about a control leaves it in a known state rather than showing
+           whatever the last event happened to put there. */
+        function applyRuleToForm(rrule, startIso) {
+            document.querySelectorAll('#event-custom-weekdays input').forEach(i => { i.checked = false; });
+            document.getElementById('event-custom-freq').value = 'daily';
+            document.getElementById('event-custom-interval').value = '1';
+            document.getElementById('event-custom-interval').disabled = false;
+            document.getElementById('event-custom-weekdays-only').checked = false;
+            document.querySelector('input[name="event-custom-monthly-mode"][value="day"]').checked = true;
+            document.getElementById('event-custom-monthly-day').value = '1';
+            document.getElementById('event-custom-ordinal').value = '1';
+            document.getElementById('event-custom-weekday').value = 'MO';
+            document.querySelector('input[name="event-ends"][value="never"]').checked = true;
+            document.getElementById('event-ends-until').value = '';
+            document.getElementById('event-ends-count').value = '10';
+
+            const choice = repeatFromRrule(rrule, startIso);
+            document.getElementById('event-repeat').value = choice;
+            if (choice === 'custom') applyCustomToForm(customFromRrule(rrule));
+            if (choice && choice !== 'other') applyEndsToForm(rrule);
+            updateRepeatGroups();
+            return choice;
+        }
+
+        // --- The read-back ---------------------------------------------------
+
+        /* The sentence under the controls, in the vocabulary the notices use.
+           It comes from the server because `describe_recurrence` is the only
+           thing that knows the vocabulary, and a second copy in JavaScript is
+           how the two drift — the same reasoning as the recurring-task preview.
+           Debounced, because the interval field fires on every keystroke. */
+        let previewTimer = null;
+        let previewSequence = 0;
+
+        function refreshRecurrencePreview() {
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(runRecurrencePreview, 150);
+        }
+
+        async function runRecurrencePreview() {
+            const box = document.getElementById('event-recurrence-preview');
+            const choice = document.getElementById('event-repeat').value;
+            if (!choice || choice === 'other') { box.textContent = ''; return; }
+
+            const allDay = document.getElementById('event-all-day').checked;
+            const start = allDay
+                ? document.getElementById('event-start-date').value
+                : document.getElementById('event-start-time').value;
+            const rrule = compileRepeat(choice, start, allDay);
+            if (!rrule) {
+                box.textContent = choice === 'custom'
+                    ? 'Pick at least one day for this to repeat on.'
+                    : '';
+                return;
+            }
+            /* Say it here rather than letting the save bounce off the API. The
+               two dates are independent fields, so the contradiction is easy to
+               reach and impossible to see in the result — the series would draw
+               the first occurrence and nothing else. */
+            const endsOn = endsMode() === 'until' && document.getElementById('event-ends-until').value;
+            if (endsOn && start && endsOn < start.slice(0, 10)) {
+                box.textContent = 'This ends before the event starts, so it would never repeat.';
+                return;
+            }
+
+            const ticket = ++previewSequence;
+            try {
+                const response = await fetch('/api/events/describe-recurrence', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rrule })
+                });
+                if (!response.ok) throw new Error('describe failed');
+                const { description } = await response.json();
+                // A slower earlier request must not overwrite a newer answer.
+                if (ticket !== previewSequence) return;
+                box.textContent = description ? `Repeats ${description}.` : '';
+            } catch {
+                if (ticket === previewSequence) box.textContent = '';
+            }
         }
 
         function formPayload() {
@@ -1311,8 +1694,6 @@
             hideDeleteScopePrompt();
             editingEvent = null;
             editingOccurrence = null;
-            loadedRepeat = '';
-            loadedRepeatStart = '';
         }
 
         // --- Detail (external events, and Notify attendees)
@@ -1517,11 +1898,40 @@
         });
 
         document.getElementById('event-all-day').addEventListener('change', toggleAllDayFields);
+        document.getElementById('event-all-day').addEventListener('change', refreshRecurrencePreview);
         document.getElementById('event-notify').addEventListener('change', updateNotifyHelp);
-        document.getElementById('event-repeat').addEventListener('change', updateRepeatHelp);
+        document.getElementById('event-repeat').addEventListener('change', updateRepeatGroups);
+
+        /* Anything that changes the rule changes the sentence describing it, and
+           the monthly/weekday sub-controls change which fields are even shown.
+           One handler for both keeps the two from drifting apart. */
+        [
+            'event-custom-freq', 'event-custom-interval', 'event-custom-weekdays-only',
+            'event-custom-monthly-day', 'event-custom-ordinal', 'event-custom-weekday',
+        ].forEach(id => {
+            const control = document.getElementById(id);
+            control.addEventListener('change', () => { updateCustomGroups(); refreshRecurrencePreview(); });
+            control.addEventListener('input', refreshRecurrencePreview);
+        });
+        document.querySelectorAll('input[name="event-custom-monthly-mode"]').forEach(radio => {
+            radio.addEventListener('change', () => { updateCustomGroups(); refreshRecurrencePreview(); });
+        });
+        document.querySelectorAll('#event-custom-weekdays input').forEach(box => {
+            box.addEventListener('change', refreshRecurrencePreview);
+        });
+        document.querySelectorAll('input[name="event-ends"]').forEach(radio => {
+            radio.addEventListener('change', () => { updateEndsGroups(); refreshRecurrencePreview(); });
+        });
+        ['event-ends-until', 'event-ends-count'].forEach(id => {
+            const control = document.getElementById(id);
+            control.addEventListener('change', refreshRecurrencePreview);
+            control.addEventListener('input', refreshRecurrencePreview);
+        });
 
         document.getElementById('event-start-time').addEventListener('change', shiftTimedEnd);
         document.getElementById('event-start-date').addEventListener('change', shiftAllDayEnd);
+        document.getElementById('event-start-time').addEventListener('change', refreshRecurrencePreview);
+        document.getElementById('event-start-date').addEventListener('change', refreshRecurrencePreview);
 
         document.getElementById('event-form').addEventListener('submit', (event) => {
             event.preventDefault();

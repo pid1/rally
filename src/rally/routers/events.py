@@ -335,6 +335,51 @@ def list_occurrences(
     )
 
 
+def _reject_impossible_bound(event: Event) -> None:
+    """Refuse an `Ends` value that contradicts the event it bounds.
+
+    `Starts` and `Ends` are independent fields, so "ends before it begins" is a
+    contradiction the form can express and whose result the user cannot see: the
+    series stores cleanly, draws the original occurrence and nothing else, and
+    says nothing about why.
+
+    This is a comparison and not an expansion, which is worth stating because
+    the opposite looks stricter. Expanding to check for an empty series detects
+    nothing at all: ``recurring_ical_events`` always emits ``DTSTART``, whether
+    or not it satisfies the rule's own ``BYxxx`` parts and regardless of
+    ``COUNT``, so every rule "produces" at least one occurrence. A rule like
+    ``BYMONTHDAY=31`` bounded inside a 30-day month is therefore left alone: it
+    yields exactly the event itself, which is odd but not wrong, and rejecting
+    it would be guessing at intent.
+    """
+    if not event.rrule:
+        return
+
+    ends_on = series_end_date(event.rrule)
+    if ends_on and ends_on < event.start_date:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"This repeat ends on {ends_on}, before the event starts on {event.start_date}."
+            ),
+        )
+
+    for part in event.rrule.split(";"):
+        name, _, value = part.partition("=")
+        if name.strip().upper() != "COUNT":
+            continue
+        try:
+            times = int(value)
+        except ValueError:
+            break
+        if times < 1:
+            raise HTTPException(
+                status_code=422,
+                detail="A repeat has to happen at least once.",
+            )
+        break
+
+
 # --- Event CRUD ------------------------------------------------------------
 
 
@@ -371,6 +416,7 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
         notify_minutes_before=payload.notify_minutes_before,
         **fields,
     )
+    _reject_impossible_bound(event)
     db.add(event)
     db.commit()
     db.refresh(event)
@@ -482,6 +528,15 @@ def update_event(
         return response
 
     _apply_event_fields(db, event, payload, tz_name)
+    # The fields are already staged on the session, so a rejection has to undo
+    # them explicitly. Letting `get_db` discard them on close would work in the
+    # app and not in anything that reuses a session — and a rejected write that
+    # depends on teardown to stay rejected is not really rejected.
+    try:
+        _reject_impossible_bound(event)
+    except HTTPException:
+        db.rollback()
+        raise
     db.commit()
     db.refresh(event)
     notify_event_change(db, event, kind=KIND_UPDATED)
@@ -611,6 +666,7 @@ def _split_series(
         ),
         **fields,
     )
+    _reject_impossible_bound(tail)
     db.add(tail)
     db.commit()
     db.refresh(tail)

@@ -388,6 +388,114 @@ def test_update_with_a_null_rrule_clears_the_recurrence(client):
     assert after["series_end_date"] is None
 
 
+# --- A recurrence that can never fire -----------------------------------------
+
+
+def test_an_end_date_before_the_start_is_rejected(client):
+    """The reachable contradiction: the form offers both fields independently."""
+    response = client.post(
+        "/api/events",
+        json={
+            "title": "Soccer",
+            "start": "2026-09-05T09:00",
+            "end": "2026-09-05T10:30",
+            "rrule": "FREQ=WEEKLY;BYDAY=SA;UNTIL=20260801T235959Z",
+        },
+    )
+    assert response.status_code == 422
+    assert "before the event starts" in response.json()["detail"]
+
+
+def test_a_zero_count_is_rejected(client):
+    response = client.post(
+        "/api/events",
+        json={
+            "title": "Soccer",
+            "start": "2026-09-05T09:00",
+            "end": "2026-09-05T10:30",
+            "rrule": "FREQ=WEEKLY;BYDAY=SA;COUNT=0",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_a_bound_that_excludes_every_matching_day_is_still_accepted(client):
+    """`BYMONTHDAY=31` bounded inside a 30-day month is odd, but not rejected.
+
+    It is tempting to call this "produces no events" and refuse it. Two reasons
+    not to. The expander always emits ``DTSTART`` whatever the rule says, so the
+    series does produce an occurrence — the event itself. And the user may well
+    mean it. Guessing at intent is how a validator starts refusing valid work.
+    """
+    response = client.post(
+        "/api/events",
+        json={
+            "title": "Rent",
+            "start": "2026-09-01T09:00",
+            "end": "2026-09-01T10:00",
+            "rrule": "FREQ=MONTHLY;BYMONTHDAY=31;UNTIL=20260930T235959Z",
+        },
+    )
+    assert response.status_code == 201
+
+
+def test_the_same_rule_bounded_past_a_long_month_is_accepted(client):
+    """The counterpart: identical rule, a bound that reaches a 31st, so it fires."""
+    response = client.post(
+        "/api/events",
+        json={
+            "title": "Rent",
+            "start": "2026-09-01T09:00",
+            "end": "2026-09-01T10:00",
+            "rrule": "FREQ=MONTHLY;BYMONTHDAY=31;UNTIL=20261031T235959Z",
+        },
+    )
+    assert response.status_code == 201
+
+
+def test_a_rejected_update_leaves_the_stored_rule_untouched(client):
+    created = _create(
+        client, title="Soccer", start="2026-09-05T09:00", rrule="FREQ=WEEKLY;BYDAY=SA"
+    )
+    response = client.put(
+        f"/api/events/{created['id']}",
+        json={"rrule": "FREQ=WEEKLY;BYDAY=SA;UNTIL=20260801T235959Z"},
+    )
+    assert response.status_code == 422
+
+    after = client.get(f"/api/events/{created['id']}").json()
+    assert after["rrule"] == "FREQ=WEEKLY;BYDAY=SA"
+    assert after["series_end_date"] is None
+
+
+@pytest.mark.parametrize(
+    "rrule",
+    [
+        "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR",
+        "FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH",
+        "FREQ=MONTHLY;BYMONTHDAY=-1",
+        "FREQ=MONTHLY;BYDAY=1SU",
+        "FREQ=YEARLY;INTERVAL=2",
+        "FREQ=WEEKLY;BYDAY=SA;COUNT=8",
+        "FREQ=WEEKLY;BYDAY=SA;UNTIL=20271120T235959Z",
+        # Unbounded and infrequent: one occurrence inside the horizon is enough.
+        "FREQ=YEARLY;INTERVAL=5",
+    ],
+)
+def test_every_rule_the_form_can_build_is_accepted(client, rrule):
+    """The check must not reject anything the custom controls can produce."""
+    response = client.post(
+        "/api/events",
+        json={
+            "title": "Anything",
+            "start": "2026-09-01T09:00",
+            "end": "2026-09-01T10:00",
+            "rrule": rrule,
+        },
+    )
+    assert response.status_code == 201, response.text
+
+
 # --- Delete --------------------------------------------------------------------
 
 
