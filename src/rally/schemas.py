@@ -653,6 +653,10 @@ class OccurrenceResponse(BaseModel):
     event_id: int | None = None
     occurrence_date: str | None = None
     recurring: bool = False
+    rrule: str | None = None  # The series' rule, for reading back — never edited here
+    # The rule in words, rendered here so the page never has to own a second
+    # copy of the vocabulary. Empty when there is no rule, or none Rally can see.
+    recurrence_text: str = ""
     editable: bool = False
     notify_minutes_before: int | None = None
 
@@ -662,6 +666,18 @@ class OccurrencePage(BaseModel):
 
     occurrences: list[OccurrenceResponse]
     failures: list[str] = []
+
+
+class RecurrenceDescribeRequest(BaseModel):
+    """An unsaved rule the form wants read back to it."""
+
+    rrule: str | None = None
+
+
+class RecurrenceDescribeResponse(BaseModel):
+    """The rule in words. Empty when there is no rule to describe."""
+
+    description: str
 
 
 class EventNotifyRequest(BaseModel):
