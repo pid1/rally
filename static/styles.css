@@ -2352,6 +2352,45 @@ code {
     color: var(--state-overdue);
 }
 
+/* The AI review, at the foot of the inventory. It is a report about the rows
+   above it and can run to 25 suggestions, so it opens on demand rather than
+   standing between the reader and the `Refreshed` button. `.stack` puts a gap
+   before every block, which an empty panel would claim for nothing. */
+.prep-review-panel:empty {
+    display: none;
+}
+
+/* The headline link in the page header. It is hidden on a phone rather than
+   taking a third row there: that row costs 52px, which is the difference
+   between the first `Refreshed` button sitting above the fold and below it
+   (A4). The report carries the same headline in its own summary. */
+@media (max-width: 767px) {
+    .prep-review-link {
+        display: none;
+    }
+}
+
+.prep-review > summary {
+    cursor: pointer;
+    padding-top: var(--space-2);
+    /* The row is already a flex header with its own caret; the UA marker would
+       be a second, differently styled one. */
+    list-style: none;
+}
+
+.prep-review > summary::-webkit-details-marker {
+    display: none;
+}
+
+.prep-review > summary h3::after {
+    content: ' ▸';
+    color: var(--ink-muted);
+}
+
+.prep-review[open] > summary h3::after {
+    content: ' ▾';
+}
+
 /* The go list's tick box. An empty square that exists to be filled in with a
    pen, which is why it is a plain box and not a disabled checkbox. */
 .golist-checkbox {

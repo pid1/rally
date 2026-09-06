@@ -208,8 +208,15 @@ def _open_event_detail(page):
 
 
 def _open_review(page):
-    """The stored review renders into #review-panel on load."""
-    page.wait_for_selector("#review-panel .prep-row", timeout=8000)
+    """The stored review renders collapsed at the foot of the page.
+
+    The shot is of the report, so it opens it the way a reader does rather than
+    waiting for rows that are deliberately not on screen yet.
+    """
+    page.wait_for_selector("#review-details", timeout=8000)
+    page.click("#review-details summary")
+    page.wait_for_selector("#review-details .prep-row", timeout=8000)
+    page.locator("#review-details").scroll_into_view_if_needed()
 
 
 SHOTS: tuple[Shot, ...] = (

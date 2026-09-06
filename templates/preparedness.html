@@ -46,6 +46,11 @@
                      the Location toolbar group beside the chips it manages,
                      exactly as `Manage stores` does on /shopping. -->
                 <button type="button" class="btn btn--quiet" id="btn-manage-locations">Manage locations</button>
+                <!-- The review is a report about the inventory, so it reads
+                     after it. This line carries its headline back to the top,
+                     where the decision to read it is actually made — on the
+                     widths that have room for it. -->
+                <button type="button" class="btn btn--quiet prep-review-link" id="btn-review-jump" style="display:none"></button>
             </div>
         </header>
 
@@ -74,11 +79,14 @@
             </div>
         </div>
 
-        <div id="review-panel"></div>
-
         <div id="groups-container">
             <div class="container-loading-state">Loading inventory…</div>
         </div>
+
+        <!-- The rows come first. A review runs to 25 suggestions, and above the
+             inventory it pushed the first `Refreshed` button off the screen
+             every time one existed. -->
+        <div class="prep-review-panel" id="review-panel"></div>
     </div>
 
     <!-- Add/edit item. One modal, two modes, following todo.html exactly. -->
@@ -585,6 +593,11 @@
         // stored review is shown with its date and an explicit staleness note
         // rather than being silently refreshed, so nobody acts on a review of
         // an inventory they have since changed.
+        //
+        // It renders below the inventory and collapsed. The report is advice
+        // about the rows; the rows are the work. What survives at full size is
+        // the headline — how many suggestions, how many urgent, when it ran —
+        // which is what a reader needs to decide whether to open it.
         let reviewEnabled = false;
 
         function priorityPill(priority) {
@@ -592,8 +605,28 @@
             return `<span class="pill pill--${tone}">${escapeHtml(priority)}</span>`;
         }
 
-        function renderReview(payload) {
+        function reviewHeadline(payload) {
+            const gaps = (payload.review || {}).gaps || [];
+            const high = gaps.filter(g => g.priority === 'high').length;
+            const parts = [`${gaps.length} suggestion${gaps.length === 1 ? '' : 's'}`];
+            if (high) parts.push(`${high} high priority`);
+            parts.push(new Date(payload.created_at).toLocaleDateString());
+            return parts.join(' · ');
+        }
+
+        // The header line exists only while the panel below is showing a
+        // review; it is hidden for the loading and error states, which have
+        // nothing to jump to.
+        function renderReviewLink(payload) {
+            const btn = document.getElementById('btn-review-jump');
+            if (!payload) { btn.style.display = 'none'; return; }
+            btn.textContent = `Review · ${reviewHeadline(payload)}`;
+            btn.style.display = '';
+        }
+
+        function renderReview(payload, { open = false } = {}) {
             const panel = document.getElementById('review-panel');
+            renderReviewLink(payload);
             if (!payload) { panel.innerHTML = ''; return; }
 
             const r = payload.review || {};
@@ -619,11 +652,12 @@
                 : '';
 
             panel.innerHTML = `
-                <div class="prep-group">
-                    <div class="prep-group-header">
+                <details class="prep-group prep-review" id="review-details"${open ? ' open' : ''}>
+                    <summary class="prep-group-header">
                         <h3>What might be missing</h3>
-                        <span class="prep-group-count">${(r.gaps || []).length} suggestion${(r.gaps || []).length === 1 ? '' : 's'} · ${when}</span>
-                    </div>
+                        <span class="prep-group-count">${escapeHtml(reviewHeadline(payload))}</span>
+                    </summary>
+                    <p class="page-note">Reviewed ${escapeHtml(when)}</p>
                     ${stale}
                     ${r.assessment ? `<p>${escapeHtml(r.assessment)}</p>` : ''}
                     ${gaps || '<div class="container-empty-state">No gaps found.</div>'}
@@ -631,7 +665,15 @@
                     ${list(r.assumptions, 'Assumed')}
                     ${r.notes ? `<div class="prep-notes">${escapeHtml(r.notes)}</div>` : ''}
                     <p class="page-note">A second pair of eyes, not an authority — check an official list such as ready.gov for anything that matters.</p>
-                </div>`;
+                </details>`;
+        }
+
+        function openReview() {
+            const details = document.getElementById('review-details');
+            if (!details) return;
+            details.open = true;
+            details.scrollIntoView({ block: 'start' });
+            details.querySelector('summary').focus();
         }
 
         async function loadReview() {
@@ -646,11 +688,17 @@
             renderReview(r.ok ? await r.json() : null);
         }
 
+        document.getElementById('btn-review-jump').addEventListener('click', openReview);
+
         document.getElementById('btn-review').addEventListener('click', async () => {
             const btn = document.getElementById('btn-review');
             const panel = document.getElementById('review-panel');
             btn.disabled = true;
             panel.innerHTML = '<div class="container-loading-state">Reviewing your inventory…</div>';
+            renderReviewLink(null);
+            // The panel sits at the foot of the page, so a review started from
+            // the header would otherwise run entirely off-screen.
+            panel.scrollIntoView({ block: 'nearest' });
             try {
                 const r = await fetch('/api/preparedness/review', { method: 'POST' });
                 const body = await r.json();
@@ -658,10 +706,19 @@
                     panel.innerHTML = `<div class="container-empty-state">${escapeHtml(body.detail || 'The review failed.')}</div>`;
                     return;
                 }
-                renderReview(body);
+                // A review you just asked for opens; a stored one from an
+                // earlier day waits to be opened.
+                renderReview(body, { open: true });
             } finally {
                 btn.disabled = false;
             }
+        });
+
+        // A closed `details` prints closed, and the report printed with the
+        // page before it was collapsible.
+        window.addEventListener('beforeprint', () => {
+            const details = document.getElementById('review-details');
+            if (details) details.open = true;
         });
 
         load();
