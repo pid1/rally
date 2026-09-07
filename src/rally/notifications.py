@@ -28,6 +28,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from rally import notification_prefs
+from rally.calendars.describe import describe_recurrence
 from rally.calendars.native import expand_event
 from rally.models import (
     Calendar,
@@ -225,95 +226,6 @@ def when_label(occurrence, tz: ZoneInfo) -> str:
         ).strip()
 
     return f"{occurrence.start_local_date} · {_time_range(start, end)} {zone}".strip()
-
-
-_WEEKDAY_NAMES = {
-    "MO": "Monday",
-    "TU": "Tuesday",
-    "WE": "Wednesday",
-    "TH": "Thursday",
-    "FR": "Friday",
-    "SA": "Saturday",
-    "SU": "Sunday",
-}
-
-# Singular for an interval of one, plural for the rest: "weekly" against "every
-# 2 weeks".
-_FREQ_WORDS = {
-    "DAILY": ("daily", "days"),
-    "WEEKLY": ("weekly", "weeks"),
-    "MONTHLY": ("monthly", "months"),
-    "YEARLY": ("yearly", "years"),
-}
-
-
-def _rrule_parts(rrule: str) -> dict[str, str]:
-    parts: dict[str, str] = {}
-    for chunk in rrule.split(";"):
-        name, _, value = chunk.partition("=")
-        if name.strip():
-            parts[name.strip().upper()] = value.strip()
-    return parts
-
-
-def _join_names(names: list[str]) -> str:
-    if len(names) == 1:
-        return names[0]
-    return f"{', '.join(names[:-1])} and {names[-1]}"
-
-
-def _ordinal(day: int) -> str:
-    suffix = "th" if 11 <= day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-    return f"{day}{suffix}"
-
-
-def describe_recurrence(rrule: str | None) -> str:
-    """How often a series repeats, in the vocabulary the event form offers.
-
-    The add-event form compiles five choices to RRULE — daily, weekly on this
-    day, every 2 weeks on this day, monthly on this date, yearly — and this
-    reads them back, so the notice describes the choice somebody actually made
-    rather than the syntax it was stored as. A rule richer than the form can
-    express (an imported one, or one typed by hand) degrades to a phrase that is
-    vague but true, never a confidently wrong one.
-    """
-    if not rrule:
-        return ""
-
-    parts = _rrule_parts(rrule)
-    freq = parts.get("FREQ", "").upper()
-    words = _FREQ_WORDS.get(freq)
-    if not words:
-        return "on a custom schedule"
-
-    singular, plural = words
-    try:
-        interval = int(parts.get("INTERVAL", "1"))
-    except ValueError:
-        interval = 1
-    phrase = singular if interval <= 1 else f"every {interval} {plural}"
-
-    if freq == "WEEKLY":
-        # ``BYDAY`` may carry an ordinal prefix ("2TU"); only the day matters
-        # here, and an ordinal one cannot occur in a weekly rule anyway.
-        days = [
-            _WEEKDAY_NAMES[code]
-            for code in (
-                token.strip().upper()[-2:]
-                for token in parts.get("BYDAY", "").split(",")
-                if token.strip()
-            )
-            if code in _WEEKDAY_NAMES
-        ]
-        if days:
-            return f"{phrase} on {_join_names(days)}"
-
-    if freq == "MONTHLY":
-        monthday = parts.get("BYMONTHDAY", "")
-        if monthday.isdigit():
-            return f"{phrase} on the {_ordinal(int(monthday))}"
-
-    return phrase
 
 
 def change_title(event_title: str, kind: str) -> str:

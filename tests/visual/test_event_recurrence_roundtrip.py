@@ -81,9 +81,12 @@ def _open_and_save(page, event_id, occurrence_date, *, mutate="", scope="all"):
             const sent = [];
             const realFetch = window.fetch;
             window.fetch = (url, options) => {
-                if (options && (options.method === 'PUT' || options.method === 'POST')) {
-                    sent.push({ url: String(url), body: JSON.parse(options.body) });
-                }
+                const writing = options && (options.method === 'PUT' || options.method === 'POST');
+                // The read-back POSTs the compiled rule to /describe-recurrence on
+                // every control change. It is not a save, and capturing it would
+                // make every assertion below read the wrong request.
+                const isSave = writing && !String(url).includes('/describe-recurrence');
+                if (isSave) sent.push({ url: String(url), body: JSON.parse(options.body) });
                 return realFetch(url, options);
             };
             try {
@@ -158,18 +161,23 @@ def test_changing_the_cadence_carries_the_bound_forward(split_series):
     assert after["series_end_date"] == LAST_BEFORE_SPLIT
 
 
-def test_a_rule_the_form_cannot_express_is_named_and_preserved(browser, live_server):
-    """Multi-day weekly is beyond the six choices, so it is held, not narrowed."""
+def test_a_rule_beyond_even_the_custom_controls_is_named_and_preserved(browser, live_server):
+    """`BYSETPOS` is legal RRULE the custom controls cannot build, so it is held.
+
+    Multi-day weekly used to live here; #207 made it buildable, so this needs a
+    rule that is still outside the vocabulary — otherwise the test would pass by
+    describing something the form now handles perfectly well.
+    """
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     page = context.new_page()
     try:
         created = page.request.post(
             live_server + "/api/events",
             data={
-                "title": "Band practice",
+                "title": "Board meeting",
                 "start": f"{FIRST.isoformat()}T16:00",
                 "end": f"{FIRST.isoformat()}T17:00",
-                "rrule": "FREQ=WEEKLY;BYDAY=TU,TH",
+                "rrule": "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=2",
             },
         )
         assert created.ok, created.text()
@@ -180,17 +188,57 @@ def test_a_rule_the_form_cannot_express_is_named_and_preserved(browser, live_ser
             page,
             event_id,
             FIRST.isoformat(),
-            mutate="document.getElementById('event-location').value = 'Music room';",
+            mutate="document.getElementById('event-location').value = 'Boardroom';",
         )
 
-        # Not "Weekly on this day" — that would drop Thursday on the next save.
         assert result["shown"]["value"] == "other"
         body = result["sent"][-1]["body"]
         assert "rrule" not in body, f"a rule the form cannot build was rewritten: {body!r}"
 
         after = page.request.get(f"{live_server}/api/events/{event_id}").json()
-        assert after["rrule"] == "FREQ=WEEKLY;BYDAY=TU,TH"
-        assert after["location"] == "Music room"
+        assert after["rrule"] == "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=2"
+        assert after["location"] == "Boardroom"
+    finally:
+        page.close()
+        context.close()
+
+
+def test_a_multi_day_weekly_rule_is_now_buildable_rather_than_read_only(browser, live_server):
+    """The case #207 moved from `other` to `custom`, with its controls filled in."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    try:
+        created = page.request.post(
+            live_server + "/api/events",
+            data={
+                "title": "Band practice",
+                "start": f"{FIRST.isoformat()}T16:00",
+                "end": f"{FIRST.isoformat()}T17:00",
+                "rrule": "FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH",
+            },
+        )
+        assert created.ok, created.text()
+        event_id = created.json()["id"]
+
+        page.goto(live_server + "/calendar", wait_until="networkidle")
+        state = page.evaluate(
+            """async (eventId) => {
+                await openEditEventModal({ event_id: eventId, occurrence_date: null });
+                await new Promise(r => setTimeout(r, 400));
+                return {
+                    choice: document.getElementById('event-repeat').value,
+                    freq: document.getElementById('event-custom-freq').value,
+                    interval: document.getElementById('event-custom-interval').value,
+                    days: [...document.querySelectorAll('#event-custom-weekdays input')]
+                        .filter(i => i.checked).map(i => i.value),
+                };
+            }""",
+            event_id,
+        )
+        assert state["choice"] == "custom"
+        assert state["freq"] == "weekly"
+        assert state["interval"] == "2"
+        assert state["days"] == ["TU", "TH"]
     finally:
         page.close()
         context.close()

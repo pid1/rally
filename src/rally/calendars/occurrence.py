@@ -73,6 +73,10 @@ class Occurrence:
     event_id: int | None = None
     occurrence_date: str | None = None
     recurring: bool = False
+    # The series' rule, carried so the page can say *how* it repeats rather than
+    # only that it does. Read-only for every source: editing a rule goes through
+    # the event, never an occurrence of it.
+    rrule: str | None = None
     editable: bool = False
     notify_minutes_before: int | None = None
     member_color: str | None = None
