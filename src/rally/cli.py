@@ -210,7 +210,7 @@ def seed():
         todos = [
             Todo(
                 title="Schedule dentist appointments",
-                description="Need to book checkups for the whole family",
+                description="Need to book checkups for the whole family. Dr. Ruiz: 206-555-0147",
                 completed=False,
             ),
             Todo(

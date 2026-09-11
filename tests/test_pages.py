@@ -136,3 +136,45 @@ def test_calendar_has_no_dead_viewport_override():
     is not consulted again."""
     html = (TEMPLATES / "calendar.html").read_text()
     assert "applyViewportView" not in html
+
+
+# Pages that show text a family member typed — a task's details, a note on a
+# shopping item, an event's location. Each of those can carry a phone number.
+FREE_TEXT_PAGES = [
+    "/todo",
+    "/todo/completed",
+    "/shopping",
+    "/shopping/purchased",
+    "/preparedness",
+    "/go-list",
+    "/calendar",
+]
+
+
+@pytest.mark.parametrize("path", FREE_TEXT_PAGES)
+def test_pages_that_show_family_text_load_the_phone_linker(client, path):
+    """The helper is loaded in the head, before the inline script that calls it."""
+    html = client.get(path).text
+    assert "/static/phone_links.js" in html
+
+
+def test_family_written_text_is_rendered_through_the_phone_linker():
+    """A description, a note or a location is where a number to call gets written.
+
+    Rendering one with a bare `escapeHtml()` puts the number on the screen as
+    text, which on a phone means copying it out by hand to dial it. Every one
+    of these fields goes through `escapeHtmlWithPhoneLinks()` instead — which
+    escapes exactly the same way and marks up the numbers it finds — so a field
+    added later cannot quietly lose its links.
+    """
+    plain = re.compile(
+        r"\bescapeHtml\("
+        r"(?:todo\.description|item\.note|item\.notes|occurrence\.(?:location|description))\)"
+    )
+    offenders = [
+        f"{path.name}:{i}"
+        for path in sorted(TEMPLATES.glob("*.html"))
+        for i, line in enumerate(path.read_text().splitlines(), 1)
+        if plain.search(line)
+    ]
+    assert not offenders, f"free text must render through escapeHtmlWithPhoneLinks(): {offenders}"
