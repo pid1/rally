@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+    <script src="/static/phone_links.js?v={{ css_version }}"></script>
 </head>
 <body>
     <header class="header">
@@ -265,7 +266,7 @@
         function renderRow(item) {
             const overdue = item.status === 'overdue' ? ' prep-row--overdue' : '';
             const qty = item.quantity ? `<span class="prep-qty"> — ${escapeHtml(item.quantity)}</span>` : '';
-            const notes = item.notes ? `<div class="prep-notes">${escapeHtml(item.notes)}</div>` : '';
+            const notes = item.notes ? `<div class="prep-notes">${escapeHtmlWithPhoneLinks(item.notes)}</div>` : '';
             const refreshBtn = item.next_refresh_date
                 ? `<button type="button" class="btn btn--quiet btn--sm" data-refresh="${item.id}">Refreshed</button>`
                 : '';

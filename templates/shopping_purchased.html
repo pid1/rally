@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+    <script src="/static/phone_links.js?v={{ css_version }}"></script>
 </head>
 <body>
     <header class="header">
@@ -246,7 +247,7 @@
                 <div class="editable-item" data-id="${item.id}">
                     <div class="editable-item-content">
                         <div class="editable-item-title">${escapeHtml(item.name)}</div>
-                        ${item.note ? `<div class="editable-item-description">${escapeHtml(item.note)}</div>` : ''}
+                        ${item.note ? `<div class="editable-item-description">${escapeHtmlWithPhoneLinks(item.note)}</div>` : ''}
                         ${formatPurchasedDate(item.completed_at)}
                     </div>
                 </div>

@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+    <script src="/static/phone_links.js?v={{ css_version }}"></script>
 </head>
 <body>
     <header class="header">
@@ -980,7 +981,7 @@
                             <div class="agenda-time">${escapeHtml(time)}</div>
                             <div class="editable-item-content">
                                 <div class="editable-item-title">${dotFor(occurrence)} ${escapeHtml(occurrence.title)}</div>
-                                ${occurrence.location ? `<div class="editable-item-description">${escapeHtml(occurrence.location)}</div>` : ''}
+                                ${occurrence.location ? `<div class="editable-item-description">${escapeHtmlWithPhoneLinks(occurrence.location)}</div>` : ''}
                                 ${who ? `<div class="assignee-label">${escapeHtml(who)}</div>` : ''}
                             </div>
                         </div>`;
@@ -1742,7 +1743,7 @@
             }
 
             document.getElementById('detail-body').innerHTML = rows
-                .map(([label, value]) => `<div class="event-detail-row"><span class="event-detail-label">${label}</span><span>${escapeHtml(value)}</span></div>`)
+                .map(([label, value]) => `<div class="event-detail-row"><span class="event-detail-label">${label}</span><span>${escapeHtmlWithPhoneLinks(value)}</span></div>`)
                 .join('');
 
             document.getElementById('btn-detail-edit').style.display = occurrence.editable ? '' : 'none';

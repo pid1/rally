@@ -199,6 +199,8 @@ The button family collapsed from nine ad hoc classes (`.btn-add`, `.btn-primary`
 
 Everything focusable shows a ring: one `:focus-visible` rule in the base layer, and no component may switch it off (E1). Hit areas are ≥44px wherever a finger is likely — keyed off `(pointer: coarse)` as well as width, because the wall tablet is a coarse pointer at desktop size (E2).
 
+`.phone-link` is the one component that deliberately stays inline and under 44px: it wraps a phone number found inside a line of family-written text, takes its size, color and italics from that line, and adds only an underline. A 44px target would break the sentence around it, which is the case WCAG 2.5.8 exempts.
+
 ### 4. The toolbar
 
 The one deliberate shape change.

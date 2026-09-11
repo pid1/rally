@@ -459,6 +459,24 @@ nav a.active,
     color: var(--ink);
 }
 
+/* A phone number the family wrote into a task, a note or an event, marked up
+   so a tap dials it. It takes its size, color and italics from the line it
+   sits in — an italic muted task description, a plain Notes row — and adds
+   only the underline that says it is a link. Kept inline on purpose: a 44px
+   tap target here would break the sentence it sits in, which is the case
+   WCAG 2.5.8 exempts. */
+.phone-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    /* A number split across two lines has to be read twice to be dialed. */
+    white-space: nowrap;
+}
+
+.phone-link:hover {
+    color: var(--ink);
+}
+
 /* ---- Toolbar ----
    Label placement is explicit: stacked below 768px, inline above. It used to
    be emergent — a wrapping flex row where the chip block dropped to its own

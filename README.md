@@ -52,7 +52,7 @@ Track what is in the kit, where it lives, and when it needs replacing. A replace
 
 ### On a phone
 
-Every page is built for a phone first and scales up to a wall display. The design is grayscale and typographic, so it also reads well on e-ink.
+Every page is built for a phone first and scales up to a wall display. The design is grayscale and typographic, so it also reads well on e-ink. A phone number written into a task, a note or an event is a link: tap it and the phone dials.
 
 <img src="docs/screenshots/readme-mobile.png" alt="Rally on a phone" width="320">
 
