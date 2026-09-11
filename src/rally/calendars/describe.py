@@ -18,15 +18,21 @@ import re
 from calendar import month_abbr
 from datetime import datetime
 
+# Declared in week order, Sunday first, because that is the order Rally reads a
+# week in everywhere else — the calendar grid and the event form's weekday
+# picker both start there. The insertion order *is* the week order: it is what
+# `_WEEK_ORDER` below sorts by, so there is one place to change it.
 _WEEKDAY_NAMES = {
+    "SU": "Sunday",
     "MO": "Monday",
     "TU": "Tuesday",
     "WE": "Wednesday",
     "TH": "Thursday",
     "FR": "Friday",
     "SA": "Saturday",
-    "SU": "Sunday",
 }
+
+_WEEK_ORDER = {code: index for index, code in enumerate(_WEEKDAY_NAMES)}
 
 # Singular for an interval of one, plural for the rest: "weekly" against "every
 # 2 weeks".
@@ -59,9 +65,12 @@ def _rrule_parts(rrule: str) -> dict[str, str]:
 
 
 def _join_names(names: list[str]) -> str:
+    """One name, two joined by ``and``, three or more with an Oxford comma."""
     if len(names) == 1:
         return names[0]
-    return f"{', '.join(names[:-1])} and {names[-1]}"
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return f"{', '.join(names[:-1])}, and {names[-1]}"
 
 
 def _ordinal(day: int) -> str:
@@ -77,6 +86,37 @@ def _byday_codes(value: str) -> list[str]:
         if match and match.group(2) in _WEEKDAY_NAMES:
             codes.append(match.group(2))
     return codes
+
+
+def _weekday_names_in_week_order(value: str) -> list[str]:
+    """The named weekdays of a ``BYDAY``, deduplicated and in week order.
+
+    A rule lists its days in whatever order its author emitted them — Rally's
+    own form sorts, an imported one may be alphabetical — and read straight back
+    that produces "weekly on Friday, Monday, Thursday, Tuesday and Wednesday",
+    which the reader has to re-sort before it means anything. Only the plain
+    weekday lists come through here; `_positional_days` keeps its source order,
+    where the ordinal is the more significant term.
+    """
+    seen = set(_byday_codes(value))
+    return [_WEEKDAY_NAMES[code] for code in sorted(seen, key=_WEEK_ORDER.__getitem__)]
+
+
+def _weekday_clause(phrase: str, byday: str, interval: int) -> str:
+    """The days of a plain weekday rule, however its frequency is spelled.
+
+    ``FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR`` and ``FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR``
+    are the same series and have to read the same. They were described by two
+    copies of this logic, and the copies disagreed — the weekly one never
+    learned "every weekday" — which is the defect this function exists to make
+    unrepeatable. An interval keeps the days rather than collapsing them:
+    "every 2 weeks on every weekday" is not English, and the cadence is the more
+    important half of that sentence.
+    """
+    if set(_byday_codes(byday)) == _WEEKDAYS_ONLY and interval <= 1:
+        return "every weekday"
+    named = _weekday_names_in_week_order(byday)
+    return f"{phrase} on {_join_names(named)}" if named else phrase
 
 
 def _positional_days(value: str) -> list[str]:
@@ -154,19 +194,13 @@ def describe_recurrence(rrule: str | None) -> str:
     if freq == "DAILY" and byday:
         # `FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR` is "every weekday" and emphatically
         # not "daily" — the whole point of the rule is the two days it omits.
-        codes = set(_byday_codes(byday))
-        if codes == _WEEKDAYS_ONLY and interval <= 1:
-            phrase = "every weekday"
-        else:
-            named = [_WEEKDAY_NAMES[code] for code in _byday_codes(byday)]
-            if named:
-                phrase = f"{phrase} on {_join_names(named)}"
+        phrase = _weekday_clause(phrase, byday, interval)
 
     elif freq == "WEEKLY":
         # An ordinal prefix cannot occur in a weekly rule; only the day matters.
-        named = [_WEEKDAY_NAMES[code] for code in _byday_codes(byday)]
-        if named:
-            phrase = f"{phrase} on {_join_names(named)}"
+        # Rally's own form only ever writes the daily spelling of a weekday
+        # rule, so the weekly one is what arrives from imported calendars.
+        phrase = _weekday_clause(phrase, byday, interval)
 
     elif freq == "MONTHLY":
         monthday = parts.get("BYMONTHDAY", "").strip()

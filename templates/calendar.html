@@ -107,39 +107,39 @@
                 <form id="event-form">
                     <input type="hidden" id="event-id">
                     <input type="hidden" id="event-occurrence-date">
-                    <div class="form-group">
-                        <label>Event</label>
+                    <div class="form-group" id="event-title-group">
+                        <label for="event-title">Event</label>
                         <input type="text" id="event-title" placeholder="Event title" required>
                     </div>
-                    <div class="form-group">
-                        <label>Notes (optional)</label>
+                    <div class="form-group" id="event-description-group">
+                        <label for="event-description">Notes (optional)</label>
                         <textarea id="event-description" placeholder="Additional details" rows="3"></textarea>
                     </div>
-                    <div class="form-group">
-                        <label>Location (optional)</label>
+                    <div class="form-group" id="event-location-group">
+                        <label for="event-location">Location (optional)</label>
                         <input type="text" id="event-location" placeholder="e.g. Dr. Kim's office">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" id="event-all-day-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="event-all-day">
                             All day
                         </label>
                     </div>
                     <div class="form-group" id="event-timed-group">
-                        <label>Starts</label>
+                        <label for="event-start-time">Starts</label>
                         <input type="datetime-local" id="event-start-time">
-                        <label>Ends</label>
+                        <label for="event-end-time">Ends</label>
                         <input type="datetime-local" id="event-end-time">
                     </div>
                     <div class="form-group" id="event-allday-group" style="display:none;">
-                        <label>First day</label>
+                        <label for="event-start-date">First day</label>
                         <input type="date" id="event-start-date">
-                        <label>Last day</label>
+                        <label for="event-end-date">Last day</label>
                         <input type="date" id="event-end-date">
                         <small>The last day is included — a one-day event has both the same.</small>
                     </div>
-                    <div class="form-group">
-                        <label>Repeats</label>
+                    <div class="form-group" id="event-repeat-group">
+                        <label for="event-repeat">Repeats</label>
                         <select id="event-repeat">
                             <option value="">Does not repeat</option>
                             <option value="daily">Daily</option>
@@ -177,22 +177,22 @@
                             <small>Monday to Friday. This has no interval — “every 3 weekdays” is not something a calendar rule can say.</small>
                         </div>
                         <div class="form-group" id="event-custom-weekly-group" style="display:none;">
-                            <label>On</label>
-                            <div class="weekday-checkboxes" id="event-custom-weekdays">
-                                <label class="weekday-label"><input type="checkbox" value="MO"> Mon</label>
-                                <label class="weekday-label"><input type="checkbox" value="TU"> Tue</label>
-                                <label class="weekday-label"><input type="checkbox" value="WE"> Wed</label>
-                                <label class="weekday-label"><input type="checkbox" value="TH"> Thu</label>
-                                <label class="weekday-label"><input type="checkbox" value="FR"> Fri</label>
-                                <label class="weekday-label"><input type="checkbox" value="SA"> Sat</label>
-                                <label class="weekday-label"><input type="checkbox" value="SU"> Sun</label>
+                            <label id="event-custom-weekdays-label">On</label>
+                            <div class="weekday-checkboxes" id="event-custom-weekdays" role="group" aria-labelledby="event-custom-weekdays-label">
+                                <label class="weekday-label"><input type="checkbox" id="event-custom-weekdays-su" value="SU"> Sun</label>
+                                <label class="weekday-label"><input type="checkbox" id="event-custom-weekdays-mo" value="MO"> Mon</label>
+                                <label class="weekday-label"><input type="checkbox" id="event-custom-weekdays-tu" value="TU"> Tue</label>
+                                <label class="weekday-label"><input type="checkbox" id="event-custom-weekdays-we" value="WE"> Wed</label>
+                                <label class="weekday-label"><input type="checkbox" id="event-custom-weekdays-th" value="TH"> Thu</label>
+                                <label class="weekday-label"><input type="checkbox" id="event-custom-weekdays-fr" value="FR"> Fri</label>
+                                <label class="weekday-label"><input type="checkbox" id="event-custom-weekdays-sa" value="SA"> Sat</label>
                             </div>
                         </div>
                         <div class="form-group" id="event-custom-monthly-group" style="display:none;">
-                            <label>On</label>
-                            <div class="radio-options" style="margin-bottom:8px;">
-                                <label><input type="radio" name="event-custom-monthly-mode" value="day" checked> Day of month</label>
-                                <label><input type="radio" name="event-custom-monthly-mode" value="weekday"> Relative weekday</label>
+                            <label id="event-custom-monthly-mode-label">On</label>
+                            <div class="radio-options" style="margin-bottom:8px;" role="group" aria-labelledby="event-custom-monthly-mode-label">
+                                <label><input type="radio" id="event-custom-monthly-mode-day" name="event-custom-monthly-mode" value="day" checked> Day of month</label>
+                                <label><input type="radio" id="event-custom-monthly-mode-weekday" name="event-custom-monthly-mode" value="weekday"> Relative weekday</label>
                             </div>
                             <div id="event-custom-monthly-day-group">
                                 <select id="event-custom-monthly-day"></select>
@@ -222,11 +222,11 @@
                     </div>
 
                     <div class="form-group" id="event-ends-group" style="display:none;">
-                        <label>Ends</label>
-                        <div class="radio-options">
-                            <label><input type="radio" name="event-ends" value="never" checked> Never</label>
-                            <label><input type="radio" name="event-ends" value="until"> On date</label>
-                            <label><input type="radio" name="event-ends" value="count"> After a number of times</label>
+                        <label id="event-ends-mode-label">Ends</label>
+                        <div class="radio-options" role="group" aria-labelledby="event-ends-mode-label">
+                            <label><input type="radio" id="event-ends-mode-never" name="event-ends" value="never" checked> Never</label>
+                            <label><input type="radio" id="event-ends-mode-until" name="event-ends" value="until"> On date</label>
+                            <label><input type="radio" id="event-ends-mode-count" name="event-ends" value="count"> After a number of times</label>
                         </div>
                         <div id="event-ends-until-group" style="display:none;">
                             <input type="date" id="event-ends-until">
@@ -241,13 +241,13 @@
                     </div>
 
                     <div class="recurrence-preview" id="event-recurrence-preview" aria-live="polite"></div>
-                    <div class="form-group">
-                        <label>Who's involved</label>
-                        <div class="weekday-checkboxes" id="event-attendees"></div>
+                    <div class="form-group" id="event-attendees-group">
+                        <label id="event-attendees-label">Who's involved</label>
+                        <div class="weekday-checkboxes" id="event-attendees" role="group" aria-labelledby="event-attendees-label"></div>
                         <small>Attendees decide who a reminder reaches.</small>
                     </div>
-                    <div class="form-group">
-                        <label>Remind attendees</label>
+                    <div class="form-group" id="event-notify-group">
+                        <label for="event-notify">Remind attendees</label>
                         <select id="event-notify">
                             <option value="">No reminder</option>
                             <option value="10">10 minutes before</option>
@@ -262,11 +262,11 @@
 
                 <div id="event-scope-group" style="display:none;">
                     <div class="form-group">
-                        <label>This event repeats. Apply the change to:</label>
-                        <div class="event-scope-prompt">
-                            <button type="button" class="btn btn--sm" data-scope="this">This occurrence</button>
-                            <button type="button" class="btn btn--sm" data-scope="following">This and following</button>
-                            <button type="button" class="btn btn--sm" data-scope="all">All events</button>
+                        <label id="event-scope-label">This event repeats. Apply the change to:</label>
+                        <div class="event-scope-prompt" role="group" aria-labelledby="event-scope-label">
+                            <button type="button" class="btn btn--sm" id="btn-scope-this" data-scope="this">This occurrence</button>
+                            <button type="button" class="btn btn--sm" id="btn-scope-following" data-scope="following">This and following</button>
+                            <button type="button" class="btn btn--sm" id="btn-scope-all" data-scope="all">All events</button>
                         </div>
                         <small id="event-scope-help"></small>
                     </div>
@@ -274,11 +274,11 @@
 
                 <div id="event-delete-scope-group" style="display:none;">
                     <div class="form-group">
-                        <label>This event repeats. Delete:</label>
-                        <div class="event-scope-prompt">
-                            <button type="button" class="btn btn--sm" data-delete-scope="this">This occurrence</button>
-                            <button type="button" class="btn btn--sm" data-delete-scope="following">This and following</button>
-                            <button type="button" class="btn btn--sm" data-delete-scope="all">All events</button>
+                        <label id="event-delete-scope-label">This event repeats. Delete:</label>
+                        <div class="event-scope-prompt" role="group" aria-labelledby="event-delete-scope-label">
+                            <button type="button" class="btn btn--sm" id="btn-delete-scope-this" data-delete-scope="this">This occurrence</button>
+                            <button type="button" class="btn btn--sm" id="btn-delete-scope-following" data-delete-scope="following">This and following</button>
+                            <button type="button" class="btn btn--sm" id="btn-delete-scope-all" data-delete-scope="all">All events</button>
                         </div>
                         <small id="event-delete-scope-help"></small>
                     </div>
@@ -451,6 +451,16 @@
             const div = document.createElement('div');
             div.textContent = text == null ? '' : text;
             return div.innerHTML;
+        }
+
+        /* Open a fragment in upper case without touching the rest of it.
+           `describe_recurrence` returns words meant to sit mid-sentence, and the
+           detail modal is the one place they head a value instead. Only the
+           first character moves — "every 2 weeks on Tuesday and Thursday" must
+           keep its weekday capitals and its lowercase "weeks". */
+        function sentenceCase(text) {
+            if (!text) return '';
+            return text.charAt(0).toUpperCase() + text.slice(1);
         }
 
         // --- API
@@ -1005,7 +1015,7 @@
         function renderAttendeeCheckboxes() {
             const box = document.getElementById('event-attendees');
             box.innerHTML = familyMembers
-                .map(m => `<label class="weekday-label"><input type="checkbox" value="${m.id}"> ${escapeHtml(m.name)}</label>`)
+                .map(m => `<label class="weekday-label"><input type="checkbox" id="event-attendee-${m.id}" value="${m.id}"> ${escapeHtml(m.name)}</label>`)
                 .join('') || '<small>No family members yet — add one in Settings.</small>';
             box.querySelectorAll('input').forEach(input => {
                 input.addEventListener('change', updateNotifyHelp);
@@ -1266,7 +1276,10 @@
         // Everything the custom controls can build. A rule using anything else
         // — BYSETPOS, BYMONTH, BYWEEKNO — is beyond the form and stays read-only.
         const CUSTOM_RULE_PARTS = new Set(['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'UNTIL', 'COUNT']);
-        const WEEKDAY_CODES = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+        /* Week order, Sunday first — the order the calendar grid, the weekday
+           picker and the read-back sentence all use. `rruleFor` builds the same
+           order off `Date.getDay()`, where 0 is Sunday. */
+        const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 
         function ruleParts(rrule) {
             const out = {};
@@ -1714,8 +1727,13 @@
                 ? (occurrence.start_date === occurrence.end_date ? 'All day' : `All day, ${occurrence.start_date} – ${occurrence.end_date}`)
                 : `${occurrence.time_label} – ${occurrence.end_time_label}`;
 
+            /* Each row carries a stable key as well as its label. The key is
+               what the row *is*; the label is display copy that will be
+               reworded eventually, and an id derived from it would move when it
+               was. The key becomes `detail-row-<key>` / `detail-value-<key>`,
+               which is how a test names one row without matching on its text. */
             const rows = [
-                ['When', `${occurrence.start_date} · ${when}`],
+                ['when', 'When', `${occurrence.start_date} · ${when}`],
             ];
             /* "Is this the one Tuesday or every Tuesday?" is asked here, and
                until now could only be answered by opening the edit form. A
@@ -1723,27 +1741,31 @@
                arrive knowing they repeat but not how — say that, rather than
                omitting the row and implying a one-off. */
             if (occurrence.recurrence_text) {
-                rows.push(['Repeats', occurrence.recurrence_text]);
+                /* `describe_recurrence` returns a lowercase fragment because it
+                   is embedded mid-sentence elsewhere ("This event repeats …").
+                   Here it is a value beside a label rather than a sentence, so
+                   it opens in upper case. */
+                rows.push(['repeats', 'Repeats', sentenceCase(occurrence.recurrence_text)]);
             } else if (occurrence.recurring) {
-                rows.push(['Repeats', 'Yes — this calendar does not share the schedule.']);
+                rows.push(['repeats', 'Repeats', 'Yes — this calendar does not share the schedule.']);
             }
             rows.push(
-                ['Where', occurrence.location || '—'],
-                ['Who', occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || 'Nobody in particular')],
-                ['Calendar', occurrence.calendar_label || occurrence.source],
-                ['Notes', occurrence.description || '—']
+                ['where', 'Where', occurrence.location || '—'],
+                ['who', 'Who', occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || 'Nobody in particular')],
+                ['calendar', 'Calendar', occurrence.calendar_label || occurrence.source],
+                ['notes', 'Notes', occurrence.description || '—']
             );
             if (occurrence.notify_minutes_before) {
-                rows.push(['Reminder', `${occurrence.notify_minutes_before} minutes before`]);
+                rows.push(['reminder', 'Reminder', `${occurrence.notify_minutes_before} minutes before`]);
             }
             if (!occurrence.editable) {
                 // Answering "why can't I change this?" on the screen where it
                 // is asked, rather than by disabling a control silently.
-                rows.push(['Read-only', 'This event lives on an external calendar Rally can only read.']);
+                rows.push(['readonly', 'Read-only', 'This event lives on an external calendar Rally can only read.']);
             }
 
             document.getElementById('detail-body').innerHTML = rows
-                .map(([label, value]) => `<div class="event-detail-row"><span class="event-detail-label">${label}</span><span>${escapeHtmlWithPhoneLinks(value)}</span></div>`)
+                .map(([key, label, value]) => `<div class="event-detail-row" id="detail-row-${key}"><span class="event-detail-label">${label}</span><span id="detail-value-${key}">${escapeHtmlWithPhoneLinks(value)}</span></div>`)
                 .join('');
 
             document.getElementById('btn-detail-edit').style.display = occurrence.editable ? '' : 'none';

@@ -555,7 +555,7 @@ def test_a_rule_richer_than_the_form_stays_vague_rather_than_wrong(
 def test_a_multi_day_weekly_rule_names_every_day(client, token, reachable, mock_pushover):
     _create(client, rrule="FREQ=WEEKLY;BYDAY=MO,WE,FR", attendee_ids=[reachable.id])
     assert mock_pushover.sent[0]["message"].endswith(
-        "This event repeats weekly on Monday, Wednesday and Friday"
+        "This event repeats weekly on Monday, Wednesday, and Friday"
     )
 
 
