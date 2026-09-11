@@ -25,7 +25,7 @@ from rally.calendars.describe import describe_recurrence
         ("FREQ=WEEKLY;INTERVAL=2;BYDAY=FR", "every 2 weeks on Friday"),
         ("FREQ=MONTHLY;BYMONTHDAY=14", "monthly on the 14th"),
         ("FREQ=YEARLY", "yearly"),
-        ("FREQ=WEEKLY;BYDAY=MO,WE,FR", "weekly on Monday, Wednesday and Friday"),
+        ("FREQ=WEEKLY;BYDAY=MO,WE,FR", "weekly on Monday, Wednesday, and Friday"),
     ],
 )
 def test_the_existing_vocabulary_is_unchanged(rrule, expected):
@@ -58,8 +58,44 @@ def test_a_weekdays_only_series_is_never_called_daily():
 
 def test_a_partial_weekday_set_is_not_every_weekday():
     assert (
-        describe_recurrence("FREQ=DAILY;BYDAY=MO,WE,FR") == "daily on Monday, Wednesday and Friday"
+        describe_recurrence("FREQ=DAILY;BYDAY=MO,WE,FR") == "daily on Monday, Wednesday, and Friday"
     )
+
+
+def test_a_weekly_weekday_set_is_also_every_weekday():
+    """The same series, spelled the way an imported calendar spells it.
+
+    Rally's own form only ever writes the `FREQ=DAILY` form, so this spelling
+    arrives from outside — and read back day by day it was the one place the
+    reader had to re-sort five names to recognise their own work week.
+    """
+    assert describe_recurrence("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR") == "every weekday"
+    assert describe_recurrence("FREQ=WEEKLY;BYDAY=FR,MO,TH,TU,WE") == "every weekday"
+
+
+def test_an_interval_keeps_the_days_rather_than_collapsing_them():
+    """An interval keeps the days: "every 2 weeks on every weekday" is not English."""
+    assert describe_recurrence("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR") == (
+        "every 2 weeks on Monday, Tuesday, Wednesday, Thursday, and Friday"
+    )
+
+
+@pytest.mark.parametrize(
+    ("rrule", "expected"),
+    [
+        # However the rule lists them, the phrase reads in week order.
+        ("FREQ=WEEKLY;BYDAY=FR,MO", "weekly on Monday and Friday"),
+        ("FREQ=WEEKLY;BYDAY=WE,MO,FR", "weekly on Monday, Wednesday, and Friday"),
+        ("FREQ=DAILY;BYDAY=FR,MO,WE", "daily on Monday, Wednesday, and Friday"),
+        # Sunday leads the week, and Saturday closes it.
+        ("FREQ=WEEKLY;BYDAY=SA,SU", "weekly on Sunday and Saturday"),
+        ("FREQ=WEEKLY;BYDAY=SA,MO,SU", "weekly on Sunday, Monday, and Saturday"),
+        # A day listed twice is still one day.
+        ("FREQ=WEEKLY;BYDAY=MO,MO", "weekly on Monday"),
+    ],
+)
+def test_weekdays_are_named_in_week_order(rrule, expected):
+    assert describe_recurrence(rrule) == expected
 
 
 # --- Bounds --------------------------------------------------------------------
