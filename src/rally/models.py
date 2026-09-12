@@ -391,6 +391,84 @@ class MemberNotificationPref(Base):
     )
 
 
+class Device(Base):
+    """One browser Rally has heard from, and what the family calls it.
+
+    Devices register themselves: the id is a token the browser generated and
+    kept in its own storage, so the first time Rally sees it is the first time
+    the device exists. There is no enrollment step and nothing to pair — the
+    household is already behind one front door, and a device that turns up
+    unknown is a family member opening Rally, not an intruder.
+
+    ``label`` starts as the browser's own coarse guess ("iPhone", "Mac") and is
+    there to be corrected. It is what makes the device list legible: a column
+    of random tokens answers no question anybody has, and *"forget this
+    device"* is unusable if you cannot tell which one it is.
+
+    ``last_seen_at`` is the other half of that. A browser that clears its
+    storage comes back as a new device and leaves the old row behind, so the
+    list needs to say which entries are still alive.
+    """
+
+    __tablename__ = "devices"
+
+    # A client-generated token, not an integer: the browser has to be able to
+    # mint it offline and keep using the same one, which a server-assigned id
+    # cannot do without a round trip on first paint.
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    last_seen_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+
+class MemberPreference(Base):
+    """One family member's answer for one behavioral setting on one device.
+
+    The sibling of ``MemberNotificationPref``: that table decides who *hears*
+    about what, this one decides what a screen *does* when they open it. Both
+    are catalogs rather than a column per idea, so the next setting is an entry
+    in ``rally.member_prefs`` and no schema change at all.
+
+    **The key is the pair.** A preference belongs to a person *on a device*,
+    not to a person and not to a class of device. An earlier cut keyed the
+    second half on a media query — phone or computer — which is a guess about a
+    device dressed up as a fact about one: the kitchen wall tablet and the desk
+    laptop are both "a computer" by width and want opposite things. The device
+    is what a person actually configures, so the device is what the answer
+    hangs on.
+
+    **An absent row means the setting's default**, which is always ``auto`` —
+    Rally's own rule, the behavior that predates this table. So upgrading moves
+    nobody's screen, and a device nobody has configured is not a device with a
+    missing answer.
+
+    No foreign key on either half, matching the tables beside it: resolution
+    always starts from a member row and a device row, so a stray orphan can
+    never change anybody's screen. Deleting a member and forgetting a device
+    each clear these rows explicitly.
+    """
+
+    __tablename__ = "member_preferences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    family_member_id: Mapped[int] = mapped_column(Integer, index=True)
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    pref_key: Mapped[str] = mapped_column(String(40))  # one of member_prefs.SETTING_KEYS
+    value: Mapped[str] = mapped_column(String(40))
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_member_preferences_unique",
+            "family_member_id",
+            "device_id",
+            "pref_key",
+            unique=True,
+        ),
+    )
+
+
 class DashboardSnapshot(Base):
     """Dashboard snapshot model - stores generated daily summary data."""
 

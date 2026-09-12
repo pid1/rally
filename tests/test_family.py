@@ -1,7 +1,13 @@
-"""Tests for the family members router — CRUD, ordering, and notifications."""
+"""Tests for the family members router — CRUD, ordering, and notifications.
 
-from rally import member_colors
-from rally.models import FamilyMember, MemberNotificationPref
+Behavioral preferences are *not* here: they belong to a person on a device, so
+they live under `/api/devices/{id}/preferences` and are covered in
+`tests/test_devices.py`. Deleting a member still has to collect them, which is
+the one thing this file checks about them.
+"""
+
+from rally import member_colors, member_prefs
+from rally.models import FamilyMember, MemberNotificationPref, MemberPreference
 from rally.notification_prefs import EVENT_CHANGE, SHOPPING_ADDED, defaults
 
 
@@ -188,3 +194,17 @@ def test_deleting_a_member_takes_their_preferences_with_them(client, db_session)
     client.delete(f"/api/family/{member['id']}")
 
     assert db_session.query(MemberNotificationPref).count() == 0
+
+
+def test_deleting_a_member_takes_their_device_answers_with_them(client, db_session, make_member):
+    """Their rows are keyed on a member and a device with a foreign key to
+    neither, so nothing else will ever collect them."""
+    member = make_member("Jon")
+    member_prefs.set_preferences(
+        db_session, member.id, "device-phone", {member_prefs.CALENDAR_DEFAULT_VIEW: "agenda:day"}
+    )
+    assert db_session.query(MemberPreference).count() == 1
+
+    client.delete(f"/api/family/{member.id}")
+
+    assert db_session.query(MemberPreference).count() == 0

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from rally import member_colors, notification_prefs
+from rally import member_colors, member_prefs, notification_prefs
 from rally.database import get_db
 from rally.models import Calendar, FamilyMember
 from rally.schemas import UNSET, FamilyMemberCreate, FamilyMemberResponse, FamilyMemberUpdate
@@ -17,6 +17,12 @@ def _response(db: Session, member: FamilyMember) -> FamilyMemberResponse:
     Resolved rather than raw: an absent row means the kind's default, and
     making every client work that out for itself is how two of them end up
     disagreeing about what "not set" means.
+
+    Behavioral preferences deliberately do **not** travel here. They belong to
+    a person *on a device*, so a member record cannot carry one without also
+    carrying every device the household has ever used. They live under
+    ``/api/devices/{id}/preferences`` instead, where the id in the path is the
+    other half of the key.
     """
     body = FamilyMemberResponse.model_validate(member)
     body.notifications = notification_prefs.preferences(db, member.id)
@@ -126,6 +132,10 @@ def delete_family_member(member_id: int, db: Session = Depends(get_db)):
     # Nothing enforces the reference, so the preference rows have to be cleared
     # by hand — the same reason deleting an event cascades its own attendees.
     notification_prefs.delete_preferences(db, member_id)
+    # Their behavioral answers on every device go too. Those rows are keyed on
+    # a member and a device with a foreign key to neither, so nothing else will
+    # ever collect them.
+    member_prefs.delete_member_preferences(db, member_id)
     db.delete(db_member)
     db.commit()
     return None

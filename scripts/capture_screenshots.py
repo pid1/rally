@@ -23,6 +23,7 @@ would advertise a UI the video does not show.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import socket
@@ -30,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,6 +44,23 @@ BASE = f"http://127.0.0.1:{PORT}"
 # Retina for the README's hero shots, 1x for the inline reference ones — which
 # is the split the existing files already had.
 RETINA = 2
+
+
+def _python() -> str:
+    """The interpreter that has Rally's dependencies.
+
+    `devenv shell` puts one at `.devenv/state/venv`; a plain `uv sync` puts one
+    at `.venv`. Preferring whichever exists means this script runs the same
+    from inside the devenv shell and from a checkout that only ever saw `uv`,
+    rather than failing with a path that looks like a typo.
+    """
+    for candidate in (
+        ROOT / ".devenv" / "state" / "venv" / "bin" / "python",
+        ROOT / ".venv" / "bin" / "python",
+    ):
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
 
 
 def _free_port_wait(timeout: float = 30.0) -> None:
@@ -57,7 +76,7 @@ def _free_port_wait(timeout: float = 30.0) -> None:
 def seed(db_path: Path) -> None:
     """A demo database, plus the two states the seed itself cannot produce."""
     env = {**os.environ, "RALLY_DB_PATH": str(db_path), "PYTHONPATH": str(ROOT / "src")}
-    py = str(ROOT / ".devenv" / "state" / "venv" / "bin" / "python")
+    py = _python()
 
     subprocess.run(
         [py, "-c", "from rally.database import init_db; init_db()"],
@@ -82,11 +101,22 @@ def seed(db_path: Path) -> None:
         raise RuntimeError(f"seed extras failed:\n{extras.stderr.strip()}")
 
 
-SEED_EXTRAS = """
+# One row per demo device: the token a browser would have minted, the name the
+# family gave it, and what its calendar opens on. Shared between the seed and
+# the shots so a rename never leaves a screenshot pointing at nothing.
+DEMO_DEVICES = (
+    ("demo-device-laptop", "Jon's laptop", "calendar:week"),
+    ("demo-device-kitchen", "Kitchen display", "agenda:rolling30"),
+    ("demo-device-phone", "Jon's phone", "agenda:day"),
+)
+DEVICES_BY_NAME = {token.rsplit("-", 1)[1]: token for token, _, _ in DEMO_DEVICES}
+
+
+_SEED_EXTRAS_BODY = """
 import json
 from rally.database import SessionLocal
 from rally.models import FamilyMember, Setting
-from rally import prep_review
+from rally import member_prefs, prep_review
 
 db = SessionLocal()
 # Ordered by *name*, because that is the order Settings lists them in and the
@@ -94,6 +124,16 @@ db = SessionLocal()
 # documenting an empty field.
 member = db.query(FamilyMember).order_by(FamilyMember.name).first()
 member.pushover_user_key = "uQiRzpo4DXghDmr9QzzfQu27cmVRsG"
+
+# Three devices for one person, each answering the calendar question
+# differently. Two of them are desktop-width on purpose: that is the claim the
+# feature makes and the one a per-form-factor setting could not make, so the
+# shots have to show it rather than showing two screen sizes disagreeing.
+for token, label, view in DEMO_DEVICES:
+    member_prefs.touch_device(db, token, label)
+    member_prefs.set_preferences(db, member.id, token, {
+        member_prefs.CALENDAR_DEFAULT_VIEW: view,
+    })
 
 # The review is opt-in (it is a real LLM call in normal use), so the button is
 # hidden until this is on. The screenshot documents the feature, so turn it on.
@@ -127,6 +167,10 @@ prep_review.run_review(db, llm=lambda *a, **k: (REVIEW, "demo-model"))
 db.close()
 """
 
+# The device table is prepended as a literal rather than interpolated: the body
+# above contains JSON braces, and an f-string would eat them.
+SEED_EXTRAS = f"DEMO_DEVICES = {DEMO_DEVICES!r}\n" + _SEED_EXTRAS_BODY
+
 
 @dataclass(frozen=True)
 class Shot:
@@ -135,6 +179,12 @@ class Shot:
     ``element`` captures that component rather than the page, so a modal's crop
     is its own width and cannot drift with the window. ``setup`` runs before the
     shot — opening a modal, switching a view — and is given the page.
+
+    ``device`` makes the browser arrive as one of the seeded demo devices,
+    claimed by the seeded family member, the way a real one would after
+    somebody picked themselves in Settings. It has to happen before the page
+    loads: the landing view is decided in ``init()``, and a shot that set it
+    afterwards would document a calendar nobody has.
     """
 
     name: str
@@ -145,6 +195,7 @@ class Shot:
     full_page: bool = True
     element: str | None = None
     setup: Callable | None = None
+    device: str | None = None  # a key of DEVICES_BY_NAME
 
 
 def _open_member_modal(page):
@@ -159,6 +210,26 @@ def _calendar(view, rng):
         page.wait_for_timeout(600)
 
     return go
+
+
+def _personal_defaults_section(page):
+    """Scroll the Personal Defaults block into view before cropping to it."""
+    page.locator("#personal-defaults").scroll_into_view_if_needed()
+    page.wait_for_selector("#member-prefs-list .editable-item")
+    page.wait_for_timeout(300)
+
+
+def _wait_for_calendar(page):
+    """Wait for whichever renderer the landing view asked for.
+
+    Deliberately not `select_option`: these two shots exist to show the page
+    choosing for itself, so driving the toolbar would prove nothing.
+    """
+    page.wait_for_selector(
+        "#calendar-view .calendar-grid, #calendar-view .calendar-timegrid, "
+        "#calendar-view .agenda-day, #calendar-view .container-empty-state"
+    )
+    page.wait_for_timeout(600)
 
 
 def _open_other_nav(page):
@@ -269,6 +340,46 @@ SHOTS: tuple[Shot, ...] = (
         setup=_open_member_modal,
     ),
     Shot("settings-notifications", "/settings", scale=1, element="#notification-overview"),
+    # Per-device behavioral defaults: the editor, then the same person's
+    # calendar on three of their devices. The laptop and the kitchen display
+    # are both captured at 1440 on purpose — two devices of identical width
+    # opening on different views is the claim a per-form-factor setting could
+    # not make, and a pair of shots at different sizes would quietly imply the
+    # old behavior.
+    Shot(
+        "settings-personal-defaults",
+        "/settings",
+        scale=1,
+        element="#personal-defaults",
+        device="laptop",
+        setup=_personal_defaults_section,
+    ),
+    Shot(
+        "calendar-device-laptop",
+        "/calendar",
+        width=1440,
+        scale=1,
+        device="laptop",
+        setup=_wait_for_calendar,
+    ),
+    Shot(
+        "calendar-device-kitchen",
+        "/calendar",
+        width=1440,
+        scale=1,
+        device="kitchen",
+        setup=_wait_for_calendar,
+    ),
+    Shot(
+        "calendar-device-phone",
+        "/calendar",
+        width=390,
+        height=844,
+        scale=1,
+        full_page=False,
+        device="phone",
+        setup=_wait_for_calendar,
+    ),
     Shot(
         "event-notify",
         "/calendar",
@@ -290,11 +401,23 @@ SHOTS: tuple[Shot, ...] = (
 )
 
 
+def _demo_member_id() -> int:
+    """The member Settings lists first, which is the one SEED_EXTRAS configures.
+
+    Read back from the running server rather than assumed, so the shots follow
+    the seed if it ever gains a name that sorts earlier.
+    """
+    with urllib.request.urlopen(f"{BASE}/api/family", timeout=10) as response:
+        members = json.load(response)
+    return sorted(members, key=lambda m: m["name"])[0]["id"]
+
+
 def capture(only: set[str] | None) -> list[str]:
     from playwright.sync_api import sync_playwright
 
     wanted = [s for s in SHOTS if not only or s.name in only]
     failed = []
+    device_member = _demo_member_id() if any(s.device for s in wanted) else None
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
@@ -303,6 +426,18 @@ def capture(only: set[str] | None) -> list[str]:
                 viewport={"width": shot.width, "height": shot.height},
                 device_scale_factor=shot.scale,
             )
+            if shot.device:
+                # The same two keys `static/device_member.js` writes, set before
+                # the first script on the page runs: which device this browser
+                # is, and whose it is. Both halves are needed — an answer is
+                # stored against the pair.
+                token = DEVICES_BY_NAME[shot.device]
+                context.add_init_script(
+                    "try {"
+                    f" localStorage.setItem('rally.device-id', '{token}');"
+                    f" localStorage.setItem('rally.device-member', '{device_member}');"
+                    " } catch (error) {}"
+                )
             page = context.new_page()
             try:
                 page.goto(f"{BASE}{shot.url}", wait_until="networkidle")
@@ -339,12 +474,7 @@ def main() -> int:
 
         env = {**os.environ, "RALLY_DB_PATH": str(db_path), "PYTHONPATH": str(ROOT / "src")}
         server = subprocess.Popen(
-            [
-                str(ROOT / ".devenv" / "state" / "venv" / "bin" / "uvicorn"),
-                "rally.main:app",
-                "--port",
-                str(PORT),
-            ],
+            [_python(), "-m", "uvicorn", "rally.main:app", "--port", str(PORT)],
             env=env,
             cwd=ROOT,
             stdout=subprocess.DEVNULL,

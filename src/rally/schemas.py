@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from rally import member_colors, notification_prefs
+from rally import member_colors, member_prefs, notification_prefs
 
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
@@ -736,6 +736,126 @@ class NotificationOverviewResponse(BaseModel):
 
     token_configured: bool
     kinds: list[NotificationKindOverview]
+
+
+# Devices, and the behavioral settings answered on one
+
+
+class DeviceBase(BaseModel):
+    """What a browser says about itself.
+
+    ``label`` is the browser's own coarse guess on first contact ("iPhone",
+    "Mac") and is there to be corrected. Nothing depends on it being right —
+    it exists so the device list answers "which one is that?" instead of
+    showing a column of tokens.
+    """
+
+    label: str | None = None
+
+
+class DeviceAnnounce(DeviceBase):
+    """A device saying hello, and optionally naming itself.
+
+    The id is in the path rather than the body: the browser minted it and is
+    addressing its own record, which is a PUT to a known URL rather than a
+    create. Omitting ``label`` leaves a stored name alone, so a page that
+    merely says hello cannot overwrite one somebody typed.
+    """
+
+
+class DeviceResponse(DeviceBase):
+    id: str
+    created_at: datetime
+    last_seen_at: datetime
+    # How many stored answers this device carries, so "forget this device"
+    # can say what it is about to throw away rather than asking somebody to
+    # guess.
+    answer_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BehaviorChoice(BaseModel):
+    """One answer a behavioral setting accepts."""
+
+    value: str
+    label: str
+
+
+class BehaviorSettingCatalogEntry(BaseModel):
+    """One setting, its choices, and what an unanswered device falls back to.
+
+    ``default`` is always ``auto`` — Rally's own rule, the behavior that
+    predates this table — and it is carried so a client can mark a dropdown as
+    chosen or inherited without holding a second copy of the catalog.
+    """
+
+    key: str
+    label: str
+    description: str
+    choices: list[BehaviorChoice]
+    default: str
+
+
+class BehaviorCatalogResponse(BaseModel):
+    """Every behavioral setting Rally offers."""
+
+    settings: list[BehaviorSettingCatalogEntry]
+
+
+class DevicePreferencesResponse(BaseModel):
+    """Every member's answers on one device, keyed by family member id.
+
+    Resolved, with the defaults filled in, for the same reason the notification
+    preferences are: a client that has to know the defaults to render a
+    dropdown is a second place for the defaults to live, and the two will
+    disagree. Keys are strings because JSON object keys always are.
+    """
+
+    device_id: str
+    members: dict[str, dict[str, str]]
+
+
+class MemberPreferencesUpdate(BaseModel):
+    """A partial set of answers for one member on one device.
+
+    Partial: a setting left out keeps its answer, so Settings saves one
+    dropdown without sending the others back. An unknown setting or value is a
+    422 rather than a stored preference nothing will ever read.
+    """
+
+    values: dict[str, str]
+
+    @field_validator("values")
+    @classmethod
+    def check_values(cls, values):
+        """Reject a setting or a value the catalog does not offer.
+
+        Both ways of being wrong are silent if stored: a typo'd key is read by
+        nothing and a value outside the choices resolves back to the default.
+        Each looks exactly like a preference that quietly stopped working.
+        """
+        if not values:
+            return values
+
+        unknown_keys = sorted(set(values) - set(member_prefs.SETTING_KEYS))
+        if unknown_keys:
+            known = ", ".join(member_prefs.SETTING_KEYS)
+            raise ValueError(f"Unknown setting(s): {', '.join(unknown_keys)}. Known: {known}")
+
+        for key, value in values.items():
+            if not member_prefs.is_valid(key, value):
+                known = ", ".join(c.value for c in member_prefs.CATALOG_BY_KEY[key].choices)
+                raise ValueError(f"Unknown value for {key}: {value}. Known: {known}")
+        return values
+
+
+class MemberPreferencesResponse(BaseModel):
+    """One member's resolved answers on one device."""
+
+    device_id: str
+    family_member_id: int
+    values: dict[str, str]
 
 
 # Preparedness — locations

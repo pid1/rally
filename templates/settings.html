@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+    <script src="/static/device_member.js?v={{ css_version }}"></script>
 </head>
 <body>
     <header class="header">
@@ -47,6 +48,61 @@
 
         <div class="list-container" id="family-list">
             <div class="container-loading-state">Loading family members...</div>
+        </div>
+    </div>
+
+    <!-- Personal Defaults Section -->
+    <!--
+        Per-person behavioral settings: what a screen does when one person
+        opens it, as opposed to the Notifications section, which decides who
+        hears about what.
+
+        Everything here is scoped to the device you are reading it on. An
+        earlier cut split the answer two ways, phone and computer, on the 768px
+        breakpoint — which is a guess about a device dressed up as a fact about
+        one: the kitchen wall tablet and the desk laptop are both "a computer"
+        by width and want opposite things. The device is what a person actually
+        configures, so the device is what the answer hangs on.
+    -->
+    <div class="border-container stack" id="personal-defaults">
+        <div class="page-header-row">
+            <h3>Personal Defaults</h3>
+        </div>
+
+        <div class="form-group">
+            <label for="device-label">This device</label>
+            <input type="text" id="device-label" placeholder="e.g. Kitchen tablet" maxlength="80">
+            <small>Rally guessed the name from your browser. Rename it to whatever the family calls it &mdash; it is only ever used to tell your devices apart in the list below.</small>
+        </div>
+
+        <div class="form-group">
+            <label for="device-member">This device belongs to</label>
+            <select id="device-member" class="select">
+                <option value="">Nobody in particular</option>
+            </select>
+            <small>Remembered in this browser only, and never sent anywhere. Rally has no logins, so each device says who is using it &mdash; leave the kitchen display unclaimed and it keeps Rally&rsquo;s own defaults.</small>
+        </div>
+
+        <!-- What each setting means, said once. Repeating it inside every
+             member's row put the same sentence on the screen four times and
+             buried the dropdowns that are the actual controls. -->
+        <div id="member-prefs-legend"></div>
+
+        <div class="list-container" id="member-prefs-list">
+            <div class="container-loading-state">Loading personal defaults&hellip;</div>
+        </div>
+
+        <p class="page-note">These apply on this device only. The same person can open Rally on their phone and get whatever that phone is set to.</p>
+
+        <!-- The device list is not a nicety. A browser that clears its storage
+             comes back as a new device and leaves its old answers behind, so
+             without somewhere to see and forget them they accumulate silently
+             and unreachably. -->
+        <div class="page-header-row">
+            <h3>Devices Rally remembers</h3>
+        </div>
+        <div class="list-container" id="device-list">
+            <div class="container-loading-state">Loading devices&hellip;</div>
         </div>
     </div>
 
@@ -591,6 +647,9 @@
             familyMembers = await response.json();
             renderMembers();
             populateCalendarMemberDropdown();
+            renderDeviceMemberOptions();
+            renderMemberPrefsLegend();
+            renderMemberPrefs();
         }
 
         async function createMember(data) {
@@ -641,6 +700,270 @@
                 </div>
             `).join('');
         }
+
+        // ── Personal defaults ──
+        //
+        // Everything in this block is scoped to the device the page is being
+        // read on. The catalog is server-rendered rather than fetched, for the
+        // same reason the color palette is: it is configuration, not state,
+        // and a dropdown that appears empty and then fills in is a full repaint
+        // on e-ink. `/api/preferences/catalog` serves the same data for
+        // anything that is not this page.
+
+        const BEHAVIOR_SETTINGS = {{ behavior_catalog | tojson }};
+        const DEVICE_ID = RallyDevice.deviceId();
+
+        // This device's answers for every member, resolved by the server.
+        // Keyed by member id as a string, because JSON object keys always are.
+        let devicePrefs = {};
+        let knownDevices = [];
+
+        async function fetchDevicePrefs() {
+            try {
+                const response = await fetch(`/api/devices/${encodeURIComponent(DEVICE_ID)}/preferences`);
+                const body = await response.json();
+                devicePrefs = body.members || {};
+            } catch (error) {
+                console.error('Error loading this device\'s defaults:', error);
+                devicePrefs = {};
+            }
+            renderMemberPrefs();
+        }
+
+        async function fetchDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                knownDevices = await response.json();
+            } catch (error) {
+                console.error('Error loading devices:', error);
+                knownDevices = [];
+            }
+            renderDevices();
+            renderDeviceLabel();
+        }
+
+        // Announced on load so the device appears in the list below without
+        // anybody having to change a setting first, and so `last seen` means
+        // what it says. The name is only sent when the device has none, which
+        // is what stops a page load from overwriting one somebody typed.
+        async function announceDevice() {
+            const known = knownDevices.find(d => d.id === DEVICE_ID);
+            await RallyDevice.announce(known && known.label ? known.label : undefined);
+        }
+
+        function renderDeviceLabel() {
+            const input = document.getElementById('device-label');
+            const known = knownDevices.find(d => d.id === DEVICE_ID);
+            if (document.activeElement !== input) {
+                input.value = (known && known.label) || RallyDevice.guessLabel();
+            }
+        }
+
+        function renderDeviceMemberOptions() {
+            const select = document.getElementById('device-member');
+            const stored = RallyDevice.memberId();
+            select.innerHTML = '<option value="">Nobody in particular</option>' +
+                familyMembers.map(m =>
+                    `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+            // A stored id that matches nobody — the member was deleted — leaves
+            // the select on "Nobody in particular", which is exactly what the
+            // rest of the app resolves that device to.
+            select.value = familyMembers.some(m => m.id === stored) ? String(stored) : '';
+        }
+
+        function renderMemberPrefsLegend() {
+            document.getElementById('member-prefs-legend').innerHTML =
+                BEHAVIOR_SETTINGS.map(setting =>
+                    `<p class="page-note"><strong>${escapeHtml(setting.label)}</strong> &mdash; ${escapeHtml(setting.description)}</p>`
+                ).join('');
+        }
+
+        function prefValue(member, setting) {
+            const answers = devicePrefs[String(member.id)];
+            return (answers && answers[setting.key]) || setting.default;
+        }
+
+        function renderMemberPrefs() {
+            const container = document.getElementById('member-prefs-list');
+
+            if (!familyMembers.length) {
+                container.innerHTML = '<div class="container-empty-state">No family members yet. Add one above and their defaults appear here.</div>';
+                return;
+            }
+
+            container.innerHTML = familyMembers.map(member => {
+                const fields = BEHAVIOR_SETTINGS.map(setting => {
+                    const id = `pref-${member.id}-${setting.key}`;
+                    const current = prefValue(member, setting);
+                    const options = setting.choices.map(choice =>
+                        `<option value="${escapeHtml(choice.value)}"${choice.value === current ? ' selected' : ''}>${escapeHtml(choice.label)}</option>`
+                    ).join('');
+                    return `<div class="pref-field">
+                        <label for="${id}">${escapeHtml(setting.label)}</label>
+                        <select class="select" id="${id}"
+                                data-member-id="${member.id}"
+                                data-pref-key="${escapeHtml(setting.key)}"
+                                data-saved="${escapeHtml(current)}">${options}</select>
+                    </div>`;
+                }).join('');
+
+                return `<div class="editable-item" data-member-id="${member.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title"><span class="calendar-dot" style="background:${escapeHtml(member.color)}"></span>${escapeHtml(member.name)}</div>
+                        <div class="pref-fields">${fields}</div>
+                        <div class="assignee-label" data-pref-status="${member.id}"></div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // Saved on change rather than behind a Save button: one dropdown is the
+        // whole edit, and a button would be a second thing to remember for a
+        // change you can see the effect of by opening the calendar. The PUT
+        // carries only the setting that moved, so the others are not
+        // overwritten with whatever the page last rendered.
+        async function saveMemberPref(select) {
+            const memberId = parseInt(select.dataset.memberId, 10);
+            const key = select.dataset.prefKey;
+            const status = document.querySelector(`[data-pref-status="${memberId}"]`);
+            const previous = select.dataset.saved || '';
+
+            try {
+                const response = await fetch(
+                    `/api/devices/${encodeURIComponent(DEVICE_ID)}/preferences/${memberId}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ values: { [key]: select.value } })
+                    }
+                );
+                if (!response.ok) throw new Error('Failed to save preference');
+                const body = await response.json();
+
+                devicePrefs[String(memberId)] = body.values;
+                select.dataset.saved = select.value;
+                if (status) status.textContent = `Saved for this device — ${selectedLabel(select)}`;
+                // A first answer makes the device real, so the list that was
+                // showing "no answers yet" has to catch up.
+                fetchDevices();
+            } catch (error) {
+                console.error('Error saving personal default:', error);
+                // Put the control back where it was: a dropdown showing a value
+                // the server rejected is a lie the next reader has no way to
+                // spot.
+                if (previous) select.value = previous;
+                if (status) status.textContent = '';
+                alert('Failed to save this personal default');
+            }
+        }
+
+        function selectedLabel(select) {
+            const option = select.options[select.selectedIndex];
+            return option ? option.textContent : select.value;
+        }
+
+        // ── The device list ──
+
+        function deviceSummary(device) {
+            const parts = [];
+            parts.push(device.answer_count === 1
+                ? '1 saved answer'
+                : `${device.answer_count} saved answers`);
+            parts.push(`last seen ${relativeTime(device.last_seen_at)}`);
+            return parts.join(' · ');
+        }
+
+        // Coarse on purpose: the question this answers is "is that one still in
+        // use?", and a timestamp to the minute makes it harder to read, not
+        // easier.
+        function relativeTime(iso) {
+            const then = new Date(iso);
+            if (Number.isNaN(then.getTime())) return 'at an unknown time';
+            const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+            if (days <= 0) return 'today';
+            if (days === 1) return 'yesterday';
+            if (days < 30) return `${days} days ago`;
+            const months = Math.round(days / 30);
+            return months === 1 ? 'about a month ago' : `about ${months} months ago`;
+        }
+
+        function renderDevices() {
+            const container = document.getElementById('device-list');
+
+            if (!knownDevices.length) {
+                container.innerHTML = '<div class="container-empty-state">No devices yet.</div>';
+                return;
+            }
+
+            container.innerHTML = knownDevices.map(device => {
+                const here = device.id === DEVICE_ID
+                    ? '<span class="assignee-label">&mdash; this device</span>'
+                    : '';
+                return `<div class="editable-item" data-device-id="${escapeHtml(device.id)}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(device.label || 'Unnamed device')} ${here}</div>
+                        <div class="assignee-label">${escapeHtml(deviceSummary(device))}</div>
+                    </div>
+                    <div class="editable-item-actions">
+                        <button class="btn btn--secondary btn--sm" onclick="confirmForgetDevice('${escapeHtml(device.id)}')">Forget</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function confirmForgetDevice(deviceId) {
+            const device = knownDevices.find(d => d.id === deviceId);
+            const name = (device && device.label) || 'this device';
+            const count = device ? device.answer_count : 0;
+            const consequence = count
+                ? ` Its ${count === 1 ? 'saved answer goes' : count + ' saved answers go'} with it.`
+                : '';
+            if (!confirm(`Forget ${name}?${consequence}`)) return;
+
+            try {
+                const response = await fetch(`/api/devices/${encodeURIComponent(deviceId)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) throw new Error('Failed to forget device');
+                // Forgetting the device you are on is allowed: it clears the
+                // answers and this browser re-announces itself under the same
+                // token, which is a device with no settings rather than a
+                // broken page.
+                await fetchDevices();
+                if (deviceId === DEVICE_ID) await announceDevice();
+                await fetchDevicePrefs();
+            } catch (error) {
+                console.error('Error forgetting device:', error);
+                alert('Failed to forget this device');
+            }
+        }
+
+        document.getElementById('member-prefs-list').addEventListener('change', (event) => {
+            const select = event.target.closest('select[data-pref-key]');
+            if (select) saveMemberPref(select);
+        });
+
+        document.getElementById('device-member').addEventListener('change', (event) => {
+            const value = event.target.value;
+            if (!RallyDevice.setMemberId(value === '' ? null : value)) {
+                alert('This browser will not remember who is using it — private browsing, or site data is blocked.');
+                // Put the control back to what storage actually holds. A select
+                // naming somebody nothing was written for is the same lie as a
+                // preference dropdown showing a value the server rejected.
+                renderDeviceMemberOptions();
+            }
+        });
+
+        document.getElementById('device-label').addEventListener('change', async (event) => {
+            const label = event.target.value.trim();
+            try {
+                await RallyDevice.announce(label);
+                await fetchDevices();
+            } catch (error) {
+                console.error('Error renaming device:', error);
+                alert('Failed to rename this device');
+            }
+        });
 
         // ── Notifications ──
         //
@@ -1902,7 +2225,19 @@
         });
 
         // ── Initialize ──
-        Promise.all([fetchMembers(), fetchCalendars(), fetchFollowedTeams(), fetchSettings(), fetchAiSettings(), fetchNotificationOverview()]);
+        // The device announces itself after the list is in hand, so the
+        // announce knows whether this device already has a name it must not
+        // overwrite. Everything else is independent and runs alongside.
+        Promise.all([
+            fetchMembers(),
+            fetchCalendars(),
+            fetchFollowedTeams(),
+            fetchSettings(),
+            fetchAiSettings(),
+            fetchNotificationOverview(),
+            fetchDevicePrefs(),
+            fetchDevices().then(announceDevice).then(fetchDevices),
+        ]);
 
         // Nav dropdown toggle (for touch devices)
         function toggleOtherDropdown(e) {

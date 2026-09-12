@@ -7,10 +7,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
-from rally import member_colors
+from rally import member_colors, member_prefs
 from rally.database import init_db
 from rally.routers import (
     dashboard,
+    devices,
     dinner_planner,
     events,
     family,
@@ -66,6 +67,7 @@ app.include_router(events.router)
 app.include_router(todos.router)
 app.include_router(dinner_planner.router)
 app.include_router(family.router)
+app.include_router(devices.router)
 app.include_router(recurring_todos.router)
 app.include_router(settings.router)
 app.include_router(shopping.router)
@@ -92,8 +94,17 @@ def todo_completed_page(request: Request):
 
 @app.get("/calendar", response_class=HTMLResponse)
 def calendar_page(request: Request):
-    """Serve the calendar page (month and agenda views)."""
-    return templates.TemplateResponse(request, "calendar.html")
+    """Serve the calendar page (month and agenda views).
+
+    The behavioral catalog is rendered into the page for the same reason the
+    color palette is rendered into Settings: it is configuration rather than
+    state, and the landing view has to be decided before the first paint. A
+    page that drew the month grid and then swapped it for somebody's agenda
+    would be a visible flicker on a screen and a full repaint on e-ink.
+    """
+    return templates.TemplateResponse(
+        request, "calendar.html", {"behavior_catalog": member_prefs.catalog()}
+    )
 
 
 @app.get("/shopping", response_class=HTMLResponse)
@@ -148,7 +159,15 @@ def settings_page(request: Request):
     as slowly as e-ink.
     """
     return templates.TemplateResponse(
-        request, "settings.html", {"member_palette": member_colors.PALETTE}
+        request,
+        "settings.html",
+        {
+            "member_palette": member_colors.PALETTE,
+            # The per-person behavioral settings and their choices.
+            # Server-rendered for the same reason as the palette, and it is the
+            # same catalog `/api/preferences/catalog` serves.
+            "behavior_catalog": member_prefs.catalog(),
+        },
     )
 
 

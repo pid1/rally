@@ -7,6 +7,8 @@ are covered separately in Phase 5 with the external-boundary stubs.
 
 from datetime import UTC, datetime
 
+from rally import member_prefs
+from rally.member_prefs import CALENDAR_DEFAULT_VIEW
 from rally.models import AISettingsHistory, Calendar, LLMSettingsHistory
 from rally.notification_prefs import KIND_KEYS
 
@@ -552,3 +554,33 @@ def test_shopping_notification_settings_round_trip(client):
 
     assert settings["shopping_notify_enabled"] == "true"
     assert settings["shopping_notify_settle_minutes"] == "10"
+
+
+# --- The behavioral settings catalog -------------------------------------------
+
+
+def test_the_catalog_lists_every_setting_with_its_choices_and_default(client):
+    body = client.get("/api/preferences/catalog").json()
+
+    keys = [setting["key"] for setting in body["settings"]]
+    assert keys == list(member_prefs.SETTING_KEYS)
+
+    calendar = next(s for s in body["settings"] if s["key"] == CALENDAR_DEFAULT_VIEW)
+    assert calendar["default"] == member_prefs.AUTO
+    assert {choice["value"] for choice in calendar["choices"]} == {
+        choice.value for choice in member_prefs.CALENDAR_VIEW_CHOICES
+    }
+
+
+def test_every_setting_defaults_to_auto_over_the_wire(client):
+    """A concrete default would move a device nobody had configured."""
+    body = client.get("/api/preferences/catalog").json()
+
+    for setting in body["settings"]:
+        assert setting["default"] == member_prefs.AUTO
+        assert any(choice["value"] == member_prefs.AUTO for choice in setting["choices"])
+
+
+def test_the_catalog_reads_nothing_and_needs_no_family(client):
+    """Configuration, not state: it answers on a brand new install."""
+    assert client.get("/api/preferences/catalog").status_code == 200
