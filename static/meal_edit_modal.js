@@ -43,13 +43,17 @@
 
             this.overlay = document.getElementById('modal-overlay');
             this.form = document.getElementById('plan-form');
+            this.addAnotherBtn = document.getElementById('btn-save-add-another');
             this._bindEvents();
         }
 
         _bindEvents() {
+            // Both Save and Save & Add Another are submit buttons, so the
+            // browser runs the required-field check before either path starts.
+            // `submitter` is what says which one was pressed.
             this.form.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this._submit();
+                this._submit(e.submitter === this.addAnotherBtn);
             });
             document.getElementById('btn-cancel').addEventListener('click', () => this.close());
             document.getElementById('btn-delete-plan').addEventListener('click', () => this._confirmDelete());
@@ -110,6 +114,7 @@
             document.querySelectorAll('.attendee-cb').forEach(cb => cb.checked = false);
             document.getElementById('plan-cook').value = '';
             document.getElementById('btn-delete-plan').style.display = 'none';
+            this.addAnotherBtn.style.display = '';
             showModalOverlay('modal-overlay');
         }
 
@@ -129,6 +134,7 @@
             });
             document.getElementById('plan-cook').value = plan.cook_id || '';
             document.getElementById('btn-delete-plan').style.display = '';
+            this.addAnotherBtn.style.display = 'none';
             showModalOverlay('modal-overlay');
         }
 
@@ -140,7 +146,10 @@
 
         // --- Save / delete ----------------------------------------------------
 
-        async _submit() {
+        // `addAnother` keeps the modal open for the next entry instead of
+        // closing it. Meals are planned in batches, and everything but the menu
+        // text is usually the same from one to the next.
+        async _submit(addAnother = false) {
             const date = document.getElementById('plan-date').value;
             const meal_type = document.getElementById('plan-meal-type').value;
             const plan = document.getElementById('plan-text').value;
@@ -166,12 +175,28 @@
                     await this._request('/api/dinner-plans', 'POST',
                         { date, meal_type, plan, attendee_ids, cook_id });
                 }
-                this.close();
+                if (addAnother) {
+                    this._resetForNextEntry();
+                } else {
+                    this.close();
+                }
                 await this.onSaved();
             } catch (error) {
                 console.error('Error saving meal plan:', error);
                 alert('Failed to save meal plan');
             }
+        }
+
+        // Clear the menu text and nothing else: the date, meal type, attendees
+        // and cook just entered are almost always right for the next meal too,
+        // and re-entering them is the cost this button exists to remove.
+        //
+        // Only ever called after a save has succeeded. A failed save leaves the
+        // text in place so it can be corrected and retried.
+        _resetForNextEntry() {
+            const text = document.getElementById('plan-text');
+            text.value = '';
+            text.focus();
         }
 
         async _confirmDelete() {
