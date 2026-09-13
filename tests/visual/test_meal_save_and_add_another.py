@@ -41,6 +41,9 @@ MEASURE_JS = r"""() => {
     addAnother: box(addAnother),
     addAnotherShown: getComputedStyle(addAnother).display !== 'none',
     actions: box(document.querySelector('.modal-actions')),
+    actionOrder: Array.from(document.querySelectorAll('.modal-actions .btn'))
+      .filter((b) => getComputedStyle(b).display !== 'none')
+      .map((b) => b.textContent.trim()),
     horizontalOverflow:
       document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
   };
@@ -108,6 +111,18 @@ def test_the_modal_stays_open_with_only_the_menu_cleared(batch):
     assert after_first["focused"] == "plan-text", (
         "the next menu should be typeable without reaching for the mouse"
     )
+
+
+def test_the_action_row_reads_save_then_the_variant_then_cancel(batch):
+    """Save leads: it is the primary and the ordinary way out of the modal.
+
+    Save & Add Another follows as the variant of it, which keeps the two saving
+    actions adjacent and leaves the button that discards past both rather than
+    wedged between them.
+    """
+    after_first, _, _ = batch
+
+    assert after_first["actionOrder"] == ["Save", "Save & Add Another", "Cancel"]
 
 
 def test_everything_but_the_menu_is_carried_over(batch):
