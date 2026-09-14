@@ -596,6 +596,7 @@ class EventOverrideResponse(BaseModel):
     title: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+    calendar_id: int | None = None  # None inherits the series' calendar
 
     model_config = ConfigDict(from_attributes=True)
 

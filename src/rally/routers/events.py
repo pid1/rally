@@ -113,6 +113,28 @@ def _default_native_calendar(db: Session) -> Calendar:
     return calendar
 
 
+def _require_native_calendar(db: Session, calendar_id: int | None) -> Calendar | None:
+    """Resolve a client-supplied ``calendar_id``, or refuse it.
+
+    ``None`` means "not supplied" and is the caller's problem, not an error.
+    Anything else has to be a native calendar: an event written onto an
+    external or missing one is not merely mislabeled, it **disappears**.
+    ``sources.py`` expands only the calendars it found with
+    ``cal_type == 'native'``, so the row survives in the database and still
+    loads in the edit form while showing up on no grid, no agenda and under no
+    filter — with a successful save behind it. Every write path that accepts
+    the field goes through here for that reason.
+    """
+    if calendar_id is None:
+        return None
+    calendar = (
+        db.query(Calendar).filter(Calendar.id == calendar_id, Calendar.cal_type == "native").first()
+    )
+    if calendar is None:
+        raise HTTPException(status_code=422, detail="Unknown native calendar")
+    return calendar
+
+
 def _attendee_ids(db: Session, event_id: int) -> list[int]:
     return [
         row.family_member_id
@@ -177,6 +199,7 @@ def _event_response(db: Session, event: Event) -> EventResponse:
                 title=override.title,
                 start_date=override.start_date,
                 end_date=override.end_date,
+                calendar_id=override.calendar_id,
             )
             for override in _overrides(db, event.id)
         ],
@@ -387,15 +410,7 @@ def _reject_impossible_bound(event: Event) -> None:
 def create_event(payload: EventCreate, db: Session = Depends(get_db)):
     """Create a single event or a recurring series."""
     tz_name = payload.tzid or local_timezone_name(db)
-    calendar = (
-        db.query(Calendar)
-        .filter(Calendar.id == payload.calendar_id, Calendar.cal_type == "native")
-        .first()
-        if payload.calendar_id
-        else None
-    )
-    if payload.calendar_id and not calendar:
-        raise HTTPException(status_code=422, detail="Unknown native calendar")
+    calendar = _require_native_calendar(db, payload.calendar_id)
     if calendar is None:
         calendar = _default_native_calendar(db)
 
@@ -557,6 +572,7 @@ def _apply_event_fields(db: Session, event: Event, payload: EventUpdate, tz_name
         event.rrule = _validated_rrule(payload.rrule)
         event.series_end_date = series_end_date(event.rrule)
     if payload.calendar_id is not None:
+        _require_native_calendar(db, payload.calendar_id)
         event.calendar_id = payload.calendar_id
 
     if payload.start is not None:
@@ -588,6 +604,13 @@ def _update_single_occurrence(
         db.add(override)
 
     override.cancelled = False
+    if payload.calendar_id is not None:
+        _require_native_calendar(db, payload.calendar_id)
+        # Storing the series' own calendar as an override would be a lie that
+        # outlives the series moving: keep NULL meaning "inherit".
+        override.calendar_id = (
+            None if payload.calendar_id == event.calendar_id else payload.calendar_id
+        )
     if payload.title is not None:
         override.title = payload.title
     if payload.description is not UNSET:
@@ -622,6 +645,9 @@ def _split_series(
     """Truncate the original series and carry the edit forward on a new one."""
     original_rrule = event.rrule
     tz = ZoneInfo(event.tzid or tz_name)
+    # The tail is a new row, so a bad calendar id would create an event that
+    # renders nowhere rather than failing the request. Check before the split.
+    _require_native_calendar(db, payload.calendar_id)
 
     # The new series starts at the split occurrence unless the edit moves it.
     if payload.start is not None:

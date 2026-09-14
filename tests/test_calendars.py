@@ -457,3 +457,89 @@ def test_a_failing_feed_names_itself_and_does_not_hide_the_rest(
     )
     assert [o.title for o in result.occurrences] == ["Dentist"]
     assert result.failures == ["Work (Jon)"]
+
+
+def test_override_calendar_is_ignored_without_a_resolver(db_session, make_event):
+    """`expand_event` has callers that know about exactly one calendar.
+
+    `notifications.py` and the two occurrence lookups in `routers/events.py`
+    expand a single event to answer a question about it, and have no calendar
+    map to hand over. An override naming another calendar must leave the
+    series' owner fields alone there rather than blanking them — a reminder
+    that suddenly has no member is worse than one describing the series.
+    """
+    event = make_event("Soccer", start="2026-08-04T17:30", rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=3")
+    db_session.add(EventOverride(event_id=event.id, occurrence_date="2026-08-11", calendar_id=999))
+    db_session.commit()
+
+    occurrences = expand_event(
+        event,
+        overrides=db_session.query(EventOverride).all(),
+        window_start=datetime(2026, 8, 1, tzinfo=UTC),
+        window_end=datetime(2026, 9, 1, tzinfo=UTC),
+        local_tz=CHICAGO,
+        calendar_label="Dad's Calendar",
+        member="Dad",
+        member_color="#315277",
+    )
+
+    moved = [o for o in occurrences if o.occurrence_date == "2026-08-11"][0]
+    assert moved.member == "Dad"
+    assert moved.member_color == "#315277"
+    assert moved.calendar_label == "Dad's Calendar"
+    assert moved.attendees == ("Dad",)
+
+
+def test_override_calendar_reresolves_all_four_owner_fields(db_session, make_event):
+    """Color, name, label and the attendee fallback move together or not at all."""
+    from rally.calendars.native import CalendarOwner
+
+    event = make_event("Soccer", start="2026-08-04T17:30", rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=3")
+    db_session.add(EventOverride(event_id=event.id, occurrence_date="2026-08-11", calendar_id=42))
+    db_session.commit()
+
+    occurrences = expand_event(
+        event,
+        overrides=db_session.query(EventOverride).all(),
+        window_start=datetime(2026, 8, 1, tzinfo=UTC),
+        window_end=datetime(2026, 9, 1, tzinfo=UTC),
+        local_tz=CHICAGO,
+        calendar_label="Dad's Calendar",
+        member="Dad",
+        member_color="#315277",
+        owner_for=lambda cid: (
+            CalendarOwner("Sam's Calendar", "Sam", "#af2c3d") if cid == 42 else None
+        ),
+    )
+
+    by_date = {o.occurrence_date: o for o in occurrences}
+    moved = by_date["2026-08-11"]
+    assert (moved.calendar_id, moved.calendar_label) == (42, "Sam's Calendar")
+    assert (moved.member, moved.member_color) == ("Sam", "#af2c3d")
+    assert moved.attendees == ("Sam",)
+    # The rest of the series keeps Dad's.
+    assert by_date["2026-08-04"].member == "Dad"
+    assert by_date["2026-08-18"].attendees == ("Dad",)
+
+
+def test_moving_an_occurrence_does_not_displace_a_real_attendee_list(db_session, make_event):
+    from rally.calendars.native import CalendarOwner
+
+    event = make_event("Soccer", start="2026-08-04T17:30", rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=2")
+    db_session.add(EventOverride(event_id=event.id, occurrence_date="2026-08-11", calendar_id=42))
+    db_session.commit()
+
+    occurrences = expand_event(
+        event,
+        overrides=db_session.query(EventOverride).all(),
+        window_start=datetime(2026, 8, 1, tzinfo=UTC),
+        window_end=datetime(2026, 9, 1, tzinfo=UTC),
+        local_tz=CHICAGO,
+        member="Dad",
+        attendees=("Dad", "Maya"),
+        owner_for=lambda cid: CalendarOwner("Sam's Calendar", "Sam", "#af2c3d"),
+    )
+
+    moved = [o for o in occurrences if o.occurrence_date == "2026-08-11"][0]
+    assert moved.member == "Sam"
+    assert moved.attendees == ("Dad", "Maya")

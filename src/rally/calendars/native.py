@@ -10,6 +10,8 @@ transition, and writing a second expander would mean owning that problem twice
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -115,8 +117,35 @@ def _occurrence_local_date(component, tz: ZoneInfo) -> str:
     return value.isoformat()
 
 
+@dataclass(frozen=True, slots=True)
+class CalendarOwner:
+    """The fields an occurrence takes from the calendar it sits on.
+
+    These four travel together on purpose. ``member_color`` draws the dot and
+    the time-grid edge, ``member`` names the owner, ``calendar_label`` says
+    which calendar, and ``attendees`` falls back to the owner when nobody was
+    named — which is what the member filter matches on. Resolve one without
+    the others and an occurrence displays a new owner while still answering to
+    the old one's filter. ``_restamp_owner_fields`` in ``cache.py`` keeps the
+    same four in step for external feeds, for the same reason.
+    """
+
+    calendar_label: str = ""
+    member: str | None = None
+    member_color: str | None = None
+
+    def attendees_for(self, explicit: tuple[str, ...]) -> tuple[str, ...]:
+        """Explicit attendees win; the owner is the fallback, never an addition."""
+        return explicit or ((self.member,) if self.member else ())
+
+
 def _apply_override(
-    occurrence: Occurrence, override: EventOverride, tz: ZoneInfo
+    occurrence: Occurrence,
+    override: EventOverride,
+    tz: ZoneInfo,
+    *,
+    owner_for: Callable[[int], CalendarOwner | None] | None = None,
+    explicit_attendees: tuple[str, ...] = (),
 ) -> Occurrence | None:
     """Fold a single-occurrence override onto an expanded occurrence.
 
@@ -133,6 +162,19 @@ def _apply_override(
         changes["description"] = override.description
     if override.location is not None:
         changes["location"] = override.location
+
+    # A moved occurrence takes its new calendar's owner fields, or keeps the
+    # series' if that calendar is gone: a dangling id degrades to "on the
+    # series' calendar" rather than to an occurrence with no color and no
+    # filter that matches it.
+    if override.calendar_id is not None and override.calendar_id != occurrence.calendar_id:
+        owner = owner_for(override.calendar_id) if owner_for else None
+        if owner is not None:
+            changes["calendar_id"] = override.calendar_id
+            changes["calendar_label"] = owner.calendar_label
+            changes["member"] = owner.member
+            changes["member_color"] = owner.member_color
+            changes["attendees"] = owner.attendees_for(explicit_attendees)
 
     if override.start_utc is not None and override.end_utc is not None:
         all_day = occurrence.all_day if override.all_day is None else override.all_day
@@ -164,8 +206,16 @@ def expand_event(
     member: str | None = None,
     member_color: str | None = None,
     attendees: tuple[str, ...] = (),
+    owner_for: Callable[[int], CalendarOwner | None] | None = None,
 ) -> list[Occurrence]:
-    """Every occurrence of one event inside the window, overrides applied."""
+    """Every occurrence of one event inside the window, overrides applied.
+
+    ``calendar_label`` / ``member`` / ``member_color`` are the *series'* owner.
+    ``owner_for`` resolves a different one for an occurrence whose override
+    moved it to another calendar; without it such an override keeps the
+    series' fields, which is the right answer for callers that only ever look
+    at one calendar anyway.
+    """
     tz = ZoneInfo(event.tzid) if event.tzid else local_tz
 
     calendar = ICalCalendar()
@@ -241,7 +291,13 @@ def expand_event(
 
         override = override_by_date.get(occurrence_date)
         if override is not None:
-            adjusted = _apply_override(occurrence, override, local_tz)
+            adjusted = _apply_override(
+                occurrence,
+                override,
+                local_tz,
+                owner_for=owner_for,
+                explicit_attendees=attendees,
+            )
             if adjusted is None:
                 continue
             occurrence = adjusted
@@ -289,10 +345,26 @@ def collect_native(
         for calendar in db.query(Calendar).filter(Calendar.cal_type == "native").all()
     }
 
+    def owner_of(calendar_id: int | None) -> CalendarOwner | None:
+        """The owner fields for one native calendar, or None if it is not one.
+
+        Only native calendars are in the map, so an override pointing at an
+        external or deleted calendar resolves to None and the occurrence keeps
+        its series' owner rather than losing its color and its filter.
+        """
+        calendar = calendars.get(calendar_id) if calendar_id is not None else None
+        if calendar is None:
+            return None
+        owner = members.get(calendar.family_member_id)
+        return CalendarOwner(
+            calendar_label=calendar.label,
+            member=owner.name if owner else None,
+            member_color=owner.color if owner else None,
+        )
+
     occurrences: list[Occurrence] = []
     for event in events:
-        calendar = calendars.get(event.calendar_id)
-        owner = members.get(calendar.family_member_id) if calendar else None
+        series_owner = owner_of(event.calendar_id) or CalendarOwner(calendar_label="Rally")
         occurrences.extend(
             expand_event(
                 event,
@@ -300,10 +372,11 @@ def collect_native(
                 window_start=window_start,
                 window_end=window_end,
                 local_tz=local_tz,
-                calendar_label=calendar.label if calendar else "Rally",
-                member=owner.name if owner else None,
-                member_color=owner.color if owner else None,
+                calendar_label=series_owner.calendar_label,
+                member=series_owner.member,
+                member_color=series_owner.member_color,
                 attendees=tuple(attendees_by_event.get(event.id, [])),
+                owner_for=owner_of,
             )
         )
     return occurrences

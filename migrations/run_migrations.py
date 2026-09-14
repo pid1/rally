@@ -70,6 +70,9 @@ def run_migrations():
         from migrate_031_add_device_preferences import (
             migrate as migrate_031_add_device_preferences,
         )
+        from migrate_032_add_event_override_calendar import (
+            migrate as migrate_032_add_event_override_calendar,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -122,6 +125,7 @@ def run_migrations():
         ("029_member_color_palette", migrate_029_member_color_palette),
         ("030_calendar_sync_backoff", migrate_030_calendar_sync_backoff),
         ("031_add_device_preferences", migrate_031_add_device_preferences),
+        ("032_add_event_override_calendar", migrate_032_add_event_override_calendar),
     ]
 
     print("=" * 60)

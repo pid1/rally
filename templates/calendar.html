@@ -242,6 +242,11 @@
                     </div>
 
                     <div class="recurrence-preview" id="event-recurrence-preview" aria-live="polite"></div>
+                    <div class="form-group" id="event-calendar-group">
+                        <label for="event-calendar">Whose calendar</label>
+                        <select id="event-calendar" required></select>
+                        <small id="event-calendar-help">Decides the color it draws in and who it belongs to.</small>
+                    </div>
                     <div class="form-group" id="event-attendees-group">
                         <label id="event-attendees-label">Who's involved</label>
                         <div class="weekday-checkboxes" id="event-attendees" role="group" aria-labelledby="event-attendees-label"></div>
@@ -317,6 +322,7 @@
     <script>
         // State
         let familyMembers = [];
+        let nativeCalendars = [];     // Rally-owned calendars, the only ones an event can sit on
         let occurrences = [];
         let selectedMembers = new Set();
         /* Two orthogonal choices, not one. `mode` is the renderer — a grid or
@@ -476,6 +482,18 @@
             renderMemberChips();
             renderAttendeeCheckboxes();
             renderLegend();
+            renderCalendarOptions();
+        }
+
+        /* Only Rally's own calendars can hold an event: the external feeds are
+           read-only, and an event pointed at one is filtered out of every view
+           by `collect_native`. So the picker offers natives and nothing else. */
+        async function fetchNativeCalendars() {
+            const response = await fetch('/api/calendars');
+            if (!response.ok) return;
+            const all = await response.json();
+            nativeCalendars = all.filter(c => c.cal_type === 'native');
+            renderCalendarOptions();
         }
 
         async function fetchOccurrences() {
@@ -1031,6 +1049,65 @@
             return [...document.querySelectorAll('#event-attendees input:checked')].map(i => Number(i.value));
         }
 
+        /* Grouped by owner rather than listed flat: a member may own more than
+           one Rally calendar, and "Whose calendar" is a question about the
+           person first. Both lists come from `/api/family`'s name order, so
+           the picker, the filter chips and the legend agree without a second
+           sort rule living here. */
+        function renderCalendarOptions() {
+            const select = document.getElementById('event-calendar');
+            if (!familyMembers.length || !nativeCalendars.length) {
+                select.innerHTML = '';
+                return;
+            }
+            const previous = select.value;
+            const only = nativeCalendars.length === 1;
+            /* No default when there is a real choice to make — landing on
+               somebody's calendar by position is the bug this fixes. One
+               calendar is not a choice, so it is preselected instead. */
+            const placeholder = only
+                ? ''
+                : '<option value="" disabled selected>Choose a calendar…</option>';
+            const groups = familyMembers.map(member => {
+                const owned = nativeCalendars.filter(c => c.family_member_id === member.id);
+                if (!owned.length) return '';
+                const options = owned
+                    .map(c => `<option value="${c.id}">${escapeHtml(c.label)}</option>`)
+                    .join('');
+                return `<optgroup label="${escapeHtml(member.name)}">${options}</optgroup>`;
+            }).join('');
+            /* A calendar whose owner is no longer a family member would other-
+               wise vanish from the picker while still holding events, so an
+               event on it could not be edited without silently moving. */
+            const orphans = nativeCalendars.filter(
+                c => !familyMembers.some(m => m.id === c.family_member_id)
+            );
+            const orphanGroup = orphans.length
+                ? `<optgroup label="Unassigned">${orphans
+                    .map(c => `<option value="${c.id}">${escapeHtml(c.label)}</option>`)
+                    .join('')}</optgroup>`
+                : '';
+            select.innerHTML = placeholder + groups + orphanGroup;
+            if (previous) select.value = previous;
+            else if (only) select.value = String(nativeCalendars[0].id);
+        }
+
+        /* Picking a calendar checks its owner, because "on Maya's calendar"
+           almost always means Maya is involved. It never *unchecks* anyone:
+           attendees decide who a reminder reaches, and quietly dropping a
+           recipient while somebody edits an unrelated field is how a person
+           stops being told about their own event. */
+        function checkCalendarOwner() {
+            const calendarId = Number(document.getElementById('event-calendar').value);
+            const calendar = nativeCalendars.find(c => c.id === calendarId);
+            if (!calendar) return;
+            const box = document.getElementById(`event-attendee-${calendar.family_member_id}`);
+            if (box && !box.checked) {
+                box.checked = true;
+                updateNotifyHelp();
+            }
+        }
+
         /* Naming who a reminder will actually reach, while it is being set. An
            event with a reminder and nobody reachable should say so now, not
            fail silently later. */
@@ -1167,6 +1244,12 @@
             document.getElementById('event-form').reset();
             document.getElementById('event-id').value = '';
             document.getElementById('event-occurrence-date').value = '';
+            // `form.reset()` restores the markup's selected option, which for a
+            // rebuilt select is whatever was last rendered — rebuild it so Add
+            // opens on the placeholder rather than on the last event's owner.
+            renderCalendarOptions();
+            const calendarSelect = document.getElementById('event-calendar');
+            calendarSelect.value = nativeCalendars.length === 1 ? String(nativeCalendars[0].id) : '';
 
             const day = dateIso || todayIso();
             document.getElementById('event-start-time').value = `${day}T09:00`;
@@ -1216,6 +1299,13 @@
             document.querySelectorAll('#event-attendees input').forEach(input => {
                 input.checked = editingEvent.attendee_ids.includes(Number(input.value));
             });
+
+            /* Opens on where this occurrence actually sits, which is not always
+               the series' calendar: an override may have moved this one date.
+               `occurrence.calendar_id` already carries the resolved answer. */
+            renderCalendarOptions();
+            document.getElementById('event-calendar').value =
+                String(occurrence.calendar_id || editingEvent.calendar_id || '');
 
             document.getElementById('btn-delete-event').style.display = '';
             const recurring = Boolean(editingEvent.rrule);
@@ -1663,7 +1753,8 @@
                 end,
                 ...rruleChange(document.getElementById('event-repeat').value, start, allDay),
                 notify_minutes_before: notify ? Number(notify) : null,
-                attendee_ids: checkedAttendeeIds()
+                attendee_ids: checkedAttendeeIds(),
+                calendar_id: Number(document.getElementById('event-calendar').value) || null
             };
         }
 
@@ -1671,6 +1762,16 @@
             const payload = formPayload();
             if (!payload.title) return;
             if (!payload.start) { alert('A start date is required'); return; }
+            /* The Save button submits the form, so `required` covers it — but
+               the scope buttons call this straight from a click handler and
+               never submit, so native validation never runs for a series. The
+               check has to live here too or "This and future" would file the
+               tail on the default calendar. */
+            if (!payload.calendar_id && nativeCalendars.length) {
+                alert('Pick whose calendar this goes on');
+                document.getElementById('event-calendar').focus();
+                return;
+            }
 
             let url = '/api/events';
             let method = 'POST';
@@ -1993,6 +2094,8 @@
             saveEvent('all');
         });
 
+        document.getElementById('event-calendar').addEventListener('change', checkCalendarOwner);
+
         // Three buttons rather than a select: a destructive-by-default select
         // is how the wrong scope gets picked.
         document.querySelectorAll('#event-scope-group [data-scope]').forEach(button => {
@@ -2080,8 +2183,9 @@
            member list would add a round trip to the first paint for no reason.
            Nothing is drawn until `load()`, so there is no flicker either way. */
         (async function init() {
-            const [, landingView] = await Promise.all([
+            const [, , landingView] = await Promise.all([
                 fetchFamilyMembers(),
+                fetchNativeCalendars(),
                 RallyDevice.preferences().then(values => values[LANDING_VIEW_SETTING]),
             ]);
             applyLandingView(landingView);
