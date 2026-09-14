@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
     <script src="/static/phone_links.js?v={{ css_version }}"></script>
+    <script src="/static/device_member.js?v={{ css_version }}"></script>
 </head>
 <body>
     <header class="header">
@@ -326,8 +327,12 @@
            A phone lands on Calendar + Day: the month grid is reachable but
            "what is happening today" is what you open a calendar on a phone to
            find out. Desktop lands on Month, where the grid has room to be
-           useful. Neither is remembered — see the note on init(). */
+           useful. That pair is what `auto` means, and `auto` is what every
+           device gets until somebody configures it in Settings — see
+           applyLandingView(). Neither is remembered — see the note on init(). */
         const NARROW = '(max-width: 767px)';
+        const LANDING_VIEW_SETTING = 'calendar_default_view';
+        const BEHAVIOR_SETTINGS = {{ behavior_catalog | tojson }};
         let mode = 'calendar';
         let range = window.matchMedia(NARROW).matches ? 'day' : 'month';
         // The first of the displayed month (month range), the first displayed
@@ -1847,6 +1852,33 @@
             syncRangeOptions();
         }
 
+        /* The landing view this device is set to for the person using it.
+
+           The stored value *is* the pair the toolbar draws — `agenda:week` is
+           the View selector plus the Range selector — so there is no lookup
+           table here and none on the server either. One encoding, read in the
+           one place it is applied.
+
+           `auto` is the exception and the default: it names Rally's own rule
+           rather than a view, and this is the only place that rule lives, so
+           resolving it means doing nothing. `mode` and `range` already hold
+           the answer the width gave them at the top of this script.
+
+           Everything unreadable falls through to the same place: a device
+           nobody claimed, a catalog without this setting, a stored value this
+           build no longer offers. A calendar that refused to draw because a
+           preference could not be understood would be the worst possible trade
+           for a dropdown. */
+        function applyLandingView(value) {
+            const setting = BEHAVIOR_SETTINGS.find(s => s.key === LANDING_VIEW_SETTING);
+            if (!setting || !value || value === 'auto') return;
+            if (!setting.choices.some(choice => choice.value === value)) return;
+
+            const [nextMode, nextRange] = value.split(':');
+            mode = nextMode;
+            range = nextRange;
+        }
+
         function toggleOtherDropdown(e) {
             e.stopPropagation();
             document.getElementById('other-dropdown').classList.toggle('open');
@@ -2031,19 +2063,37 @@
         });
 
         /* Every mode and range is reachable at every width, and nothing here
-           overrides the user's choice once the page is up: `NARROW` picks the
-           landing view and is not consulted again. A width change mid-session
-           is a rotated phone or a dragged window, not a request to be moved to
-           a different view.
+           overrides the user's choice once the page is up: the screen's width
+           and its owner's preference pick the landing view and are not
+           consulted again. A width change mid-session is a rotated phone or a
+           dragged window, not a request to be moved to a different view.
 
-           Deliberately not persisted. Which calendar you want is a function of
-           why you opened it — a remembered Day view is exactly wrong for the
-           Sunday planning session that is the main event of the week. */
+           Still deliberately not persisted — a *default* is not a memory.
+           Which calendar you want next is a function of why you opened it, and
+           a remembered Day view is exactly wrong for the Sunday planning
+           session that is the main event of the week. What Settings changes is
+           where you start, which is a decision somebody made once on purpose
+           rather than a side effect of the last thing they looked at.
+
+           The preference is fetched alongside the family rather than after it:
+           the two are independent, and a landing view that waited on the
+           member list would add a round trip to the first paint for no reason.
+           Nothing is drawn until `load()`, so there is no flicker either way. */
         (async function init() {
+            const [, landingView] = await Promise.all([
+                fetchFamilyMembers(),
+                RallyDevice.preferences().then(values => values[LANDING_VIEW_SETTING]),
+            ]);
+            applyLandingView(landingView);
+            // The two controls are put in the state the preference asked for,
+            // and `syncRangeOptions()` is what stops a range the chosen
+            // renderer cannot draw from ever reaching `load()`.
             document.getElementById('view-select').value = mode;
             syncRangeOptions();
+            // Anchored last: `anchorFor()` snaps today to the start of whatever
+            // range is now in force, so a phone landing on Day lands on today
+            // rather than on the first of the month.
             anchor = anchorFor(new Date());
-            await fetchFamilyMembers();
             await load();
             // After the calendar is on screen, not before: freshness is a
             // footnote and must never delay the thing it is a footnote about.

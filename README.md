@@ -30,6 +30,8 @@ You can fold in more if you want it: your open shopping list, anything overdue i
 
 Rally holds your family's own events and shows them beside the calendars you already use, whether that's Google, iCloud, or any ICS feed. There are day, week, month and agenda views, color-coded by person, with recurring events and per-occurrence edits (just this Tuesday, or every Tuesday from now on).
 
+Each person can say which of those the calendar should open on, **per device** — the kitchen display and the laptop are the same width and want opposite things. Rally has no logins, so a browser simply says who is using it and remembers its own answers; a shared screen says nobody and keeps the defaults. See [Personal defaults](docs/configuration.md#personal-defaults).
+
 ![The Rally calendar in month view, color-coded by family member](docs/screenshots/readme-calendar.png)
 
 When somebody adds, moves or cancels an event, the people on that event get a push notification. The household doesn't. Reminders work the same way: put a lead time on an event and only its attendees hear about it.

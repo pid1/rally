@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from rally import notification_prefs
+from rally import member_prefs, notification_prefs
 from rally.database import get_db
 from rally.models import AISettingsHistory, Calendar, FollowedTeam, LLMSettingsHistory, Setting
 from rally.schemas import (
@@ -18,6 +18,8 @@ from rally.schemas import (
     AISettingRollback,
     AISettingState,
     AISettingValueUpdate,
+    BehaviorCatalogResponse,
+    BehaviorSettingCatalogEntry,
     CalendarCreate,
     CalendarResponse,
     CalendarUpdate,
@@ -444,6 +446,25 @@ def notifications_overview(db: Session = Depends(get_db)):
     return NotificationOverviewResponse(
         token_configured=bool(app_token(db)),
         kinds=[NotificationKindOverview(**row) for row in notification_prefs.overview(db)],
+    )
+
+
+@router.get("/api/preferences/catalog", response_model=BehaviorCatalogResponse)
+def behavior_catalog():
+    """Every per-person behavioral setting, its choices, and its default.
+
+    Reads nothing: this is configuration, not state. It exists as an endpoint
+    anyway so a client that was not server-rendered — a future kiosk, a script
+    checking what the install offers — has one authority for the catalog rather
+    than a copy that drifts. Settings and the calendar are both server-rendered
+    from the same ``member_prefs.CATALOG``, which is what keeps the dropdowns
+    in the first paint on a slow e-ink repaint.
+
+    What a device has actually *answered* lives under
+    ``/api/devices/{id}/preferences``: this is the menu, not the order.
+    """
+    return BehaviorCatalogResponse(
+        settings=[BehaviorSettingCatalogEntry(**row) for row in member_prefs.catalog()],
     )
 
 

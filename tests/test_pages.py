@@ -18,6 +18,7 @@ TEMPLATES = pathlib.Path(__file__).resolve().parents[1] / "templates"
         "/dinner-planner",
         "/meal-history",
         "/settings",
+        "/calendar",
     ],
 )
 def test_page_renders_html(client, path):
@@ -178,3 +179,47 @@ def test_family_written_text_is_rendered_through_the_phone_linker():
         if plain.search(line)
     ]
     assert not offenders, f"free text must render through escapeHtmlWithPhoneLinks(): {offenders}"
+
+
+# --- Per-device behavioral defaults --------------------------------------------
+
+
+@pytest.mark.parametrize("path", ["/calendar", "/settings"])
+def test_pages_that_resolve_a_device_load_the_device_helper(client, path):
+    """Both pages answer "which device is this, and whose?" the same way.
+
+    Rally has no logins, so both halves are things only the browser knows. Two
+    copies of that logic is how Settings and the calendar end up disagreeing
+    about which device they are on.
+    """
+    assert "/static/device_member.js" in client.get(path).text
+
+
+def test_the_calendar_is_server_rendered_with_the_behavior_catalog(client):
+    """The landing view has to be decided before the first paint.
+
+    Fetching the catalog would mean drawing the month grid and then swapping it
+    for somebody's agenda — a flicker on a screen and a full repaint on e-ink.
+    """
+    html = client.get("/calendar").text
+    assert "calendar_default_view" in html
+    assert "function applyLandingView(" in html
+
+
+def test_the_calendar_owns_what_auto_means(client):
+    """`auto` names Rally's rule rather than a view, so only the page holding
+    the rule can resolve it — and it must hold it in exactly one place."""
+    html = client.get("/calendar").text
+    assert "const NARROW = '(max-width: 767px)'" in html
+    assert html.count("matchMedia(NARROW)") == 1
+
+
+def test_settings_scopes_its_defaults_to_this_device(client):
+    """One answer per person per setting, for the device in front of you, plus
+    the list that makes the other devices visible and forgettable."""
+    html = client.get("/settings").text
+    assert 'id="member-prefs-list"' in html
+    assert 'id="device-member"' in html
+    assert 'id="device-label"' in html
+    assert 'id="device-list"' in html
+    assert "RallyDevice.deviceId()" in html

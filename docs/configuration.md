@@ -54,6 +54,48 @@ External calendars are fetched in the background and served from a cache, so pag
 
 If a provider rate-limits a feed (HTTP 429, or the 503 some hosts send instead), that one calendar backs off before it is tried again — for as long as the server's `Retry-After` asks, or doubling from five minutes up to four hours when it does not say. The other calendars keep syncing on the normal interval, and the **Refresh** button on the calendar page ignores the backoff, because a person pressing it is not the traffic being throttled.
 
+## Personal defaults
+
+Settings → **Personal Defaults** is where each family member says how Rally should behave for them — **on the device they are setting it from**.
+
+Rally has no sign-in. It is one household on one network, and the tablet on the kitchen wall that nobody is signed in to is the normal case rather than an edge one. So a device says who is using it: pick yourself in **This device belongs to**, and that browser applies your defaults from then on. The choice is remembered in that browser alone and is never sent anywhere; leave a shared screen on *Nobody in particular* and it keeps Rally's own defaults.
+
+**Everything here applies to that one device.** The settings you change on the kitchen display stay on the kitchen display — open Rally on your phone and you get whatever the phone is set to. That is deliberate: "phone or computer" is a guess about a device dressed up as a fact about one, and the wall tablet and the desk laptop are the same width and want opposite things.
+
+| Setting | Choices | Default |
+|---|---|---|
+| Calendar opens on | **Match the screen**, or Calendar/Agenda crossed with Day, Week, Month, and (Agenda only) Next 30 days | Match the screen |
+
+**Match the screen** is Rally's own rule and what every device gets until somebody changes it: a phone-width screen opens the calendar on the day, a wider one on the month. It is a real option rather than only the absence of one, so a device can be handed the decision back after having been given a specific view. Because it is the default, upgrading moves nobody's screen.
+
+This sets where the calendar **starts**, not where it keeps you. Changing `View` or `Range` once you are there still works and is still never remembered — which calendar you want next is a function of why you opened it, and a remembered Day view is exactly wrong for the Sunday planning session.
+
+A grid cannot draw *Next 30 days*, so that range is offered under Agenda only.
+
+![Personal defaults in Settings: this device, who it belongs to, one answer per family member, and the list of devices Rally remembers](screenshots/settings-personal-defaults.png)
+
+### Devices Rally remembers
+
+Each browser names itself the first time it opens Rally — a coarse guess like *iPhone* or *Mac* — and **This device** renames it to whatever the family calls it. The list at the foot of the section shows every device Rally has heard from, how many answers each one carries, and when it was last seen.
+
+**Forget** clears a device and its saved answers. That list is not decoration: a browser that clears its site data comes back as a new device and leaves its old answers behind, so without somewhere to see and drop them they accumulate where nobody can reach them. A forgotten device that comes back is simply a device with no settings.
+
+### The same person, three of their devices
+
+All three of these are the same family member, and the first two are the same width. A per-form-factor setting could not tell them apart; a per-device one does.
+
+**Jon's laptop** opens on the week grid:
+
+![The calendar opening on the week grid on the laptop](screenshots/calendar-device-laptop.png)
+
+**The kitchen display**, at the same width, opens on the next thirty days:
+
+![The calendar opening on the 30-day agenda on the kitchen display](screenshots/calendar-device-kitchen.png)
+
+**Jon's phone** opens on today:
+
+<img src="screenshots/calendar-device-phone.png" alt="The calendar opening on today's agenda on a phone" width="320">
+
 ## Notifications
 
 Rally uses [Pushover](https://pushover.net). Settings → **Notifications** takes the application token that identifies your install. Each family member's own user key goes on their profile in Settings → **Family**.

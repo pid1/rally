@@ -1041,6 +1041,40 @@ label.weekday-label,
     margin-left: var(--space-1);
 }
 
+/* ---- Per-person behavioral defaults ---- */
+/* One field per setting inside a family member's row on Settings, scoped to
+   the device the page is being read on.
+
+   A grid rather than a single column because the catalog grows: the second
+   setting should sit beside the first on a desktop rather than pushing every
+   family member's row another control taller. `auto-fit` with a floor means
+   one setting fills the row and never stretches a lone dropdown across 1440px,
+   and a phone gets one column without a second rule saying so. */
+.pref-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.pref-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    /* A grid child is `min-width: auto` by default, so a long option label
+       would push the column wider than the row instead of truncating. */
+    min-width: 0;
+}
+
+.pref-field label {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+}
+
+.pref-field .select {
+    width: 100%;
+}
+
 /* ---- Cards ---- */
 .card {
     background: var(--surface);
