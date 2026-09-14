@@ -571,6 +571,262 @@ def test_adding_a_family_member_gives_them_a_calendar(client, db_session):
     assert [c.label for c in calendars] == ["Theo's Calendar"]
 
 
+# --- Choosing whose calendar an event goes on ----------------------------------
+#
+# The API always accepted `calendar_id`; nothing asked for it, so every event
+# landed on the lowest-id native calendar. These cover the field now that the
+# modal sends it, and the validation that stops a bad id from filing an event
+# somewhere no view will ever look.
+#
+# Every test here builds **two** calendars and names the series' one explicitly.
+# Letting the series fall back to the default makes the source and the target
+# the same calendar, and a move that goes nowhere passes every assertion about
+# where it arrived.
+
+
+@pytest.fixture
+def two_calendars(make_member, make_native_calendar):
+    """A calendar to move an event off, and one to move it onto."""
+    dad = make_member("Dad", color="#315277")
+    maya = make_member("Maya", color="#3b8c61")
+    return {
+        "dad": dad,
+        "maya": maya,
+        "from": make_native_calendar(owner=dad, label="Dad's Calendar"),
+        "to": make_native_calendar(owner=maya, label="Maya's Calendar"),
+    }
+
+
+def test_create_honors_the_chosen_calendar(client, two_calendars):
+    event = _create(client, calendar_id=two_calendars["to"].id, title="Soccer practice")
+
+    assert event["calendar_id"] == two_calendars["to"].id
+    occurrence = _occurrences(client)[0]
+    assert occurrence["member"] == "Maya"
+    assert occurrence["calendar_label"] == "Maya's Calendar"
+
+
+def test_create_without_a_calendar_still_falls_back(client, two_calendars):
+    """Omitting the field is not an error — only sending a bad one is."""
+    event = _create(client)
+    assert event["calendar_id"] == two_calendars["from"].id
+
+
+def test_create_rejects_a_calendar_that_is_not_native(client, db_session, make_member):
+    from rally.models import Calendar
+
+    feed = Calendar(
+        label="Work ICS", url="https://example.com/f.ics", family_member_id=make_member("Dad").id
+    )
+    db_session.add(feed)
+    db_session.commit()
+
+    response = client.post(
+        "/api/events",
+        json={"title": "Standup", "start": "2026-08-11T09:00", "calendar_id": feed.id},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Unknown native calendar"
+
+
+def test_update_rejects_a_calendar_that_is_not_native(client, db_session, two_calendars):
+    """The gap this closes: an event on an external calendar renders nowhere.
+
+    ``collect_native`` expands only calendars with ``cal_type='native'``, so
+    the row survives, still loads in the edit form, and appears on no grid and
+    under no filter — behind a successful save.
+    """
+    from rally.models import Calendar
+
+    created = _create(client, calendar_id=two_calendars["from"].id)
+    feed = Calendar(
+        label="Work ICS", url="https://example.com/f.ics", family_member_id=two_calendars["dad"].id
+    )
+    db_session.add(feed)
+    db_session.commit()
+
+    response = client.put(f"/api/events/{created['id']}", json={"calendar_id": feed.id})
+    assert response.status_code == 422
+    assert _occurrences(client)[0]["calendar_id"] == two_calendars["from"].id
+
+
+def test_update_rejects_an_unknown_calendar(client, two_calendars):
+    created = _create(client, calendar_id=two_calendars["from"].id)
+    assert client.put(f"/api/events/{created['id']}", json={"calendar_id": 9999}).status_code == 422
+
+
+def test_moving_a_series_recolors_every_occurrence(client, two_calendars):
+    created = _create(
+        client,
+        calendar_id=two_calendars["from"].id,
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+        title="Soccer practice",
+    )
+    assert {o["member"] for o in _occurrences(client)} == {"Dad"}
+
+    response = client.put(
+        f"/api/events/{created['id']}", json={"calendar_id": two_calendars["to"].id}
+    )
+    assert response.status_code == 200
+
+    occurrences = _occurrences(client)
+    assert len(occurrences) > 1
+    assert {o["member"] for o in occurrences} == {"Maya"}
+    assert {o["member_color"] for o in occurrences} == {"#3b8c61"}
+
+
+def test_following_scope_moves_only_the_tail(client, two_calendars):
+    created = _create(
+        client,
+        calendar_id=two_calendars["from"].id,
+        start="2026-08-04T17:30",
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+        title="Soccer practice",
+    )
+
+    response = client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "following", "occurrence_date": "2026-08-18"},
+        json={"calendar_id": two_calendars["to"].id},
+    )
+    assert response.status_code == 200
+
+    by_date = {o["start_date"]: o for o in _occurrences(client)}
+    assert by_date["2026-08-11"]["calendar_id"] == two_calendars["from"].id
+    assert by_date["2026-08-11"]["member"] == "Dad"
+    assert by_date["2026-08-18"]["calendar_id"] == two_calendars["to"].id
+    assert by_date["2026-08-18"]["member"] == "Maya"
+
+
+def test_following_scope_rejects_a_bad_calendar_before_splitting(client, db_session, two_calendars):
+    from rally.models import Event
+
+    created = _create(client, calendar_id=two_calendars["from"].id, rrule="FREQ=WEEKLY;BYDAY=TU")
+
+    response = client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "following", "occurrence_date": "2026-08-18"},
+        json={"calendar_id": 9999},
+    )
+    assert response.status_code == 422
+    # The split must not have happened: a refused edit leaves one series, not two.
+    assert db_session.query(Event).count() == 1
+
+
+def test_this_scope_moves_one_occurrence_only(client, two_calendars):
+    created = _create(
+        client,
+        calendar_id=two_calendars["from"].id,
+        start="2026-08-04T17:30",
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+        title="Soccer practice",
+    )
+
+    response = client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "this", "occurrence_date": "2026-08-18"},
+        json={"calendar_id": two_calendars["to"].id},
+    )
+    assert response.status_code == 200
+
+    by_date = {o["start_date"]: o for o in _occurrences(client)}
+    assert by_date["2026-08-18"]["calendar_id"] == two_calendars["to"].id
+    assert by_date["2026-08-18"]["member"] == "Maya"
+    assert by_date["2026-08-18"]["member_color"] == "#3b8c61"
+    assert by_date["2026-08-18"]["calendar_label"] == "Maya's Calendar"
+    # Every other Tuesday is untouched.
+    for other in ("2026-08-11", "2026-08-25"):
+        assert by_date[other]["calendar_id"] == two_calendars["from"].id
+        assert by_date[other]["member"] == "Dad"
+
+
+def test_this_scope_moving_back_to_the_series_calendar_clears_the_override(
+    client, db_session, two_calendars
+):
+    """NULL has to keep meaning "inherit", or a later series move leaves it behind."""
+    from rally.models import EventOverride
+
+    created = _create(
+        client,
+        calendar_id=two_calendars["from"].id,
+        start="2026-08-04T17:30",
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+    )
+
+    for calendar_id in (two_calendars["to"].id, two_calendars["from"].id):
+        client.put(
+            f"/api/events/{created['id']}",
+            params={"scope": "this", "occurrence_date": "2026-08-18"},
+            json={"calendar_id": calendar_id},
+        )
+
+    override = db_session.query(EventOverride).filter_by(occurrence_date="2026-08-18").one()
+    assert override.calendar_id is None
+    assert _occurrences(client)[0]["member"] == "Dad"
+
+
+def test_a_moved_occurrence_answers_to_its_new_owners_filter(client, two_calendars):
+    """The filter matches on attendees, and an unattended event's attendee is its owner."""
+    created = _create(
+        client,
+        calendar_id=two_calendars["from"].id,
+        start="2026-08-04T17:30",
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+        title="Soccer practice",
+    )
+
+    client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "this", "occurrence_date": "2026-08-18"},
+        json={"calendar_id": two_calendars["to"].id},
+    )
+
+    assert [o["start_date"] for o in _occurrences(client, member="Maya")] == ["2026-08-18"]
+    dads = [o["start_date"] for o in _occurrences(client, member="Dad")]
+    assert "2026-08-18" not in dads
+    assert "2026-08-11" in dads
+
+
+def test_explicit_attendees_survive_a_move(client, two_calendars):
+    """Owner is the attendee *fallback*, never an override of a real list."""
+    created = _create(
+        client,
+        calendar_id=two_calendars["from"].id,
+        attendee_ids=[two_calendars["dad"].id],
+        title="Soccer practice",
+    )
+
+    client.put(f"/api/events/{created['id']}", json={"calendar_id": two_calendars["to"].id})
+
+    occurrence = _occurrences(client)[0]
+    assert occurrence["member"] == "Maya"
+    assert occurrence["attendees"] == ["Dad"]
+
+
+def test_an_override_pointing_at_a_deleted_calendar_falls_back_to_the_series(
+    client, db_session, two_calendars
+):
+    """A dangling id degrades to the series' calendar, not to a colorless orphan."""
+    created = _create(
+        client,
+        calendar_id=two_calendars["from"].id,
+        start="2026-08-04T17:30",
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+    )
+    client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "this", "occurrence_date": "2026-08-18"},
+        json={"calendar_id": two_calendars["to"].id},
+    )
+
+    db_session.delete(db_session.get(type(two_calendars["to"]), two_calendars["to"].id))
+    db_session.commit()
+
+    moved = {o["start_date"]: o for o in _occurrences(client)}["2026-08-18"]
+    assert moved["member"] == "Dad"
+    assert moved["calendar_id"] == two_calendars["from"].id
+
+
 # --- A single-occurrence edit keeps its own date -------------------------------
 #
 # The modal used to fill its time fields from the *series* and send them on

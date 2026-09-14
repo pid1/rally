@@ -308,6 +308,11 @@ class EventOverride(Base):
     end_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     start_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
     end_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Moves this one occurrence to another native calendar. NULL inherits the
+    # series' calendar, so the owner-derived fields (color, member name, and
+    # the attendee fallback the member filter reads) follow the series unless
+    # this says otherwise.
+    calendar_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
