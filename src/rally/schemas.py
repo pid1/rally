@@ -645,6 +645,11 @@ class OccurrenceResponse(BaseModel):
     end_date: str  # Local, inclusive
     time_label: str
     end_time_label: str
+    # What the edit form shows when this occurrence is opened. Distinct from
+    # `start_date` (a date alone) and from the event's own values, which name
+    # the series and so are wrong for every occurrence after the first.
+    start_form: str
+    end_form: str
     dates: list[str]  # Every local date this occurrence covers
     calendar_id: int | None = None
     calendar_label: str = ""

@@ -825,3 +825,147 @@ def test_an_override_pointing_at_a_deleted_calendar_falls_back_to_the_series(
     moved = {o["start_date"]: o for o in _occurrences(client)}["2026-08-18"]
     assert moved["member"] == "Dad"
     assert moved["calendar_id"] == two_calendars["from"].id
+
+
+# --- A single-occurrence edit keeps its own date -------------------------------
+#
+# The modal used to fill its time fields from the *series* and send them on
+# every save, so an edit that only renamed something still carried a date — the
+# wrong one. `Only this event` wrote it onto the override and the occurrence
+# vanished; `This and future` started the tail series there instead of at the
+# split, overlapping the head for as many occurrences as lay between.
+#
+# These cover the contract the page now relies on. They do **not** catch the
+# defect itself, which lived in the browser: hand the endpoint a payload with
+# no `start` and all three scopes were already correct. The guard for that is
+# `tests/visual/test_occurrence_edit_keeps_its_date.py`.
+
+
+def _weekly(client):
+    """Tuesdays from 2026-09-01, so 2026-09-15 is mid-series."""
+    return _create(
+        client,
+        title="Soccer practice",
+        start="2026-09-01T17:30",
+        end="2026-09-01T18:30",
+        rrule="FREQ=WEEKLY;BYDAY=TU",
+    )
+
+
+def _sept(client):
+    """The series lives in September; the module default window is August."""
+    return _occurrences(client, start="2026-09-01", end="2026-10-05")
+
+
+def _dates(client):
+    return [o["start_date"] for o in _sept(client)]
+
+
+def test_renaming_one_occurrence_leaves_every_date_alone(client):
+    created = _weekly(client)
+    before = _dates(client)
+
+    response = client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "this", "occurrence_date": "2026-09-15"},
+        json={"title": "Soccer (indoor)"},
+    )
+    assert response.status_code == 200
+
+    assert _dates(client) == before
+    renamed = [o for o in _sept(client) if o["start_date"] == "2026-09-15"]
+    assert [o["title"] for o in renamed] == ["Soccer (indoor)"]
+
+
+def test_renaming_this_and_future_splits_once_without_duplicating(client):
+    created = _weekly(client)
+    before = _dates(client)
+
+    response = client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "following", "occurrence_date": "2026-09-15"},
+        json={"title": "Soccer (indoor)"},
+    )
+    assert response.status_code == 200
+
+    # Same dates, each exactly once: the tail must start at the split, not at
+    # the series' start, or 09-01 and 09-08 come back a second time.
+    assert _dates(client) == before
+    titles = {o["start_date"]: o["title"] for o in _sept(client)}
+    assert titles["2026-09-08"] == "Soccer practice"
+    assert titles["2026-09-15"] == "Soccer (indoor)"
+    assert titles["2026-09-29"] == "Soccer (indoor)"
+
+
+def test_renaming_all_events_does_not_truncate_the_series(client):
+    """The trap in the other direction: sending the occurrence's own date here
+    would move the series start onto it and drop everything before."""
+    created = _weekly(client)
+    before = _dates(client)
+
+    response = client.put(
+        f"/api/events/{created['id']}", params={"scope": "all"}, json={"title": "Soccer (indoor)"}
+    )
+    assert response.status_code == 200
+
+    assert _dates(client) == before
+    assert {o["title"] for o in _sept(client)} == {"Soccer (indoor)"}
+
+
+def test_a_deliberate_time_change_still_moves_that_occurrence_only(client):
+    created = _weekly(client)
+
+    response = client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "this", "occurrence_date": "2026-09-15"},
+        json={"start": "2026-09-17T19:00", "end": "2026-09-17T20:00"},
+    )
+    assert response.status_code == 200
+
+    dates = _dates(client)
+    assert "2026-09-17" in dates
+    assert "2026-09-15" not in dates
+    # The rest of the series is untouched.
+    assert [d for d in dates if d != "2026-09-17"] == [
+        "2026-09-01",
+        "2026-09-08",
+        "2026-09-22",
+        "2026-09-29",
+    ]
+
+
+def test_occurrence_carries_the_values_the_edit_form_opens_on(client):
+    """`start_form` is per-occurrence; the event's own `start` names the series."""
+    created = _weekly(client)
+    event = client.get(f"/api/events/{created['id']}").json()
+    assert event["start"] == "2026-09-01T17:30"
+
+    by_date = {o["start_date"]: o for o in _sept(client)}
+    assert by_date["2026-09-15"]["start_form"] == "2026-09-15T17:30"
+    assert by_date["2026-09-15"]["end_form"] == "2026-09-15T18:30"
+    assert by_date["2026-09-01"]["start_form"] == "2026-09-01T17:30"
+
+
+def test_form_values_follow_an_override_that_moved_one_occurrence(client):
+    """Reopening a moved occurrence shows where it is now, not the series' time."""
+    created = _weekly(client)
+    client.put(
+        f"/api/events/{created['id']}",
+        params={"scope": "this", "occurrence_date": "2026-09-15"},
+        json={"start": "2026-09-15T19:00", "end": "2026-09-15T20:30"},
+    )
+
+    moved = {o["start_date"]: o for o in _sept(client)}["2026-09-15"]
+    assert moved["start_form"] == "2026-09-15T19:00"
+    assert moved["end_form"] == "2026-09-15T20:30"
+
+
+def test_all_day_form_values_are_the_inclusive_local_dates(client):
+    created = _create(
+        client, all_day=True, start="2026-08-14", end="2026-08-16", title="Camping trip"
+    )
+    assert created["all_day"] is True
+
+    occurrence = _occurrences(client)[0]
+    assert occurrence["start_form"] == "2026-08-14"
+    assert occurrence["end_form"] == "2026-08-16"

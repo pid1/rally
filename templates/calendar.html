@@ -1150,6 +1150,36 @@
             };
         }
 
+        /* The times the modal opened on, so a save can tell "the user moved
+           this" from "the user renamed it and left the time alone".
+
+           `null` while adding, where there is nothing to leave alone and the
+           API requires a start. `previousStart` above cannot serve here: it is
+           deliberately rewritten by `shiftTimedEnd` as the user types, which
+           is what keeps the end following the start. */
+        let originalTimes = null;
+
+        function rememberOriginalTimes() {
+            originalTimes = {
+                allDay: document.getElementById('event-all-day').checked,
+                timedStart: document.getElementById('event-start-time').value,
+                timedEnd: document.getElementById('event-end-time').value,
+                dayStart: document.getElementById('event-start-date').value,
+                dayEnd: document.getElementById('event-end-date').value
+            };
+        }
+
+        function timesUntouched() {
+            if (!originalTimes) return false;
+            const allDay = document.getElementById('event-all-day').checked;
+            if (allDay !== originalTimes.allDay) return false;
+            return allDay
+                ? document.getElementById('event-start-date').value === originalTimes.dayStart
+                    && document.getElementById('event-end-date').value === originalTimes.dayEnd
+                : document.getElementById('event-start-time').value === originalTimes.timedStart
+                    && document.getElementById('event-end-time').value === originalTimes.timedEnd;
+        }
+
         function shiftTimedEnd() {
             const startField = document.getElementById('event-start-time');
             const endField = document.getElementById('event-end-time');
@@ -1265,6 +1295,8 @@
             hideDeleteScopePrompt();
             rememberStartValues();
             toggleAllDayFields();
+            // Nothing to leave alone when adding: the API needs a start.
+            originalTimes = null;
             updateNotifyHelp();
             showModalOverlay('event-modal-overlay');
         }
@@ -1284,12 +1316,23 @@
             document.getElementById('event-all-day').checked = editingEvent.all_day;
             document.getElementById('event-notify').value = editingEvent.notify_minutes_before ?? '';
 
+            /* The occurrence's own values, not the series'. Reading the series
+               here is what made every occurrence after the first open on the
+               wrong date — and then sent that date back.
+
+               An occurrence that names none falls back to the series, which is
+               what "edit this event" rather than "edit this Tuesday" means.
+               `start_form` is required on every occurrence the API returns, so
+               in the page this only ever applies to a caller that built one by
+               hand. */
+            const startForm = occurrence.start_form ?? editingEvent.start;
+            const endForm = occurrence.end_form ?? editingEvent.end;
             if (editingEvent.all_day) {
-                document.getElementById('event-start-date').value = editingEvent.start;
-                document.getElementById('event-end-date').value = editingEvent.end;
+                document.getElementById('event-start-date').value = startForm;
+                document.getElementById('event-end-date').value = endForm;
             } else {
-                document.getElementById('event-start-time').value = editingEvent.start;
-                document.getElementById('event-end-time').value = editingEvent.end;
+                document.getElementById('event-start-time').value = startForm;
+                document.getElementById('event-end-time').value = endForm;
             }
             rememberStartValues();
 
@@ -1323,6 +1366,9 @@
             }
 
             toggleAllDayFields();
+            // After the fields are populated and all-day has settled, so an
+            // untouched form compares equal to what was actually shown.
+            rememberOriginalTimes();
             updateNotifyHelp();
             showModalOverlay('event-modal-overlay');
         }
@@ -1771,6 +1817,18 @@
                 alert('Pick whose calendar this goes on');
                 document.getElementById('event-calendar').focus();
                 return;
+            }
+
+            /* An edit that did not touch the times says nothing about them, so
+               the request carries no `start`/`end` and the API's "leave alone"
+               path applies. Sending them regardless is what made a title-only
+               edit move an occurrence: `Only this event` wrote the form's date
+               onto the override, and `This and future` started the tail series
+               there instead of at the split, duplicating the overlap. Validated
+               above first — the guard is about the form, not the payload. */
+            if (editingEvent && timesUntouched()) {
+                delete payload.start;
+                delete payload.end;
             }
 
             let url = '/api/events';

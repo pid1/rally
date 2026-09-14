@@ -209,6 +209,7 @@ def _event_response(db: Session, event: Event) -> EventResponse:
 
 
 def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResponse:
+    start_form, end_form = occurrence.form_values(tz)
     return OccurrenceResponse(
         uid=occurrence.uid,
         source=occurrence.source,
@@ -224,6 +225,8 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         end_time_label=(
             "" if occurrence.all_day else occurrence.local_end(tz).strftime("%I:%M %p").lstrip("0")
         ),
+        start_form=start_form,
+        end_form=end_form,
         dates=dates_covered(occurrence),
         calendar_id=occurrence.calendar_id,
         calendar_label=occurrence.calendar_label,
