@@ -118,6 +118,26 @@ class Occurrence:
             return "All day"
         return self.local_start(tz).strftime("%I:%M %p").lstrip("0")
 
+    def form_values(self, tz: ZoneInfo) -> tuple[str, str]:
+        """This occurrence's start and end as the edit form displays them.
+
+        The occurrence counterpart of ``local_form_values`` (which does the
+        same for a stored event). It exists because the edit modal opens on a
+        single *occurrence*: reading the series' values there shows the wrong
+        date for every occurrence but the first, and anything the form then
+        sends back is relative to that wrong date.
+
+        Formatted here rather than in the browser for the reason the rest of
+        the calendar converts nowhere: the family's zone is the install's, not
+        whatever the tablet on the wall believes. All-day values are the local
+        dates as stored, and ``end_local_date`` is inclusive — the "Last day"
+        the form asks for.
+        """
+        if self.all_day:
+            return self.start_local_date, self.end_local_date
+        fmt = "%Y-%m-%dT%H:%M"
+        return self.local_start(tz).strftime(fmt), self.local_end(tz).strftime(fmt)
+
     def spans_days(self) -> bool:
         return self.start_local_date != self.end_local_date
 
