@@ -15,6 +15,7 @@ from rally.routers import (
     dinner_planner,
     events,
     family,
+    notes,
     preparedness,
     recurring_todos,
     settings,
@@ -71,6 +72,7 @@ app.include_router(devices.router)
 app.include_router(recurring_todos.router)
 app.include_router(settings.router)
 app.include_router(shopping.router)
+app.include_router(notes.router)
 app.include_router(preparedness.router)
 
 
@@ -117,6 +119,18 @@ def shopping_page(request: Request):
 def shopping_purchased_page(request: Request):
     """Serve the read-only page of previously purchased shopping items."""
     return templates.TemplateResponse(request, "shopping_purchased.html")
+
+
+@app.get("/notes", response_class=HTMLResponse)
+def notes_page(request: Request):
+    """Serve the Notes page: one Daily Note per day, from today onward."""
+    return templates.TemplateResponse(request, "notes.html")
+
+
+@app.get("/notes/previous", response_class=HTMLResponse)
+def notes_previous_page(request: Request):
+    """Serve the read-only page of notes for days that have passed."""
+    return templates.TemplateResponse(request, "notes_previous.html")
 
 
 @app.get("/dinner-planner", response_class=HTMLResponse)

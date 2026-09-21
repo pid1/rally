@@ -296,6 +296,7 @@ SHOTS: tuple[Shot, ...] = (
     Shot("readme-calendar", "/calendar", setup=_calendar("calendar", "month")),
     Shot("readme-tasks", "/todo"),
     Shot("readme-shopping", "/shopping"),
+    Shot("readme-notes", "/notes"),
     Shot("readme-preparedness", "/preparedness"),
     Shot("readme-mobile", "/calendar", width=390, height=844, full_page=False),
     # Calendar reference shots — 1x, matching the inline docs.

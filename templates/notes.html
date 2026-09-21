@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally — Notes</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Notes</div>
+    </header>
+
+    <nav>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todo">Tasks</a>
+        <a href="/shopping">Shopping</a>
+        <a href="/calendar">Calendar</a>
+        <div class="nav-dropdown" id="other-dropdown">
+            <button class="nav-dropdown-btn active" onclick="toggleOtherDropdown(event)">Other</button>
+            <div class="nav-dropdown-content">
+                <a href="/notes" class="active">Notes</a>
+                <a href="/dinner-planner">Meal Planner</a>
+                <a href="/meal-history">Previous Meals</a>
+                <a href="/preparedness">Preparedness</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Notes</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-note">Add Note</button>
+                </div>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/notes/previous">View previous notes</a>
+            </div>
+        </header>
+
+        <!-- No toolbar: a note has no member, no type and no status, so there
+             is nothing to filter or sort by. -->
+
+        <div class="list-container" id="notes-list">
+            <div class="container-loading-state">Loading notes...</div>
+        </div>
+    </div>
+
+    {% include "_note_edit_modal.html" %}
+
+    <script src="/static/modal.js?v={{ css_version }}"></script>
+    <script>
+        // State
+        let notes = [];
+        let localTimezone = 'UTC';
+
+        const BODY_LIMIT = 2000;
+
+        // Today's date (YYYY-MM-DD) in the configured local timezone. Mirrors
+        // the backend's today_local_str() so this page and Previous Notes agree
+        // on the day boundary.
+        function todayLocal() {
+            return new Intl.DateTimeFormat('en-CA', { timeZone: localTimezone }).format(new Date());
+        }
+
+        function getDateInDays(days) {
+            // Anchor to local calendar midnight so day arithmetic isn't skewed by UTC.
+            const base = new Date(todayLocal() + 'T00:00:00');
+            base.setDate(base.getDate() + days);
+            const y = base.getFullYear();
+            const m = String(base.getMonth() + 1).padStart(2, '0');
+            const d = String(base.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // Same wording the Meal Planner uses, so a date reads the same on both.
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            const today = todayLocal();
+
+            if (dateStr === today) return 'Today';
+            if (dateStr === getDateInDays(1)) return 'Tomorrow';
+
+            const opts = { weekday: 'long', month: 'short', day: 'numeric' };
+            if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = 'numeric';
+
+            return date.toLocaleDateString('en-US', opts);
+        }
+
+        async function fetchSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                localTimezone = (data.settings || {}).local_timezone || 'UTC';
+            } catch (_) {
+                localTimezone = 'UTC';
+            }
+        }
+
+        async function fetchNotes() {
+            const response = await fetch('/api/notes');
+            notes = await response.json();
+            renderNotes();
+        }
+
+        function renderNotes() {
+            const container = document.getElementById('notes-list');
+
+            if (notes.length === 0) {
+                container.innerHTML = '<div class="container-empty-state">No upcoming notes. Click "Add Note" to get started.</div>';
+                return;
+            }
+
+            container.innerHTML = notes.map(note => `
+                <div class="editable-item" data-id="${note.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(formatDate(note.date))}</div>
+                        <div class="editable-item-multiline">${note.body_html}</div>
+                    </div>
+                    <div class="editable-item-actions">
+                        <button class="btn btn--sm" onclick="openEditModal(${note.id})">Edit</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // `body_html` above is inserted as markup on purpose — it is the one
+        // value on this page that is meant to render. It comes from
+        // rally.markdown, which escapes any tag handed to it, and the API
+        // refuses to store markup in the first place. Everything else on the
+        // page still goes through escapeHtml().
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ── Modal ──
+        const OVERLAY_ID = 'note-modal-overlay';
+        const form = document.getElementById('note-form');
+        const idField = document.getElementById('note-edit-id');
+        const dateField = document.getElementById('note-date');
+        const bodyField = document.getElementById('note-body');
+        const counter = document.getElementById('note-counter');
+        const messageBox = document.getElementById('note-message');
+        const deleteBtn = document.getElementById('btn-delete-note');
+
+        function updateCounter() {
+            const used = bodyField.value.length;
+            counter.textContent = `${used.toLocaleString()} / ${BODY_LIMIT.toLocaleString()} characters`;
+            // A soft limit: it says so and nothing blocks Save.
+            counter.classList.toggle('form-counter--over', used > BODY_LIMIT);
+        }
+
+        // One box, two jobs. A rejected save is assertive; "we loaded the
+        // existing note" is a status report about something already done.
+        function showError(message) {
+            messageBox.textContent = message;
+            messageBox.setAttribute('role', 'alert');
+            messageBox.hidden = false;
+        }
+
+        function showNotice(message) {
+            messageBox.textContent = message;
+            messageBox.setAttribute('role', 'status');
+            messageBox.hidden = false;
+        }
+
+        function clearMessage() {
+            messageBox.textContent = '';
+            messageBox.removeAttribute('role');
+            messageBox.hidden = true;
+        }
+
+        // Land the caret where typing would continue, and scroll the textarea
+        // there — on a long note the interesting end is off-screen otherwise.
+        function focusBodyAtEnd() {
+            bodyField.focus();
+            const end = bodyField.value.length;
+            bodyField.setSelectionRange(end, end);
+            bodyField.scrollTop = bodyField.scrollHeight;
+        }
+
+        function openAddModal() {
+            form.reset();
+            clearMessage();
+            idField.value = '';
+            document.getElementById('note-modal-title').textContent = 'Add Note';
+            dateField.value = todayLocal();
+            dateField.min = todayLocal();  // past days are read-only
+            deleteBtn.style.display = 'none';
+            updateCounter();
+            showModalOverlay(OVERLAY_ID);
+        }
+
+        function openEditModal(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            form.reset();
+            clearMessage();
+            idField.value = note.id;
+            document.getElementById('note-modal-title').textContent = 'Edit Note';
+            dateField.value = note.date;
+            dateField.min = todayLocal();
+            bodyField.value = note.body;
+            deleteBtn.style.display = '';
+            updateCounter();
+            showModalOverlay(OVERLAY_ID);
+        }
+
+        // A date that already has a note is not an error the family should have
+        // to resolve: load that note for editing instead of refusing.
+        //
+        // Nothing is saved by this — the modal just changes what it is holding,
+        // so whatever ends up in the textarea is what a later Save will write,
+        // and it is all on screen first. Typed text is appended rather than
+        // dropped, because discarding what somebody just wrote to report a
+        // collision would be the worst of both.
+        function switchToExisting(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return false;
+
+            const typed = bodyField.value.trim();
+            const appending = typed && typed !== note.body.trim();
+
+            openEditModal(id);
+            if (appending) {
+                bodyField.value = `${note.body}\n${typed}`;
+                updateCounter();
+                showNotice('That day already had a note. Your text was added to the end.');
+            } else {
+                showNotice('That day already had a note — loaded for editing.');
+            }
+            focusBodyAtEnd();
+            return true;
+        }
+
+        async function saveNote(event) {
+            event.preventDefault();
+            clearMessage();
+
+            const id = idField.value;
+            const payload = { date: dateField.value, body: bodyField.value };
+
+            const response = await fetch(id ? `/api/notes/${id}` : '/api/notes', {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (response.ok) {
+                hideModalOverlay(OVERLAY_ID);
+                await fetchNotes();
+                return;
+            }
+
+            const problem = await response.json().catch(() => ({}));
+            const detail = problem.detail;
+
+            if (response.status === 409 && detail && detail.id) {
+                await fetchNotes();
+                if (switchToExisting(detail.id)) return;
+            }
+
+            // FastAPI reports a schema rejection as a list of errors; the note
+            // body's validator message is the useful half of it.
+            if (Array.isArray(detail)) {
+                showError(detail.map(e => e.msg.replace(/^Value error, /, '')).join(' '));
+            } else if (typeof detail === 'string') {
+                showError(detail);
+            } else if (detail && detail.message) {
+                showError(detail.message);
+            } else {
+                showError('Could not save the note.');
+            }
+        }
+
+        async function deleteNote() {
+            const id = idField.value;
+            if (!id) return;
+            const response = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                hideModalOverlay(OVERLAY_ID);
+                await fetchNotes();
+            } else {
+                showError('Could not delete the note.');
+            }
+        }
+
+        // Catch the collision when the date is picked, not only when Save is
+        // pressed. Two reasons: the family finds out before writing a note they
+        // did not need to write, and an empty body cannot reach Save anyway —
+        // the textarea is `required`, so the browser blocks the submit first
+        // and the "nothing typed yet" case would never be reachable.
+        //
+        // Add mode only. Moving an existing note onto an occupied day is a
+        // different question — switching would abandon the note being edited —
+        // so that stays with the 409 on Save.
+        dateField.addEventListener('change', () => {
+            if (idField.value) return;
+            const clash = notes.find(n => n.date === dateField.value);
+            if (clash) switchToExisting(clash.id);
+        });
+
+        document.getElementById('btn-add-note').addEventListener('click', openAddModal);
+        document.getElementById('btn-cancel-note').addEventListener('click', () => hideModalOverlay(OVERLAY_ID));
+        deleteBtn.addEventListener('click', deleteNote);
+        bodyField.addEventListener('input', updateCounter);
+        form.addEventListener('submit', saveNote);
+
+        // Nav dropdown toggle (for touch devices)
+        function toggleOtherDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('other-dropdown').classList.toggle('open');
+        }
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
+                d.classList.remove('open');
+            });
+        });
+
+        // Init
+        (async function () {
+            await fetchSettings();
+            await fetchNotes();
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally — Previous Notes</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        <div class="subtitle">Previous Notes</div>
+    </header>
+
+    <nav>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todo">Tasks</a>
+        <a href="/shopping">Shopping</a>
+        <a href="/calendar">Calendar</a>
+        <div class="nav-dropdown" id="other-dropdown">
+            <button class="nav-dropdown-btn active" onclick="toggleOtherDropdown(event)">Other</button>
+            <div class="nav-dropdown-content">
+                <a href="/notes" class="active">Notes</a>
+                <a href="/dinner-planner">Meal Planner</a>
+                <a href="/meal-history">Previous Meals</a>
+                <a href="/preparedness">Preparedness</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Notes</h2>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/notes">Back to current notes</a>
+            </div>
+        </header>
+
+        <!-- Search only. No filter chips and no sort, so there is no
+             `.toolbar-reset` — Clear Search is the only reset and it lives in
+             the search group, where both other archive pages put it. -->
+        <div class="toolbar">
+            <div class="toolbar-search">
+                <label class="toolbar-label" for="search-input">Search</label>
+                <div class="toolbar-search-controls">
+                    <input type="text" id="search-input" class="search-input"
+                           placeholder="Search notes" autocomplete="off">
+                    <button type="button" class="btn btn--secondary" id="search-btn" disabled>Search</button>
+                    <button type="button" class="btn btn--quiet" id="search-clear">Clear Search</button>
+                </div>
+            </div>
+            <div class="search-results-count" id="search-results-count" hidden></div>
+        </div>
+
+        <div class="list-container" id="list-container">
+            <div class="container-loading-state">Loading previous notes...</div>
+        </div>
+
+        <div class="load-more-container" id="load-more-container" style="display:none;">
+            <button type="button" class="btn btn--secondary" id="btn-load-more">Load more</button>
+        </div>
+    </div>
+
+    <script>
+        const PAGE_SIZE = 50;
+
+        let items = [];
+        let offset = 0;
+        let hasMore = false;
+        let searchTerm = '';
+        let localTimezone = 'UTC';
+
+        async function fetchSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                localTimezone = (data.settings || {}).local_timezone || 'UTC';
+            } catch (_) {
+                localTimezone = 'UTC';
+            }
+        }
+
+        // Past dates only here, so there is no Today/Tomorrow case to handle —
+        // but the year still matters once the archive is more than a year old.
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            const thisYear = new Intl.DateTimeFormat('en-CA', { timeZone: localTimezone })
+                .format(new Date()).slice(0, 4);
+            const opts = { weekday: 'long', month: 'short', day: 'numeric' };
+            if (dateStr.slice(0, 4) !== thisYear) opts.year = 'numeric';
+            return date.toLocaleDateString('en-US', opts);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function loadPage(reset) {
+            if (reset) {
+                items = [];
+                offset = 0;
+            }
+            const params = new URLSearchParams({ limit: PAGE_SIZE, offset });
+            if (searchTerm) params.set('search', searchTerm);
+
+            const response = await fetch(`/api/notes/previous?${params}`);
+            const page = await response.json();
+
+            items = items.concat(page.items);
+            hasMore = page.has_more;
+            offset += page.items.length;
+
+            updateSearchCount(page.total);
+            render();
+            updateLoadMore(false);
+        }
+
+        function render() {
+            const container = document.getElementById('list-container');
+
+            if (items.length === 0) {
+                container.innerHTML = searchTerm
+                    ? '<div class="container-empty-state">No notes match your search.</div>'
+                    : '<div class="container-empty-state">No previous notes.</div>';
+                return;
+            }
+
+            // Read-only: the same card shape as the Notes page, minus Edit.
+            // `body_html` is server-rendered markdown (see rally.markdown);
+            // everything else goes through escapeHtml().
+            container.innerHTML = items.map(note => `
+                <div class="editable-item" data-id="${note.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(formatDate(note.date))}</div>
+                        <div class="editable-item-multiline">${note.body_html}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Total matches across every page, not just the one in hand.
+        function updateSearchCount(total) {
+            const el = document.getElementById('search-results-count');
+            if (!searchTerm) {
+                el.hidden = true;
+                return;
+            }
+            el.hidden = false;
+            el.textContent = total === 1 ? '1 matching note.' : `${total} matching notes.`;
+        }
+
+        function updateLoadMore(loading) {
+            const container = document.getElementById('load-more-container');
+            const button = document.getElementById('btn-load-more');
+            container.style.display = hasMore ? '' : 'none';
+            button.disabled = loading;
+            button.textContent = loading ? 'Loading…' : 'Load more';
+        }
+
+        // Search runs only on submit (button click or Enter), never on keystroke:
+        // it hits the server, and paging has to agree with it about what the
+        // current query is when Load more is pressed.
+        function runSearch() {
+            searchTerm = document.getElementById('search-input').value.trim();
+            loadPage(true);
+        }
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            document.getElementById('search-btn').disabled = e.target.value.trim().length === 0;
+        });
+
+        document.getElementById('search-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                runSearch();
+            }
+        });
+
+        document.getElementById('search-btn').addEventListener('click', runSearch);
+
+        document.getElementById('search-clear').addEventListener('click', () => {
+            document.getElementById('search-input').value = '';
+            document.getElementById('search-btn').disabled = true;
+            searchTerm = '';
+            loadPage(true);
+        });
+
+        document.getElementById('btn-load-more').addEventListener('click', async () => {
+            updateLoadMore(true);
+            await loadPage(false);
+        });
+
+        // Nav dropdown toggle (for touch devices)
+        function toggleOtherDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('other-dropdown').classList.toggle('open');
+        }
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
+                d.classList.remove('open');
+            });
+        });
+
+        // Init
+        (async function () {
+            await fetchSettings();
+            await loadPage(true);
+        })();
+    </script>
+</body>
+</html>

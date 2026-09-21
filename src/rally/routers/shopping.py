@@ -35,8 +35,8 @@ from rally.schemas import (
     ShoppingStoreUpdate,
     ShoppingSuggestion,
 )
-from rally.utils.settings import local_timezone_name, today_start_utc
-from rally.utils.timezone import now_utc, today_local
+from rally.utils.settings import today_local_str, today_start_utc
+from rally.utils.timezone import now_utc
 
 router = APIRouter(prefix="/api/shopping", tags=["shopping"])
 
@@ -142,7 +142,7 @@ def purge_old_purchased_items(db: Session) -> None:
     Gated on a settings row so it executes at most once per local day: SQLite
     takes a write lock, and a read path shouldn't pay for that on every request.
     """
-    today = today_local(local_timezone_name(db)).strftime("%Y-%m-%d")
+    today = today_local_str(db)
     marker = db.query(Setting).filter(Setting.key == PURGE_DATE_SETTING).first()
     if marker and marker.value == today:
         return

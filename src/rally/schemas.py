@@ -1,11 +1,12 @@
 """Rally Pydantic schemas."""
 
+import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
 
-from rally import member_colors, member_prefs, notification_prefs
+from rally import markdown, member_colors, member_prefs, notification_prefs
 
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
@@ -511,6 +512,94 @@ class DinnerPlanResponse(DinnerPlanBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Notes
+
+# A `<` that is followed by an optional slash and then an ASCII letter. That is
+# what a tag looks like; a comparison is not. Rejecting on the `<` character
+# alone would eat "wear layers if temp < 40" and "the 5<6 rule", which is the
+# corruption this check exists to prevent rather than cause.
+_MARKUP_RE = re.compile(r"<\s*/?[a-zA-Z]")
+
+
+def _reject_markup(value: str) -> str:
+    """Refuse a note containing HTML tags, rather than stripping them.
+
+    Stripping would silently alter what the family wrote and could not be
+    undone; refusing costs them one reworded line. The renderer escapes tags
+    anyway (``rally.markdown``), so this is the first of two independent
+    controls, not the only one.
+    """
+    if _MARKUP_RE.search(value):
+        raise ValueError(
+            'Notes can\'t contain HTML tags. Try rewording the part that starts with "<".'
+        )
+    return value
+
+
+def _require_body(value: str) -> str:
+    """A note with nothing in it is not a note.
+
+    Rejecting it here is what lets the dashboard treat "no row" and "an empty
+    row" as one absent state, so its render-or-omit rule has a single condition
+    to test.
+    """
+    if not value or not value.strip():
+        raise ValueError("A note needs some text.")
+    return value
+
+
+class NoteBase(BaseModel):
+    date: str  # YYYY-MM-DD format
+    body: str  # Markdown source as the family typed it
+
+    @field_validator("body")
+    @classmethod
+    def _validate_body(cls, value: str) -> str:
+        return _reject_markup(_require_body(value))
+
+
+class NoteCreate(NoteBase):
+    pass
+
+
+class NoteUpdate(BaseModel):
+    date: str | None = None
+    body: str | None = None
+
+    @field_validator("body")
+    @classmethod
+    def _validate_body(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _reject_markup(_require_body(value))
+
+
+class NoteResponse(NoteBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def body_html(self) -> str:
+        """The rendered note, built server-side so no page needs a renderer.
+
+        Both shapes travel together on purpose: the edit modal loads ``body``
+        into its textarea, and the page inserts ``body_html`` directly.
+        """
+        return markdown.render(self.body)
+
+
+class NotePage(BaseModel):
+    """One page of previous notes."""
+
+    items: list[NoteResponse]
+    has_more: bool  # True when another page exists beyond this one
+    total: int  # Total matches across all pages for the current query
 
 
 class FollowedTeamBase(BaseModel):

@@ -1,0 +1,49 @@
+<!--
+  Note add/edit modal.
+
+  A partial rather than inline markup so Previous Notes could adopt it if past
+  notes ever stop being read-only. Behavior lives in notes.html; this file is
+  the shape only.
+
+  The textarea takes no class of its own — `.form-group textarea` already sets
+  `resize: vertical` and `min-height: 6rem`. Only `.form-counter` is new.
+-->
+<div class="modal-overlay" id="note-modal-overlay">
+    <div class="modal-content">
+        <h3 id="note-modal-title">Add Note</h3>
+        <div class="modal-scroll">
+        <div class="modal-body">
+        <form id="note-form">
+            <input type="hidden" id="note-edit-id">
+            <div class="form-group">
+                <label for="note-date">Date</label>
+                <input type="date" id="note-date" required>
+            </div>
+            <div class="form-group">
+                <label for="note-body">Note</label>
+                <textarea id="note-body" rows="6" required
+                          placeholder="What does everyone need to know about this day?"
+                          aria-describedby="note-counter"></textarea>
+                <!--
+                  A soft limit. It reports and warns; it never blocks Save, and
+                  the API does not reject on length either — 2,000 characters is
+                  guidance about what reads well on a wall tablet, not a rule.
+                  Deliberately not an aria-live region: announcing on every
+                  keystroke would make the field unusable. aria-describedby
+                  means the limit is heard once, on focus.
+                -->
+                <div class="form-counter" id="note-counter">0 / 2,000 characters</div>
+                <!-- Carries both a rejected save and a status notice; the
+                     script sets role="alert" or role="status" to match. -->
+                <div class="form-message" id="note-message" hidden></div>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn btn--secondary" id="btn-cancel-note">Cancel</button>
+                <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-note" style="display:none">Delete</button>
+            </div>
+        </form>
+        </div>
+        </div>
+    </div>
+</div>

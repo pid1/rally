@@ -24,6 +24,7 @@
         <div class="nav-dropdown" id="other-dropdown">
             <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
             <div class="nav-dropdown-content">
+                <a href="/notes">Notes</a>
                 <a href="/dinner-planner">Meal Planner</a>
                 <a href="/meal-history">Previous Meals</a>
                 <a href="/preparedness">Preparedness</a>
@@ -47,6 +48,14 @@
             <div class="card-header">Weather &amp; Preparedness</div>
             <div class="card-content">{{weather_summary}}</div>
         </section>
+
+        <!-- Today's Daily Note, read live from the database rather than from
+             the snapshot, so a note written at breakfast shows up on the next
+             load instead of waiting for tomorrow's 4 AM generation. Renders as
+             an empty string when today has no note, the same render-or-omit
+             shape the briefing and STEM sections use. Read-only here; the only
+             place to change it is /notes. -->
+        {{note_section}}
 
         <section class="card card--featured">
             <div class="card-header">Today's Schedule</div>

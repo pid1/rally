@@ -565,7 +565,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, DinnerPlan)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, DinnerPlan, Note)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -577,6 +577,7 @@ rally/
 │   ├── shopping_notifications.py # Batched "added to the shopping list" pushes, behind a settle window
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
+│   ├── markdown.py       # The one markdown renderer: a note's bold/italic/lists, nothing else
 │   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalizing
 │   ├── calendars/        # One normalized event shape for every calendar source
 │   │   └── cache.py      # Cached external occurrences + the concurrent background sync
@@ -603,6 +604,7 @@ rally/
 │       ├── shopping.py      # Shopping list, store, and autocomplete-suggestion API
 │       ├── recurring_todos.py # Recurring todo template CRUD API
 │       ├── dinner_planner.py # Dinner plan CRUD API
+│       ├── notes.py        # Daily Note CRUD API plus the searchable previous-notes page
 │       ├── family.py        # Family member CRUD API
 │       ├── devices.py       # Device registry and the per-device behavioral settings API
 │       └── settings.py      # Settings and calendar management API
@@ -619,6 +621,9 @@ rally/
 │   ├── todo_completed.html  # Read-only previously-completed tasks page
 │   ├── shopping.html        # Shopping list page
 │   ├── dinner_planner.html  # Dinner planner page
+│   ├── notes.html           # Notes page: one Daily Note per day, today onward
+│   ├── notes_previous.html  # Read-only, searchable archive of past Daily Notes
+│   ├── _note_edit_modal.html # Shared note add/edit modal
 │   └── settings.html        # Settings, family member, and calendar management page
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
@@ -649,6 +654,7 @@ rally/
 │   ├── migrate_021_add_preparedness.py # Migration 021: preparedness stock, locations, refresh notices
 │   ├── migrate_027_add_member_notification_prefs.py # Migration 027: per-member notification preferences
 │   ├── migrate_031_add_device_preferences.py # Migration 031: device registry and per-device behavioral settings
+│   ├── migrate_033_add_notes.py # Migration 033: add notes table (one Daily Note per day)
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium
@@ -683,6 +689,14 @@ rally/
   - LLM system prompt includes task filtering guideline (guideline 10): the LLM only references tasks explicitly listed in the TODOS section of its prompt
   - Todo and dinner plan date comparisons use the user's configured local timezone
 - ✅ Configuration via Settings UI (stored in DB) with config.toml fallback
+- ✅ **Notes** (`/notes`) — one Daily Note per day, shown on the dashboard
+  - The dashboard card is the **one card not taken from the snapshot**: `get_dashboard` reads today's note live on every request, so a note written at breakfast appears on the next load instead of waiting for the 4 AM generation. Everything else on that page is cached
+  - `{{note_section}}` renders or is omitted, the same shape `{{briefing_section}}` and `{{stem_section}}` use — no note, no card, and no placeholder text
+  - The renderer is `MarkdownIt("zero", {"html": False, "breaks": True}).enable(["emphasis", "list", "newline"])` and every part of that is load-bearing. `"zero"` because `enable()` only ever *adds* rules: built on `"commonmark"` the same enable list still renders headings, links, images, code, blockquotes and rules. `breaks` + `newline` together because standard markdown collapses a single newline, and a family pressing Enter expects a line break — neither works without the other
+  - Two independent controls on markup, not one: the API **rejects** a note containing a tag (nothing is ever stripped or silently altered), and the renderer escapes tags anyway. The rejection is tag-shaped rather than the `<` character, so `wear layers if temp < 40` and `the 5<6 rule` still save
+  - `body_html` is inserted into the DOM as markup rather than through a page's `escapeHtml()`. It is the only value in Rally that renders rather than escapes, which is why the renderer config has a test per property
+  - The day boundary is `utils.settings.today_local_str()` — the single helper for "today's local date as a `YYYY-MM-DD` string", used by Notes, the Meal Planner, the dashboard's note lookup and the shopping purge marker. The Meal Planner and the shopping purge each carried their own copy before this; consolidating them is why a date column can no longer mean two different days in two places. Use `today_local()` directly only when you need a `date` for arithmetic rather than a string to compare
+  - Phone links are deliberately **not** applied to notes — see issue #230. `escapeHtmlWithPhoneLinks()` cannot simply be called on either the markdown or the rendered HTML
 - ✅ **Native calendaring** (`/calendar`) — Rally owns events, and shows them
   - One normalized `Occurrence` shape (`src/rally/calendars/`) produced by the native, ICS and CalDAV adapters and merged in one place. `generate.fetch_calendars()` is now a thin caller
   - Fixed four defects the old dict-based read path made unavoidable: events sorted lexicographically by a 12-hour clock string (so 9 AM sorted after 1 PM), all-day events rendered as midnight appointments (a `date` also has `strftime`), a `(date, title)` dedupe key that dropped the second same-named event of a day, and a 7-day window measured in UTC dates
@@ -958,6 +972,8 @@ visual suite (above) before shipping a layout change.
 - `/todo/completed` - Read-only page of todos completed before today (local time); reachable only via the `View completed tasks` link on `/todo`, not from the nav bar
 - `/shopping` - Shopping list page: an `Add Item` header button opening a dual-mode modal with history-backed autocomplete, store grouping, store filter chips derived from the items on the list, a `Manage stores` button in the Store toolbar group, and drag-to-reorder via the grip on each open row
 - `/shopping/purchased` - Read-only page of items purchased before today (local time), grouped by store; reachable only via the `View purchased items` link on `/shopping`, not from the nav bar
+- `/notes` - **Notes**: one **Daily Note** per day, from today onward with no upper bound. A day with no note has no card. `Add Note` opens a dual-mode modal; a date that already has a note returns `409` carrying that note's id, and the modal switches to editing it rather than refusing or overwriting. Text is markdown — bold, italic, bullet and numbered lists, and a line break per Enter — rendered **server-side** by `rally.markdown` and returned as `body_html` beside the raw `body`. Markup is rejected at write time (`schemas._reject_markup`) *and* escaped at render; the rule is tag-shaped (`<` + optional `/` + a letter) so `temp < 40` survives
+- `/notes/previous` - Read-only notes for days before today, newest first, with server-side search and paging. Reachable only via `View previous notes` on `/notes`, not from the nav
 - `/dinner-planner` - Dinner planning page with date picker and plan management
 - `/settings` - Settings, family member, calendar, and followed-team management page. **Personal Defaults** is the per-person, per-device behavioral section, and everything in it is scoped to the device it is being read on: a `This device` name, a `This device belongs to` control (the device→member binding, `localStorage` only, never sent anywhere), one dropdown per family member per setting in `member_prefs.CATALOG`, and **Devices Rally remembers** — every device, its answer count, when it was last seen, and a `Forget`. Saved on change; the `PUT` carries only the setting that moved
 - `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
@@ -978,6 +994,8 @@ visual suite (above) before shipping a layout change.
   - Creating (`POST`), editing (`PUT`) or deleting (`DELETE`) an event pushes a notice to its attendees, at every scope. The response is unaffected: the notice is best-effort and never fails the write
   - `POST /api/events/describe-recurrence` - Read an **unsaved** rule back as a phrase: `{rrule}` in, `{"description": "every 2 weeks on Tuesday and Thursday"}` out. This is why the event modal does not own a second copy of the recurrence vocabulary, the same reasoning as `POST /api/recurring-todos/preview`. A malformed rule is *described as nothing* rather than rejected — the form asks on every keystroke, so a half-typed rule is the normal case; `validate_rrule` still guards the save
   - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, muted, failed}` **by name**: "it worked" and "both phones buzzed" are different claims. An attendee with no Pushover key is reported as *skipped*, and one who turned event reminders off is reported as *muted* — the button is filtered like every other push rather than exempted, so it has to say who it dropped
+- `/api/notes` - Daily Note CRUD. `GET` lists `date >= today` ascending; `POST`/`PUT` reject markup, an empty body, and any write into the past (`403`); a duplicate date is `409` with `{message, id}`
+  - `GET /api/notes/previous?search=&limit=&offset=` - Days before today, newest first. Returns `{items, has_more, total}`; `total` counts every match, which is what the results count reports
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
   - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
@@ -1078,7 +1096,7 @@ visual suite (above) before shipping a layout change.
   - `GET /api/preparedness/review` - The last stored review, plus `stale` (the item count has changed since it ran). Reading **never** calls the model — a review costs real money and several seconds, so a page load must never spend either. `404` until one has been run
 
 ### Navigation
-Top level is the four pages a family touches daily — **Dashboard, Tasks, Shopping, Calendar** — plus a single **Other** dropdown holding everything visited occasionally: Meal Planner, Previous Meals, Preparedness.
+Top level is the four pages a family touches daily — **Dashboard, Tasks, Shopping, Calendar** — plus a single **Other** dropdown holding everything visited occasionally: Notes, Meal Planner, Previous Meals, Preparedness.
 
 The split is by *frequency*, not by feature size. A meal plan is edited weekly and a go list is opened when something has gone wrong; neither earns a permanent slot next to Tasks. The go list goes one step further and is not in the dropdown either: it is a view of the inventory, reached by the `View go list` link on Preparedness, which keeps the dropdown to the three sections rather than four. Collapsing the old Meal Planner dropdown into Other also keeps the top level at five items, so the three-column mobile nav from #144 still lands as two clean rows and nothing was pushed below the fold.
 
