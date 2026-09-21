@@ -38,6 +38,27 @@ def home_location(db: Session) -> str:
     return (setting.value or "").strip() if setting else ""
 
 
+def today_local_str(db: Session) -> str:
+    """Today's local date as ``YYYY-MM-DD``, for comparing against date columns.
+
+    Some tables store a day as a ``String(10)`` rather than an instant —
+    ``notes.date``, ``dinner_plans.date`` — and the boundary between "current"
+    and "past" for those is a string comparison, not ``today_start_utc``. Every
+    view that partitions such a table must use this one helper, or a row could
+    sit on both sides of midnight or neither.
+
+    The callers are Notes (``/notes`` vs ``/notes/previous``), the Meal Planner
+    (Current & Upcoming vs Meal History), the dashboard's Daily Note lookup, and
+    the shopping purge's once-per-local-day marker. They agree because they all
+    ask here; two of them used to carry their own copy, which is exactly the
+    drift this exists to stop.
+
+    Use ``today_local()`` directly instead when you need a ``date`` to do
+    arithmetic on rather than a string to compare.
+    """
+    return today_local(local_timezone_name(db)).strftime("%Y-%m-%d")
+
+
 def today_start_utc(db: Session) -> datetime:
     """UTC instant of local midnight today, in the user's configured timezone.
 

@@ -5,7 +5,7 @@ from sqlalchemy import case, nullslast
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import DinnerPlan, Setting
+from rally.models import DinnerPlan
 from rally.schemas import (
     MEAL_TYPES,
     UNSET,
@@ -14,7 +14,7 @@ from rally.schemas import (
     DinnerPlanReviewUpdate,
     DinnerPlanUpdate,
 )
-from rally.utils.timezone import today_local
+from rally.utils.settings import today_local_str
 
 router = APIRouter(prefix="/api/dinner-plans", tags=["dinner-plans"])
 
@@ -24,17 +24,6 @@ _MEAL_TYPE_ORDER = case(
     value=DinnerPlan.meal_type,
     else_=99,
 )
-
-
-def _today_local_str(db: Session) -> str:
-    """Today's date (YYYY-MM-DD) in the configured local timezone.
-
-    This is the day boundary that splits Meal History (``date < today``) from the
-    Meal Planner (``date >= today``); both use it so the two pages agree.
-    """
-    settings = {r.key: r.value for r in db.query(Setting).all()}
-    tz_name = settings.get("local_timezone", "UTC")
-    return today_local(tz_name).strftime("%Y-%m-%d")
 
 
 @router.get("", response_model=list[DinnerPlanResponse])
@@ -83,7 +72,7 @@ def list_meal_history(
         if invalid:
             raise HTTPException(status_code=422, detail=f"Invalid meal_type value(s): {invalid}")
 
-    today = _today_local_str(db)
+    today = today_local_str(db)
 
     query = db.query(DinnerPlan).filter(DinnerPlan.date < today)
 
@@ -145,7 +134,7 @@ def update_dinner_plan(
     # the Meal Planner (today or later, out of Meal History), discard any existing
     # rating and review. The client warns and confirms before sending such a
     # change; enforcing it here keeps the invariant regardless of the caller.
-    if plan.date is not None and db_plan.date >= _today_local_str(db):
+    if plan.date is not None and db_plan.date >= today_local_str(db):
         db_plan.rating = None
         db_plan.review = None
 
