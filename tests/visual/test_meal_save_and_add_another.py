@@ -169,8 +169,10 @@ def test_edit_mode_does_not_offer_save_and_add_another(browser, live_server):
         assert page.evaluate(MEASURE_JS)["addAnotherShown"], "Add mode should offer the button"
         page.click("#btn-cancel")
 
-        page.wait_for_selector(".editable-item button:has-text('Edit')")
-        page.click(".editable-item button:has-text('Edit') >> nth=0")
+        # The planner groups meals into one box per day, so a meal row is
+        # `.meal-day-meal` rather than the shared `.editable-item`.
+        page.wait_for_selector(".meal-day-meal button:has-text('Edit')")
+        page.click(".meal-day-meal button:has-text('Edit') >> nth=0")
         page.wait_for_function(
             "() => document.getElementById('modal-title').textContent === 'Edit Meal Plan'"
         )

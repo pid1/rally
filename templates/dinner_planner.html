@@ -172,35 +172,55 @@
                 return;
             }
 
-            container.innerHTML = visible.map(plan => {
-                // Build meta parts
-                const parts = [];
-                if (plan.attendee_ids && plan.attendee_ids.length > 0) {
-                    const names = plan.attendee_ids.map(id => getMemberById(id)?.name || '?').join(', ');
-                    parts.push(`Eating: ${escapeHtml(names)}`);
-                }
-                if (plan.cook_id) {
-                    const cook = getMemberById(plan.cook_id);
-                    if (cook) parts.push(`Cook: ${escapeHtml(cook.name)}`);
-                }
-                const metaHtml = parts.length > 0
-                    ? `<div class="editable-item-description">${parts.join(' · ')}</div>` : '';
+            // One box per day. The meals are already sorted by date then meal
+            // type, so meals sharing a date arrive consecutively and a single
+            // pass is enough to group them — no day is ever reopened.
+            //
+            // Only days that have a meal get a box: a day filtered down to
+            // nothing disappears with its meals, same as before the grouping.
+            const days = [];
+            visible.forEach(plan => {
+                const open = days[days.length - 1];
+                if (open && open.date === plan.date) open.meals.push(plan);
+                else days.push({ date: plan.date, meals: [plan] });
+            });
 
-                const mealType = plan.meal_type || 'Dinner';
+            container.innerHTML = days.map(day => `
+                <section class="meal-day">
+                    ${day.meals.map(renderMeal).join('')}
+                    <div class="meal-day-date">${escapeHtml(formatDate(day.date))}</div>
+                </section>
+            `).join('');
+        }
 
-                return `
-                    <div class="editable-item" data-id="${plan.id}">
-                        <div class="editable-item-content">
-                            <div class="editable-item-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
-                            ${metaHtml}
-                            <div class="meta-date">${escapeHtml(formatDate(plan.date))}</div>
-                        </div>
-                        <div class="editable-item-actions">
-                            <button class="btn btn--sm" onclick="openEditModal(${plan.id})">Edit</button>
-                        </div>
+        // One meal inside a day box. The date is the box's to state, so it is
+        // deliberately absent here; everything else is the row as it was.
+        function renderMeal(plan) {
+            const parts = [];
+            if (plan.attendee_ids && plan.attendee_ids.length > 0) {
+                const names = plan.attendee_ids.map(id => getMemberById(id)?.name || '?').join(', ');
+                parts.push(`Eating: ${escapeHtml(names)}`);
+            }
+            if (plan.cook_id) {
+                const cook = getMemberById(plan.cook_id);
+                if (cook) parts.push(`Cook: ${escapeHtml(cook.name)}`);
+            }
+            const metaHtml = parts.length > 0
+                ? `<div class="editable-item-description">${parts.join(' · ')}</div>` : '';
+
+            const mealType = plan.meal_type || 'Dinner';
+
+            return `
+                <div class="meal-day-meal" data-id="${plan.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
+                        ${metaHtml}
                     </div>
-                `;
-            }).join('');
+                    <div class="editable-item-actions">
+                        <button class="btn btn--sm" onclick="openEditModal(${plan.id})">Edit</button>
+                    </div>
+                </div>
+            `;
         }
 
         function escapeHtml(text) {
