@@ -2085,6 +2085,63 @@ body.is-dragging {
     font-size: var(--text-sm);
 }
 
+/* ---- Meal planner ----
+   One box per day, read like a menu: every meal planned for that day stacks
+   inside it and the date is stated once, as the footer. The page had no
+   page-specific block of its own — it was retired when the planner moved to
+   `.editable-item` — which is why `.meta-date` below still sits under Meal
+   history while serving both pages. These rules are planner-only, so they
+   live here rather than in the components layer.
+
+   Only the structure is new. The row's inner blocks stay `.editable-item-*`:
+   a meal is still the same list-row idea, and restyling those would reach the
+   seven other templates that share them. */
+.meal-day {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2) 0;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+}
+
+/* A meal, not the day, is what hover marks: the day box is a container and
+   the Edit button beside each row is what acts. Full-bleed horizontally so
+   the tint reads as one band across the box rather than an inset chip. */
+.meal-day-meal {
+    display: flex;
+    gap: var(--space-4);
+    align-items: flex-start;
+    padding: var(--space-3) var(--space-4);
+    transition: background 0.2s;
+}
+
+.meal-day-meal:hover {
+    background: var(--surface-sunken);
+}
+
+/* Same correction `.editable-item` makes for a row with no second line: with
+   nothing to run on beneath it, a top-aligned single line sits above the
+   centre of the 44px control beside it, and the title's bottom margin is
+   trailing space that pushes it further off. */
+.meal-day-meal:not(:has(.editable-item-description)) {
+    align-items: center;
+}
+
+.meal-day-meal:not(:has(.editable-item-description)) .editable-item-title {
+    margin-bottom: 0;
+}
+
+/* The day, stated once. Same treatment as `.meta-date`, which it deliberately
+   does not reuse: that class is shared with Previous Meals, and this one is
+   free to move with the planner. */
+.meal-day-date {
+    padding: var(--space-2) var(--space-4) 0;
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
 /* ---- Meal history ---- */
 .star-rating,
 .star-rating-input {
