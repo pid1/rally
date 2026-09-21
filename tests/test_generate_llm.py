@@ -6,6 +6,7 @@ provider branching in _call_llm and the prompt-assembly / JSON-parsing logic in
 generate_summary and evaluate_summary.
 """
 
+import errno
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -13,7 +14,16 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from rally.calendars import Occurrence
-from rally.generator.generate import LLM_MAX_TOKENS, LLMTruncatedError, SummaryGenerator
+from rally.generator import generate as generate_module
+from rally.generator.generate import (
+    LLM_MAX_TOKENS,
+    LLM_RETRY_ATTEMPTS,
+    LLM_RETRY_JITTER,
+    LLM_RETRY_MAX_DELAY,
+    LLMTruncatedError,
+    SummaryGenerator,
+    _is_retryable_llm_error,
+)
 
 
 def _occurrence(
@@ -332,6 +342,163 @@ def test_call_llm_logs_when_provider_reports_no_usage(capsys):
     gen._call_llm("hi")
 
     assert "usage=unavailable" in capsys.readouterr().out
+
+
+# --- transient-failure retry ---------------------------------------------------
+
+
+class _FlakyClient:
+    """Raises the queued exceptions in order, then returns text.
+
+    Standing in at the ``_call_llm_once`` seam rather than the SDK seam: the
+    point under test is which faults earn another attempt, not how a particular
+    provider surfaces them.
+    """
+
+    def __init__(self, failures, text="ok"):
+        self._failures = list(failures)
+        self._text = text
+        self.calls = 0
+
+    def __call__(self, user_prompt, system_prompt=None, label="llm"):
+        self.calls += 1
+        if self._failures:
+            raise self._failures.pop(0)
+        return self._text
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    """Collect the backoff waits instead of serving them."""
+    waits = []
+    monkeypatch.setattr(generate_module.time, "sleep", waits.append)
+    return waits
+
+
+def _retrying_gen(failures, text="ok"):
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-x"
+    client = _FlakyClient(failures, text)
+    gen._call_llm_once = client
+    return gen, client
+
+
+def _status_error(code):
+    """An SDK-shaped error carrying an HTTP status, as both SDKs raise."""
+    exc = Exception(f"status {code}")
+    exc.status_code = code
+    return exc
+
+
+def test_call_llm_retries_a_dropped_connection_and_succeeds(no_sleep):
+    """The 2026-09-14 outage shape: the link dies, then comes back."""
+    dropped = OSError(errno.ETIMEDOUT, "Connection timed out")
+    gen, client = _retrying_gen([dropped, dropped], text="briefing")
+
+    assert gen._call_llm("hi") == "briefing"
+    assert client.calls == 3
+    assert len(no_sleep) == 2
+
+
+def test_call_llm_does_not_retry_a_truncated_response(no_sleep):
+    """A budget too small to finish will be just as small next time."""
+    gen, client = _retrying_gen([LLMTruncatedError("out of budget")])
+
+    with pytest.raises(LLMTruncatedError):
+        gen._call_llm("hi")
+    assert client.calls == 1
+    assert no_sleep == []
+
+
+def test_call_llm_does_not_retry_a_rejected_request(no_sleep):
+    """A 400 is the server's settled answer, not a fault worth re-sending."""
+    gen, client = _retrying_gen([_status_error(400)])
+
+    with pytest.raises(Exception, match="status 400"):
+        gen._call_llm("hi")
+    assert client.calls == 1
+    assert no_sleep == []
+
+
+def test_call_llm_gives_up_once_the_budget_is_spent(no_sleep):
+    """Persistent faults still surface — retrying must not mask a real outage."""
+    forever = [OSError(errno.ETIMEDOUT, "Connection timed out")] * LLM_RETRY_ATTEMPTS
+    gen, client = _retrying_gen(forever)
+
+    with pytest.raises(OSError):
+        gen._call_llm("hi")
+    assert client.calls == LLM_RETRY_ATTEMPTS
+    assert len(no_sleep) == LLM_RETRY_ATTEMPTS - 1
+
+
+def test_call_llm_logs_each_retry_and_the_surrender(no_sleep, capsys):
+    """A generation that wobbled should say so, even when it recovers."""
+    forever = [OSError(errno.ETIMEDOUT, "Connection timed out")] * LLM_RETRY_ATTEMPTS
+    gen, _ = _retrying_gen(forever)
+
+    with pytest.raises(OSError):
+        gen._call_llm("hi", label="summary")
+
+    out = capsys.readouterr().out
+    assert f"[summary] attempt 1/{LLM_RETRY_ATTEMPTS} failed" in out
+    assert "Connection timed out" in out
+    assert f"[summary] giving up after {LLM_RETRY_ATTEMPTS} attempts" in out
+
+
+def test_call_llm_backoff_grows_and_is_capped(no_sleep):
+    """Waits must lengthen, and none may exceed the ceiling once jittered."""
+    forever = [OSError(errno.ETIMEDOUT, "timed out")] * LLM_RETRY_ATTEMPTS
+    gen, _ = _retrying_gen(forever)
+
+    with pytest.raises(OSError):
+        gen._call_llm("hi")
+
+    assert no_sleep == sorted(no_sleep)
+    assert all(w <= LLM_RETRY_MAX_DELAY * (1 + LLM_RETRY_JITTER) for w in no_sleep)
+    # The whole point of the change: outlast a multi-minute link outage.
+    assert sum(no_sleep) > 120
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError(errno.ETIMEDOUT, "Connection timed out"),
+        OSError(errno.ECONNRESET, "Connection reset by peer"),
+        TimeoutError("read timed out"),
+        ConnectionError("connection aborted"),
+        _status_error(429),
+        _status_error(500),
+        _status_error(503),
+        type("APIConnectionError", (Exception,), {})("connection error"),
+        type("APITimeoutError", (Exception,), {})("timed out"),
+    ],
+)
+def test_transient_faults_are_retryable(exc):
+    assert _is_retryable_llm_error(exc) is True
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        LLMTruncatedError("budget"),
+        _status_error(400),
+        _status_error(401),
+        _status_error(404),
+        _status_error(422),
+        OSError(errno.ENOENT, "no such file"),
+        ValueError("malformed response"),
+    ],
+)
+def test_settled_answers_are_not_retryable(exc):
+    assert _is_retryable_llm_error(exc) is False
+
+
+def test_status_code_outranks_the_class_name():
+    """A name-based guess must not override what the server actually said."""
+    exc = type("APIConnectionError", (Exception,), {})("looks transient")
+    exc.status_code = 400
+    assert _is_retryable_llm_error(exc) is False
 
 
 # --- generate_summary ----------------------------------------------------------

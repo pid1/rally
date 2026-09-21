@@ -1,7 +1,10 @@
 """Daily family summary generator."""
 
+import errno
 import json
 import os
+import random
+import time
 import tomllib
 from datetime import date, timedelta
 from pathlib import Path
@@ -23,6 +26,76 @@ STEM_REPEAT_WINDOW_DAYS = 60
 # burn most of it before the JSON body is finished.
 LLM_MAX_TOKENS = 4000
 
+# Retry budget for a single LLM call.
+#
+# The scheduled generation runs unattended, so a transient network fault becomes
+# a dashboard that reads "Error:" until someone notices. On 2026-09-14 the access
+# point deauthenticated the (wireless) host 30 seconds into the nightly run; the
+# call died with [Errno 110] and the link recovered five minutes later, one
+# minute after the generator had already given up.
+#
+# The provider SDKs retry on their own, but with sub-second backoff tuned for a
+# blip, which cannot outlast an outage measured in minutes. These delays are
+# deliberately coarse for that reason: nominal waits of 10s, 30s, 90s and 180s
+# span roughly five minutes of downtime across four retries.
+LLM_RETRY_ATTEMPTS = 5
+LLM_RETRY_BASE_DELAY = 10.0
+LLM_RETRY_BACKOFF_FACTOR = 3.0
+LLM_RETRY_MAX_DELAY = 180.0
+
+# Jitter keeps a periodic fault (an AP that re-steers on a timer, a cron-driven
+# neighbour) from lining up with every attempt. Kept narrow so the total budget
+# above stays predictable rather than collapsing to a fraction of it.
+LLM_RETRY_JITTER = 0.2
+
+# Exception types worth another attempt, matched by class name anywhere in the
+# raised exception's MRO. Matching by name rather than importing anthropic and
+# openai is deliberate: only the configured provider's SDK is imported at
+# runtime, so importing the other to reference its exceptions would add a hard
+# dependency on a package this deployment may not use.
+_RETRYABLE_EXC_NAMES = frozenset(
+    {
+        # Both SDKs, plus the httpx layer underneath them.
+        "APIConnectionError",
+        "APITimeoutError",
+        "InternalServerError",
+        "RateLimitError",
+        "ConnectError",
+        "ConnectTimeout",
+        "ReadTimeout",
+        "WriteTimeout",
+        "PoolTimeout",
+        "ReadError",
+        "RemoteProtocolError",
+        "TransportError",
+        # Stdlib fallbacks, for a socket error that never reached the SDK.
+        "ConnectionError",
+        "ConnectionResetError",
+        "TimeoutError",
+    }
+)
+
+# Socket-level failures that mean "the path was not there", as opposed to a
+# refusal the server actually authored. [Errno 110] ETIMEDOUT is the one the
+# 2026-09-14 outage produced.
+_RETRYABLE_ERRNOS = frozenset(
+    {
+        errno.ETIMEDOUT,
+        errno.ECONNRESET,
+        errno.ECONNREFUSED,
+        errno.ECONNABORTED,
+        errno.EHOSTUNREACH,
+        errno.ENETUNREACH,
+        errno.ENETDOWN,
+        errno.EPIPE,
+    }
+)
+
+# Status codes that are worth re-sending. Everything else in 4xx is a statement
+# about the request itself (bad key, malformed body, model not found) and will
+# fail identically however many times it is sent.
+_RETRYABLE_STATUS_CODES = frozenset({408, 409, 425, 429})
+
 
 class LLMTruncatedError(Exception):
     """Raised when the model stopped because it exhausted the token budget.
@@ -31,6 +104,44 @@ class LLMTruncatedError(Exception):
     fails JSON parsing exactly like malformed output would. Keeping this
     distinct from json.JSONDecodeError stops that misdiagnosis at the source.
     """
+
+
+def _is_retryable_llm_error(exc: BaseException) -> bool:
+    """Whether ``exc`` looks like a transient fault rather than a settled answer.
+
+    The distinction matters more than the retrying does: re-sending a request the
+    server has already rejected on its merits burns the retry budget, delays the
+    real error by minutes, and — for a truncated response — spends tokens to
+    reach the identical cut-off. Only faults that could plausibly resolve on
+    their own are worth another attempt.
+    """
+    # A budget that was too small will be just as small next time.
+    if isinstance(exc, LLMTruncatedError):
+        return False
+
+    # An explicit status means the request reached the server and it answered.
+    # Trust that over any name-based guess below, in either direction.
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        return status in _RETRYABLE_STATUS_CODES or status >= 500
+
+    if isinstance(exc, OSError) and exc.errno in _RETRYABLE_ERRNOS:
+        return True
+
+    names = {cls.__name__ for cls in type(exc).__mro__}
+    return bool(names & _RETRYABLE_EXC_NAMES)
+
+
+def _llm_retry_delay(attempt: int) -> float:
+    """Seconds to wait before ``attempt`` + 1, as exponential backoff with jitter.
+
+    ``attempt`` is 1-based, so the first failure waits ``LLM_RETRY_BASE_DELAY``.
+    """
+    nominal = min(
+        LLM_RETRY_BASE_DELAY * (LLM_RETRY_BACKOFF_FACTOR ** (attempt - 1)),
+        LLM_RETRY_MAX_DELAY,
+    )
+    return nominal * random.uniform(1.0 - LLM_RETRY_JITTER, 1.0 + LLM_RETRY_JITTER)
 
 
 def _describe_usage(usage) -> str:
@@ -780,7 +891,48 @@ class SummaryGenerator:
     def _call_llm(
         self, user_prompt: str, system_prompt: str | None = None, label: str = "llm"
     ) -> str:
-        """Call the configured LLM provider and return the response text.
+        """Call the configured LLM provider, retrying transient failures.
+
+        Delegates to :meth:`_call_llm_once` and re-attempts it on faults that
+        could resolve on their own — a dropped link, a timeout, a 5xx, a rate
+        limit. Anything the server settled on its merits is raised immediately,
+        as is :class:`LLMTruncatedError`; see :func:`_is_retryable_llm_error`.
+
+        Every retry is logged with the attempt number and the error that caused
+        it, so a generation that eventually succeeded still leaves evidence that
+        the network wobbled. ``label`` distinguishes the callers in those lines.
+
+        Raises:
+            LLMTruncatedError: the model ran out of token budget mid-response.
+            Exception: whatever the provider raised, once the fault is judged
+                permanent or the retry budget is exhausted.
+        """
+        for attempt in range(1, LLM_RETRY_ATTEMPTS + 1):
+            try:
+                return self._call_llm_once(user_prompt, system_prompt=system_prompt, label=label)
+            except Exception as exc:
+                if attempt == LLM_RETRY_ATTEMPTS or not _is_retryable_llm_error(exc):
+                    if attempt > 1:
+                        print(
+                            f"[{label}] giving up after {attempt} attempts: "
+                            f"{type(exc).__name__}: {exc}"
+                        )
+                    raise
+
+                delay = _llm_retry_delay(attempt)
+                print(
+                    f"[{label}] attempt {attempt}/{LLM_RETRY_ATTEMPTS} failed "
+                    f"({type(exc).__name__}: {exc}); retrying in {delay:.1f}s"
+                )
+                time.sleep(delay)
+
+        # The loop either returns or raises; this satisfies static readers only.
+        raise AssertionError("unreachable: retry loop exhausted without result")
+
+    def _call_llm_once(
+        self, user_prompt: str, system_prompt: str | None = None, label: str = "llm"
+    ) -> str:
+        """Make one attempt at the configured LLM provider, returning its text.
 
         When a system_prompt is provided it is sent as a separate system message.
         For Anthropic, prompt caching is enabled on the system block so that
@@ -789,6 +941,8 @@ class SummaryGenerator:
         The stop reason and token usage are logged on every call, successful or
         not, so budget headroom is visible before it becomes an outage. ``label``
         distinguishes the callers in those log lines.
+
+        Callers should prefer :meth:`_call_llm`, which adds the retry budget.
 
         Raises:
             LLMTruncatedError: the model ran out of token budget mid-response.
