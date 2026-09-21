@@ -46,6 +46,14 @@ The shopping list is built for fast entry. It autocompletes from what the family
 
 ![The Rally shopping list grouped by store](docs/screenshots/readme-shopping.png)
 
+### A note for the day
+
+Some things aren't a task, an event or a meal — they're a heads-up. *Soccer practice is at 5, so the bag needs packing before school.* Write one note per day, days ahead if you like, and it appears on the dashboard that morning between the weather and the schedule. Days without a note show nothing at all.
+
+Notes take a little formatting — **bold**, *italic* and lists — and the dashboard reads them live, so a note added at breakfast is there on the next refresh rather than tomorrow. Past days move to a searchable archive and stop being editable.
+
+![The Rally notes page: one note per day, with the coming week planned out](docs/screenshots/readme-notes.png)
+
 ### Emergency stock
 
 Track what is in the kit, where it lives, and when it needs replacing. A replacement date can be fixed (this case is stamped 2027-01-01) or a rotation (swap the water every six months). Rally pushes one digest a day covering everything due, keeps mentioning anything overdue in the morning briefing, and prints a go list grouped by location in the order you walk it.

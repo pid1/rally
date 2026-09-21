@@ -40,6 +40,8 @@ PAGES = {
     "todo-completed": "/todo/completed",
     "shopping": "/shopping",
     "shopping-purchased": "/shopping/purchased",
+    "notes": "/notes",
+    "notes-previous": "/notes/previous",
     "dinner-planner": "/dinner-planner",
     "meal-history": "/meal-history",
     "preparedness": "/preparedness",
@@ -50,6 +52,15 @@ PAGES = {
 
 # Pages built from the page/toolbar primitives. Dashboard, Settings and the
 # styleguide are excluded from toolbar assertions: they have no filter bar.
+#
+# The two Notes pages are excluded for their own reasons. `/notes` has no
+# toolbar at all — a note has no member, type or status, so there is nothing to
+# filter or sort by. `/notes/previous` has a toolbar carrying search alone, and
+# so has no `.toolbar-reset`: that slot exists to hold `Clear Filters`, and
+# with no chips and no sort there are no filters to clear. `Clear Search` sits
+# inside the search group, which is where the other two archive pages put
+# theirs. The assertions below require a reset slot reading "Clear Filters",
+# which would be a false failure on a page that correctly has neither.
 TOOLBAR_PAGES = [
     "calendar",
     "todo",

@@ -652,6 +652,28 @@ class DinnerPlan(Base):
     )
 
 
+class Note(Base):
+    """One day's note — free text the family writes ahead of the day itself.
+
+    The column is ``body`` rather than ``note`` on purpose: ``note``/``notes``
+    already means "an annotation on something else" three times over
+    (``ShoppingItem.note``, ``PrepItem.notes``, and a schedule item's ``notes``
+    on the dashboard), and this column is the record's whole content.
+
+    ``date`` is unique, and that index is the only thing enforcing one note per
+    day. Nothing else in the stack depends on the uniqueness holding, so it has
+    to hold here.
+    """
+
+    __tablename__ = "notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date: Mapped[str] = mapped_column(String(10), unique=True, index=True)  # YYYY-MM-DD
+    body: Mapped[str] = mapped_column(Text)  # Markdown source as the family typed it
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
 class PrepLocation(Base):
     """A place preparedness stock lives: Garage shelf, Truck, Bug-out bag.
 

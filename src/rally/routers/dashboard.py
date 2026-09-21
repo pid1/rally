@@ -8,9 +8,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from rally import markdown
 from rally.database import get_db
 from rally.generator.generate import SummaryGenerator
-from rally.models import DashboardSnapshot
+from rally.models import DashboardSnapshot, Note
+from rally.utils.settings import today_local_str
 from rally.utils.static_version import STATIC_VERSION
 from rally.utils.timezone import ensure_utc, now_utc
 
@@ -65,7 +67,25 @@ def _build_stem_section(stem: dict | None) -> str:
     return "".join(parts)
 
 
-def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
+def _build_note_section(note_html: str) -> str:
+    """Render today's Daily Note card, or '' when there is no note.
+
+    ``note_html`` has already been through ``rally.markdown``, whose renderer
+    escapes any tag it is handed; the API also refuses to store markup in the
+    first place. Nothing further is escaped here, because doing so would show
+    the family the HTML of their own bold text.
+    """
+    if not note_html:
+        return ""
+    return (
+        '<section class="card">'
+        '<div class="card-header">Daily Note</div>'
+        f'<div class="card-content">{note_html}</div>'
+        "</section>"
+    )
+
+
+def _render_html(data: dict, date_str: str, timestamp: datetime, note_html: str = "") -> str:
     """Render snapshot data into HTML template."""
     base_dir = Path(__file__).resolve().parent.parent.parent.parent
     template_path = base_dir / "templates" / "dashboard.html"
@@ -111,6 +131,7 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
     html = html.replace("{{schedule}}", schedule_html)
     html = html.replace("{{briefing_section}}", briefing_section)
     html = html.replace("{{stem_section}}", stem_section)
+    html = html.replace("{{note_section}}", _build_note_section(note_html))
     html = html.replace("{{timestamp}}", timestamp_str)  # Fallback for non-JS browsers
     html = html.replace("{{timestamp_utc}}", timestamp_utc)  # For JS timezone conversion
     html = html.replace("{{css_version}}", STATIC_VERSION)
@@ -119,7 +140,15 @@ def _render_html(data: dict, date_str: str, timestamp: datetime) -> str:
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def get_dashboard(request: Request, db: Session = Depends(get_db)):
-    """Serve the generated daily dashboard from cached snapshot."""
+    """Serve the generated daily dashboard from cached snapshot.
+
+    The Daily Note is the one card **not** taken from the snapshot: it is read
+    live on every request, so a note added or corrected during the day appears
+    on the next load rather than waiting for the next generation.
+    """
+    note = db.query(Note).filter(Note.date == today_local_str(db)).first()
+    note_html = markdown.render(note.body) if note else ""
+
     # Fetch the most recent active snapshot (regardless of date)
     # This handles timezone differences between when snapshots are generated
     # (in local timezone, e.g., 4 AM Central) vs when they're viewed (UTC-based)
@@ -139,11 +168,11 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
             "briefing": "",
         }
         date_str = now_utc().strftime("%A, %B %d, %Y")
-        html_content = _render_html(error_data, date_str, now_utc())
+        html_content = _render_html(error_data, date_str, now_utc(), note_html)
     else:
         # Render from cached data
         date_str = now_utc().strftime("%A, %B %d, %Y")
-        html_content = _render_html(snapshot.data, date_str, snapshot.timestamp)
+        html_content = _render_html(snapshot.data, date_str, snapshot.timestamp, note_html)
 
     return HTMLResponse(content=html_content)
 

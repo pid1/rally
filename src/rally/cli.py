@@ -12,6 +12,7 @@ from rally.models import (
     Event,
     EventAttendee,
     FamilyMember,
+    Note,
     PrepItem,
     PrepLocation,
     RecurringTodo,
@@ -32,6 +33,7 @@ def seed():
     try:
         # Clear existing data
         db.query(DinnerPlan).delete()
+        db.query(Note).delete()
         db.query(EventAttendee).delete()
         db.query(Event).delete()
         db.query(Calendar).delete()
@@ -546,6 +548,72 @@ def seed():
         for dp in dinner_plans:
             db.add(dp)
 
+        # Daily Notes. Today and one upcoming day so the Notes page and the
+        # dashboard card both have something in them, plus a couple of weeks of
+        # past notes so Previous Notes is worth opening.
+        #
+        # The past notes deliberately do not share a vocabulary: searching
+        # "soccer", "Emma", "dentist" or "garage" each has to return a
+        # different, non-empty subset, which is what makes the search bar
+        # testable against seeded data rather than only against a real family's.
+        # Markdown is spread across them for the same reason — bold, italics and
+        # both list kinds all appear somewhere.
+        note_bodies = {
+            0: (
+                "Soccer practice at 5 — **pack the soccer bag before school**.\n"
+                "\n"
+                "- Cleats are in the garage\n"
+                "- Shin guards are in the dryer\n"
+                "- Water bottle"
+            ),
+            1: (
+                "Late pickup — **Mom has a 4:30 call**, so Dad collects the kids.\n"
+                "Jake has chess club until 4:15."
+            ),
+            2: "Early start — *leave by 7:15* for the dentist.\nJake needs his retainer.",
+            3: (
+                "Library books are due back.\n\n- Two on the hall table\n- One still in Emma's room"
+            ),
+            4: "Picture day. *Collared shirts*, and the order form goes in with Jake.",
+            6: (
+                "Grocery run before the game.\n"
+                "Kickoff is at 1, so **leave the house by noon** at the latest."
+            ),
+            -1: (
+                "Emma's science fair board is due Friday.\n"
+                "The poster tubes are on the shelf in the **garage**."
+            ),
+            -2: "Half day at school — pickup moves to *12:30*, not 3:00.",
+            -3: "Trash out tonight. Recycling is **every other week** — this week it goes.",
+            -4: (
+                "Jake's dentist appointment moved to next Tuesday.\n"
+                "\n"
+                "1. Call the office to confirm\n"
+                "2. Ask about the retainer\n"
+                "3. Put it on the shared calendar"
+            ),
+            -5: "Grandma arrives Saturday around noon. **Spare room needs sheets.**",
+            -7: (
+                "Soccer photos today — *clean uniform*, hair brushed.\n"
+                "Order form and check go in Emma's backpack."
+            ),
+            -8: "Plumber coming between 8 and 10. Someone needs to be home.",
+            -10: (
+                "Field trip money is due.\n"
+                "\n"
+                "- Jake: $12 for the aquarium\n"
+                "- Emma: $8 for the museum"
+            ),
+            -12: "Book fair all week. Emma wants the dragon one — **$15 cash**, not card.",
+            -14: "Car is in the shop. Carpool with the Hendersons for school runs this week.",
+        }
+        notes = [
+            Note(date=(today_date + timedelta(days=offset)).strftime("%Y-%m-%d"), body=body)
+            for offset, body in note_bodies.items()
+        ]
+        for note in notes:
+            db.add(note)
+
         db.commit()
         print("✅ Database seeded with sample data")
         print(f"   - 1 dashboard snapshot for {today}")
@@ -554,6 +622,7 @@ def seed():
         print(f"   - {len(sample_settings)} settings")
         print(f"   - {len(todos)} sample todos")
         print(f"   - {len(recurring_todos)} recurring task templates")
+        print(f"   - {len(notes)} daily notes")
         print(f"   - {len(shopping_items)} shopping items across 2 stores")
         print(f"   - {len(history)} shopping history entries")
         print(f"   - {len(dinner_plans)} upcoming meal plans")
