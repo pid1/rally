@@ -7,7 +7,7 @@ first-order assertion in most of these tests is *no network call happened*.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -16,8 +16,24 @@ from rally import member_colors
 from rally.calendars import cache as calendar_cache
 from rally.calendars.occurrence import Occurrence
 from rally.models import CalendarCache, FamilyMember
+from rally.utils.timezone import now_utc
 
 TZ = ZoneInfo("America/Chicago")
+
+
+def _today() -> date:
+    """Today in `TZ`, which is the day `cache_window()` centres on.
+
+    The sync path derives its window from the clock — `today -
+    CACHE_DAYS_BACK` to `today + CACHE_DAYS_FORWARD` — so a feed pinned to a
+    fixed calendar date leaves that window as the real calendar advances, and
+    every test that syncs one goes red on a day nobody touched the code. That
+    is exactly what happened here: these tests were written against an event on
+    2026-08-20 and went red 31 days later, when `CACHE_DAYS_BACK` (30) stopped
+    reaching back that far. Anchoring the feed to today keeps it inside the
+    window by construction.
+    """
+    return now_utc().astimezone(TZ).date()
 
 
 def _occ(uid="u1", title="Dentist", start=None, calendar_id=1):
@@ -205,11 +221,12 @@ class TestReading:
 
 class TestSyncing:
     def _feed(self, uid="abc", summary="Dentist"):
+        day = _today().strftime("%Y%m%d")
         return (
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"
             "BEGIN:VEVENT\r\n"
             f"UID:{uid}\r\nSUMMARY:{summary}\r\n"
-            "DTSTART:20260820T150000Z\r\nDTEND:20260820T160000Z\r\n"
+            f"DTSTART:{day}T150000Z\r\nDTEND:{day}T160000Z\r\n"
             "END:VEVENT\r\nEND:VCALENDAR\r\n"
         )
 
@@ -249,9 +266,8 @@ class TestSyncing:
         mock_requests.set_response(text=self._feed())
         calendar_cache.sync_calendars(db_session, TZ)
 
-        restamped = self._feed().replace(
-            "DTSTART:20260820T150000Z", "DTSTART:20260820T150000Z\r\nDTSTAMP:20260815T235149Z"
-        )
+        dtstart = f"DTSTART:{_today().strftime('%Y%m%d')}T150000Z"
+        restamped = self._feed().replace(dtstart, f"{dtstart}\r\nDTSTAMP:20260815T235149Z")
         mock_requests.set_response(text=restamped)
         summary = calendar_cache.sync_calendars(db_session, TZ)
 
@@ -481,7 +497,11 @@ class TestSyncing:
 
         response = client.get(
             "/api/events",
-            params={"start": "2026-08-20", "end": "2026-08-21", "member": "Jonathan"},
+            params={
+                "start": _today().isoformat(),
+                "end": (_today() + timedelta(days=1)).isoformat(),
+                "member": "Jonathan",
+            },
         )
 
         assert response.status_code == 200
