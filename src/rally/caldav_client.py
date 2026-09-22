@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import caldav
 from icalendar import Calendar as ICalCalendar
 
-from rally.calendars.ics import occurrences_from_components
+from rally.calendars.ics import occurrences_from_components, rrules_by_uid
 from rally.calendars.occurrence import (
     SOURCE_CALDAV_APPLE,
     SOURCE_CALDAV_GOOGLE,
@@ -41,6 +41,10 @@ def _parse_caldav_events(
 
     The server expands recurrences (``expand=True``); the window is re-applied
     locally because a server answers a date range on its own terms.
+
+    A calendar whose window holds a series costs one more request, for the
+    unexpanded masters that still carry their ``RRULE`` (see
+    ``_master_rrules``). One that holds none costs nothing extra.
     """
     principal = caldav_client.principal()
     server_calendars = principal.calendars()
@@ -56,29 +60,75 @@ def _parse_caldav_events(
             print(f"  Warning: failed to search CalDAV calendar '{cal_name}': {exc}")
             continue
 
+        components = []
         for item in search_results:
             try:
                 ical = ICalCalendar.from_ical(item.data)
             except Exception:
                 continue
+            components.extend(c for c in ical.walk() if c.name == "VEVENT")
 
-            components = [c for c in ical.walk() if c.name == "VEVENT"]
-            occurrences.extend(
-                occurrences_from_components(
-                    components,
-                    window_start=window_start,
-                    window_end=window_end,
-                    local_tz=local_tz,
-                    owner_email=owner_email,
-                    source=source,
-                    calendar_id=calendar_id,
-                    calendar_label=label or cal_name,
-                    member=member,
-                    member_color=member_color,
-                )
+        # Only a window that actually holds a series is worth a second round
+        # trip. An expanded instance carries RECURRENCE-ID and a one-off does
+        # not, so the components already in hand say whether asking the server
+        # again would tell us anything.
+        holds_a_series = any(c.get("recurrence-id") is not None for c in components)
+        rrules = (
+            _master_rrules(server_cal, cal_name, window_start, window_end) if holds_a_series else {}
+        )
+
+        occurrences.extend(
+            occurrences_from_components(
+                components,
+                window_start=window_start,
+                window_end=window_end,
+                local_tz=local_tz,
+                owner_email=owner_email,
+                source=source,
+                calendar_id=calendar_id,
+                calendar_label=label or cal_name,
+                member=member,
+                member_color=member_color,
+                rrules=rrules,
             )
+        )
 
     return occurrences
+
+
+def _master_rrules(
+    server_cal,
+    cal_name: str,
+    window_start: datetime,
+    window_end: datetime,
+) -> dict[str, str]:
+    """The unexpanded master components' recurrence rules, keyed by UID.
+
+    ``expand=True`` is why the calendar grid is fast — the server resolves the
+    recurrence set and Rally never expands it — but an expanded instance has
+    had its ``RRULE`` resolved away, so the rule is only knowable by asking a
+    second time without expansion. All instances of a series share a UID, which
+    is what joins the two answers back together.
+
+    Best-effort by design: a server that will not answer an unexpanded query
+    returns nothing here, and every occurrence falls back to reporting that it
+    repeats without naming the schedule — exactly the behaviour that predates
+    this. It is never allowed to cost the calendar its events.
+    """
+    try:
+        masters = server_cal.search(start=window_start, end=window_end, event=True, expand=False)
+    except Exception as exc:
+        print(f"  Warning: no recurrence rules for CalDAV calendar '{cal_name}': {exc}")
+        return {}
+
+    components = []
+    for item in masters:
+        try:
+            ical = ICalCalendar.from_ical(item.data)
+        except Exception:
+            continue
+        components.extend(c for c in ical.walk() if c.name == "VEVENT")
+    return rrules_by_uid(components)
 
 
 def _fetch_caldav(

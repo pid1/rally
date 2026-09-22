@@ -259,3 +259,115 @@ def test_fetch_apple_error_returns_empty(monkeypatch):
         owner_email=None,
     )
     assert _fetch(fetch_apple_caldav, record) == []
+
+
+# --- Recurrence rules from the unexpanded masters ------------------------------
+
+# A server-expanded instance: the RRULE is resolved away, and RECURRENCE-ID is
+# what marks it as one of a series.
+_ICS_EXPANDED_INSTANCE = (
+    b"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"
+    b"UID:soccer-practice\r\nSUMMARY:Soccer practice\r\n"
+    b"DTSTART:20260315T100000Z\r\nRECURRENCE-ID:20260315T100000Z\r\n"
+    b"END:VEVENT\r\nEND:VCALENDAR"
+)
+# The same event unexpanded, as a second query returns it.
+_ICS_MASTER = (
+    b"BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n"
+    b"UID:soccer-practice\r\nSUMMARY:Soccer practice\r\n"
+    b"DTSTART:20260315T100000Z\r\nRRULE:FREQ=WEEKLY;BYDAY=TU,TH\r\n"
+    b"END:VEVENT\r\nEND:VCALENDAR"
+)
+
+
+class _ExpandAwareCalendar:
+    """A server that answers expanded and unexpanded queries differently.
+
+    Which is the whole point: `expand=True` is why the grid is fast, and it is
+    also why the rule has to be asked for separately.
+    """
+
+    def __init__(self, expanded, masters, name="Cal"):
+        self._expanded = expanded
+        self._masters = masters
+        self.name = name
+        self.searches = []
+
+    def search(self, **kwargs):
+        self.searches.append(kwargs)
+        return self._masters if kwargs.get("expand") is False else self._expanded
+
+
+def test_an_expanded_instance_gets_its_rule_from_the_master():
+    cal = _ExpandAwareCalendar([_FakeItem(_ICS_EXPANDED_INSTANCE)], [_FakeItem(_ICS_MASTER)])
+
+    events = _parse(_FakeClient([cal]))
+
+    assert len(events) == 1
+    assert events[0].recurring is True
+    assert events[0].rrule == "FREQ=WEEKLY;BYDAY=TU,TH"
+
+
+def test_a_window_without_a_series_costs_no_second_request():
+    """The masters are only worth fetching when something in the window repeats."""
+    cal = _ExpandAwareCalendar([_FakeItem(_ICS)], [_FakeItem(_ICS_MASTER)])
+
+    events = _parse(_FakeClient([cal]))
+
+    assert [s.get("expand") for s in cal.searches] == [True]
+    assert events[0].rrule is None
+    assert events[0].recurring is False
+
+
+class _NoUnexpandedSearchCalendar(_ExpandAwareCalendar):
+    def search(self, **kwargs):
+        if kwargs.get("expand") is False:
+            raise RuntimeError("unexpanded search not supported")
+        return self._expanded
+
+
+def test_a_server_that_refuses_the_unexpanded_query_still_returns_events():
+    """The degraded path is the one that predates this: repeats, schedule unknown.
+
+    A rule Rally cannot fetch must never cost the calendar its events, and the
+    occurrence must still say it repeats — omitting that claims a one-off.
+    """
+    cal = _NoUnexpandedSearchCalendar([_FakeItem(_ICS_EXPANDED_INSTANCE)], [])
+
+    events = _parse(_FakeClient([cal]))
+
+    assert len(events) == 1
+    assert events[0].recurring is True
+    assert events[0].rrule is None
+
+
+def test_an_unparseable_master_does_not_lose_the_occurrence():
+    cal = _ExpandAwareCalendar(
+        [_FakeItem(_ICS_EXPANDED_INSTANCE)], [_FakeItem(b"not iCalendar data")]
+    )
+
+    events = _parse(_FakeClient([cal]))
+
+    assert len(events) == 1
+    assert events[0].rrule is None
+    assert events[0].recurring is True
+
+
+def test_rules_are_matched_by_uid_not_by_position():
+    """All instances of a series share a UID; that is what joins the two answers."""
+    other_instance = _ICS_EXPANDED_INSTANCE.replace(b"soccer-practice", b"band-rehearsal")
+    other_master = _ICS_MASTER.replace(b"soccer-practice", b"band-rehearsal").replace(
+        b"FREQ=WEEKLY;BYDAY=TU,TH", b"FREQ=MONTHLY;BYMONTHDAY=1"
+    )
+    cal = _ExpandAwareCalendar(
+        [_FakeItem(other_instance), _FakeItem(_ICS_EXPANDED_INSTANCE)],
+        [_FakeItem(_ICS_MASTER), _FakeItem(other_master)],
+    )
+
+    events = _parse(_FakeClient([cal]))
+
+    by_uid = {e.uid: e.rrule for e in events}
+    assert by_uid == {
+        "soccer-practice": "FREQ=WEEKLY;BYDAY=TU,TH",
+        "band-rehearsal": "FREQ=MONTHLY;BYMONTHDAY=1",
+    }
