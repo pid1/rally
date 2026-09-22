@@ -8,18 +8,27 @@ chosen rather than inherited — ``"zero"`` because ``enable()`` cannot subtract
 A test per property is what keeps a later "tidy-up" of that one line honest.
 """
 
-from datetime import date, timedelta
+from datetime import UTC, datetime, timedelta
 
 from rally import markdown
-from rally.models import Note, Setting
+from rally.models import Note
+from rally.utils.timezone import today_local
+
+# The API resolves "today" from the `local_timezone` setting, which these tests
+# never set, so for them it is UTC. `date.today()` is the *machine's* today, and
+# the two disagree for part of every day: at 20:00 in Chicago it is already
+# tomorrow in UTC, so every note these tests wrote for "today" was rejected as
+# being in the past. CI runs in UTC and so never saw it, which is exactly why
+# asking the app's own helper matters more than the answer being short.
+_API_TZ = "UTC"
 
 
 def _today() -> str:
-    return date.today().strftime("%Y-%m-%d")
+    return today_local(_API_TZ).strftime("%Y-%m-%d")
 
 
 def _days(n: int) -> str:
-    return (date.today() + timedelta(days=n)).strftime("%Y-%m-%d")
+    return (today_local(_API_TZ) + timedelta(days=n)).strftime("%Y-%m-%d")
 
 
 def _create(client, date_str=None, body="A note"):
@@ -217,12 +226,26 @@ def test_a_note_cannot_be_created_in_or_moved_into_the_past(client):
     assert client.put(f"/api/notes/{note['id']}", json={"date": _days(-1)}).status_code == 403
 
 
-def test_the_boundary_follows_the_configured_timezone(client, db_session):
-    """Both pages read the same helper, so a note is never on both or neither."""
-    db_session.add(Setting(key="local_timezone", value="America/Chicago"))
-    db_session.commit()
-    _create(client, body="Today in Chicago")
-    assert len(client.get("/api/notes").json()) == 1
+def test_the_boundary_follows_the_configured_timezone(client, frozen_now, local_timezone):
+    """Today is the family's today, not the server's.
+
+    At 01:25 UTC on the 22nd it is still 20:25 on the 21st in Chicago, so a note
+    for the 21st is being written *today* and has to be accepted, while the 20th
+    is genuinely past. Reading the clock in UTC refuses both — which is the
+    mistake this file's own helpers used to make, and why the clock is pinned
+    here rather than left to whenever the suite happens to run.
+
+    The partition is asserted in the same breath: both pages read one helper, so
+    a note is never on both and never on neither.
+    """
+    frozen_now(datetime(2026, 9, 22, 1, 25, tzinfo=UTC))
+    local_timezone("America/Chicago")  # local date is 2026-09-21
+
+    today = client.post("/api/notes", json={"date": "2026-09-21", "body": "Today"})
+    assert today.status_code == 201, today.text
+    assert client.post("/api/notes", json={"date": "2026-09-20", "body": "x"}).status_code == 403
+
+    assert [n["date"] for n in client.get("/api/notes").json()] == ["2026-09-21"]
     assert client.get("/api/notes/previous").json()["total"] == 0
 
 
