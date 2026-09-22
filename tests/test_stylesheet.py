@@ -15,7 +15,8 @@ import re
 
 import pytest
 
-CSS_PATH = pathlib.Path(__file__).resolve().parents[1] / "static" / "styles.css"
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+CSS_PATH = ROOT / "static" / "styles.css"
 
 # Comments carry prose about the rules ("never set outline: none"), so every
 # check runs against the stylesheet with comments removed.
@@ -116,3 +117,93 @@ def test_the_stylesheet_declares_the_documented_token_set():
         assert f"--text-{name}:" in root, f"--text-{name} is missing"
     for name in ["ink", "ink-muted", "ink-subtle", "rule", "surface", "inverse"]:
         assert f"--{name}:" in root, f"--{name} is missing"
+
+
+# ── Markup against the stylesheet ────────────────────────────────────────────
+
+# Classes applied in markup that deliberately have no rule. Every entry is a
+# decision, which is why this is a literal set and not a prefix pattern: the
+# next dead class should have to argue its way in here rather than be absorbed
+# by a wildcard somebody wrote for a different reason.
+CLASSES_WITHOUT_RULES = {
+    # Live `querySelectorAll()` hooks in templates/settings.html. They toggle
+    # `display` from JavaScript as the calendar type changes, so they carry
+    # behaviour rather than treatment.
+    "cal-field-caldav",
+    "cal-field-ics",
+    "cal-field-owner",
+    "cal-help-apple",
+    "cal-help-google",
+    # The documented page-structure landmark (docs/visual-design-system.md):
+    # `.page.stack` > `.page-header` + `.toolbar` + content. Its children are
+    # styled and `.stack` owns the spacing around it, so the block itself needs
+    # no treatment — but it is the selector tests/visual/probes.py measures the
+    # header with, so it is read even though it is never painted.
+    "page-header",
+}
+
+MARKUP_PATHS = sorted((ROOT / "templates").glob("*.html")) + sorted(
+    (ROOT / "src" / "rally").rglob("*.py")
+)
+
+CLASS_ATTR = re.compile(r'class\s*=\s*"([^"]*)"')
+
+# `${...}` is a JS template expression, `{...}` a Python format placeholder,
+# and `' + x + '` string concatenation. Each is replaced by a sentinel rather
+# than removed, so `pill--${tone}` becomes one unreadable token and is skipped
+# whole instead of decaying into a bogus `pill--`.
+INTERPOLATION = re.compile(r"\$\{[^{}]*\}|\{[^{}]*\}|'\s*\+.*?\+\s*'")
+HOLE = "\x00"
+
+
+def _classes_in_markup() -> dict[str, set[str]]:
+    """Every literal class name applied in a template or emitted from Python.
+
+    Python as well as templates because `stem-card` was emitted by
+    `_build_stem_section()`, and a template-only sweep is precisely the sweep
+    that missed it.
+    """
+    found: dict[str, set[str]] = {}
+    for path in MARKUP_PATHS:
+        for match in CLASS_ATTR.finditer(path.read_text()):
+            for name in INTERPOLATION.sub(HOLE, match.group(1)).split():
+                if HOLE in name:
+                    continue  # a computed name; only its literal prefix is knowable
+                found.setdefault(name, set()).add(path.name)
+    return found
+
+
+def _classes_with_rules() -> set[str]:
+    return {
+        name for _, selector in _rules() for name in re.findall(r"\.(-?[A-Za-z_][\w-]*)", selector)
+    }
+
+
+def test_every_class_in_the_markup_has_a_rule():
+    """The mirror of the dead-rule check: markup that styles nothing.
+
+    `card--featured`, `stem-card` and `calendar-timegrid-dayname` were each
+    applied with no rule anywhere, which is worse than absent — a class named
+    for a distinction implies the distinction exists, and all three dashboard
+    cards rendered identically. Nothing caught them because the checks only ran
+    the other way, from the stylesheet outwards.
+    """
+    styled = _classes_with_rules()
+    offenders = {
+        name: sorted(files)
+        for name, files in _classes_in_markup().items()
+        if name not in styled and name not in CLASSES_WITHOUT_RULES
+    }
+    assert not offenders, f"classes applied in markup with no rule in the stylesheet: {offenders}"
+
+
+def test_the_allowlist_has_no_stale_entries():
+    """An allowlisted class that gained a rule, or left the markup, is noise.
+
+    Without this the set only ever grows, and it stops being a list of
+    decisions somebody made.
+    """
+    applied = set(_classes_in_markup())
+    styled = _classes_with_rules()
+    stale = {name for name in CLASSES_WITHOUT_RULES if name not in applied or name in styled}
+    assert not stale, f"allowlisted classes that no longer need to be: {sorted(stale)}"

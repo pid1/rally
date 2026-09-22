@@ -842,7 +842,7 @@
             days.forEach(day => {
                 const iso = isoDate(day);
                 head += `<div class="calendar-timegrid-daylabel${iso === today ? ' is-today' : ''}">`
-                    + `<span class="calendar-timegrid-dayname">${WEEKDAYS[day.getDay()]}</span>`
+                    + `<span>${WEEKDAYS[day.getDay()]}</span>`
                     + `<span class="calendar-timegrid-daynum">${day.getDate()}</span></div>`;
             });
             head += '</div>';
