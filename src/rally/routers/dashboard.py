@@ -53,7 +53,7 @@ def _build_stem_section(stem: dict | None) -> str:
         )
         activities_html += f"<li>{audience_html}{escape(idea)}</li>"
 
-    parts = ['<section class="card stem-card">']
+    parts = ['<section class="card">']
     parts.append('<div class="card-header">STEM Concept of the Day</div>')
     parts.append('<div class="card-content">')
     if field:
