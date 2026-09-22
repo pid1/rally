@@ -1901,10 +1901,12 @@
                 ['when', 'When', `${occurrence.start_date} · ${when}`],
             ];
             /* "Is this the one Tuesday or every Tuesday?" is asked here, and
-               until now could only be answered by opening the edit form. A
-               CalDAV server expands its own recurrences, so those instances
-               arrive knowing they repeat but not how — say that, rather than
-               omitting the row and implying a one-off. */
+               until now could only be answered by opening the edit form. Every
+               source names its cadence: a CalDAV server expands its own
+               recurrences, so Rally asks it a second time for the unexpanded
+               rule. The fallback is for the rare case where that request is
+               refused — say "repeats, schedule unknown" rather than omitting
+               the row, which would claim a one-off. */
             if (occurrence.recurrence_text) {
                 /* `describe_recurrence` returns a lowercase fragment because it
                    is embedded mid-sentence elsewhere ("This event repeats …").
@@ -1912,7 +1914,7 @@
                    it opens in upper case. */
                 rows.push(['repeats', 'Repeats', sentenceCase(occurrence.recurrence_text)]);
             } else if (occurrence.recurring) {
-                rows.push(['repeats', 'Repeats', 'Yes — this calendar does not share the schedule.']);
+                rows.push(['repeats', 'Repeats', 'Yes — Rally could not read the schedule.']);
             }
             rows.push(
                 ['where', 'Where', occurrence.location || '—'],

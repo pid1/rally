@@ -81,9 +81,10 @@ def component_to_occurrence(
     source document. A caller that cannot know it passes nothing.
 
     ``recurring`` defaults to "there is a rule", which is right whenever the
-    rule is knowable. CalDAV is the case where it is not: the server expands
-    remotely, so an instance arrives with no ``RRULE`` but *is* part of a
-    series, and that caller says so explicitly.
+    rule is knowable. A caller that can tell a series apart from a one-off by
+    other means — CalDAV reads ``RECURRENCE-ID`` off a server-expanded
+    instance — says so explicitly, so that a rule which could not be fetched
+    still renders as a repeat rather than as a one-off.
     """
     start_raw, end_raw = _bounds(component)
     if start_raw is None:
@@ -132,16 +133,18 @@ def component_to_occurrence(
     )
 
 
-def _rrules_by_uid(calendar) -> dict[str, str]:
+def rrules_by_uid(components) -> dict[str, str]:
     """Every recurring VEVENT's rule, keyed by UID, read before expansion.
 
-    The expander drops ``RRULE`` from the occurrences it produces, so this is
-    the only point at which a feed's rule is still visible. CalDAV has no
-    equivalent — the server expands remotely and Rally never sees the original
-    component — so occurrences from that transport carry no rule at all.
+    Both transports need this and neither can read a rule off an occurrence:
+    the ICS expander drops ``RRULE`` from what it produces, and a CalDAV server
+    expands remotely. What differs is only where the unexpanded components come
+    from — a parsed feed here, a second unexpanded query there — so the reading
+    of them lives in one place, and the two transports cannot come to describe
+    the same series differently.
     """
     rules: dict[str, str] = {}
-    for component in calendar.walk("VEVENT"):
+    for component in components:
         rule = component.get("rrule")
         uid = str(component.get("uid", "") or "")
         if rule is None or not uid or uid in rules:
@@ -168,7 +171,7 @@ def occurrences_from_ical_text(
 ) -> list[Occurrence]:
     """Parse an ICS document and expand its recurrences across the window."""
     calendar = ICalCalendar.from_ical(text)
-    rules_by_uid = _rrules_by_uid(calendar)
+    rules_by_uid = rrules_by_uid(calendar.walk("VEVENT"))
     expanded = recurring_ical_events.of(calendar).between(window_start, window_end)
 
     occurrences: list[Occurrence] = []
@@ -202,17 +205,23 @@ def occurrences_from_components(
     calendar_label: str = "",
     member: str | None = None,
     member_color: str | None = None,
+    rrules: dict[str, str] | None = None,
 ) -> list[Occurrence]:
     """Convert already-expanded components, filtering to the window ourselves.
 
     CalDAV servers expand recurrences on request, but they answer a *date*
     range on their own terms; re-filtering on the instants we asked for is
     cheap and keeps both transports honest about the same boundaries.
+
+    ``rrules`` maps UID to rule, read from the unexpanded master components the
+    caller fetched separately. No rule survives a server-side expansion, so
+    without it an instance can only say *that* it repeats.
     """
     occurrences: list[Occurrence] = []
     for component in components:
         if is_event_declined(component, owner_email):
             continue
+        rrule = (rrules or {}).get(str(component.get("uid", "") or ""))
         occurrence = component_to_occurrence(
             component,
             local_tz=local_tz,
@@ -221,13 +230,13 @@ def occurrences_from_components(
             calendar_label=calendar_label,
             member=member,
             member_color=member_color,
-            # No rule survives a server-side expansion, but an instance of a
-            # series still carries the RECURRENCE-ID it was expanded to. That is
-            # enough to say *that* it repeats, which is what lets the detail view
-            # explain the missing schedule instead of silently omitting it. A
-            # server that omits the property degrades to "not recurring", which
-            # is exactly today's behaviour.
-            recurring=component.get("recurrence-id") is not None,
+            rrule=rrule,
+            # An instance of a series carries the RECURRENCE-ID it was expanded
+            # to, which says it repeats even when the rule could not be
+            # fetched — a server that refuses an unexpanded query, or a rule
+            # that will not render. Saying "repeats, schedule unknown" is
+            # incomplete; omitting the row says "one-off", which is wrong.
+            recurring=bool(rrule) or component.get("recurrence-id") is not None,
         )
         if occurrence is None:
             continue
