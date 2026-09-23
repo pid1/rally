@@ -189,7 +189,7 @@
             container.innerHTML = days.map(day => `
                 <section class="meal-day">
                     ${day.meals.map(renderMeal).join('')}
-                    <div class="meal-day-date">${escapeHtml(formatDate(day.date))}</div>
+                    <div class="date-label">${escapeHtml(formatDate(day.date))}</div>
                 </section>
             `).join('');
         }

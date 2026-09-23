@@ -1110,6 +1110,28 @@ label.weekday-label,
     margin-bottom: var(--space-1);
 }
 
+/* The date a record *is* — as opposed to `.todo-due-date` /
+   `.todo-completed-date`, which are a status *on* a record. Shared by Notes,
+   Meal Planner and Meal History, each of which otherwise had its own class
+   for the same idea (`.editable-item-title`, `.meal-day-date`, `.meta-date`).
+   Only the typography lives here; where the label sits — trailing a Notes
+   card, footing a Meal Planner day box, or beside the title on a Meal
+   History card — is page-specific and scoped where each page's own rules
+   live. */
+.date-label {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
+/* Notes' date trails the body instead of heading it (see the page-specific
+   note below), so it needs space above it that `.editable-item-title`
+   supplied as trailing space when it led. */
+.editable-item-content > .date-label {
+    margin-top: var(--space-2);
+}
+
 .assignee-label {
     font-style: italic;
     font-size: var(--text-sm);
@@ -2163,11 +2185,10 @@ body.is-dragging {
 
 /* ---- Meal planner ----
    One box per day, read like a menu: every meal planned for that day stacks
-   inside it and the date is stated once, as the footer. The page had no
-   page-specific block of its own — it was retired when the planner moved to
-   `.editable-item` — which is why `.meta-date` below still sits under Meal
-   history while serving both pages. These rules are planner-only, so they
-   live here rather than in the components layer.
+   inside it and the date is stated once, as the footer, in the shared
+   `.date-label` (see the components layer). These rules are planner-only —
+   the day box and where the label sits within it — so they live here rather
+   than in the components layer.
 
    Only the structure is new. The row's inner blocks stay `.editable-item-*`:
    a meal is still the same list-row idea, and restyling those would reach the
@@ -2207,15 +2228,10 @@ body.is-dragging {
     margin-bottom: 0;
 }
 
-/* The day, stated once. Same treatment as `.meta-date`, which it deliberately
-   does not reuse: that class is shared with Previous Meals, and this one is
-   free to move with the planner. */
-.meal-day-date {
+/* The day, stated once, as the box's footer. Padding rather than margin so
+   it lines up horizontally with `.meal-day-meal`'s own padding above it. */
+.meal-day > .date-label {
     padding: var(--space-2) var(--space-4) 0;
-    font-size: var(--text-sm);
-    color: var(--ink-muted);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
 }
 
 /* ---- Meal history ---- */
@@ -2278,14 +2294,11 @@ body.is-dragging {
     overflow-wrap: break-word;
 }
 
-/* The date label on a list row. Shared by Meal Planner and Meal History:
-   they had two class names for one idea, and the planner's went unstyled the
-   moment its page-specific block was retired. */
-.meta-date {
-    font-size: var(--text-sm);
-    color: var(--ink-muted);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
+/* `.history-card-header` is a row (title, then date), so the shared
+   `.date-label` needs to hold its width there rather than shrink when the
+   title wraps — the one thing about it that's specific to sitting in this
+   row rather than the components layer. */
+.history-card-header .date-label {
     flex-shrink: 0;
 }
 
