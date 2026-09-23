@@ -121,8 +121,8 @@
             container.innerHTML = notes.map(note => `
                 <div class="editable-item" data-id="${note.id}">
                     <div class="editable-item-content">
-                        <div class="editable-item-title">${escapeHtml(formatDate(note.date))}</div>
                         <div class="editable-item-multiline">${note.body_html}</div>
+                        <div class="date-label">${escapeHtml(formatDate(note.date))}</div>
                     </div>
                     <div class="editable-item-actions">
                         <button class="btn btn--sm" onclick="openEditModal(${note.id})">Edit</button>
