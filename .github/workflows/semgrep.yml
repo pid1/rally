@@ -1,42 +1,26 @@
----
-name: semgrep
-
-on: # yamllint disable-line rule:truthy
+on:
+  workflow_dispatch: {}
+  pull_request: {}
   push:
-    branches: [main]
-  pull_request:
-
-permissions: {}
-
+    branches:
+    - main
+    - master
+    paths:
+    - .github/workflows/semgrep.yml
+  schedule:
+  # random HH:MM to avoid a load spike on GitHub Actions at 00:00
+  - cron: 3 9 * * *
+name: Semgrep
 jobs:
-  scan:
-    name: semgrep
+  semgrep:
+    name: semgrep/ci
     runs-on: ubuntu-latest
-    # Advisory only. The step never fails the job and the job never fails the
-    # run, so semgrep reports findings without gating a merge.
-    continue-on-error: true
     permissions:
       contents: read
+    env:
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
     container:
-      # Pinned by digest; the tag is here for readability only.
-      image: semgrep/semgrep@sha256:12672acdb0949e19f9f6a4c2b288edd0b404f268f0ca7738a2c06f372f50362e # v1.176.0
+      image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # This job only reads the tree; no need to persist the token.
-          persist-credentials: false
-
-      - name: Scan
-        # p/default is semgrep's curated ruleset and needs no account or token.
-        # The trailing `|| true` is deliberate: a finding must not fail the step.
-        run: |
-          semgrep scan --config p/default --metrics=off --sarif --output semgrep.sarif . || true
-          echo "--- findings ---"
-          semgrep scan --config p/default --metrics=off --quiet . || true
-
-      - name: Upload SARIF
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: semgrep-sarif
-          path: semgrep.sarif
-          if-no-files-found: ignore
+    - uses: actions/checkout@v6
+    - run: semgrep ci
