@@ -605,29 +605,10 @@ class TestPages:
         for path in ("/preparedness", "/go-list"):
             assert client.get(path).status_code == 200, path
 
-    def test_every_page_carries_the_other_dropdown(self, client):
-        """One dropdown, on every page, holding both low-traffic sections."""
-        for path in (
-            "/dashboard",
-            "/todo",
-            "/shopping",
-            "/calendar",
-            "/dinner-planner",
-            "/meal-history",
-            "/settings",
-            "/preparedness",
-            "/go-list",
-            "/styleguide",
-        ):
-            body = client.get(path).text
-            assert 'id="other-dropdown"' in body, path
-            assert 'href="/preparedness"' in body, path
-            assert 'href="/dinner-planner"' in body, path
-
     def test_the_go_list_is_reached_from_the_inventory_not_the_nav(self, client):
         """It is a view of the inventory, so it is linked from the inventory.
 
-        Carrying it in the dropdown as well spent a permanent nav slot on a
+        Carrying it in the sidebar as well spent a permanent nav slot on a
         page that is opened when something has already gone wrong.
         """
         preparedness = client.get("/preparedness").text
@@ -635,18 +616,9 @@ class TestPages:
 
         for path in ("/dashboard", "/todo", "/shopping", "/calendar", "/go-list"):
             body = client.get(path).text
-            nav = body[body.index("<nav>") : body.index("</nav>")]
+            nav = body[body.index('<nav class="sidebar"') :]
+            nav = nav[: nav.index("</nav>")]
             assert 'href="/go-list"' not in nav, path
-
-    def test_top_level_nav_is_the_four_daily_pages(self, client):
-        """Dashboard, Tasks, Shopping, Calendar stay one tap away."""
-        body = client.get("/dashboard").text
-        nav = body[body.index("<nav>") : body.index("</nav>")]
-        assert nav.count("nav-dropdown") >= 1
-        for href in ('href="/dashboard"', 'href="/todo"', 'href="/shopping"', 'href="/calendar"'):
-            assert href in nav
-        # The meal and preparedness pages are reachable only through the dropdown.
-        assert nav.index('href="/dinner-planner"') > nav.index("nav-dropdown")
 
 
 # --- Per-member preferences ----------------------------------------------------

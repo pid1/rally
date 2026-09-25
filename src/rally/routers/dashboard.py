@@ -1,25 +1,21 @@
 """Dashboard router for Rally."""
 
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 from sqlalchemy.orm import Session
 
 from rally import markdown
 from rally.database import get_db
 from rally.generator.generate import SummaryGenerator
 from rally.models import DashboardSnapshot, Note
+from rally.templating import templates
 from rally.utils.settings import today_local_str
-from rally.utils.static_version import STATIC_VERSION
 from rally.utils.timezone import ensure_utc, now_utc
 
 router = APIRouter(tags=["dashboard"])
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
 def _build_stem_section(stem: dict | None) -> str:
@@ -85,12 +81,14 @@ def _build_note_section(note_html: str) -> str:
     )
 
 
-def _render_html(data: dict, date_str: str, timestamp: datetime, note_html: str = "") -> str:
-    """Render snapshot data into HTML template."""
-    base_dir = Path(__file__).resolve().parent.parent.parent.parent
-    template_path = base_dir / "templates" / "dashboard.html"
-    template = template_path.read_text()
+def _dashboard_context(data: dict, date_str: str, timestamp: datetime, note_html: str = "") -> dict:
+    """Build the template context for dashboard.html from snapshot data.
 
+    Every HTML-bearing value is wrapped in ``Markup`` so Jinja's autoescaping
+    leaves it as it was inserted before the Dashboard moved onto Jinja: the
+    schedule, briefing, note and STEM snippets are built as HTML here, and the
+    greeting and weather summary have always been inserted verbatim.
+    """
     # Ensure timestamp is timezone-aware and in UTC
     timestamp_utc_dt = ensure_utc(timestamp)
 
@@ -122,20 +120,18 @@ def _render_html(data: dict, date_str: str, timestamp: datetime, note_html: str 
     else:
         briefing_section = ""
 
-    # Build optional STEM "concept of the day" card
-    stem_section = _build_stem_section(data.get("stem_concept"))
-
-    html = template.replace("{{date}}", date_str)
-    html = html.replace("{{greeting}}", data.get("greeting", ""))
-    html = html.replace("{{weather_summary}}", data.get("weather_summary", ""))
-    html = html.replace("{{schedule}}", schedule_html)
-    html = html.replace("{{briefing_section}}", briefing_section)
-    html = html.replace("{{stem_section}}", stem_section)
-    html = html.replace("{{note_section}}", _build_note_section(note_html))
-    html = html.replace("{{timestamp}}", timestamp_str)  # Fallback for non-JS browsers
-    html = html.replace("{{timestamp_utc}}", timestamp_utc)  # For JS timezone conversion
-    html = html.replace("{{css_version}}", STATIC_VERSION)
-    return html
+    return {
+        "date": date_str,
+        "greeting": Markup(data.get("greeting", "")),
+        "weather_summary": Markup(data.get("weather_summary", "")),
+        "schedule": Markup(schedule_html),
+        "briefing_section": Markup(briefing_section),
+        # Optional STEM "concept of the day" card
+        "stem_section": Markup(_build_stem_section(data.get("stem_concept"))),
+        "note_section": Markup(_build_note_section(note_html)),
+        "timestamp": timestamp_str,  # Fallback for non-JS browsers
+        "timestamp_utc": timestamp_utc,  # For JS timezone conversion
+    }
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -168,13 +164,13 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
             "briefing": "",
         }
         date_str = now_utc().strftime("%A, %B %d, %Y")
-        html_content = _render_html(error_data, date_str, now_utc(), note_html)
+        context = _dashboard_context(error_data, date_str, now_utc(), note_html)
     else:
         # Render from cached data
         date_str = now_utc().strftime("%A, %B %d, %Y")
-        html_content = _render_html(snapshot.data, date_str, snapshot.timestamp, note_html)
+        context = _dashboard_context(snapshot.data, date_str, snapshot.timestamp, note_html)
 
-    return HTMLResponse(content=html_content)
+    return templates.TemplateResponse(request, "dashboard.html", context)
 
 
 @router.get("/api/dashboard/regenerate")

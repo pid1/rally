@@ -1,37 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rally — Meal History</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-</head>
-<body>
-    <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Meal History</div>
-    </header>
+{% extends "base.html" %}
+{% set nav_active = "meal-history" %}
+{% block title %}Meal History{% endblock %}
+{% block subtitle %}Meal History{% endblock %}
 
-    <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn active" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/notes">Notes</a>
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history" class="active">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
-        </div>
-    </nav>
-
+{% block content %}
     <div class="page stack">
         <header class="page-header">
             <div class="page-header-row">
@@ -388,17 +360,6 @@
             }
         });
 
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
-        });
-
         // Initialize — settings and family members load before the modal and list
         Promise.all([fetchSettings(), fetchFamilyMembers()]).then(() => {
             mealModal = new MealEditModal({
@@ -410,9 +371,4 @@
             fetchHistory();
         });
     </script>
-
-    <footer>
-        <a href="/settings">Settings</a>
-    </footer>
-</body>
-</html>
+{% endblock %}

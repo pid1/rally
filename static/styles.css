@@ -83,6 +83,10 @@
     --target-min: 2.25rem;
 
     --page-max: 900px;
+
+    /* The site menu's width on anything 768px and wider. On a phone it is
+       capped narrower so a strip of the page stays visible to tap. */
+    --sidebar-width: 18rem;
     --page-pad-x: var(--space-6);
     --page-pad-y: var(--space-7);
 }
@@ -237,8 +241,10 @@ h3 { font-size: var(--text-lg); }
     font-style: italic;
 }
 
-/* Header block above the nav: wordmark and page subtitle. */
+/* Header block at the top of every page: wordmark, page subtitle, and on
+   768px and wider the menu button at its right edge. */
 .header {
+    position: relative;
     text-align: center;
     border-bottom: 1px solid var(--ink);
     padding-bottom: var(--space-5);
@@ -258,6 +264,7 @@ h3 { font-size: var(--text-lg); }
     font-style: italic;
 }
 
+/* Only the Dashboard has a footer: its `Last updated` line. */
 footer {
     text-align: center;
     color: var(--ink-muted);
@@ -269,108 +276,130 @@ footer {
     font-style: italic;
 }
 
-footer a {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--target-min);
-    padding: 0 var(--space-2);
-    color: var(--ink-muted);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-footer a:hover {
-    color: var(--ink);
-}
-
 /** ============================================================
     4. Components
     ============================================================ */
 
-/* ---- Navigation ---- */
-nav {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-5);
-    padding-bottom: var(--space-5);
-    border-bottom: 1px solid var(--rule);
-}
+/* ---- Navigation ----
+   One menu button and one sidebar, shared by every page through
+   templates/base.html and driven by static/sidebar.js. The sidebar is a list
+   rather than a row of buttons so it can grow with the pages, and it scrolls on
+   its own once it runs out of height.
 
-nav a,
-.nav-dropdown-btn {
+   On 768px and wider the button sits at the header's right edge, vertically
+   centred on the wordmark, and scrolls away with it. Below that it floats in a
+   box in the bottom-right corner (see the phone block). */
+.menu-button {
+    position: absolute;
+    top: 0;
+    right: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: var(--target-min);
     min-height: var(--target-min);
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--ink);
-    background: var(--surface);
+    height: calc(var(--text-display) * var(--leading-tight));
+    padding: 0 var(--space-2);
+    border: none;
+    background: transparent;
     color: var(--ink);
-    font-family: var(--font-body);
-    font-size: var(--text-sm);
-    letter-spacing: var(--tracking-wide);
-    text-decoration: none;
+    font-size: var(--text-base);
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s;
 }
 
-nav a:hover,
-.nav-dropdown-btn:hover {
+.menu-button:hover {
     background: var(--surface-sunken);
 }
 
-nav a.active,
-.nav-dropdown-btn.active {
+.menu-button-icon {
+    width: var(--text-xl);
+    height: var(--text-xl);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: square;
+}
+
+/* Lighter than a modal's 0.5 on purpose: the page stays readable, and
+   scrollable, behind an open sidebar. It catches taps (so one outside the
+   sidebar closes it and reaches nothing else) but is never scrollable itself,
+   so a wheel or a finger dragged across it scrolls the page beneath. */
+.sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    background: rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+}
+
+/* Hidden with `visibility` as well as the transform, so a closed sidebar's
+   links are out of the tab order and the accessibility tree. */
+.sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 960;
+    width: var(--sidebar-width);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-6) 0;
+    background: var(--surface);
+    border-left: 1px solid var(--ink);
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.2s ease-out, visibility 0.2s;
+}
+
+/* Opening flips `visibility` at once rather than at the end of the slide, so
+   focus can move into the sidebar the moment it opens. Closing keeps the
+   delay, so the links stay painted until they have slid off. */
+.sidebar-open .sidebar-scrim {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.2s, visibility 0s;
+}
+
+.sidebar-open .sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease-out, visibility 0s;
+}
+
+.sidebar-list {
+    list-style: none;
+}
+
+/* The one divider: Settings, below the pages. */
+.sidebar-list + .sidebar-list {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--rule);
+}
+
+.sidebar-list a {
+    display: flex;
+    align-items: center;
+    min-height: var(--target-min);
+    padding: var(--space-2) var(--space-5);
+    color: var(--ink);
+    font-size: var(--text-base);
+    letter-spacing: var(--tracking-wide);
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+}
+
+.sidebar-list a:hover {
+    background: var(--surface-sunken);
+}
+
+/* The current page, in the same inversion the old nav buttons used. */
+.sidebar-list a[aria-current="page"] {
     background: var(--ink);
     color: var(--inverse);
-}
-
-.nav-dropdown {
-    position: relative;
-    display: inline-flex;
-}
-
-.nav-dropdown-btn::after {
-    content: "";
-    display: inline-block;
-    margin-left: var(--space-1);
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid currentColor;
-}
-
-.nav-dropdown-content {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    min-width: 100%;
-    width: max-content;
-    max-width: 90vw;
-    background: var(--surface);
-    border: 1px solid var(--ink);
-    border-top: none;
-    z-index: 100;
-}
-
-.nav-dropdown-content a {
-    display: flex;
-    justify-content: flex-start;
-    border: none;
-    width: 100%;
-}
-
-.nav-dropdown.open .nav-dropdown-content {
-    display: block;
-}
-
-@media (hover: hover) and (min-width: 768px) {
-    .nav-dropdown:hover .nav-dropdown-content {
-        display: block;
-    }
 }
 
 /* ---- Buttons ----
@@ -2762,13 +2791,9 @@ code {
         width: 5rem;
     }
 
-    nav a,
-    .nav-dropdown-btn {
-        padding: var(--space-2) var(--space-1);
-    }
-
     /* Density: the wordmark and a four-item stacked nav used to consume the
-       whole first screen, so no page showed content above the fold. */
+       whole first screen, so no page showed content above the fold. The nav
+       row is gone now, and the menu lives in the corner box below. */
     .header h1 {
         font-size: var(--text-xl);
         letter-spacing: var(--tracking-wider);
@@ -2779,22 +2804,30 @@ code {
         margin-bottom: var(--space-4);
     }
 
-    /* Three columns, not two: five nav items in two columns is three rows,
-       which pushes the first row of content below the fold on the tightest
-       pages. The horizontal padding below shrinks so the longest label fits. */
-    nav {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        margin-bottom: var(--space-4);
-        padding-bottom: var(--space-4);
+    /* The menu button leaves the header for a bordered box fixed to the
+       bottom-right corner, in reach of a thumb and the only way to the nav at
+       this width. An open sidebar covers it; tapping outside or Esc closes. */
+    .menu-button {
+        position: fixed;
+        top: auto;
+        right: var(--space-4);
+        bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+        z-index: 940;
+        height: auto;
+        border: 1px solid var(--ink);
+        background: var(--surface);
     }
 
-    .nav-dropdown {
-        display: flex;
+    /* Room at the foot of every page for the box, so the last row's actions
+       can scroll clear of it rather than sit underneath. */
+    body {
+        padding-bottom: calc(var(--page-pad-y) + var(--target-min) + var(--space-4));
     }
 
-    .nav-dropdown-btn {
-        width: 100%;
+    /* Capped so a strip of the page stays visible: tapping it is how a
+       phone closes the sidebar, since there is no close button. */
+    .sidebar {
+        width: min(var(--sidebar-width), calc(100vw - var(--space-8)));
     }
 
     /* Tighter block rhythm on a phone. The generous desktop spacing is what
@@ -2829,7 +2862,9 @@ code {
         max-width: none;
     }
 
-    nav,
+    .menu-button,
+    .sidebar,
+    .sidebar-scrim,
     .page-header-actions,
     .toolbar,
     footer {

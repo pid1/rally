@@ -16,9 +16,11 @@ MEASURE_JS = r"""
       right: px(r.right), bottom: px(r.bottom + window.scrollY),
     };
   };
+  // A closed sidebar keeps its box, parked off-canvas; `visibility` is what
+  // takes it off the page, so it counts as not visible here too.
   const visible = (el) => {
     const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0;
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   };
 
   const root = getComputedStyle(document.documentElement);
@@ -52,7 +54,7 @@ MEASURE_JS = r"""
   // Only blocks that sit directly in the page column. Anything nested inside a
   // bordered container is inset on purpose.
   out.leftEdges = {};
-  for (const sel of ['.header', 'nav', '.page', '.page-header-row', '.toolbar', 'footer']) {
+  for (const sel of ['.header', '.page', '.page-header-row', '.toolbar', 'footer']) {
     const el = document.querySelector(sel);
     if (el && visible(el)) out.leftEdges[sel] = px(el.getBoundingClientRect().x);
   }
