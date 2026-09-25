@@ -2,8 +2,9 @@
 
 What matters here cannot be read off the HTML: that the menu button is where
 the design says at each width, that the sidebar slides in over a page that
-stays scrollable, and that a tap outside it closes it *and goes no further* —
-the checkbox under that tap must not change.
+stays scrollable, that a tap outside it closes it *and goes no further* — the
+checkbox under that tap must not change — and that where there is room beside
+the page column the sidebar is simply docked open, covering nothing.
 """
 
 from __future__ import annotations
@@ -14,13 +15,19 @@ from .conftest import VIEWPORTS
 
 TARGET_MIN = 44.0
 
+# Viewports on which the sidebar is an overlay behind the menu button: a phone,
+# a tablet, and a laptop window too narrow to fit the column and the sidebar
+# side by side. At "desktop" (1440) it is docked.
+OVERLAY = {**VIEWPORTS, "laptop-narrow": (1100, 800)}
+del OVERLAY["desktop"]
+
 
 @pytest.fixture
 def open_page(browser, live_server):
     contexts = []
 
     def _open(path: str, viewport: str):
-        width, height = VIEWPORTS[viewport]
+        width, height = {**VIEWPORTS, **OVERLAY}[viewport]
         ctx = browser.new_context(
             viewport={"width": width, "height": height},
             is_mobile=(viewport == "mobile"),
@@ -62,7 +69,7 @@ def test_phone_button_floats_in_the_bottom_right_corner(open_page):
     assert page.locator("[data-sidebar-toggle]").bounding_box()["y"] == box["y"]
 
 
-@pytest.mark.parametrize("viewport", ["tablet", "desktop"])
+@pytest.mark.parametrize("viewport", ["tablet", "laptop-narrow"])
 def test_wide_button_sits_at_the_headers_right_edge(open_page, viewport):
     page = open_page("/dashboard", viewport)
     header = page.locator(".header").bounding_box()
@@ -83,10 +90,10 @@ def test_wide_button_sits_at_the_headers_right_edge(open_page, viewport):
     assert abs(text - (header["x"] + header["width"] / 2)) < 2
 
 
-@pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
+@pytest.mark.parametrize("viewport", sorted(OVERLAY))
 def test_opens_from_the_right_and_closes_on_escape(open_page, viewport):
     page = open_page("/todo", viewport)
-    width = VIEWPORTS[viewport][0]
+    width = OVERLAY[viewport][0]
     page.click("[data-sidebar-toggle]")
     _wait_settled(page)
     assert _is_open(page)
@@ -122,7 +129,7 @@ def test_a_tap_outside_closes_it_and_reaches_nothing(open_page):
 
 
 def test_the_page_scrolls_behind_the_open_sidebar(open_page):
-    page = open_page("/settings", "desktop")
+    page = open_page("/settings", "laptop-narrow")
     page.click("[data-sidebar-toggle]")
     _wait_settled(page)
     start = page.evaluate("window.scrollY")
@@ -135,7 +142,7 @@ def test_the_page_scrolls_behind_the_open_sidebar(open_page):
 
 
 def test_the_toggle_closes_it_again_where_it_is_reachable(open_page):
-    page = open_page("/calendar", "desktop")
+    page = open_page("/calendar", "laptop-narrow")
     page.click("[data-sidebar-toggle]")
     _wait_settled(page)
     assert page.get_attribute("[data-sidebar-toggle]", "aria-expanded") == "true"
@@ -177,6 +184,55 @@ def test_hidden_in_print(open_page):
     page.emulate_media(media="print")
     for sel in ("[data-sidebar-toggle]", "#site-sidebar", "[data-sidebar-scrim]"):
         assert page.eval_on_selector(sel, "el => getComputedStyle(el).display") == "none"
+
+
+@pytest.mark.parametrize("path", ["/dashboard", "/calendar", "/settings"])
+def test_docked_open_beside_the_page_where_there_is_room(open_page, path):
+    """At 1440 the column and the sidebar fit side by side, so the sidebar is
+    on the page without a click, covers nothing, and there is no button."""
+    page = open_page(path, "desktop")
+    width = VIEWPORTS["desktop"][0]
+    sidebar = page.locator("#site-sidebar").bounding_box()
+    assert page.locator("#site-sidebar").is_visible()
+    assert abs(sidebar["x"] + sidebar["width"] - width) < 1
+    assert not page.locator("[data-sidebar-toggle]").is_visible()
+    assert not page.locator("[data-sidebar-scrim]").is_visible()
+    body = page.locator("body").bounding_box()
+    assert body["x"] + body["width"] <= sidebar["x"] + 1, "the sidebar covers the page"
+    # The column centres in the space left of the sidebar.
+    left_gap = body["x"]
+    right_gap = sidebar["x"] - (body["x"] + body["width"])
+    assert abs(left_gap - right_gap) < 2
+    assert page.get_attribute("#site-sidebar a[aria-current='page']", "href") == path
+
+
+def test_docked_page_still_scrolls_and_links_navigate(open_page):
+    page = open_page("/settings", "desktop")
+    page.mouse.move(400, 400)
+    page.mouse.wheel(0, 600)
+    page.wait_for_timeout(300)
+    assert page.evaluate("window.scrollY") > 0
+    page.click("#site-sidebar a[href='/todo']")
+    page.wait_for_url("**/todo")
+    assert page.locator("#site-sidebar").is_visible()
+
+
+def test_resizing_moves_between_overlay_and_docked(open_page):
+    page = open_page("/dashboard", "laptop-narrow")
+    page.click("[data-sidebar-toggle]")
+    _wait_settled(page)
+    assert _is_open(page)
+    # Wider: docked, and the overlay's open state is dropped with its button.
+    page.set_viewport_size({"width": 1440, "height": 800})
+    page.wait_for_timeout(200)
+    assert not _is_open(page)
+    assert page.locator("#site-sidebar").is_visible()
+    assert not page.locator("[data-sidebar-scrim]").is_visible()
+    # Narrower again: back behind the button, closed.
+    page.set_viewport_size({"width": 1100, "height": 800})
+    _wait_settled(page)
+    assert not page.locator("#site-sidebar").is_visible()
+    assert page.locator("[data-sidebar-toggle]").is_visible()
 
 
 def _centre(box):

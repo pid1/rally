@@ -402,6 +402,31 @@ footer {
     color: var(--inverse);
 }
 
+/* Docked: once the page column and the sidebar fit side by side, the sidebar
+   stays open and the column centres in the space left of it. Hiding it behind
+   a button there would spend a click on every navigation to save space the
+   page cannot use anyway. 75rem is --page-max (900px) plus --sidebar-width
+   (18rem), rounded up; below it an open sidebar would cover content, so it
+   goes back behind the menu button. static/sidebar.js reads "is the button
+   displayed" rather than repeating this width. */
+@media screen and (min-width: 75rem) {
+    html {
+        padding-right: var(--sidebar-width);
+    }
+
+    .menu-button,
+    .sidebar-scrim {
+        display: none;
+    }
+
+    .sidebar,
+    .sidebar-open .sidebar {
+        transform: none;
+        visibility: visible;
+        transition: none;
+    }
+}
+
 /* ---- Buttons ----
    One family, four roles. `.btn` is the outlined default that inverts on
    hover; `--secondary` is the quieter partner for Cancel and Delete;

@@ -314,13 +314,15 @@ SHOTS: tuple[Shot, ...] = (
         scale=1,
         setup=_calendar("calendar", "month"),
     ),
-    # The site menu: the sidebar on a laptop, and the phone's corner box
-    # closed and then open. Viewport-sized, since the sidebar is fixed to it.
+    # The site menu: docked beside the page where both fit, opened over it on
+    # a laptop too narrow for that, and the phone's corner box closed and then
+    # open. Viewport-sized, since the sidebar is fixed to it.
+    Shot("nav-sidebar", "/dashboard", width=1440, height=900, scale=1, full_page=False),
     Shot(
-        "nav-sidebar",
+        "nav-sidebar-narrow",
         "/dashboard",
-        width=1440,
-        height=900,
+        width=1100,
+        height=800,
         scale=1,
         full_page=False,
         setup=_open_sidebar,

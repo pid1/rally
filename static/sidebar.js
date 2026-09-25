@@ -75,6 +75,14 @@
             }
         });
 
+        // Widening the window past the docking width puts the sidebar on the
+        // page permanently and hides the button, so an overlay opened before
+        // the resize has nothing left to close it. The stylesheet owns the
+        // breakpoint; a hidden button is how this file learns it was crossed.
+        window.addEventListener('resize', function () {
+            if (isOpen() && getComputedStyle(toggle).display === 'none') close(false);
+        });
+
         // Back/forward restores a page from the cache exactly as it was left,
         // which would be with the sidebar open over it after following a link.
         window.addEventListener('pageshow', function (e) {
