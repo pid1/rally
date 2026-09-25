@@ -468,6 +468,16 @@ def capture(only: set[str] | None) -> list[str]:
                 if shot.element:
                     target.screenshot(path=OUT / f"{shot.name}.png")
                 else:
+                    if shot.full_page:
+                        # A full-page capture stitches a tall image from a short
+                        # viewport, so anything `position: fixed` is laid out
+                        # against the short one: the docked sidebar stopped
+                        # part-way down and the phone's menu box floated
+                        # mid-list. Sizing the viewport to the page puts both
+                        # where a reader scrolling it would find them.
+                        full = page.evaluate("document.documentElement.scrollHeight")
+                        page.set_viewport_size({"width": shot.width, "height": full})
+                        page.wait_for_timeout(300)
                     page.screenshot(path=OUT / f"{shot.name}.png", full_page=shot.full_page)
                 print(f"  captured {shot.name}")
             except Exception as exc:  # noqa: BLE001 — one bad shot must not stop the run
