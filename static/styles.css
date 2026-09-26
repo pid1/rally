@@ -287,7 +287,7 @@ footer {
    its own once it runs out of height.
 
    On 768px and wider the button sits at the header's right edge, vertically
-   centred on the wordmark, and scrolls away with it. Below that it floats in a
+   centered on the wordmark, and scrolls away with it. Below that it floats in a
    box in the bottom-right corner (see the phone block). */
 .menu-button {
     position: absolute;
@@ -403,7 +403,7 @@ footer {
 }
 
 /* Docked: once the page column and the sidebar fit side by side, the sidebar
-   stays open and the column centres in the space left of it. Hiding it behind
+   stays open and the column centers in the space left of it. Hiding it behind
    a button there would spend a click on every navigation to save space the
    page cannot use anyway. 75rem is --page-max (900px) plus --sidebar-width
    (18rem), rounded up; below it an open sidebar would cover content, so it

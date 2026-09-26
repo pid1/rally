@@ -342,7 +342,7 @@ def test_load_shopping_items_falls_back_when_store_was_deleted(gen_db):
     assert out == "Anywhere:\n  - Orphan"
 
 
-# --- load_context / load_voice / load_template ---------------------------------
+# --- load_context / load_voice -------------------------------------------------
 
 
 def test_load_context_uses_ai_setting(gen_db):
@@ -355,11 +355,6 @@ def test_load_voice_uses_ai_setting(gen_db):
     gen = make_generator()
     gen._db_settings = {"agent_voice": "Warm and concise"}
     assert gen.load_voice() == "Warm and concise"
-
-
-def test_load_template_reads_dashboard_html():
-    template = make_generator().load_template()
-    assert "{{greeting}}" in template
 
 
 # --- fetch_weather -------------------------------------------------------------

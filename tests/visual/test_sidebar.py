@@ -81,7 +81,7 @@ def test_wide_button_sits_at_the_headers_right_edge(open_page, viewport):
         page.eval_on_selector("[data-sidebar-toggle]", "el => getComputedStyle(el).borderTopStyle")
         == "none"
     )
-    # The wordmark stays centred in the header; the button does not push it.
+    # The wordmark stays centered in the header; the button does not push it.
     text = page.evaluate(
         "() => { const r = document.createRange();"
         " r.selectNodeContents(document.querySelector('.header h1'));"
@@ -141,6 +141,32 @@ def test_the_page_scrolls_behind_the_open_sidebar(open_page):
     assert _is_open(page), "scrolling must not close the sidebar"
 
 
+def test_a_finger_drag_scrolls_the_page_behind_the_open_sidebar(open_page):
+    """The wheel test above, with a finger. On a phone the strip left of the
+    sidebar is all scrim, and a drag that starts there must scroll the page
+    rather than be swallowed by it, or close the sidebar as a tap would."""
+    page = open_page("/settings", "mobile")
+    page.click("[data-sidebar-toggle]")
+    _wait_settled(page)
+    x = page.locator("#site-sidebar").bounding_box()["x"] / 2
+    y = VIEWPORTS["mobile"][1] * 0.75
+    assert page.evaluate(
+        f"document.elementFromPoint({x}, {y}).hasAttribute('data-sidebar-scrim')"
+    ), "the drag must start on the scrim"
+    start = page.evaluate("window.scrollY")
+    # A real touch scroll through Chromium's input pipeline, not a scrollBy():
+    # it is hit-tested like a finger, so it lands on the scrim. A negative
+    # yDistance drags upward, which scrolls the page down.
+    cdp = page.context.new_cdp_session(page)
+    cdp.send(
+        "Input.synthesizeScrollGesture",
+        {"x": x, "y": y, "yDistance": -400, "gestureSourceType": "touch"},
+    )
+    page.wait_for_timeout(300)
+    assert page.evaluate("window.scrollY") > start
+    assert _is_open(page), "a drag must not close the sidebar"
+
+
 def test_the_toggle_closes_it_again_where_it_is_reachable(open_page):
     page = open_page("/calendar", "laptop-narrow")
     page.click("[data-sidebar-toggle]")
@@ -148,7 +174,7 @@ def test_the_toggle_closes_it_again_where_it_is_reachable(open_page):
     assert page.get_attribute("[data-sidebar-toggle]", "aria-expanded") == "true"
     # The dim layer covers the button, so a click there is a click outside:
     # it closes either way.
-    page.mouse.click(*_centre(page.locator("[data-sidebar-toggle]").bounding_box()))
+    page.mouse.click(*_center(page.locator("[data-sidebar-toggle]").bounding_box()))
     _wait_settled(page)
     assert not _is_open(page)
     assert page.get_attribute("[data-sidebar-toggle]", "aria-expanded") == "false"
@@ -199,7 +225,7 @@ def test_docked_open_beside_the_page_where_there_is_room(open_page, path):
     assert not page.locator("[data-sidebar-scrim]").is_visible()
     body = page.locator("body").bounding_box()
     assert body["x"] + body["width"] <= sidebar["x"] + 1, "the sidebar covers the page"
-    # The column centres in the space left of the sidebar.
+    # The column centers in the space left of the sidebar.
     left_gap = body["x"]
     right_gap = sidebar["x"] - (body["x"] + body["width"])
     assert abs(left_gap - right_gap) < 2
@@ -235,5 +261,5 @@ def test_resizing_moves_between_overlay_and_docked(open_page):
     assert page.locator("[data-sidebar-toggle]").is_visible()
 
 
-def _centre(box):
+def _center(box):
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
