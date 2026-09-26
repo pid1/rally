@@ -21,7 +21,7 @@ TARGET_MIN = 44.0
 @pytest.mark.parametrize("viewport", sorted(VIEWPORTS))
 @pytest.mark.parametrize("page", ALL_PAGES)
 def test_page_blocks_share_a_left_edge(measure, page, viewport):
-    """A1 — the header, nav, page column and footer must line up.
+    """A1 — the header, page column and footer must line up.
 
     Two nested max-widths used to put every desktop page 2px out of line with
     its own header rule.

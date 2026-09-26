@@ -41,7 +41,7 @@ def test_page_renders_html(client, path):
     ],
 )
 def test_nav_links_to_shopping(client, path):
-    """The nav is duplicated across templates, so every page must carry the link."""
+    """Every page renders the shared sidebar, so every page carries the link."""
     assert 'href="/shopping"' in client.get(path).text
 
 

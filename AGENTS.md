@@ -578,6 +578,7 @@ rally/
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── markdown.py       # The one markdown renderer: a note's bold/italic/lists, nothing else
+│   ├── templating.py     # The one Jinja environment every page renders through
 │   ├── prep_review.py    # LLM review of the inventory: prompt, grounding rules, normalizing
 │   ├── calendars/        # One normalized event shape for every calendar source
 │   │   └── cache.py      # Cached external occurrences + the concurrent background sync
@@ -611,10 +612,12 @@ rally/
 ├── static/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide
+│   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
 ├── templates/
+│   ├── base.html            # The shared layout every page extends: <head>, header, menu button, sidebar
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── calendar.html        # Month and agenda calendar views
 │   ├── todo.html            # Todo management page
@@ -745,7 +748,7 @@ rally/
 - ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, and DinnerPlan models
 - ✅ Dashboard caching via DashboardSnapshot table (no auto-generation on page load)
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
-- ✅ Navigation between Dashboard, Todos, Dinner Planner, and Settings
+- ✅ Navigation via a right-hand sidebar — docked open on wide screens, behind a hamburger menu otherwise — on a shared Jinja base layout (`templates/base.html`); see **Navigation**
 - ✅ Family members - Full CRUD API and UI
   - Color-coded identities for each family member, from a **closed palette** of five (`src/rally/member_colors.py`, `--member-*` in the stylesheet)
     - Rally is grayscale and e-ink first, so a member's color is the only color-carrying channel in the app. The palette is a fixed set rather than free hex because one arbitrary value can defeat the guarantee the set exists for: that any two members are distinguishable on any display Rally runs on
@@ -918,6 +921,8 @@ When touching the UI:
   new button class; Save must look the same everywhere it appears.
 - **Never write `outline: none`.** One `:focus-visible` rule in the base layer
   covers everything.
+- **Every page extends `templates/base.html`.** Never write a `<head>`, a
+  header or a nav into a page template; the layout owns them.
 - **Page structure is `.page.stack` > `.page-header` + `.toolbar` + content.**
   Spacing between blocks comes from `.stack`, not from component margins.
 - **Toolbars own their reset slot.** `Clear Filters` goes in `.toolbar-reset`
@@ -1096,13 +1101,20 @@ visual suite (above) before shipping a layout change.
   - `GET /api/preparedness/review` - The last stored review, plus `stale` (the item count has changed since it ran). Reading **never** calls the model — a review costs real money and several seconds, so a page load must never spend either. `404` until one has been run
 
 ### Navigation
-Top level is the four pages a family touches daily — **Dashboard, Tasks, Shopping, Calendar** — plus a single **Other** dropdown holding everything visited occasionally: Notes, Meal Planner, Previous Meals, Preparedness.
+Every page extends **`templates/base.html`**, which owns the `<head>`, the wordmark header, the menu button and the sidebar. A page supplies only its `title` block (the part after `Rally — `, always an em dash), its `subtitle`, any page-specific `head` scripts, and its `content`; it names its own sidebar entry with `{% set nav_active = "…" %}` at the top. A nav change is therefore made **once**, in `base.html` — the old nav was copied into fourteen templates and had already drifted. Every page renders through the one Jinja environment in `src/rally/templating.py`, including the Dashboard, which used to be filled in with `str.replace` and so could not share a layout; its HTML-bearing values arrive as `Markup` so they are inserted exactly as before.
 
-The split is by *frequency*, not by feature size. A meal plan is edited weekly and a go list is opened when something has gone wrong; neither earns a permanent slot next to Tasks. The go list goes one step further and is not in the dropdown either: it is a view of the inventory, reached by the `View go list` link on Preparedness, which keeps the dropdown to the three sections rather than four. Collapsing the old Meal Planner dropdown into Other also keeps the top level at five items, so the three-column mobile nav from #144 still lands as two clean rows and nothing was pushed below the fold.
+Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Previous Meals, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
 
-The outside-click handler is generic over `.nav-dropdown` rather than naming an id, so adding a second dropdown later needs no JS change.
-
-All pages include a navigation bar allowing users to switch between Dashboard, Calendar, Todos, Shopping, Dinner Planner, and Settings. The nav markup is duplicated across every page template, so a nav change must be applied to each. On a phone the nav is a **three**-column grid: five items in two columns is three rows, which pushes the first row of content below the fold.
+- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
+- **The go list is not in the sidebar**: it is a view of the inventory, reached by `View go list` on Preparedness
+- **Width alone decides the treatment**, in three bands:
+  - **75rem (1200px) and wider — docked.** The page column (`--page-max`, 900px) and the sidebar (`--sidebar-width`, 18rem) fit side by side, so the sidebar is simply open: no button, no scrim, and `html` gains `padding-right: var(--sidebar-width)` so the column centers in the space left of it. Hiding it there would cost a click per navigation to save space the page cannot use. `sidebar.js` never repeats this width — it treats "the button is not displayed" as docked, and drops an overlay's open state when a resize crosses the line
+  - **768px up to 75rem — overlay, button in the header.** An open sidebar would cover content here (the laptop window, the wall tablet), so it stays behind a borderless icon at the header's right edge that scrolls away with the page
+  - **Below 768px — overlay, button in the corner.** A bordered box fixed to the bottom-right corner is the only way to the nav on a phone, and `body` gains bottom padding so the last row's actions can scroll clear of it
+- **The page stays scrollable behind an open sidebar**, and is dimmed more lightly than a modal. The scrim is fixed and never scrollable itself, so a wheel or a finger dragged across it scrolls the document; a *tap* on it lands on the scrim, closes the sidebar, and reaches nothing underneath. Closing is on `click`, never `pointerdown` — removing the scrim before the click fires would hand the click to the checkbox beneath
+- Closes on a tap outside, `Esc` (focus returns to the button), the button where it is reachable, following a link, and tabbing out of it. A back/forward restore closes it too, so a cached page never comes back with it open
+- On a phone the sidebar is capped narrower than the viewport so there is always a strip to tap; there is no close button
+- Hidden in print, with the menu button and scrim. Only the Dashboard keeps a footer (`Last updated …`); every other page has none
 
 ## Configuration
 

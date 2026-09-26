@@ -4,7 +4,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
 from rally import member_colors, member_prefs
@@ -22,7 +21,7 @@ from rally.routers import (
     shopping,
     todos,
 )
-from rally.utils.static_version import STATIC_VERSION
+from rally.templating import templates
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -57,10 +56,6 @@ app = FastAPI(
 static_dir = BASE_DIR / "static"
 if static_dir.is_dir():
     app.mount("/static", NoCacheStaticFiles(directory=str(static_dir)), name="static")
-
-# Templates
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-templates.env.globals["css_version"] = STATIC_VERSION
 
 # Include routers
 app.include_router(dashboard.router)

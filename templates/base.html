@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+{#- The one layout every page extends: the <head>, the wordmark header, the
+    menu button and the sidebar. A page supplies its `title` (the part after
+    "Rally — "), its `subtitle`, any page-specific `head` scripts and its
+    `content`, and says which sidebar link is its own by setting `nav_active`
+    at the top of the template. A subpage names its parent (/todo/completed
+    sets "todo"); a page with no entry of its own (/styleguide) sets nothing. -#}
+{%- set nav_pages = [
+    ("dashboard", "/dashboard", "Dashboard"),
+    ("todo", "/todo", "Tasks"),
+    ("shopping", "/shopping", "Shopping"),
+    ("calendar", "/calendar", "Calendar"),
+    ("notes", "/notes", "Notes"),
+    ("dinner-planner", "/dinner-planner", "Meal Planner"),
+    ("meal-history", "/meal-history", "Previous Meals"),
+    ("preparedness", "/preparedness", "Preparedness"),
+] %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rally — {% block title %}{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
+    <script src="/static/sidebar.js?v={{ css_version }}" defer></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header class="header">
+        <h1>Rally</h1>
+        {% block header_subtitle %}<div class="subtitle">{% block subtitle %}{% endblock %}</div>{% endblock %}
+        {#- One button, placed by the stylesheet: at the header's right edge on
+            768px and wider, floating in a box in the bottom-right corner below
+            that. -#}
+        <button type="button" class="menu-button" aria-label="Open menu"
+                aria-controls="site-sidebar" aria-expanded="false" data-sidebar-toggle>
+            <svg class="menu-button-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+        </button>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    {#- Catches the tap outside the sidebar so it closes the sidebar and
+        nothing else, while wheel and touch scrolling pass through to the page:
+        it is fixed and never scrollable itself, so a scroll gesture over it
+        scrolls the document. -#}
+    <div class="sidebar-scrim" data-sidebar-scrim></div>
+    <nav class="sidebar" id="site-sidebar" aria-label="Rally">
+        <ul class="sidebar-list">
+            {%- for key, href, label in nav_pages %}
+            <li><a href="{{ href }}"{% if nav_active == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+            {%- endfor %}
+        </ul>
+        <ul class="sidebar-list">
+            <li><a href="/settings"{% if nav_active == "settings" %} aria-current="page"{% endif %}>Settings</a></li>
+        </ul>
+    </nav>
+</body>
+</html>

@@ -1,38 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rally - Todos</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-    <script src="/static/phone_links.js?v={{ css_version }}"></script>
-</head>
-<body>
-    <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Todo Management</div>
-    </header>
+{% extends "base.html" %}
+{% set nav_active = "todo" %}
+{% block title %}Tasks{% endblock %}
+{% block subtitle %}Task Management{% endblock %}
+{% block head %}
+<script src="/static/phone_links.js?v={{ css_version }}"></script>
+{% endblock %}
 
-    <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo" class="active">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/notes">Notes</a>
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <a href="/preparedness">Preparedness</a>
-            </div>
-        </div>
-    </nav>
-
+{% block content %}
     <div class="page stack">
         <header class="page-header">
             <div class="page-header-row">
@@ -1107,22 +1081,7 @@
             fetchTodos();
             fetchRecurringTodos();
         });
-
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
-        });
     </script>
 
-    <footer>
-        <a href="/settings">Settings</a>
-    </footer>
     <script src="/static/modal.js?v={{ css_version }}"></script>
-</body>
-</html>
+{% endblock %}

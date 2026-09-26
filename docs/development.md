@@ -143,7 +143,7 @@ src/rally/          Application code
   calendars/        Calendar adapters (native, ICS, CalDAV) and the shared Occurrence shape
   generator/        Daily summary generation
   notifications.py  Pushover delivery: reminders, change notices, digests
-templates/          Jinja templates, one per page
+templates/          Jinja templates, one per page, each extending base.html (head, header, sidebar)
 static/styles.css   The whole stylesheet
 migrations/         Idempotent migration scripts
 tests/              Pytest suite; tests/visual is the design-system suite

@@ -881,13 +881,6 @@ class SummaryGenerator:
             return value
         return (self.data_dir / "agent_voice.txt").read_text()
 
-    def load_template(self) -> str:
-        """Load HTML template."""
-        # Template is in templates/ directory relative to project root
-        # Path: generate.py -> generator/ -> rally/ -> src/ -> project_root/
-        base_dir = Path(__file__).resolve().parent.parent.parent.parent
-        return (base_dir / "templates" / "dashboard.html").read_text()
-
     def _call_llm(
         self, user_prompt: str, system_prompt: str | None = None, label: str = "llm"
     ) -> str:

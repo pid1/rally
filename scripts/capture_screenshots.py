@@ -232,10 +232,14 @@ def _wait_for_calendar(page):
     page.wait_for_timeout(600)
 
 
-def _open_other_nav(page):
-    """The `Other` dropdown, which is how a reader reaches Preparedness."""
-    page.locator("#other-dropdown .nav-dropdown-btn").click()
-    page.wait_for_selector("#other-dropdown.open", state="attached")
+def _open_sidebar(page):
+    """The site menu, opened the way a reader opens it: the menu button."""
+    page.locator("[data-sidebar-toggle]").click()
+    page.wait_for_selector("body.sidebar-open", state="attached")
+    # Off the button, so the shot shows it at rest rather than hovered.
+    page.mouse.move(1, 1)
+    # Let the slide finish, or the shot catches the sidebar mid-flight.
+    page.wait_for_timeout(400)
 
 
 def _prep_settings_section(page):
@@ -310,20 +314,34 @@ SHOTS: tuple[Shot, ...] = (
         scale=1,
         setup=_calendar("calendar", "month"),
     ),
+    # The site menu: docked beside the page where both fit, opened over it on
+    # a laptop too narrow for that, and the phone's corner box closed and then
+    # open. Viewport-sized, since the sidebar is fixed to it.
+    Shot("nav-sidebar", "/dashboard", width=1440, height=900, scale=1, full_page=False),
+    Shot(
+        "nav-sidebar-narrow",
+        "/dashboard",
+        width=1100,
+        height=800,
+        scale=1,
+        full_page=False,
+        setup=_open_sidebar,
+    ),
+    Shot("nav-menu-mobile", "/shopping", width=390, height=844, scale=1, full_page=False),
+    Shot(
+        "nav-sidebar-mobile",
+        "/shopping",
+        width=390,
+        height=844,
+        scale=1,
+        full_page=False,
+        setup=_open_sidebar,
+    ),
     # Preparedness reference shots.
     Shot("preparedness-inventory", "/preparedness", width=1440, scale=1),
     Shot("preparedness-go-list", "/go-list", width=1440, scale=1),
     Shot("preparedness-review", "/preparedness", width=1440, scale=1, setup=_open_review),
     Shot("preparedness-mobile", "/preparedness", width=390, height=844, scale=1),
-    Shot(
-        "preparedness-nav",
-        "/dashboard",
-        width=1440,
-        height=520,
-        scale=1,
-        full_page=False,
-        setup=_open_other_nav,
-    ),
     Shot(
         "preparedness-settings",
         "/settings",
@@ -450,6 +468,16 @@ def capture(only: set[str] | None) -> list[str]:
                 if shot.element:
                     target.screenshot(path=OUT / f"{shot.name}.png")
                 else:
+                    if shot.full_page:
+                        # A full-page capture stitches a tall image from a short
+                        # viewport, so anything `position: fixed` is laid out
+                        # against the short one: the docked sidebar stopped
+                        # part-way down and the phone's menu box floated
+                        # mid-list. Sizing the viewport to the page puts both
+                        # where a reader scrolling it would find them.
+                        full = page.evaluate("document.documentElement.scrollHeight")
+                        page.set_viewport_size({"width": shot.width, "height": full})
+                        page.wait_for_timeout(300)
                     page.screenshot(path=OUT / f"{shot.name}.png", full_page=shot.full_page)
                 print(f"  captured {shot.name}")
             except Exception as exc:  # noqa: BLE001 — one bad shot must not stop the run

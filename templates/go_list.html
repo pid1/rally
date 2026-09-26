@@ -1,41 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rally - Go List</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
-    <script src="/static/phone_links.js?v={{ css_version }}"></script>
-</head>
-<body>
-    <header class="header">
-        <h1>Rally</h1>
-        <div class="subtitle">Go List</div>
-    </header>
+{% extends "base.html" %}
+{% set nav_active = "preparedness" %}
+{% block title %}Go List{% endblock %}
+{% block subtitle %}Go List{% endblock %}
+{% block head %}
+<script src="/static/phone_links.js?v={{ css_version }}"></script>
+{% endblock %}
 
-    <nav>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/todo">Tasks</a>
-        <a href="/shopping">Shopping</a>
-        <a href="/calendar">Calendar</a>
-        <div class="nav-dropdown" id="other-dropdown">
-            <button class="nav-dropdown-btn active" onclick="toggleOtherDropdown(event)">Other</button>
-            <div class="nav-dropdown-content">
-                <a href="/notes">Notes</a>
-                <a href="/dinner-planner">Meal Planner</a>
-                <a href="/meal-history">Previous Meals</a>
-                <!-- The go list is a view of the inventory reached from it, so
-                     the nav marks where you came from rather than going blank
-                     for want of an entry of its own. -->
-                <a href="/preparedness" class="active">Preparedness</a>
-            </div>
-        </div>
-    </nav>
-
+{% block content %}
     <div class="page stack">
         <header class="page-header">
             <div class="page-header-row">
@@ -108,18 +79,6 @@
 
         document.getElementById('btn-print').addEventListener('click', () => window.print());
 
-        // Nav dropdown toggle (for touch devices)
-        function toggleOtherDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('other-dropdown').classList.toggle('open');
-        }
-        document.addEventListener('click', function () {
-            document.querySelectorAll('.nav-dropdown').forEach(function (d) {
-                d.classList.remove('open');
-            });
-        });
-
         load();
     </script>
-</body>
-</html>
+{% endblock %}
