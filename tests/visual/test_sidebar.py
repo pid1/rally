@@ -154,16 +154,21 @@ def test_a_finger_drag_scrolls_the_page_behind_the_open_sidebar(open_page):
         f"document.elementFromPoint({x}, {y}).hasAttribute('data-sidebar-scrim')"
     ), "the drag must start on the scrim"
     start = page.evaluate("window.scrollY")
-    # A real touch scroll through Chromium's input pipeline, not a scrollBy():
-    # it is hit-tested like a finger, so it lands on the scrim. A negative
-    # yDistance drags upward, which scrolls the page down.
+    # A real finger through Chromium's input pipeline, not a scrollBy(): raw
+    # touch events are hit-tested like a finger, so the drag lands on the
+    # scrim. Raw events rather than Input.synthesizeScrollGesture, which
+    # scrolls on macOS but does nothing in headless Chromium on Linux (CI).
     cdp = page.context.new_cdp_session(page)
-    cdp.send(
-        "Input.synthesizeScrollGesture",
-        {"x": x, "y": y, "yDistance": -400, "gestureSourceType": "touch"},
-    )
-    page.wait_for_timeout(300)
-    assert page.evaluate("window.scrollY") > start
+
+    def touch(kind, at_y=None):
+        points = [] if at_y is None else [{"x": x, "y": at_y}]
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    touch("touchStart", y)
+    for step in range(1, 21):  # upward, 400px in 20px steps: scrolls the page down
+        touch("touchMove", y - step * 20)
+    touch("touchEnd")
+    page.wait_for_function(f"window.scrollY > {start}", timeout=3000)
     assert _is_open(page), "a drag must not close the sidebar"
 
 
