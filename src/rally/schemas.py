@@ -13,7 +13,7 @@ UNSET = object()
 
 
 class ArchivePage[T](BaseModel):
-    """One page of an archive: completed tasks, previous notes.
+    """One page of an archive: completed tasks, previous notes, purchased items.
 
     Every archive pages the same way, so they share one shape. ``total`` counts
     matches across every page, which is what the results count reports — a
@@ -450,6 +450,19 @@ class ShoppingItemResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PurchasedPage(ArchivePage[ShoppingItemResponse]):
+    """One page of purchased items, plus the stores the Store chips offer.
+
+    ``stores`` holds chip values — store ids as strings, and ``"anywhere"`` for
+    the catch-all — for every store with a purchase matching the current search,
+    *ignoring* the store filter. That is what the chips showed when they were
+    built from the whole archive in the browser, and answering it here keeps the
+    chips from depending on how many pages have been loaded.
+    """
+
+    stores: list[str]
 
 
 class ShoppingReorder(BaseModel):

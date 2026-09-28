@@ -1,9 +1,9 @@
 /* The archive pages' shared list: search, results count and Load more.
  *
- * Used by /todo/completed and /notes/previous. Each of those pages is a
- * server-paged list with the same toolbar and footer, and each used to carry
- * its own copy of this logic; one copy means search and paging behave the same
- * way on both and are fixed in one place.
+ * Used by /todo/completed, /notes/previous and /shopping/purchased. Each of
+ * those pages is a server-paged list with the same toolbar and footer, and each
+ * used to carry its own copy of this logic; one copy means search and paging
+ * behave the same way on all three and are fixed in one place.
  *
  * Markup contract (the same element ids on every archive page):
  *

@@ -18,7 +18,7 @@ note in ``models``), which is what ``POST /items/reorder`` writes.
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import case, func, nullslast, or_
+from sqlalchemy import case, false, func, nullslast, or_
 from sqlalchemy.orm import Session
 
 from rally import shopping_notifications
@@ -26,6 +26,7 @@ from rally.database import get_db
 from rally.models import Setting, ShoppingItem, ShoppingItemHistory, ShoppingStore
 from rally.schemas import (
     UNSET,
+    PurchasedPage,
     ShoppingItemCreate,
     ShoppingItemResponse,
     ShoppingItemUpdate,
@@ -281,11 +282,21 @@ def list_items(
     return query.order_by(*_list_ordering()).all()
 
 
-@router.get("/purchased", response_model=list[ShoppingItemResponse])
+# The Store chip value for the catch-all group, whose items have no store_id.
+ANYWHERE = "anywhere"
+
+
+@router.get("/purchased", response_model=PurchasedPage)
 def list_purchased_items(
     search: str | None = Query(
         None, description="Case-insensitive keyword matched against name and note."
     ),
+    store: list[str] = Query(
+        default=[],
+        description=f'Store IDs to filter to, and/or "{ANYWHERE}". Empty means all.',
+    ),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     """List items purchased before today (local time), most recent first.
@@ -294,9 +305,12 @@ def list_purchased_items(
     once the local date rolls over — the same split `/api/todos/completed`
     makes. Read-only: nothing here can be edited, restored or deleted.
 
-    No sort, limit or offset: ``PURCHASED_RETENTION_DAYS`` bounds the window, so
-    the whole archive fits in one response. Pagination is the right first
-    addition if that retention ever lengthens.
+    Paged like every other archive, even though ``PURCHASED_RETENTION_DAYS``
+    keeps this one short: one shape means one shared client. The store filter
+    is server-side for the same reason search is — the client only holds the
+    pages it has loaded. ``stores`` answers which chips to offer, from the
+    search results before the store filter, so a chip does not vanish the
+    moment it is selected.
     """
     purge_old_purchased_items(db)
 
@@ -314,7 +328,31 @@ def list_purchased_items(
         term = f"%{search.strip()}%"
         query = query.filter(or_(ShoppingItem.name.ilike(term), ShoppingItem.note.ilike(term)))
 
-    return query.order_by(nullslast(ShoppingItem.completed_at.desc()), ShoppingItem.id.desc()).all()
+    store_ids = {row[0] for row in query.with_entities(ShoppingItem.store_id).distinct()}
+    stores = [str(i) for i in sorted(i for i in store_ids if i is not None)]
+    if None in store_ids:
+        stores.append(ANYWHERE)
+
+    # Store filter: multi-select OR, the same shape as the assignee filter on
+    # /api/todos/completed.
+    if store:
+        ids = [int(s) for s in store if s.isdigit()]
+        clauses = []
+        if ANYWHERE in store:
+            clauses.append(ShoppingItem.store_id.is_(None))
+        if ids:
+            clauses.append(ShoppingItem.store_id.in_(ids))
+        query = query.filter(or_(*clauses)) if clauses else query.filter(false())
+
+    total = query.count()
+    # The order already ends in id, so offset paging is stable.
+    rows = (
+        query.order_by(nullslast(ShoppingItem.completed_at.desc()), ShoppingItem.id.desc())
+        .offset(offset)
+        .limit(limit + 1)
+        .all()
+    )
+    return PurchasedPage(items=rows[:limit], has_more=len(rows) > limit, total=total, stores=stores)
 
 
 @router.post("/items", response_model=ShoppingItemResponse, status_code=201)
