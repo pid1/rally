@@ -114,9 +114,11 @@ DEVICES_BY_NAME = {token.rsplit("-", 1)[1]: token for token, _, _ in DEMO_DEVICE
 
 _SEED_EXTRAS_BODY = """
 import json
+from datetime import timedelta
 from rally.database import SessionLocal
-from rally.models import FamilyMember, Setting
+from rally.models import FamilyMember, Setting, ShoppingItem, ShoppingStore
 from rally import member_prefs, prep_review
+from rally.utils.timezone import now_utc
 
 db = SessionLocal()
 # Ordered by *name*, because that is the order Settings lists them in and the
@@ -164,6 +166,22 @@ REVIEW = json.dumps({
 
 # run_review expects (raw, model) back from the call it is given.
 prep_review.run_review(db, llm=lambda *a, **k: (REVIEW, "demo-model"))
+
+# The seed only ever buys things today, and today's purchases stay on the list
+# until midnight, so /shopping/purchased would otherwise be empty. A few days
+# of earlier shopping, across both stores and the catch-all, gives it groups.
+stores = {s.name: s.id for s in db.query(ShoppingStore)}
+PURCHASES = [
+    ("Paper towels", "Costco", 2), ("Olive oil", "Costco", 3),
+    ("Sparkling water", "Costco", 6), ("Frozen dumplings", "Trader Joe's", 2),
+    ("Almond milk", "Trader Joe's", 4), ("Stamps", None, 5),
+]
+for name, store, days_ago in PURCHASES:
+    db.add(ShoppingItem(
+        name=name, store_id=stores.get(store), completed=True, sort_order=0,
+        completed_at=now_utc() - timedelta(days=days_ago),
+    ))
+db.commit()
 db.close()
 """
 
@@ -282,6 +300,21 @@ def _open_event_detail(page):
     page.wait_for_timeout(300)
 
 
+def _wait_for_list(page):
+    """Archive pages fill their list after load; wait for the rows."""
+    page.wait_for_selector("#list-container .history-card, #groups-container .shopping-group")
+    page.wait_for_timeout(300)
+
+
+def _search_previous_meals(page):
+    """A search, so the shot shows the results count the page gained."""
+    _wait_for_list(page)
+    page.fill("#search-input", "toast")
+    page.click("#search-btn")
+    page.wait_for_selector("#search-results-count:not([hidden])")
+    page.wait_for_timeout(300)
+
+
 def _open_review(page):
     """The stored review renders collapsed at the foot of the page.
 
@@ -337,6 +370,29 @@ SHOTS: tuple[Shot, ...] = (
         full_page=False,
         setup=_open_sidebar,
     ),
+    # Meal Planner and its Previous Meals subpage, plus the purchased archive,
+    # which gained paging and a server-side store filter at the same time.
+    Shot("meal-planner", "/meal-planner", width=1440, scale=1, full_page=False),
+    Shot(
+        "meal-planner-previous", "/meal-planner/previous", width=1440, scale=1, setup=_wait_for_list
+    ),
+    Shot(
+        "meal-planner-previous-search",
+        "/meal-planner/previous",
+        width=1440,
+        scale=1,
+        setup=_search_previous_meals,
+    ),
+    Shot(
+        "meal-planner-previous-mobile",
+        "/meal-planner/previous",
+        width=390,
+        height=844,
+        scale=1,
+        full_page=False,
+        setup=_wait_for_list,
+    ),
+    Shot("shopping-purchased", "/shopping/purchased", width=1440, scale=1, setup=_wait_for_list),
     # Preparedness reference shots.
     Shot("preparedness-inventory", "/preparedness", width=1440, scale=1),
     Shot("preparedness-go-list", "/go-list", width=1440, scale=1),
