@@ -5,38 +5,38 @@ from sqlalchemy import case, nullslast
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import DinnerPlan
+from rally.models import MealPlan
 from rally.schemas import (
     MEAL_TYPES,
     UNSET,
-    DinnerPlanCreate,
-    DinnerPlanResponse,
-    DinnerPlanReviewUpdate,
-    DinnerPlanUpdate,
+    MealPlanCreate,
+    MealPlanResponse,
+    MealPlanReviewUpdate,
+    MealPlanUpdate,
 )
 from rally.utils.settings import today_local_str
 
-router = APIRouter(prefix="/api/dinner-plans", tags=["dinner-plans"])
+router = APIRouter(prefix="/api/meal-planner", tags=["meal-planner"])
 
 # Fixed meal type sort order: Breakfast < Lunch < Dinner < Snacks
 _MEAL_TYPE_ORDER = case(
     {"Breakfast": 0, "Lunch": 1, "Dinner": 2, "Snacks": 3},
-    value=DinnerPlan.meal_type,
+    value=MealPlan.meal_type,
     else_=99,
 )
 
 
-@router.get("", response_model=list[DinnerPlanResponse])
-def list_dinner_plans(db: Session = Depends(get_db)):
+@router.get("", response_model=list[MealPlanResponse])
+def list_meal_plans(db: Session = Depends(get_db)):
     """List all meal plans ordered by date then meal type."""
-    plans = db.query(DinnerPlan).order_by(DinnerPlan.date.asc(), _MEAL_TYPE_ORDER).all()
+    plans = db.query(MealPlan).order_by(MealPlan.date.asc(), _MEAL_TYPE_ORDER).all()
     return plans
 
 
-@router.post("", response_model=DinnerPlanResponse, status_code=201)
-def create_dinner_plan(plan: DinnerPlanCreate, db: Session = Depends(get_db)):
+@router.post("", response_model=MealPlanResponse, status_code=201)
+def create_meal_plan(plan: MealPlanCreate, db: Session = Depends(get_db)):
     """Create a new meal plan. Multiple plans per date are allowed."""
-    db_plan = DinnerPlan(
+    db_plan = MealPlan(
         date=plan.date,
         meal_type=plan.meal_type,
         plan=plan.plan,
@@ -49,7 +49,7 @@ def create_dinner_plan(plan: DinnerPlanCreate, db: Session = Depends(get_db)):
     return db_plan
 
 
-@router.get("/history", response_model=list[DinnerPlanResponse])
+@router.get("/history", response_model=list[MealPlanResponse])
 def list_meal_history(
     sort: str = Query("rating_desc", pattern="^(rating_desc|date_desc|date_asc)$"),
     min_rating: int | None = Query(None, ge=1, le=5),
@@ -74,48 +74,48 @@ def list_meal_history(
 
     today = today_local_str(db)
 
-    query = db.query(DinnerPlan).filter(DinnerPlan.date < today)
+    query = db.query(MealPlan).filter(MealPlan.date < today)
 
     if min_rating is not None:
-        query = query.filter(DinnerPlan.rating >= min_rating)
+        query = query.filter(MealPlan.rating >= min_rating)
 
     if meal_type:
-        query = query.filter(DinnerPlan.meal_type.in_(meal_type))
+        query = query.filter(MealPlan.meal_type.in_(meal_type))
 
     if sort == "rating_desc":
-        query = query.order_by(nullslast(DinnerPlan.rating.desc()), DinnerPlan.date.desc())
+        query = query.order_by(nullslast(MealPlan.rating.desc()), MealPlan.date.desc())
     elif sort == "date_asc":
-        query = query.order_by(DinnerPlan.date.asc(), _MEAL_TYPE_ORDER)
+        query = query.order_by(MealPlan.date.asc(), _MEAL_TYPE_ORDER)
     else:  # date_desc
-        query = query.order_by(DinnerPlan.date.desc(), _MEAL_TYPE_ORDER)
+        query = query.order_by(MealPlan.date.desc(), _MEAL_TYPE_ORDER)
 
     return query.all()
 
 
-@router.get("/date/{date}", response_model=list[DinnerPlanResponse])
-def get_dinner_plans_by_date(date: str, db: Session = Depends(get_db)):
+@router.get("/date/{date}", response_model=list[MealPlanResponse])
+def get_meal_plans_by_date(date: str, db: Session = Depends(get_db)):
     """Get all meal plans for a specific date (YYYY-MM-DD)."""
-    plans = db.query(DinnerPlan).filter(DinnerPlan.date == date).order_by(_MEAL_TYPE_ORDER).all()
+    plans = db.query(MealPlan).filter(MealPlan.date == date).order_by(_MEAL_TYPE_ORDER).all()
     return plans
 
 
-@router.get("/{plan_id}", response_model=DinnerPlanResponse)
-def get_dinner_plan(plan_id: int, db: Session = Depends(get_db)):
+@router.get("/{plan_id}", response_model=MealPlanResponse)
+def get_meal_plan(plan_id: int, db: Session = Depends(get_db)):
     """Get a specific meal plan by ID."""
-    plan = db.query(DinnerPlan).filter(DinnerPlan.id == plan_id).first()
+    plan = db.query(MealPlan).filter(MealPlan.id == plan_id).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Meal plan not found")
     return plan
 
 
-@router.put("/{plan_id}", response_model=DinnerPlanResponse)
-def update_dinner_plan(
+@router.put("/{plan_id}", response_model=MealPlanResponse)
+def update_meal_plan(
     plan_id: int,
-    plan: DinnerPlanUpdate,
+    plan: MealPlanUpdate,
     db: Session = Depends(get_db),
 ):
     """Update a meal plan."""
-    db_plan = db.query(DinnerPlan).filter(DinnerPlan.id == plan_id).first()
+    db_plan = db.query(MealPlan).filter(MealPlan.id == plan_id).first()
     if not db_plan:
         raise HTTPException(status_code=404, detail="Meal plan not found")
 
@@ -143,14 +143,14 @@ def update_dinner_plan(
     return db_plan
 
 
-@router.put("/{plan_id}/review", response_model=DinnerPlanResponse)
+@router.put("/{plan_id}/review", response_model=MealPlanResponse)
 def review_meal(
     plan_id: int,
-    review: DinnerPlanReviewUpdate,
+    review: MealPlanReviewUpdate,
     db: Session = Depends(get_db),
 ):
     """Submit or update a meal review (rating and/or text)."""
-    db_plan = db.query(DinnerPlan).filter(DinnerPlan.id == plan_id).first()
+    db_plan = db.query(MealPlan).filter(MealPlan.id == plan_id).first()
     if not db_plan:
         raise HTTPException(status_code=404, detail="Meal plan not found")
 
@@ -172,9 +172,9 @@ def review_meal(
 
 
 @router.delete("/{plan_id}", status_code=204)
-def delete_dinner_plan(plan_id: int, db: Session = Depends(get_db)):
+def delete_meal_plan(plan_id: int, db: Session = Depends(get_db)):
     """Delete a meal plan."""
-    db_plan = db.query(DinnerPlan).filter(DinnerPlan.id == plan_id).first()
+    db_plan = db.query(MealPlan).filter(MealPlan.id == plan_id).first()
     if not db_plan:
         raise HTTPException(status_code=404, detail="Meal plan not found")
 

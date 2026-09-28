@@ -263,8 +263,8 @@ class EventAttendee(Base):
     """Which family members an event belongs to.
 
     A join table rather than a JSON array on the event — breaking with
-    ``DinnerPlan.attendee_ids`` — because a calendar is *filtered* by member
-    ("show me Emma's week") and a dinner plan never is. Filtering a JSON array
+    ``MealPlan.attendee_ids`` — because a calendar is *filtered* by member
+    ("show me Emma's week") and a meal plan never is. Filtering a JSON array
     in SQLite means loading the whole window and filtering in Python, which is
     fine for the planner's seven rows and not for a month. Notifications make
     the same case twice: the recipients of a reminder are exactly this table.
@@ -621,8 +621,14 @@ class ShoppingItemHistory(Base):
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
 
 
-class DinnerPlan(Base):
-    """Meal plan model - meal plans by date."""
+class MealPlan(Base):
+    """Meal plan model - meal plans by date.
+
+    The table keeps its original name, from when the feature only planned
+    dinners. Renaming it would take a migration, and ``dev``/``seed`` create
+    tables without running migrations, so a renamed model would quietly get a
+    new, empty table beside the real one.
+    """
 
     __tablename__ = "dinner_plans"
 

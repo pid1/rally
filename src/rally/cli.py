@@ -8,10 +8,10 @@ from rally.database import SessionLocal, init_db
 from rally.models import (
     Calendar,
     DashboardSnapshot,
-    DinnerPlan,
     Event,
     EventAttendee,
     FamilyMember,
+    MealPlan,
     Note,
     PrepItem,
     PrepLocation,
@@ -32,7 +32,7 @@ def seed():
 
     try:
         # Clear existing data
-        db.query(DinnerPlan).delete()
+        db.query(MealPlan).delete()
         db.query(Note).delete()
         db.query(EventAttendee).delete()
         db.query(Event).delete()
@@ -428,7 +428,7 @@ def seed():
         # unrated) so the Previous Meals page and its meal-type/rating filters
         # have realistic data to act on.
         past_meals = [
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=2)).strftime("%Y-%m-%d"),
                 meal_type="Breakfast",
                 plan="Veggie omelettes and toast",
@@ -436,14 +436,14 @@ def seed():
                 rating=5,
                 review="Fluffy and filling — a keeper for weekend mornings.",
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=3)).strftime("%Y-%m-%d"),
                 meal_type="Lunch",
                 plan="Turkey and avocado sandwiches",
                 attendee_ids=[emma.id, jake.id],
                 rating=3,
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=4)).strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Meatloaf with mashed potatoes",
@@ -451,14 +451,14 @@ def seed():
                 rating=4,
                 review="Comfort food done right.",
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=5)).strftime("%Y-%m-%d"),
                 meal_type="Snacks",
                 plan="Fruit and cheese board",
                 rating=2,
                 review="Fine, but the crackers were stale.",
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=6)).strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Taco night",
@@ -466,25 +466,25 @@ def seed():
                 rating=5,
                 review="Everyone's favorite — always a hit.",
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=7)).strftime("%Y-%m-%d"),
                 meal_type="Breakfast",
                 plan="Oatmeal with berries",
                 # Not yet rated
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=9)).strftime("%Y-%m-%d"),
                 meal_type="Lunch",
                 plan="Grilled cheese and tomato soup",
                 rating=4,
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=10)).strftime("%Y-%m-%d"),
                 meal_type="Snacks",
                 plan="Popcorn and smoothies",
                 # Not yet rated
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=12)).strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Roast chicken with vegetables",
@@ -492,7 +492,7 @@ def seed():
                 rating=5,
                 review="Crispy skin, juicy inside. Restaurant quality.",
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date - timedelta(days=14)).strftime("%Y-%m-%d"),
                 meal_type="Breakfast",
                 plan="French toast",
@@ -503,49 +503,49 @@ def seed():
         for dp in past_meals:
             db.add(dp)
 
-        dinner_plans = [
+        meal_plans = [
             # Today: breakfast and dinner for different groups
-            DinnerPlan(
+            MealPlan(
                 date=today_date.strftime("%Y-%m-%d"),
                 meal_type="Breakfast",
                 plan="Pancakes and bacon",
                 attendee_ids=[dad.id, jake.id, emma.id],
                 cook_id=dad.id,
             ),
-            DinnerPlan(
+            MealPlan(
                 date=today_date.strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Chicken pot pie",
                 attendee_ids=[dad.id, jake.id],
                 cook_id=dad.id,
             ),
-            DinnerPlan(
+            MealPlan(
                 date=today_date.strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Texas Roadhouse",
                 attendee_ids=[mom.id, emma.id],
             ),
             # Tomorrow: whole family dinner
-            DinnerPlan(
+            MealPlan(
                 date=(today_date + timedelta(days=1)).strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Spaghetti and meatballs with garlic bread",
                 cook_id=mom.id,
             ),
             # Day after: lunch and dinner
-            DinnerPlan(
+            MealPlan(
                 date=(today_date + timedelta(days=3)).strftime("%Y-%m-%d"),
                 meal_type="Lunch",
                 plan="Leftovers",
             ),
-            DinnerPlan(
+            MealPlan(
                 date=(today_date + timedelta(days=3)).strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Grilled burgers and corn on the cob",
                 cook_id=dad.id,
             ),
         ]
-        for dp in dinner_plans:
+        for dp in meal_plans:
             db.add(dp)
 
         # Daily Notes. Today and one upcoming day so the Notes page and the
@@ -625,7 +625,7 @@ def seed():
         print(f"   - {len(notes)} daily notes")
         print(f"   - {len(shopping_items)} shopping items across 2 stores")
         print(f"   - {len(history)} shopping history entries")
-        print(f"   - {len(dinner_plans)} upcoming meal plans")
+        print(f"   - {len(meal_plans)} upcoming meal plans")
         print(f"   - {len(past_meals)} past meal plans")
         print(f"   - {len(prep_items)} preparedness items across 3 locations")
 

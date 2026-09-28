@@ -51,7 +51,7 @@ MEASURE_JS = r"""() => {
 
 
 def _plans(live_server: str) -> list[dict]:
-    with urllib.request.urlopen(f"{live_server}/api/dinner-plans", timeout=5) as resp:
+    with urllib.request.urlopen(f"{live_server}/api/meal-planner", timeout=5) as resp:
         return json.load(resp)
 
 
@@ -60,7 +60,7 @@ def _delete_probe_plans(live_server: str) -> None:
     for plan in _plans(live_server):
         if MARKER in (plan.get("plan") or ""):
             req = urllib.request.Request(
-                f"{live_server}/api/dinner-plans/{plan['id']}", method="DELETE"
+                f"{live_server}/api/meal-planner/{plan['id']}", method="DELETE"
             )
             urllib.request.urlopen(req, timeout=5).close()
 

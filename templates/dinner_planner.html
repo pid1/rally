@@ -111,7 +111,7 @@
 
         // API calls
         async function fetchPlans() {
-            const response = await fetch('/api/dinner-plans');
+            const response = await fetch('/api/meal-planner');
             const allPlans = await response.json();
 
             // Keep every meal from today onward (no upper bound — the planner

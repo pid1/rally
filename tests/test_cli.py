@@ -10,10 +10,10 @@ from rally.database import Base
 from rally.models import (
     Calendar,
     DashboardSnapshot,
-    DinnerPlan,
     Event,
     EventAttendee,
     FamilyMember,
+    MealPlan,
     PrepItem,
     PrepLocation,
     RecurringTodo,
@@ -74,7 +74,7 @@ def _counts(session):
         "settings": session.query(Setting).count(),
         "todos": session.query(Todo).count(),
         "recurring_todos": session.query(RecurringTodo).count(),
-        "dinner": session.query(DinnerPlan).count(),
+        "dinner": session.query(MealPlan).count(),
         "snapshots": session.query(DashboardSnapshot).count(),
         "stores": session.query(ShoppingStore).count(),
         "shopping_items": session.query(ShoppingItem).count(),
@@ -95,7 +95,7 @@ def test_seed_creates_past_meals_for_history_filters(cli_db):
     cli.seed()
     today = today_utc().strftime("%Y-%m-%d")
 
-    past = cli_db.query(DinnerPlan).filter(DinnerPlan.date < today).all()
+    past = cli_db.query(MealPlan).filter(MealPlan.date < today).all()
 
     assert past, "expected seeded meals in the past for the Previous Meals page"
     # All four meal types are represented.

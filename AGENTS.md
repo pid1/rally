@@ -565,7 +565,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, DinnerPlan, Note)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, MealPlan, Note)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -591,7 +591,7 @@ rally/
 │   │   └── sources.py    # Fetch every configured calendar into one merged list
 │   ├── generator/
 │   │   ├── __init__.py
-│   │   ├── generate.py   # Summary generation logic with calendar, todos, and dinner plans
+│   │   ├── generate.py   # Summary generation logic with calendar, todos, and meal plans
 │   │   └── __main__.py   # CLI entry point
 │   ├── utils/
 │   │   ├── __init__.py
@@ -604,7 +604,7 @@ rally/
 │       ├── todos.py         # Todo CRUD API
 │       ├── shopping.py      # Shopping list, store, and autocomplete-suggestion API
 │       ├── recurring_todos.py # Recurring todo template CRUD API
-│       ├── dinner_planner.py # Dinner plan CRUD API
+│       ├── meal_planner.py  # Meal plan CRUD API
 │       ├── notes.py        # Daily Note CRUD API plus the searchable previous-notes page
 │       ├── family.py        # Family member CRUD API
 │       ├── devices.py       # Device registry and the per-device behavioral settings API
@@ -690,7 +690,7 @@ rally/
 - ✅ FastAPI web application with routes
 - ✅ Summary generation (`rally.generator`) with ICS parsing and recurring event support
   - LLM system prompt includes task filtering guideline (guideline 10): the LLM only references tasks explicitly listed in the TODOS section of its prompt
-  - Todo and dinner plan date comparisons use the user's configured local timezone
+  - Todo and meal plan date comparisons use the user's configured local timezone
 - ✅ Configuration via Settings UI (stored in DB) with config.toml fallback
 - ✅ **Notes** (`/notes`) — one Daily Note per day, shown on the dashboard
   - The dashboard card is the **one card not taken from the snapshot**: `get_dashboard` reads today's note live on every request, so a note written at breakfast appears on the next load instead of waiting for the 4 AM generation. Everything else on that page is cached
@@ -745,7 +745,7 @@ rally/
 - ✅ Weather integration (configurable National Weather Service forecast URL — DWML feed)
 - ✅ Configurable LLM provider - Anthropic Claude or any OpenAI-compatible API
 - ✅ Idempotent database migrations - Run automatically on container startup
-- ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, and DinnerPlan models
+- ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, and MealPlan models
 - ✅ Dashboard caching via DashboardSnapshot table (no auto-generation on page load)
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
 - ✅ Navigation via a right-hand sidebar — docked open on wide screens, behind a hamburger menu otherwise — on a shared Jinja base layout (`templates/base.html`); see **Navigation**
@@ -852,7 +852,7 @@ rally/
   - Standings (`espn.fetch_standings` / `mlb.fetch_standings`) back the record-driven rules. Requested at `level=3` so division membership arrives with the records — the schedule payload carries no team grouping at all. **Reasons may cite a record or a streak, never a game result**; scores remain a non-goal
   - ESPN gotchas the adapter guards, each of which otherwise produces a silent wrong answer: a bare team-schedule call returns only the season type the calendar is in (so all three are requested and merged), `?dates=` is ignored on team endpoints (so the window is filtered locally), `market: National` is meaningless in the NFL, and **regional entries are dropped entirely because `market` does not identify whose feed it is** — measured across a full Stars season, all 58 regional TV rows are tagged `Home` and every one is the opponent's network
   - All calls are issued concurrently under one short overall budget and are best-effort: a provider outage degrades to a missing section, never a failed summary
-- ✅ Dinner planner - Full CRUD API and UI
+- ✅ Meal planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
   - Optional attendees: select which family members are eating (defaults to everyone)
   - Optional cook assignment: who's preparing the meal
@@ -1028,13 +1028,14 @@ visual suite (above) before shipping a layout change.
   - `GET /api/recurring-todos/{id}` - Get specific template
   - `PUT /api/recurring-todos/{id}` - Update template. `start_date` uses the `UNSET` sentinel like `custom_rule`, and its three edit states are enforced here: freely editable before anything is generated; after the first instance exists but nothing has been completed, a change re-dates the open instance and resets `last_generated_date` to the new first occurrence (the template owns the anchor — hand-editing the task never moved it); after any instance has been completed the change is a `409`, because the last completion drives the series from then on. Re-sending the value already stored is not a change. A malformed date, or one that is not `YYYY-MM-DD`, is a `422`
   - `DELETE /api/recurring-todos/{id}` - Delete template
-- `/api/dinner-plans` - Dinner plan CRUD endpoints
-  - `GET /api/dinner-plans` - List all dinner plans
-  - `POST /api/dinner-plans` - Create new dinner plan (multiple per date allowed)
-  - `GET /api/dinner-plans/{id}` - Get specific plan
-  - `GET /api/dinner-plans/date/{date}` - Get all plans for a date (YYYY-MM-DD)
-  - `PUT /api/dinner-plans/{id}` - Update plan
-  - `DELETE /api/dinner-plans/{id}` - Delete plan
+- `/api/meal-planner` - Meal plan CRUD endpoints
+  - `GET /api/meal-planner` - List all meal plans
+  - `POST /api/meal-planner` - Create new meal plan (multiple per date allowed)
+  - `GET /api/meal-planner/{id}` - Get specific plan
+  - `GET /api/meal-planner/date/{date}` - Get all plans for a date (YYYY-MM-DD)
+  - `PUT /api/meal-planner/{id}` - Update plan
+  - `PUT /api/meal-planner/{id}/review` - Set or clear a past meal's rating and review
+  - `DELETE /api/meal-planner/{id}` - Delete plan
 - `/api/family` - Family member CRUD endpoints. Every response carries `notifications: {kind: bool}` — **resolved** values with the defaults already filled in, so no client has to know what the defaults are. Behavioral preferences deliberately do *not* travel here: they belong to a person *on a device*, so a member record cannot carry one without carrying every device the household has ever used
   - `GET /api/family` - List all family members
   - `POST /api/family` - Create new family member. Accepts an optional `notifications` map; omitting it starts the member on the catalog defaults (everything on except `shopping_added`)
@@ -1181,7 +1182,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `PrepItem` - Preparedness stock with a free-text `quantity`, optional location and notes, and an optional refresh schedule (`refresh_mode` none/date/interval, `refresh_interval_months`, `next_refresh_date`, `remind_days_before`, `last_refreshed_on`). `next_refresh_date` is stored and indexed rather than derived — it is the only column the digest reads
 - `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimization
 - `MemberNotificationPref` - One family member's answer for one kind of notification (`event_reminder`, `event_change`, `task_assignment`, `prep_refresh`, `shopping_added`), unique on `(family_member_id, kind)`. **An absent row means the kind's default** — the row only exists once somebody has expressed a preference, the same discipline `todo_notify_enabled` follows. A preference only ever *narrows* the kind's audience rule; it can never add somebody to an audience they were not already in
-- `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
+- `MealPlan` - Meal planning (stored in the `dinner_plans` table, a name kept from when it only planned dinners) with date, meal type, plan text, rating and review, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues
 

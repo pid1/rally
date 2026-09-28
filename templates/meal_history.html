@@ -158,7 +158,7 @@
                 params.set('min_rating', currentMinRating);
             }
             selectedMealTypes.forEach(t => params.append('meal_type', t));
-            const response = await fetch(`/api/dinner-plans/history?${params}`);
+            const response = await fetch(`/api/meal-planner/history?${params}`);
             historyPlans = await response.json();
             renderHistory();
         }
@@ -168,7 +168,7 @@
             if (rating > 0) body.rating = rating;
             if (review) body.review = review;
 
-            const response = await fetch(`/api/dinner-plans/${planId}/review`, {
+            const response = await fetch(`/api/meal-planner/${planId}/review`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)

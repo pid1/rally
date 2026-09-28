@@ -25,10 +25,10 @@ from rally.database import Base, get_db
 from rally.main import app
 from rally.models import (
     Calendar,
-    DinnerPlan,
     Event,
     EventAttendee,
     FamilyMember,
+    MealPlan,
     PrepItem,
     PrepLocation,
     PrepRefreshNotice,
@@ -160,7 +160,7 @@ def make_recurring_todo(db_session: Session):
 
 
 @pytest.fixture
-def make_dinner_plan(db_session: Session):
+def make_meal_plan(db_session: Session):
     def _make(
         date: str = "2026-01-01",
         *,
@@ -168,8 +168,8 @@ def make_dinner_plan(db_session: Session):
         meal_type: str = "Dinner",
         rating: int | None = None,
         **kwargs,
-    ) -> DinnerPlan:
-        dp = DinnerPlan(date=date, plan=plan, meal_type=meal_type, rating=rating, **kwargs)
+    ) -> MealPlan:
+        dp = MealPlan(date=date, plan=plan, meal_type=meal_type, rating=rating, **kwargs)
         db_session.add(dp)
         db_session.commit()
         db_session.refresh(dp)

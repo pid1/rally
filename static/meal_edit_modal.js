@@ -169,10 +169,10 @@
 
             try {
                 if (this.editingId) {
-                    await this._request(`/api/dinner-plans/${this.editingId}`, 'PUT',
+                    await this._request(`/api/meal-planner/${this.editingId}`, 'PUT',
                         { date, meal_type, plan, attendee_ids, cook_id });
                 } else {
-                    await this._request('/api/dinner-plans', 'POST',
+                    await this._request('/api/meal-planner', 'POST',
                         { date, meal_type, plan, attendee_ids, cook_id });
                 }
                 if (addAnother) {
@@ -203,7 +203,7 @@
             if (!this.editingId) return;
             if (!confirm('Are you sure you want to delete this meal plan?')) return;
             try {
-                const resp = await fetch(`/api/dinner-plans/${this.editingId}`, { method: 'DELETE' });
+                const resp = await fetch(`/api/meal-planner/${this.editingId}`, { method: 'DELETE' });
                 if (!resp.ok) throw new Error('Failed to delete plan');
                 this.close();
                 await this.onSaved();

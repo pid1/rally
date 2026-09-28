@@ -477,7 +477,7 @@ class ShoppingSuggestion(BaseModel):
 MEAL_TYPES = ("Breakfast", "Lunch", "Dinner", "Snacks")
 
 
-class DinnerPlanBase(BaseModel):
+class MealPlanBase(BaseModel):
     date: str  # YYYY-MM-DD format
     meal_type: str = "Dinner"  # Breakfast, Lunch, Dinner, Snacks
     plan: str
@@ -487,11 +487,11 @@ class DinnerPlanBase(BaseModel):
     review: str | None = None  # Free-text review
 
 
-class DinnerPlanCreate(DinnerPlanBase):
+class MealPlanCreate(MealPlanBase):
     pass
 
 
-class DinnerPlanUpdate(BaseModel):
+class MealPlanUpdate(BaseModel):
     date: str | None = None
     meal_type: str | None = None
     plan: str | None = None
@@ -499,14 +499,14 @@ class DinnerPlanUpdate(BaseModel):
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
 
 
-class DinnerPlanReviewUpdate(BaseModel):
+class MealPlanReviewUpdate(BaseModel):
     """Lightweight schema for submitting/editing a meal review."""
 
     rating: int | None = None  # 1-5; None means "clear rating"
     review: str | None = None  # Free-text; None means "clear review"
 
 
-class DinnerPlanResponse(DinnerPlanBase):
+class MealPlanResponse(MealPlanBase):
     id: int
     created_at: datetime
     updated_at: datetime
