@@ -11,6 +11,20 @@ from rally import markdown, member_colors, member_prefs, notification_prefs
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
 
+
+class ArchivePage[T](BaseModel):
+    """One page of an archive: completed tasks, previous notes.
+
+    Every archive pages the same way, so they share one shape. ``total`` counts
+    matches across every page, which is what the results count reports — a
+    per-page count would say "50 matching" no matter how many there are.
+    """
+
+    items: list[T]
+    has_more: bool  # True when another page exists beyond this one
+    total: int  # Total matches across all pages for the current query (search + filters)
+
+
 # Family Members
 
 
@@ -323,14 +337,6 @@ class TodoResponse(TodoBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CompletedTodoPage(BaseModel):
-    """One page of previously completed todos."""
-
-    items: list[TodoResponse]
-    has_more: bool  # True when another page exists beyond this one
-    total: int  # Total matches across all pages for the current query (search + filters)
-
-
 # Recurring Todos
 
 
@@ -592,14 +598,6 @@ class NoteResponse(NoteBase):
         into its textarea, and the page inserts ``body_html`` directly.
         """
         return markdown.render(self.body)
-
-
-class NotePage(BaseModel):
-    """One page of previous notes."""
-
-    items: list[NoteResponse]
-    has_more: bool  # True when another page exists beyond this one
-    total: int  # Total matches across all pages for the current query
 
 
 class FollowedTeamBase(BaseModel):

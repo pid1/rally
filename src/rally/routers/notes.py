@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from rally.database import get_db
 from rally.models import Note
-from rally.schemas import NoteCreate, NotePage, NoteResponse, NoteUpdate
+from rally.schemas import ArchivePage, NoteCreate, NoteResponse, NoteUpdate
 from rally.utils.settings import today_local_str
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
@@ -40,7 +40,7 @@ def list_notes(db: Session = Depends(get_db)):
     return db.query(Note).filter(Note.date >= today).order_by(Note.date.asc()).all()
 
 
-@router.get("/previous", response_model=NotePage)
+@router.get("/previous", response_model=ArchivePage[NoteResponse])
 def list_previous_notes(
     search: str | None = Query(
         None, description="Case-insensitive keyword matched against the note body."
@@ -68,7 +68,7 @@ def list_previous_notes(
     total = query.count()
     # One extra row answers "is there another page" without a second count.
     rows = query.order_by(Note.date.desc()).offset(offset).limit(limit + 1).all()
-    return NotePage(items=rows[:limit], has_more=len(rows) > limit, total=total)
+    return ArchivePage[NoteResponse](items=rows[:limit], has_more=len(rows) > limit, total=total)
 
 
 @router.get("/{note_id}", response_model=NoteResponse)

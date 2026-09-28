@@ -615,6 +615,7 @@ rally/
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
+│   ├── archive_list.js      # The archive pages' shared search, results count and Load more
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
 ├── templates/
 │   ├── base.html            # The shared layout every page extends: <head>, header, menu button, sidebar
@@ -1003,7 +1004,7 @@ visual suite (above) before shipping a layout change.
   - `GET /api/notes/previous?search=&limit=&offset=` - Days before today, newest first. Returns `{items, has_more, total}`; `total` counts every match, which is what the results count reports
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
-  - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
+  - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
   - `POST /api/todos` - Create new todo. Pushes to the assignee when one is set (see **Pushover on task assignment**)
   - `GET /api/todos/{id}` - Get specific todo
   - `PUT /api/todos/{id}` - Update todo. Pushes to the assignee only when `assigned_to` changes to somebody new
