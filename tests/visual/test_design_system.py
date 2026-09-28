@@ -46,7 +46,7 @@ def test_filter_labels_are_placed_by_rule_not_by_chip_count(measure, page, viewp
     """B1 — label placement is a design decision, not an accident of wrapping.
 
     Stacked below 768px, inline at and above it. Before the rebuild this was
-    emergent: three chips sat inline and four did not, so Meal History showed
+    emergent: three chips sat inline and four did not, so Previous Meals showed
     both behaviors in one toolbar and adding a family member relaid out a page.
     """
     toolbar = measure(page, viewport)["toolbar"]
@@ -69,7 +69,7 @@ def test_clear_filters_occupies_one_fixed_slot_on_every_page(measure, viewport):
     """B2 — the reset control cannot drift between pages.
 
     It used to be a child of whichever filter group a template picked, so it
-    landed in five positions across five pages, and on Meal History it changed
+    landed in five positions across five pages, and on Previous Meals it changed
     row as well as column.
     """
     seen: dict[str, tuple[float, float]] = {}

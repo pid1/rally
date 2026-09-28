@@ -604,7 +604,7 @@ rally/
 │       ├── todos.py         # Todo CRUD API
 │       ├── shopping.py      # Shopping list, store, and autocomplete-suggestion API
 │       ├── recurring_todos.py # Recurring todo template CRUD API
-│       ├── meal_planner.py  # Meal plan CRUD API
+│       ├── meal_planner.py  # Meal plan CRUD API, plus the paged previous-meals archive
 │       ├── notes.py        # Daily Note CRUD API plus the searchable previous-notes page
 │       ├── family.py        # Family member CRUD API
 │       ├── devices.py       # Device registry and the per-device behavioral settings API
@@ -624,7 +624,8 @@ rally/
 │   ├── todo.html            # Todo management page
 │   ├── todo_completed.html  # Read-only previously-completed tasks page
 │   ├── shopping.html        # Shopping list page
-│   ├── dinner_planner.html  # Dinner planner page
+│   ├── meal_planner.html    # Meal planner page
+│   ├── meal_planner_previous.html # Previous meals: ratings, reviews, search and paging
 │   ├── notes.html           # Notes page: one Daily Note per day, today onward
 │   ├── notes_previous.html  # Read-only, searchable archive of past Daily Notes
 │   ├── _note_edit_modal.html # Shared note add/edit modal
@@ -980,7 +981,8 @@ visual suite (above) before shipping a layout change.
 - `/shopping/purchased` - Read-only page of items purchased before today (local time), grouped by store; reachable only via the `View purchased items` link on `/shopping`, not from the nav bar
 - `/notes` - **Notes**: one **Daily Note** per day, from today onward with no upper bound. A day with no note has no card. `Add Note` opens a dual-mode modal; a date that already has a note returns `409` carrying that note's id, and the modal switches to editing it rather than refusing or overwriting. Text is markdown — bold, italic, bullet and numbered lists, and a line break per Enter — rendered **server-side** by `rally.markdown` and returned as `body_html` beside the raw `body`. Markup is rejected at write time (`schemas._reject_markup`) *and* escaped at render; the rule is tag-shaped (`<` + optional `/` + a letter) so `temp < 40` survives
 - `/notes/previous` - Read-only notes for days before today, newest first, with server-side search and paging. Reachable only via `View previous notes` on `/notes`, not from the nav
-- `/dinner-planner` - Dinner planning page with date picker and plan management
+- `/meal-planner` - Meal planning page with date picker and plan management
+- `/meal-planner/previous` - **Previous Meals**: meals from days before today, with ratings and reviews, Meal Type and Rating chips, Sort, server-side search over the meal and its review, and paging. Reachable only via `View previous meals` on `/meal-planner`, not from the nav. The one archive you can edit, so a save reloads what is loaded rather than jumping back to the first page
 - `/settings` - Settings, family member, calendar, and followed-team management page. **Personal Defaults** is the per-person, per-device behavioral section, and everything in it is scoped to the device it is being read on: a `This device` name, a `This device belongs to` control (the device→member binding, `localStorage` only, never sent anywhere), one dropdown per family member per setting in `member_prefs.CATALOG`, and **Devices Rally remembers** — every device, its answer count, when it was last seen, and a `Forget`. Saved on change; the `PUT` carries only the setting that moved
 - `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
 - `/preparedness` - Preparedness stock, grouped by location. Location and status chips, search, and an `Add Item` modal carrying the refresh schedule. Each scheduled row has a `Refreshed` button — the one action performed while standing in the garage holding the thing
@@ -1032,6 +1034,7 @@ visual suite (above) before shipping a layout change.
 - `/api/meal-planner` - Meal plan CRUD endpoints
   - `GET /api/meal-planner` - List all meal plans
   - `POST /api/meal-planner` - Create new meal plan (multiple per date allowed)
+  - `GET /api/meal-planner/previous?sort=&min_rating=&meal_type=&search=&limit=&offset=` - Meals before today (local time). `sort` is `rating_desc` (default), `date_desc` or `date_asc`, each ending in `id` so offset paging never repeats or skips a tied meal; repeatable `meal_type`; `search` matches the meal or its review, case-insensitively; `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`
   - `GET /api/meal-planner/{id}` - Get specific plan
   - `GET /api/meal-planner/date/{date}` - Get all plans for a date (YYYY-MM-DD)
   - `PUT /api/meal-planner/{id}` - Update plan
@@ -1105,9 +1108,9 @@ visual suite (above) before shipping a layout change.
 ### Navigation
 Every page extends **`templates/base.html`**, which owns the `<head>`, the wordmark header, the menu button and the sidebar. A page supplies only its `title` block (the part after `Rally — `, always an em dash), its `subtitle`, any page-specific `head` scripts, and its `content`; it names its own sidebar entry with `{% set nav_active = "…" %}` at the top. A nav change is therefore made **once**, in `base.html` — the old nav was copied into fourteen templates and had already drifted. Every page renders through the one Jinja environment in `src/rally/templating.py`, including the Dashboard, which used to be filled in with `str.replace` and so could not share a layout; its HTML-bearing values arrive as `Markup` so they are inserted exactly as before.
 
-Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Previous Meals, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
+Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
 
-- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
+- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/meal-planner/previous` → Meal Planner, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
 - **The go list is not in the sidebar**: it is a view of the inventory, reached by `View go list` on Preparedness
 - **Width alone decides the treatment**, in three bands:
   - **75rem (1200px) and wider — docked.** The page column (`--page-max`, 900px) and the sidebar (`--sidebar-width`, 18rem) fit side by side, so the sidebar is simply open: no button, no scrim, and `html` gains `padding-right: var(--sidebar-width)` so the column centers in the space left of it. Hiding it there would cost a click per navigation to save space the page cannot use. `sidebar.js` never repeats this width — it treats "the button is not displayed" as docked, and drops an overlay's open state when a resize crosses the line

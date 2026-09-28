@@ -1,4 +1,4 @@
-"""Tests for the meal planner router: CRUD, reviews, meal history, and
+"""Tests for the meal planner router: CRUD, reviews, previous meals, and
 the meal-type sort order, plus the DB-level rating check constraint.
 """
 
@@ -165,12 +165,12 @@ def test_review_404(client):
     assert client.put("/api/meal-planner/9999/review", json={"rating": 5}).status_code == 404
 
 
-# --- Meal history --------------------------------------------------------------
+# --- Previous meals --------------------------------------------------------------
 
 TODAY = datetime(2026, 5, 10, 12, tzinfo=UTC)
 
 
-def test_history_filters_past_only_and_rating_desc(client, make_meal_plan, frozen_now):
+def test_previous_filters_past_only_and_rating_desc(client, make_meal_plan, frozen_now):
     frozen_now(TODAY)
     make_meal_plan("2026-05-01", plan="A", rating=5)
     make_meal_plan("2026-05-02", plan="B", rating=3)
@@ -178,7 +178,7 @@ def test_history_filters_past_only_and_rating_desc(client, make_meal_plan, froze
     make_meal_plan("2026-05-10", plan="Today", rating=5)  # not before today -> excluded
     make_meal_plan("2026-05-15", plan="Future", rating=5)  # excluded
 
-    hist = client.get("/api/meal-planner/history").json()  # default rating_desc
+    hist = client.get("/api/meal-planner/previous").json()["items"]  # default rating_desc
 
     assert [(p["date"], p["rating"]) for p in hist] == [
         ("2026-05-01", 5),
@@ -187,90 +187,181 @@ def test_history_filters_past_only_and_rating_desc(client, make_meal_plan, froze
     ]
 
 
-def test_history_min_rating_filter(client, make_meal_plan, frozen_now):
+def test_previous_min_rating_filter(client, make_meal_plan, frozen_now):
     frozen_now(TODAY)
     make_meal_plan("2026-05-01", plan="A", rating=5)
     make_meal_plan("2026-05-02", plan="B", rating=2)
 
-    hist = client.get("/api/meal-planner/history", params={"min_rating": 3}).json()
+    hist = client.get("/api/meal-planner/previous", params={"min_rating": 3}).json()["items"]
 
     assert [p["date"] for p in hist] == ["2026-05-01"]
 
 
-def test_history_sort_date_asc_and_desc(client, make_meal_plan, frozen_now):
+def test_previous_sort_date_asc_and_desc(client, make_meal_plan, frozen_now):
     frozen_now(TODAY)
     make_meal_plan("2026-05-01", plan="A", rating=1)
     make_meal_plan("2026-05-05", plan="B", rating=1)
 
-    asc = client.get("/api/meal-planner/history", params={"sort": "date_asc"}).json()
-    desc = client.get("/api/meal-planner/history", params={"sort": "date_desc"}).json()
+    asc = client.get("/api/meal-planner/previous", params={"sort": "date_asc"}).json()["items"]
+    desc = client.get("/api/meal-planner/previous", params={"sort": "date_desc"}).json()["items"]
 
     assert [p["date"] for p in asc] == ["2026-05-01", "2026-05-05"]
     assert [p["date"] for p in desc] == ["2026-05-05", "2026-05-01"]
 
 
-def test_history_meal_type_filter(client, make_meal_plan, frozen_now):
+def test_previous_meal_type_filter(client, make_meal_plan, frozen_now):
     frozen_now(TODAY)
     make_meal_plan("2026-05-01", plan="Eggs", meal_type="Breakfast", rating=4)
     make_meal_plan("2026-05-02", plan="Steak", meal_type="Dinner", rating=4)
 
-    hist = client.get("/api/meal-planner/history", params={"meal_type": "Breakfast"}).json()
+    hist = client.get("/api/meal-planner/previous", params={"meal_type": "Breakfast"}).json()[
+        "items"
+    ]
 
     assert [p["plan"] for p in hist] == ["Eggs"]
 
 
-def test_history_meal_type_filter_multiple(client, make_meal_plan, frozen_now):
+def test_previous_meal_type_filter_multiple(client, make_meal_plan, frozen_now):
     frozen_now(TODAY)
     make_meal_plan("2026-05-01", plan="Eggs", meal_type="Breakfast", rating=4)
     make_meal_plan("2026-05-02", plan="Sandwich", meal_type="Lunch", rating=4)
     make_meal_plan("2026-05-03", plan="Steak", meal_type="Dinner", rating=4)
 
     hist = client.get(
-        "/api/meal-planner/history", params={"meal_type": ["Breakfast", "Lunch"]}
-    ).json()
+        "/api/meal-planner/previous", params={"meal_type": ["Breakfast", "Lunch"]}
+    ).json()["items"]
 
     assert sorted(p["plan"] for p in hist) == ["Eggs", "Sandwich"]
 
 
-def test_history_meal_type_composes_with_min_rating(client, make_meal_plan, frozen_now):
+def test_previous_meal_type_composes_with_min_rating(client, make_meal_plan, frozen_now):
     frozen_now(TODAY)
     make_meal_plan("2026-05-01", plan="GoodDinner", meal_type="Dinner", rating=5)
     make_meal_plan("2026-05-02", plan="BadDinner", meal_type="Dinner", rating=2)
     make_meal_plan("2026-05-03", plan="GoodLunch", meal_type="Lunch", rating=5)
 
     hist = client.get(
-        "/api/meal-planner/history",
+        "/api/meal-planner/previous",
         params={"meal_type": "Dinner", "min_rating": 3},
-    ).json()
+    ).json()["items"]
 
     assert [p["plan"] for p in hist] == ["GoodDinner"]
 
 
-def test_history_invalid_meal_type_returns_422(client, make_meal_plan, frozen_now):
+def test_previous_invalid_meal_type_returns_422(client, make_meal_plan, frozen_now):
     frozen_now(TODAY)
     make_meal_plan("2026-05-01", plan="Eggs", meal_type="Breakfast", rating=4)
 
-    resp = client.get("/api/meal-planner/history", params={"meal_type": "Brunch"})
+    resp = client.get("/api/meal-planner/previous", params={"meal_type": "Brunch"})
 
     assert resp.status_code == 422
 
 
-def test_history_respects_local_timezone(client, make_meal_plan, frozen_now, local_timezone):
+def test_previous_respects_local_timezone(client, make_meal_plan, frozen_now, local_timezone):
     # At 02:00Z the local date in Kolkata (+05:30) is already the next day, so a
-    # plan dated that local day counts as "today" and is excluded from history.
+    # plan dated that local day counts as "today" and is excluded from previous meals.
     frozen_now(datetime(2026, 5, 10, 2, 0, tzinfo=UTC))
     local_timezone("Asia/Kolkata")  # local date is 2026-05-10
     make_meal_plan("2026-05-09", plan="Yesterday", rating=4)
     make_meal_plan("2026-05-10", plan="LocalToday", rating=4)
 
-    dates = [p["date"] for p in client.get("/api/meal-planner/history").json()]
+    dates = [p["date"] for p in client.get("/api/meal-planner/previous").json()["items"]]
 
     assert dates == ["2026-05-09"]
 
 
+def test_previous_search_matches_meal_text(client, make_meal_plan, frozen_now):
+    frozen_now(TODAY)
+    make_meal_plan("2026-05-01", plan="Grilled Salmon", rating=4)
+    make_meal_plan("2026-05-02", plan="Tacos", rating=4)
+
+    page = client.get("/api/meal-planner/previous", params={"search": "salmon"}).json()
+
+    assert [p["plan"] for p in page["items"]] == ["Grilled Salmon"]
+    assert page["total"] == 1
+
+
+def test_previous_search_matches_review_text(client, make_meal_plan, frozen_now):
+    frozen_now(TODAY)
+    make_meal_plan("2026-05-01", plan="Tacos", rating=5, review="Better than the salmon")
+    make_meal_plan("2026-05-02", plan="Pizza", rating=3, review="Fine")
+
+    page = client.get("/api/meal-planner/previous", params={"search": "SALMON"}).json()
+
+    assert [p["plan"] for p in page["items"]] == ["Tacos"]
+
+
+def test_previous_search_with_no_match_is_empty(client, make_meal_plan, frozen_now):
+    frozen_now(TODAY)
+    make_meal_plan("2026-05-01", plan="Tacos", rating=5)
+
+    page = client.get("/api/meal-planner/previous", params={"search": "sushi"}).json()
+
+    assert page == {"items": [], "has_more": False, "total": 0}
+
+
+def test_previous_search_excludes_today_and_later(client, make_meal_plan, frozen_now):
+    frozen_now(TODAY)
+    make_meal_plan("2026-05-01", plan="Past chili", rating=4)
+    make_meal_plan("2026-05-10", plan="Today chili")
+
+    page = client.get("/api/meal-planner/previous", params={"search": "chili"}).json()
+
+    assert [p["plan"] for p in page["items"]] == ["Past chili"]
+
+
+def test_previous_pages_with_has_more_and_total(client, make_meal_plan, frozen_now):
+    frozen_now(TODAY)
+    for day in range(1, 6):
+        make_meal_plan(f"2026-05-0{day}", plan=f"Meal {day}", rating=4)
+
+    first = client.get("/api/meal-planner/previous", params={"sort": "date_asc", "limit": 2}).json()
+    last = client.get(
+        "/api/meal-planner/previous", params={"sort": "date_asc", "limit": 2, "offset": 4}
+    ).json()
+
+    assert [p["plan"] for p in first["items"]] == ["Meal 1", "Meal 2"]
+    assert first["has_more"] is True
+    assert first["total"] == 5
+    assert [p["plan"] for p in last["items"]] == ["Meal 5"]
+    assert last["has_more"] is False
+    assert last["total"] == 5
+
+
+@pytest.mark.parametrize("sort", ["rating_desc", "date_desc", "date_asc"])
+def test_previous_paging_across_ties_returns_each_meal_once(
+    client, make_meal_plan, frozen_now, sort
+):
+    """Five 5-star dinners on one date tie on every sort key but id; paging
+    one at a time must still return each exactly once."""
+    frozen_now(TODAY)
+    ids = {
+        make_meal_plan("2026-05-01", plan=f"Dinner {n}", meal_type="Dinner", rating=5).id
+        for n in range(5)
+    }
+
+    seen = []
+    for offset in range(5):
+        page = client.get(
+            "/api/meal-planner/previous", params={"sort": sort, "limit": 1, "offset": offset}
+        ).json()
+        seen.extend(p["id"] for p in page["items"])
+
+    assert sorted(seen) == sorted(ids)
+
+
+def test_previous_rejects_a_limit_over_200(client):
+    assert client.get("/api/meal-planner/previous", params={"limit": 201}).status_code == 422
+
+
+def test_history_endpoint_is_gone(client):
+    assert client.get("/api/meal-planner/history").status_code in (404, 422)
+    assert client.get("/api/dinner-plans/history").status_code == 404
+
+
 # --- Moving a meal onto the planner discards its rating/review -----------------
 #
-# A rating/review only makes sense for a past meal (Meal History). Editing a
+# A rating/review only makes sense for a past meal (Previous Meals). Editing a
 # meal's date to today or later moves it onto the Meal Planner, which clears any
 # rating and review. The frozen "today" here is TODAY (2026-05-10, UTC).
 

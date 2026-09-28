@@ -74,7 +74,7 @@ def batch(browser, live_server):
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = context.new_page()
     try:
-        page.goto(live_server + "/dinner-planner", wait_until="networkidle")
+        page.goto(live_server + "/meal-planner", wait_until="networkidle")
         page.click("#btn-add-meal")
 
         page.fill("#plan-date", PLAN_DATE)
@@ -163,7 +163,7 @@ def test_edit_mode_does_not_offer_save_and_add_another(browser, live_server):
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = context.new_page()
     try:
-        page.goto(live_server + "/dinner-planner", wait_until="networkidle")
+        page.goto(live_server + "/meal-planner", wait_until="networkidle")
 
         page.click("#btn-add-meal")
         assert page.evaluate(MEASURE_JS)["addAnotherShown"], "Add mode should offer the button"
@@ -188,7 +188,7 @@ def test_save_still_closes_the_modal(browser, live_server):
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = context.new_page()
     try:
-        page.goto(live_server + "/dinner-planner", wait_until="networkidle")
+        page.goto(live_server + "/meal-planner", wait_until="networkidle")
         page.click("#btn-add-meal")
         page.fill("#plan-date", PLAN_DATE)
         page.fill("#plan-text", f"{MARKER} plain save")
@@ -207,7 +207,7 @@ def test_an_empty_menu_still_blocks_the_save(browser, live_server):
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = context.new_page()
     try:
-        page.goto(live_server + "/dinner-planner", wait_until="networkidle")
+        page.goto(live_server + "/meal-planner", wait_until="networkidle")
         page.click("#btn-add-meal")
         page.fill("#plan-date", PLAN_DATE)
         page.fill("#plan-text", "")
@@ -238,7 +238,7 @@ def test_the_third_button_fits_the_action_row(browser, live_server, viewport):
     )
     page = context.new_page()
     try:
-        page.goto(live_server + "/dinner-planner", wait_until="networkidle")
+        page.goto(live_server + "/meal-planner", wait_until="networkidle")
         page.click("#btn-add-meal")
         state = page.evaluate(MEASURE_JS)
 

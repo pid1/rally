@@ -13,7 +13,8 @@ UNSET = object()
 
 
 class ArchivePage[T](BaseModel):
-    """One page of an archive: completed tasks, previous notes, purchased items.
+    """One page of an archive: completed tasks, previous notes, previous meals,
+    purchased items.
 
     Every archive pages the same way, so they share one shape. ``total`` counts
     matches across every page, which is what the results count reports — a

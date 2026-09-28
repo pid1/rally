@@ -1,12 +1,12 @@
 // Shared meal add/edit modal used by both meal pages:
 //   - Meal Planner (Current & Upcoming) — add + edit upcoming meals
-//   - Meal History (Previous Meals)      — edit past meals
+//   - Previous Meals                     — edit past meals
 //
 // Both templates include _meal_edit_modal.html (same element IDs); each page
 // constructs a MealEditModal with page-specific hooks. Keeping the markup and
 // behavior in one place means the edit experience has a single source of truth.
 //
-// Ratings/reviews live only on past meals (Meal History). When an edit moves a
+// Ratings/reviews live only on past meals (Previous Meals). When an edit moves a
 // meal's date onto the planner (today or later), any existing rating/review is
 // discarded: this class warns and confirms first, and the server clears them.
 (function (global) {

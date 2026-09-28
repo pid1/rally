@@ -1166,7 +1166,7 @@ label.weekday-label,
 
 /* The date a record *is* — as opposed to `.todo-due-date` /
    `.todo-completed-date`, which are a status *on* a record. Shared by Notes,
-   Meal Planner and Meal History, each of which otherwise had its own class
+   Meal Planner and Previous Meals, each of which otherwise had its own class
    for the same idea (`.editable-item-title`, `.meal-day-date`, `.meta-date`).
    Only the typography lives here; where the label sits — trailing a Notes
    card, footing a Meal Planner day box, or beside the title on a Meal

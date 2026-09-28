@@ -15,8 +15,8 @@ TEMPLATES = pathlib.Path(__file__).resolve().parents[1] / "templates"
         "/todo/completed",
         "/shopping",
         "/shopping/purchased",
-        "/dinner-planner",
-        "/meal-history",
+        "/meal-planner",
+        "/meal-planner/previous",
         "/settings",
         "/calendar",
     ],
@@ -35,8 +35,8 @@ def test_page_renders_html(client, path):
         "/todo/completed",
         "/shopping",
         "/shopping/purchased",
-        "/dinner-planner",
-        "/meal-history",
+        "/meal-planner",
+        "/meal-planner/previous",
         "/settings",
     ],
 )
@@ -45,7 +45,7 @@ def test_nav_links_to_shopping(client, path):
     assert 'href="/shopping"' in client.get(path).text
 
 
-@pytest.mark.parametrize("path", ["/dinner-planner", "/meal-history"])
+@pytest.mark.parametrize("path", ["/meal-planner", "/meal-planner/previous"])
 def test_meal_pages_include_shared_edit_modal(client, path):
     """Both meal pages render the shared edit modal partial and load its JS, so
     the edit experience has a single source of truth."""
@@ -61,10 +61,15 @@ def test_root_redirects_to_dashboard(client):
     assert resp.headers["location"] == "/dashboard"
 
 
-def test_meal_planner_redirects_to_dinner_planner(client):
-    resp = client.get("/meal-planner", follow_redirects=False)
-    assert resp.status_code in (307, 308)
-    assert resp.headers["location"] == "/dinner-planner"
+@pytest.mark.parametrize("path", ["/dinner-planner", "/meal-history"])
+def test_old_meal_page_urls_are_gone(client, path):
+    """Deliberately not redirected: nothing inside Rally links to them."""
+    assert client.get(path, follow_redirects=False).status_code == 404
+
+
+def test_meal_planner_links_to_previous_meals_and_back(client):
+    assert 'href="/meal-planner/previous"' in client.get("/meal-planner").text
+    assert 'href="/meal-planner"' in client.get("/meal-planner/previous").text
 
 
 def test_static_css_sets_no_cache(client):

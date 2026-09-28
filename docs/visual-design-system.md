@@ -12,7 +12,7 @@ This document is the audit, the design system built to fix it, and the enforceme
 
 Every page was loaded in headless Chromium at three widths — 1440×900, 834×1112, 390×844 — and measured in the DOM rather than eyeballed. Screenshots were captured alongside, but the findings below are geometry, not impressions: element boxes, computed styles, focus rings after actually focusing, and a census of every distinct value in use.
 
-Pages: `/dashboard`, `/todo`, `/todo/completed`, `/shopping`, `/shopping/purchased`, `/dinner-planner`, `/meal-history`, `/settings`. Modals: all 11, opened and measured at desktop and mobile.
+Pages: `/dashboard`, `/todo`, `/todo/completed`, `/shopping`, `/shopping/purchased`, `/meal-planner`, `/meal-planner/previous`, `/settings`. Modals: all 11, opened and measured at desktop and mobile.
 
 The measuring code is the reason this is worth doing as a *system*: it is directly reusable as the enforcement mechanism (see "Enforcement" below), so the audit becomes a regression test rather than a one-time cleanup.
 
@@ -24,7 +24,7 @@ Grouped by cause, not by page. This is the state before the rebuild; each findin
 
 **A1. Every content page has a 2px horizontal jog on desktop.** At ≥1024px the body content box is 804px wide (`max-width: 900px` minus `padding: 64px 48px`), but `.section-container` caps itself at `max-width: 800px` and centers, insetting 2px on each side. Measured left edges on all six content pages: `.header`, `nav`, `footer` at x=318; `.section-container`, `.header-container`, `.filter-toolbar`, `.list-container` at x=320. The rule under the wordmark is 4px wider than the rule under the page title, on every page. Two nested max-widths are one too many.
 
-**A2. The gap between the page title and the toolbar is three different sizes.** Measured from the bottom of the `.header-container` rule to the top of `.filter-toolbar`: 32px on Meal Planner and Meal History; 61.2px on Tasks, Completed Tasks and Shopping; 92.3px on Purchased Items. The difference is whether the page happens to have a `.view-switch` link and a `.page-note`, which sit as loose siblings contributing their own margins instead of belonging to a defined header block.
+**A2. The gap between the page title and the toolbar is three different sizes.** Measured from the bottom of the `.header-container` rule to the top of `.filter-toolbar`: 32px on Meal Planner and Previous Meals; 61.2px on Tasks, Completed Tasks and Shopping; 92.3px on Purchased Items. The difference is whether the page happens to have a `.view-switch` link and a `.page-note`, which sit as loose siblings contributing their own margins instead of belonging to a defined header block.
 
 **A3. The `.view-switch` link is visually attached to the wrong thing.** It sits 36px below the title rule but 0.7px above the toolbar, so "View completed tasks" reads as part of the filter bar rather than as a page-level action.
 
@@ -34,7 +34,7 @@ Grouped by cause, not by page. This is the state before the rebuild; each findin
 |---|---|---|
 | Completed Tasks | 981px | 116% |
 | Tasks | 864px | 102% |
-| Meal History | 861px | 102% |
+| Previous Meals | 861px | 102% |
 | Purchased Items | 830px | 98% |
 | Shopping | 760px | 90% |
 | Meal Planner | 730px | 86% |
@@ -56,12 +56,12 @@ This is the single largest source of visible inconsistency, and it is where the 
 | Page | Group | Chips | Label beside chips? |
 |---|---|---|---|
 | Tasks | Assignee | 5 | no |
-| Meal History | Meal Type | 4 | no |
+| Previous Meals | Meal Type | 4 | no |
 | Meal Planner | Meal Type | 4 | no |
-| Meal History | Rating | 3 | **yes** |
+| Previous Meals | Rating | 3 | **yes** |
 | Shopping | Store | 3 | **yes** |
 
-Meal History exhibits both behaviors *in the same toolbar*: "Meal Type" above its chips, "Rating" beside its chips, "Sort" beside its select. Adding a family member or a store silently changes the layout of the page.
+Previous Meals exhibits both behaviors *in the same toolbar*: "Meal Type" above its chips, "Rating" beside its chips, "Sort" beside its select. Adding a family member or a store silently changes the layout of the page.
 
 **B2. "Clear Filters" lands wherever the preceding chips end.** It is a child of whichever `.toolbar-group` each template happened to put it in, so it has no fixed slot. Measured x-position and row at 1440px:
 
@@ -70,10 +70,10 @@ Meal History exhibits both behaviors *in the same toolbar*: "Meal Type" above it
 | Tasks | Assignee | 771 | 1 |
 | Meal Planner | Meal Type | 732 | 1 |
 | Shopping | Store | 654 | 1 |
-| Meal History | Rating | 628 | **2** |
+| Previous Meals | Rating | 628 | **2** |
 | Purchased Items | Store | 384 | 1 |
 
-Between Meal Planner and Meal History — two views of the same feature, reached from the same nav dropdown — the control changes both column and row. On Meal History it is stranded mid-row between the Rating chips and the Sort label, so it reads as if it belongs to Sort.
+Between Meal Planner and Previous Meals — two views of the same feature, reached from the same nav dropdown — the control changes both column and row. On Previous Meals it is stranded mid-row between the Rating chips and the Sort label, so it reads as if it belongs to Sort.
 
 **B3. `.filter-clear` styles two unrelated kinds of action.** It is both the reset control ("Clear Filters", "Clear Search") and a navigation control ("Manage stores", which opens a modal). Identical appearance, entirely different consequence, sitting side by side in the Shopping toolbar.
 
@@ -111,7 +111,7 @@ Between Meal Planner and Meal History — two views of the same feature, reached
 
 **D7. Modals reopened wherever they were last left.** Found after the audit, from a screenshot of Add Item opening with its first label already scrolled off. A hidden modal keeps its `scrollTop`, and `showModalOverlay()` never reset it: scrolling to the bottom of Add Item, cancelling, and opening it again came back at 189px of 189 — a form that appears to start part-way through itself.
 
-The reason it was not uniform is that only some modals opened through the helper at all. Nineteen call sites across `settings.html`, `meal_history.html`, `todo.html` and `shopping.html` set `.style.display` on the overlay by hand, skipping the fade computation as well. One way in, one way out, and the reset lives in the helper where every modal gets it.
+The reason it was not uniform is that only some modals opened through the helper at all. Nineteen call sites across `settings.html`, `meal_planner_previous.html`, `todo.html` and `shopping.html` set `.style.display` on the overlay by hand, skipping the fade computation as well. One way in, one way out, and the reset lives in the helper where every modal gets it.
 
 ### E. Accessibility
 
