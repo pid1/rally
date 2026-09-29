@@ -519,7 +519,7 @@ def _summary_gen(response_text, *, provider="anthropic"):
     gen.fetch_weather = lambda: None
     gen.load_family_members = lambda: {}
     gen.load_todos = lambda: "No todos currently active."
-    gen.load_dinner_plans = lambda: "No meal plans for the next 7 days."
+    gen.load_meal_plans = lambda: "No meal plans for the next 7 days."
     return gen
 
 
@@ -735,7 +735,7 @@ def _eval_gen(response_text):
         "cal_text": "c",
         "weather": "w",
         "todos": "t",
-        "dinner_plans": "d",
+        "meal_plans": "d",
         "family_members": "f",
     }
     return gen

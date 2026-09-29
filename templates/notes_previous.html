@@ -39,13 +39,8 @@
         </div>
     </div>
 
+    <script src="/static/archive_list.js?v={{ css_version }}"></script>
     <script>
-        const PAGE_SIZE = 50;
-
-        let items = [];
-        let offset = 0;
-        let hasMore = false;
-        let searchTerm = '';
         let localTimezone = 'UTC';
 
         async function fetchSettings() {
@@ -75,105 +70,33 @@
             return div.innerHTML;
         }
 
-        async function loadPage(reset) {
-            if (reset) {
-                items = [];
-                offset = 0;
-            }
-            const params = new URLSearchParams({ limit: PAGE_SIZE, offset });
-            if (searchTerm) params.set('search', searchTerm);
-
-            const response = await fetch(`/api/notes/previous?${params}`);
-            const page = await response.json();
-
-            items = items.concat(page.items);
-            hasMore = page.has_more;
-            offset += page.items.length;
-
-            updateSearchCount(page.total);
-            render();
-            updateLoadMore(false);
-        }
-
-        function render() {
-            const container = document.getElementById('list-container');
-
-            if (items.length === 0) {
-                container.innerHTML = searchTerm
-                    ? '<div class="container-empty-state">No notes match your search.</div>'
-                    : '<div class="container-empty-state">No previous notes.</div>';
-                return;
-            }
-
+        // No chips and no sort, so there is nothing for a search to reset.
+        const archive = new ArchiveList({
+            endpoint: '/api/notes/previous',
+            container: 'list-container',
+            noun: ['note', 'notes'],
+            loadingText: 'Loading previous notes...',
+            errorText: 'Could not load previous notes. Please try again.',
+            emptyMessage: () => archive.searchTerm
+                ? 'No notes match your search.'
+                : 'No previous notes.',
             // Read-only: the same card shape as the Notes page, minus Edit.
             // `body_html` is server-rendered markdown (see rally.markdown);
             // everything else goes through escapeHtml().
-            container.innerHTML = items.map(note => `
+            render: (notes) => notes.map(note => `
                 <div class="editable-item" data-id="${note.id}">
                     <div class="editable-item-content">
                         <div class="editable-item-multiline">${note.body_html}</div>
                         <div class="date-label">${escapeHtml(formatDate(note.date))}</div>
                     </div>
                 </div>
-            `).join('');
-        }
-
-        // Total matches across every page, not just the one in hand.
-        function updateSearchCount(total) {
-            const el = document.getElementById('search-results-count');
-            if (!searchTerm) {
-                el.hidden = true;
-                return;
-            }
-            el.hidden = false;
-            el.textContent = total === 1 ? '1 matching note.' : `${total} matching notes.`;
-        }
-
-        function updateLoadMore(loading) {
-            const container = document.getElementById('load-more-container');
-            const button = document.getElementById('btn-load-more');
-            container.style.display = hasMore ? '' : 'none';
-            button.disabled = loading;
-            button.textContent = loading ? 'Loading…' : 'Load more';
-        }
-
-        // Search runs only on submit (button click or Enter), never on keystroke:
-        // it hits the server, and paging has to agree with it about what the
-        // current query is when Load more is pressed.
-        function runSearch() {
-            searchTerm = document.getElementById('search-input').value.trim();
-            loadPage(true);
-        }
-
-        document.getElementById('search-input').addEventListener('input', (e) => {
-            document.getElementById('search-btn').disabled = e.target.value.trim().length === 0;
-        });
-
-        document.getElementById('search-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                runSearch();
-            }
-        });
-
-        document.getElementById('search-btn').addEventListener('click', runSearch);
-
-        document.getElementById('search-clear').addEventListener('click', () => {
-            document.getElementById('search-input').value = '';
-            document.getElementById('search-btn').disabled = true;
-            searchTerm = '';
-            loadPage(true);
-        });
-
-        document.getElementById('btn-load-more').addEventListener('click', async () => {
-            updateLoadMore(true);
-            await loadPage(false);
+            `).join(''),
         });
 
         // Init
         (async function () {
             await fetchSettings();
-            await loadPage(true);
+            await archive.reload();
         })();
     </script>
 {% endblock %}

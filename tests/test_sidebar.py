@@ -23,8 +23,7 @@ SIDEBAR_ORDER = [
     ("/shopping", "Shopping"),
     ("/calendar", "Calendar"),
     ("/notes", "Notes"),
-    ("/dinner-planner", "Meal Planner"),
-    ("/meal-history", "Previous Meals"),
+    ("/meal-planner", "Meal Planner"),
     ("/preparedness", "Preparedness"),
     ("/settings", "Settings"),
 ]
@@ -38,8 +37,8 @@ PAGES = {
     "/calendar": ("Calendar", "/calendar"),
     "/notes": ("Notes", "/notes"),
     "/notes/previous": ("Previous Notes", "/notes"),
-    "/dinner-planner": ("Meal Planner", "/dinner-planner"),
-    "/meal-history": ("Meal History", "/meal-history"),
+    "/meal-planner": ("Meal Planner", "/meal-planner"),
+    "/meal-planner/previous": ("Previous Meals", "/meal-planner"),
     "/preparedness": ("Preparedness", "/preparedness"),
     "/go-list": ("Go List", "/preparedness"),
     "/settings": ("Settings", "/settings"),
@@ -65,7 +64,7 @@ def _links(sidebar: str) -> list[tuple[str, str, bool]]:
 
 @pytest.mark.parametrize("path", ALL_PATHS)
 def test_every_page_carries_the_sidebar_in_order(client, path):
-    """Nine links, the order they had across the row and the dropdown, with
+    """Eight links, the order they had across the row and the dropdown, with
     Settings moved up from the footer to the end."""
     html = client.get(path).text
     links = _links(_sidebar(html))

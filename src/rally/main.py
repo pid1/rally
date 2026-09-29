@@ -11,9 +11,9 @@ from rally.database import init_db
 from rally.routers import (
     dashboard,
     devices,
-    dinner_planner,
     events,
     family,
+    meal_planner,
     notes,
     preparedness,
     recurring_todos,
@@ -61,7 +61,7 @@ if static_dir.is_dir():
 app.include_router(dashboard.router)
 app.include_router(events.router)
 app.include_router(todos.router)
-app.include_router(dinner_planner.router)
+app.include_router(meal_planner.router)
 app.include_router(family.router)
 app.include_router(devices.router)
 app.include_router(recurring_todos.router)
@@ -128,22 +128,16 @@ def notes_previous_page(request: Request):
     return templates.TemplateResponse(request, "notes_previous.html")
 
 
-@app.get("/dinner-planner", response_class=HTMLResponse)
-def dinner_planner_page(request: Request):
+@app.get("/meal-planner", response_class=HTMLResponse)
+def meal_planner_page(request: Request):
     """Serve the meal planner page."""
-    return templates.TemplateResponse(request, "dinner_planner.html")
+    return templates.TemplateResponse(request, "meal_planner.html")
 
 
-@app.get("/meal-history", response_class=HTMLResponse)
-def meal_history_page(request: Request):
-    """Serve the meal history and reviews page."""
-    return templates.TemplateResponse(request, "meal_history.html")
-
-
-@app.get("/meal-planner", response_class=RedirectResponse)
-def meal_planner_redirect():
-    """Redirect /meal-planner to /dinner-planner for convenience."""
-    return RedirectResponse(url="/dinner-planner")
+@app.get("/meal-planner/previous", response_class=HTMLResponse)
+def meal_planner_previous_page(request: Request):
+    """Serve the page of meals from days that have passed, with their reviews."""
+    return templates.TemplateResponse(request, "meal_planner_previous.html")
 
 
 @app.get("/preparedness", response_class=HTMLResponse)

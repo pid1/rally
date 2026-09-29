@@ -60,23 +60,12 @@
         </div>
     </div>
 
+    <script src="/static/archive_list.js?v={{ css_version }}"></script>
     <script>
-        const PAGE_SIZE = 50;
-
-        // State
-        let todos = [];          // every page loaded so far, in server order
         let familyMembers = [];
-        let hasMore = false;
-        let loading = false;
-        // Guards against a slow earlier request overwriting a newer one's results
-        let requestToken = 0;
 
         // Track selected assignee filter values
         let selectedFilters = new Set();
-
-        // The currently submitted search term ('' when no search is active).
-        // Search runs only on submit (button click or Enter), never on keystroke.
-        let searchTerm = '';
 
         async function fetchFamilyMembers() {
             const response = await fetch('/api/family');
@@ -98,14 +87,6 @@
             });
         }
 
-        function clearFilters() {
-            selectedFilters.clear();
-            document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
-                chip.classList.remove('active');
-            });
-            reload();
-        }
-
         function clearAssigneeChips() {
             selectedFilters.clear();
             document.querySelectorAll('#filter-assignee-chips .filter-chip').forEach(chip => {
@@ -113,123 +94,38 @@
             });
         }
 
-        // The Search button is disabled unless the field holds non-whitespace text.
-        function updateSearchButton() {
-            const hasText = document.getElementById('search-input').value.trim().length > 0;
-            document.getElementById('search-btn').disabled = !hasText;
-        }
-
-        // Submitting a search clears any applied filters and resets sort to the
-        // default, then loads a fresh result set for the new term.
-        function submitSearch() {
-            const value = document.getElementById('search-input').value.trim();
-            if (!value) return;
-            searchTerm = value;
-            clearAssigneeChips();
-            document.getElementById('sort-by').value = 'completed-newest';
-            reload();
-        }
-
-        // Reset the page to its default state: no search, no filters, default sort.
-        function clearSearch() {
-            searchTerm = '';
-            document.getElementById('search-input').value = '';
-            updateSearchButton();
-            clearAssigneeChips();
-            document.getElementById('sort-by').value = 'completed-newest';
-            reload();
-        }
-
-        // Deemphasized count shown only while a search is active. Reflects the
-        // total matches for the current query (search plus any filters applied
-        // to the results afterward), across all pages — not just what's loaded.
-        function updateSearchCount(total) {
-            const el = document.getElementById('search-results-count');
-            if (!searchTerm) {
-                el.hidden = true;
-                return;
-            }
-            el.hidden = false;
-            el.textContent = total === 1 ? '1 matching task.' : `${total} matching tasks.`;
-        }
-
         function getMemberById(id) {
             return familyMembers.find(m => m.id === id);
         }
 
-        // API calls
-        //
-        // Sorting, filtering and paging all happen server-side: the client only
-        // ever holds the pages it has loaded, so it can't sort or filter the
-        // full set itself.
-        function buildQuery(offset) {
-            const params = new URLSearchParams({
-                sort: document.getElementById('sort-by').value,
-                limit: PAGE_SIZE,
-                offset: offset
-            });
-            selectedFilters.forEach(value => params.append('assignee', value));
-            if (searchTerm) params.set('search', searchTerm);
-            return params;
-        }
-
-        async function fetchPage(offset) {
-            const token = ++requestToken;
-            loading = true;
-            updateLoadMore();
-            try {
-                const response = await fetch(`/api/todos/completed?${buildQuery(offset)}`);
-                if (!response.ok) throw new Error('Failed to load completed tasks');
-                const page = await response.json();
-                if (token !== requestToken) return; // superseded by a newer request
-                todos = offset === 0 ? page.items : todos.concat(page.items);
-                hasMore = page.has_more;
-                updateSearchCount(page.total);
-                renderTodos();
-            } catch (error) {
-                if (token !== requestToken) return;
-                console.error('Error loading completed tasks:', error);
-                document.getElementById('list-container').innerHTML =
-                    '<div class="container-empty-state">Could not load completed tasks. Please try again.</div>';
-                hasMore = false;
-            } finally {
-                if (token === requestToken) {
-                    loading = false;
-                    updateLoadMore();
-                }
-            }
-        }
-
-        function reload() {
-            todos = [];
-            document.getElementById('list-container').innerHTML =
-                '<div class="container-loading-state">Loading completed tasks...</div>';
-            fetchPage(0);
-        }
-
-        function loadMore() {
-            if (loading || !hasMore) return;
-            fetchPage(todos.length);
-        }
+        // Sorting, filtering, searching and paging all happen server-side: the
+        // client only ever holds the pages it has loaded, so it can't sort or
+        // filter the full set itself.
+        const archive = new ArchiveList({
+            endpoint: '/api/todos/completed',
+            container: 'list-container',
+            noun: ['task', 'tasks'],
+            loadingText: 'Loading completed tasks...',
+            errorText: 'Could not load completed tasks. Please try again.',
+            params: (params) => {
+                params.set('sort', document.getElementById('sort-by').value);
+                selectedFilters.forEach(value => params.append('assignee', value));
+            },
+            resetFilters: () => {
+                clearAssigneeChips();
+                document.getElementById('sort-by').value = 'completed-newest';
+            },
+            emptyMessage: () => {
+                if (archive.searchTerm) return 'No completed tasks match the current search.';
+                if (selectedFilters.size > 0) return 'No completed tasks match the current filter.';
+                return 'No completed tasks yet. Tasks appear here the day after you finish them.';
+            },
+            render: renderTodos,
+        });
 
         // Render
-        function renderTodos() {
-            const container = document.getElementById('list-container');
-
-            if (todos.length === 0) {
-                let message;
-                if (searchTerm) {
-                    message = 'No completed tasks match the current search.';
-                } else if (selectedFilters.size > 0) {
-                    message = 'No completed tasks match the current filter.';
-                } else {
-                    message = 'No completed tasks yet. Tasks appear here the day after you finish them.';
-                }
-                container.innerHTML = `<div class="container-empty-state">${message}</div>`;
-                return;
-            }
-
-            container.innerHTML = todos.map(todo => {
+        function renderTodos(todos) {
+            return todos.map(todo => {
                 const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date) : '';
                 const completedHtml = formatCompletedDate(todo.completed_at);
                 const member = todo.assigned_to ? getMemberById(todo.assigned_to) : null;
@@ -248,14 +144,6 @@
                     </div>
                 `;
             }).join('');
-        }
-
-        function updateLoadMore() {
-            const container = document.getElementById('load-more-container');
-            const button = document.getElementById('btn-load-more');
-            container.style.display = hasMore ? '' : 'none';
-            button.disabled = loading;
-            button.textContent = loading ? 'Loading…' : 'Load more';
         }
 
         // Every task here is finished, so due dates render in their neutral
@@ -297,23 +185,17 @@
                 selectedFilters.add(value);
                 chip.classList.add('active');
             }
-            reload();
+            archive.reload();
         });
-        document.getElementById('filter-clear').addEventListener('click', clearFilters);
-        document.getElementById('sort-by').addEventListener('change', reload);
-        document.getElementById('btn-load-more').addEventListener('click', loadMore);
-        document.getElementById('search-btn').addEventListener('click', submitSearch);
-        document.getElementById('search-clear').addEventListener('click', clearSearch);
-        document.getElementById('search-input').addEventListener('input', updateSearchButton);
-        document.getElementById('search-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                submitSearch();
-            }
+        // Clear Filters leaves an active search in place.
+        document.getElementById('filter-clear').addEventListener('click', () => {
+            clearAssigneeChips();
+            archive.reload();
         });
+        document.getElementById('sort-by').addEventListener('change', () => archive.reload());
 
         // Initialize
-        fetchFamilyMembers().then(reload);
+        fetchFamilyMembers().then(() => archive.reload());
 
     </script>
 {% endblock %}

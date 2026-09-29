@@ -1,17 +1,20 @@
 {% extends "base.html" %}
-{% set nav_active = "meal-history" %}
-{% block title %}Meal History{% endblock %}
-{% block subtitle %}Meal History{% endblock %}
+{% set nav_active = "meal-planner" %}
+{% block title %}Previous Meals{% endblock %}
+{% block subtitle %}Previous Meals{% endblock %}
 
 {% block content %}
     <div class="page stack">
         <header class="page-header">
             <div class="page-header-row">
-                <h2>Meal History</h2>
+                <h2>Meal Planner</h2>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/meal-planner">Back to meal planner</a>
             </div>
         </header>
 
-        <!-- Filter/sort toolbar (filters first, sort last, reset in its own slot) -->
+        <!-- Filters, sort, search, count, then the reset in its own slot -->
         <div class="toolbar">
             <div class="toolbar-group">
                 <span class="toolbar-label" id="meal-type-label">Meal Type</span>
@@ -38,13 +41,27 @@
                     <option value="date_asc">Oldest First</option>
                 </select>
             </div>
+            <div class="toolbar-search">
+                <label class="toolbar-label" for="search-input">Search</label>
+                <div class="toolbar-search-controls">
+                    <input type="text" id="search-input" class="search-input"
+                           placeholder="Search previous meals" autocomplete="off">
+                    <button type="button" class="btn btn--secondary" id="search-btn" disabled>Search</button>
+                    <button type="button" class="btn btn--quiet" id="search-clear">Clear Search</button>
+                </div>
+            </div>
+            <div class="search-results-count" id="search-results-count" hidden></div>
             <div class="toolbar-reset">
                 <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
             </div>
         </div>
 
-        <div class="list-container" id="history-list">
-            <div class="container-loading-state">Loading meal history...</div>
+        <div class="list-container" id="list-container">
+            <div class="container-loading-state">Loading previous meals...</div>
+        </div>
+
+        <div class="load-more-container" id="load-more-container" style="display:none;">
+            <button type="button" class="btn btn--secondary" id="btn-load-more">Load more</button>
         </div>
     </div>
 
@@ -85,9 +102,9 @@
 
     <script src="/static/modal.js?v={{ css_version }}"></script>
     <script src="/static/meal_edit_modal.js?v={{ css_version }}"></script>
+    <script src="/static/archive_list.js?v={{ css_version }}"></script>
     <script>
         // State
-        let historyPlans = [];
         let familyMembers = [];
         let currentSort = 'rating_desc';
         let currentMinRating = '';
@@ -151,24 +168,48 @@
             return html;
         }
 
-        // API calls
-        async function fetchHistory() {
-            const params = new URLSearchParams({ sort: currentSort });
-            if (currentMinRating) {
-                params.set('min_rating', currentMinRating);
-            }
-            selectedMealTypes.forEach(t => params.append('meal_type', t));
-            const response = await fetch(`/api/dinner-plans/history?${params}`);
-            historyPlans = await response.json();
-            renderHistory();
+        // Clear both chip groups and reset Sort to its default (no reload).
+        function resetFiltersAndSort() {
+            selectedMealTypes.clear();
+            currentMinRating = '';
+            currentSort = 'rating_desc';
+            document.getElementById('sort-select').value = currentSort;
+            document.querySelectorAll('.toolbar .filter-chip').forEach(c => c.classList.remove('active'));
         }
+
+        // Filtering, sorting, searching and paging are all server-side: the
+        // client only holds the pages it has loaded.
+        const archive = new ArchiveList({
+            endpoint: '/api/meal-planner/previous',
+            container: 'list-container',
+            noun: ['meal', 'meals'],
+            loadingText: 'Loading previous meals...',
+            errorText: 'Could not load previous meals. Please try again.',
+            params: (params) => {
+                params.set('sort', currentSort);
+                if (currentMinRating) params.set('min_rating', currentMinRating);
+                selectedMealTypes.forEach(t => params.append('meal_type', t));
+            },
+            resetFilters: resetFiltersAndSort,
+            emptyMessage: () => {
+                if (archive.searchTerm) return 'No previous meals match the current search.';
+                if (selectedMealTypes.size > 0 || currentMinRating) return 'No meals match the current filters.';
+                return 'No previous meals yet. Past meals will appear here once you have some plans behind you.';
+            },
+            render: renderMeals,
+        });
+
+        // This archive is the one you can change. After a save, reload what is
+        // loaded rather than the first page, so a family member working through
+        // older meals is not bounced back to the top.
+        const refreshMeals = () => archive.refresh();
 
         async function saveReview(planId, rating, review) {
             const body = {};
             if (rating > 0) body.rating = rating;
             if (review) body.review = review;
 
-            const response = await fetch(`/api/dinner-plans/${planId}/review`, {
+            const response = await fetch(`/api/meal-planner/${planId}/review`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
@@ -178,18 +219,8 @@
         }
 
         // Render
-        function renderHistory() {
-            const container = document.getElementById('history-list');
-
-            if (historyPlans.length === 0) {
-                const filtersActive = selectedMealTypes.size > 0 || currentMinRating;
-                container.innerHTML = filtersActive
-                    ? '<div class="container-empty-state">No meals match the current filters.</div>'
-                    : '<div class="container-empty-state">No meal history yet. Past meals will appear here once you have some plans behind you.</div>';
-                return;
-            }
-
-            container.innerHTML = historyPlans.map(plan => {
+        function renderMeals(plans) {
+            return plans.map(plan => {
                 const mealType = plan.meal_type || 'Dinner';
                 const reviewHtml = plan.review
                     ? `<div class="history-card-review">${escapeHtml(plan.review)}</div>`
@@ -218,12 +249,12 @@
         // the edit/delete behavior. Editing a meal's date onto the planner
         // (today or later) discards its rating/review after a confirm prompt.
         function openEditModal(planId) {
-            mealModal.openEdit(historyPlans.find(p => p.id === planId));
+            mealModal.openEdit(archive.items.find(p => p.id === planId));
         }
 
         // Review modal
         function openReviewModal(planId) {
-            const plan = historyPlans.find(p => p.id === planId);
+            const plan = archive.items.find(p => p.id === planId);
             if (!plan) return;
 
             document.getElementById('review-plan-id').value = planId;
@@ -295,7 +326,7 @@
         // Sort/filter handlers
         document.getElementById('sort-select').addEventListener('change', function() {
             currentSort = this.value;
-            fetchHistory();
+            archive.reload();
         });
 
         // Meal type: multi-select (any of the selected types).
@@ -311,7 +342,7 @@
                 selectedMealTypes.add(meal);
                 chip.classList.add('active');
             }
-            fetchHistory();
+            archive.reload();
         });
 
         // Rating: single-select; clicking the active chip clears it.
@@ -327,16 +358,13 @@
                 chip.classList.add('active');
                 currentMinRating = chip.dataset.min;
             }
-            fetchHistory();
+            archive.reload();
         });
 
+        // Clear Filters leaves an active search in place.
         document.getElementById('filter-clear').addEventListener('click', function() {
-            selectedMealTypes.clear();
-            currentMinRating = '';
-            currentSort = 'rating_desc';
-            document.getElementById('sort-select').value = currentSort;
-            document.querySelectorAll('.toolbar .filter-chip').forEach(c => c.classList.remove('active'));
-            fetchHistory();
+            resetFiltersAndSort();
+            archive.reload();
         });
 
         // Modal events
@@ -353,7 +381,7 @@
             try {
                 await saveReview(planId, selectedRating, reviewText || null);
                 closeReviewModal();
-                await fetchHistory();
+                await refreshMeals();
             } catch (error) {
                 console.error('Error saving review:', error);
                 alert('Failed to save review');
@@ -366,9 +394,9 @@
                 getFamilyMembers: () => familyMembers,
                 getDefaultMealType: () => defaultMealType,
                 getTimezone: () => localTimezone,
-                onSaved: fetchHistory,
+                onSaved: refreshMeals,
             });
-            fetchHistory();
+            archive.reload();
         });
     </script>
 {% endblock %}

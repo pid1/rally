@@ -1,7 +1,7 @@
 """Tests for the non-LLM parts of rally.generator.generate.
 
 Covers __init__ (config/DB + stubbed client construction), the DB data-loaders
-(load_dinner_plans, _load_ai_setting), and the external fetches (fetch_weather,
+(load_meal_plans, _load_ai_setting), and the external fetches (fetch_weather,
 fetch_calendars / _fetch_ics_calendar). No LLM is invoked and no real network
 happens: HTTP is stubbed with mock_requests, CalDAV with mock_caldav, and the
 LLM client constructors with mock_llm.
@@ -21,8 +21,8 @@ from rally.generator.generate import LLM_MAX_TOKENS, SummaryGenerator
 from rally.models import (
     AISettingsHistory,
     Calendar,
-    DinnerPlan,
     FamilyMember,
+    MealPlan,
     Setting,
     ShoppingItem,
     ShoppingStore,
@@ -180,36 +180,36 @@ def test_max_tokens_defaults_when_neither_db_nor_config_toml_set():
     assert gen._resolve_max_tokens({}) == LLM_MAX_TOKENS
 
 
-# --- load_dinner_plans ---------------------------------------------------------
+# --- load_meal_plans ---------------------------------------------------------
 
 
-def test_load_dinner_plans_next_7_days(gen_db, frozen_now):
+def test_load_meal_plans_next_7_days(gen_db, frozen_now):
     frozen_now(datetime(2026, 5, 10, 12, tzinfo=UTC))
-    gen_db.add(DinnerPlan(date="2026-05-10", meal_type="Dinner", plan="Tacos"))
-    gen_db.add(DinnerPlan(date="2026-05-11", meal_type="Dinner", plan="Pizza"))
-    gen_db.add(DinnerPlan(date="2026-05-20", meal_type="Dinner", plan="TooFar"))  # beyond 7 days
+    gen_db.add(MealPlan(date="2026-05-10", meal_type="Dinner", plan="Tacos"))
+    gen_db.add(MealPlan(date="2026-05-11", meal_type="Dinner", plan="Pizza"))
+    gen_db.add(MealPlan(date="2026-05-20", meal_type="Dinner", plan="TooFar"))  # beyond 7 days
     gen_db.commit()
 
-    out = make_generator().load_dinner_plans()
+    out = make_generator().load_meal_plans()
 
     assert "Today (Dinner): Tacos" in out
     assert "Tomorrow (Dinner): Pizza" in out
     assert "TooFar" not in out
 
 
-def test_load_dinner_plans_empty(gen_db, frozen_now):
+def test_load_meal_plans_empty(gen_db, frozen_now):
     frozen_now(datetime(2026, 5, 10, 12, tzinfo=UTC))
-    assert make_generator().load_dinner_plans() == "No meal plans for the next 7 days."
+    assert make_generator().load_meal_plans() == "No meal plans for the next 7 days."
 
 
-def test_load_dinner_plans_annotates_attendees_and_cook(gen_db, frozen_now):
+def test_load_meal_plans_annotates_attendees_and_cook(gen_db, frozen_now):
     frozen_now(datetime(2026, 5, 10, 12, tzinfo=UTC))
     dad = FamilyMember(name="Dad")
     mom = FamilyMember(name="Mom")
     gen_db.add_all([dad, mom])
     gen_db.flush()
     gen_db.add(
-        DinnerPlan(
+        MealPlan(
             date="2026-05-12",
             meal_type="Dinner",
             plan="Soup",
@@ -219,7 +219,7 @@ def test_load_dinner_plans_annotates_attendees_and_cook(gen_db, frozen_now):
     )
     gen_db.commit()
 
-    out = make_generator().load_dinner_plans()
+    out = make_generator().load_meal_plans()
 
     assert "Eating: Dad, Mom" in out
     assert "Cook: Dad" in out

@@ -1,12 +1,12 @@
 // Shared meal add/edit modal used by both meal pages:
 //   - Meal Planner (Current & Upcoming) — add + edit upcoming meals
-//   - Meal History (Previous Meals)      — edit past meals
+//   - Previous Meals                     — edit past meals
 //
 // Both templates include _meal_edit_modal.html (same element IDs); each page
 // constructs a MealEditModal with page-specific hooks. Keeping the markup and
 // behavior in one place means the edit experience has a single source of truth.
 //
-// Ratings/reviews live only on past meals (Meal History). When an edit moves a
+// Ratings/reviews live only on past meals (Previous Meals). When an edit moves a
 // meal's date onto the planner (today or later), any existing rating/review is
 // discarded: this class warns and confirms first, and the server clears them.
 (function (global) {
@@ -169,10 +169,10 @@
 
             try {
                 if (this.editingId) {
-                    await this._request(`/api/dinner-plans/${this.editingId}`, 'PUT',
+                    await this._request(`/api/meal-planner/${this.editingId}`, 'PUT',
                         { date, meal_type, plan, attendee_ids, cook_id });
                 } else {
-                    await this._request('/api/dinner-plans', 'POST',
+                    await this._request('/api/meal-planner', 'POST',
                         { date, meal_type, plan, attendee_ids, cook_id });
                 }
                 if (addAnother) {
@@ -203,7 +203,7 @@
             if (!this.editingId) return;
             if (!confirm('Are you sure you want to delete this meal plan?')) return;
             try {
-                const resp = await fetch(`/api/dinner-plans/${this.editingId}`, { method: 'DELETE' });
+                const resp = await fetch(`/api/meal-planner/${this.editingId}`, { method: 'DELETE' });
                 if (!resp.ok) throw new Error('Failed to delete plan');
                 this.close();
                 await this.onSaved();

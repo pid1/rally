@@ -466,7 +466,7 @@ def test_purchased_lists_items_bought_before_today(
     frozen_now(NOON)
     make_shopping_item("Coffee beans", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
-    assert item_names(client.get("/api/shopping/purchased").json()) == ["Coffee beans"]
+    assert item_names(client.get("/api/shopping/purchased").json()["items"]) == ["Coffee beans"]
 
 
 def test_purchased_excludes_items_bought_today(
@@ -477,7 +477,7 @@ def test_purchased_excludes_items_bought_today(
     frozen_now(NOON)
     make_shopping_item("Coffee beans", completed=True, completed_at=AFTER_LOCAL_MIDNIGHT)
 
-    assert client.get("/api/shopping/purchased").json() == []
+    assert client.get("/api/shopping/purchased").json()["items"] == []
 
 
 def test_purchased_includes_completed_rows_with_no_timestamp(
@@ -490,7 +490,7 @@ def test_purchased_includes_completed_rows_with_no_timestamp(
     make_shopping_item("Ancient milk", completed=True, completed_at=None)
 
     assert client.get("/api/shopping/items").json() == []
-    assert item_names(client.get("/api/shopping/purchased").json()) == ["Ancient milk"]
+    assert item_names(client.get("/api/shopping/purchased").json()["items"]) == ["Ancient milk"]
 
 
 def test_purchased_excludes_open_items(client, make_shopping_item, frozen_now, local_timezone):
@@ -499,7 +499,7 @@ def test_purchased_excludes_open_items(client, make_shopping_item, frozen_now, l
     make_shopping_item("Milk")
     make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
-    assert item_names(client.get("/api/shopping/purchased").json()) == ["Eggs"]
+    assert item_names(client.get("/api/shopping/purchased").json()["items"]) == ["Eggs"]
 
 
 def test_purchased_orders_most_recent_first(client, make_shopping_item, frozen_now, local_timezone):
@@ -510,7 +510,7 @@ def test_purchased_orders_most_recent_first(client, make_shopping_item, frozen_n
     )
     make_shopping_item("Newer", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
-    assert item_names(client.get("/api/shopping/purchased").json()) == ["Newer", "Older"]
+    assert item_names(client.get("/api/shopping/purchased").json()["items"]) == ["Newer", "Older"]
 
 
 def test_purchased_search_matches_name_and_note(
@@ -524,7 +524,7 @@ def test_purchased_search_matches_name_and_note(
     )
     make_shopping_item("Milk", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
-    matches = client.get("/api/shopping/purchased", params={"search": "egg"}).json()
+    matches = client.get("/api/shopping/purchased", params={"search": "egg"}).json()["items"]
     assert sorted(item_names(matches)) == ["Bread", "Eggs"]
 
 
@@ -535,7 +535,7 @@ def test_purchased_search_with_no_match_is_empty(
     frozen_now(NOON)
     make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
-    assert client.get("/api/shopping/purchased", params={"search": "zzz"}).json() == []
+    assert client.get("/api/shopping/purchased", params={"search": "zzz"}).json()["items"] == []
 
 
 def test_purchased_is_independent_of_include_hidden(
@@ -548,8 +548,80 @@ def test_purchased_is_independent_of_include_hidden(
     make_shopping_item("Eggs", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
 
     client.get("/api/shopping/items", params={"include_hidden": "true"})
-    assert item_names(client.get("/api/shopping/purchased").json()) == ["Eggs"]
+    assert item_names(client.get("/api/shopping/purchased").json()["items"]) == ["Eggs"]
     assert item_names(client.get("/api/shopping/items").json()) == ["Milk"]
+
+
+def test_purchased_filters_by_store_and_anywhere(
+    client, make_store, make_shopping_item, frozen_now, local_timezone
+):
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    costco = make_store("Costco")
+    heb = make_store("H-E-B")
+    make_shopping_item(
+        "Paper towels", store_id=costco.id, completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
+    make_shopping_item(
+        "Tortillas", store_id=heb.id, completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
+    make_shopping_item("Stamps", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+
+    def names(stores):
+        page = client.get("/api/shopping/purchased", params={"store": stores}).json()
+        return sorted(item_names(page["items"])), page["total"]
+
+    assert names([str(costco.id)]) == (["Paper towels"], 1)
+    assert names(["anywhere"]) == (["Stamps"], 1)
+    assert names([str(heb.id), "anywhere"]) == (["Stamps", "Tortillas"], 2)
+    # Only unrecognized values: a filter nothing can satisfy, not "all".
+    assert names(["nope"]) == ([], 0)
+
+
+def test_purchased_stores_ignore_the_store_filter_but_follow_search(
+    client, make_store, make_shopping_item, frozen_now, local_timezone
+):
+    """The chips come from the search results before the store filter, so a
+    selected chip does not take the others away with it."""
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    costco = make_store("Costco")
+    heb = make_store("H-E-B")
+    make_shopping_item(
+        "Eggs", store_id=costco.id, completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
+    make_shopping_item("Egg noodles", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT)
+    make_shopping_item(
+        "Tortillas", store_id=heb.id, completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT
+    )
+
+    filtered = client.get("/api/shopping/purchased", params={"store": str(costco.id)}).json()
+    searched = client.get("/api/shopping/purchased", params={"search": "egg"}).json()
+
+    assert filtered["stores"] == [str(costco.id), str(heb.id), "anywhere"]
+    assert searched["stores"] == [str(costco.id), "anywhere"]
+
+
+def test_purchased_pages_newest_first(client, make_shopping_item, frozen_now, local_timezone):
+    local_timezone("America/Chicago")
+    frozen_now(NOON)
+    for n in range(5):
+        make_shopping_item(
+            f"Item {n}", completed=True, completed_at=BEFORE_LOCAL_MIDNIGHT - timedelta(hours=n)
+        )
+
+    first = client.get("/api/shopping/purchased", params={"limit": 2}).json()
+    last = client.get("/api/shopping/purchased", params={"limit": 2, "offset": 4}).json()
+
+    assert item_names(first["items"]) == ["Item 0", "Item 1"]
+    assert first["has_more"] is True
+    assert first["total"] == 5
+    assert item_names(last["items"]) == ["Item 4"]
+    assert last["has_more"] is False
+
+
+def test_purchased_rejects_a_limit_over_200(client):
+    assert client.get("/api/shopping/purchased", params={"limit": 201}).status_code == 422
 
 
 # --- Ordering ------------------------------------------------------------------

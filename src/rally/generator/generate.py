@@ -560,13 +560,13 @@ class SummaryGenerator:
         finally:
             db.close()
 
-    def load_dinner_plans(self) -> str:
+    def load_meal_plans(self) -> str:
         """Load meal plans for next 7 days from database for LLM context."""
         db = SessionLocal()
         try:
             from datetime import datetime
 
-            from rally.models import DinnerPlan
+            from rally.models import MealPlan
 
             today = now_utc().astimezone(self.local_tz).date()
 
@@ -575,9 +575,9 @@ class SummaryGenerator:
 
             # Get plans for next 7 days (multiple per date possible)
             plans = (
-                db.query(DinnerPlan)
-                .filter(DinnerPlan.date.in_(date_range))
-                .order_by(DinnerPlan.date.asc(), DinnerPlan.id.asc())
+                db.query(MealPlan)
+                .filter(MealPlan.date.in_(date_range))
+                .order_by(MealPlan.date.asc(), MealPlan.id.asc())
                 .all()
             )
 
@@ -1120,7 +1120,7 @@ class SummaryGenerator:
         weather = self.fetch_weather()
         family_members = self.load_family_members()
         todos = self.load_todos()
-        dinner_plans = self.load_dinner_plans()
+        meal_plans = self.load_meal_plans()
         context = self.load_context()
         voice = self.load_voice()
         home = self.load_home_location()
@@ -1142,7 +1142,7 @@ class SummaryGenerator:
             "cal_text": cal_text,
             "weather": weather_text,
             "todos": todos,
-            "dinner_plans": dinner_plans,
+            "meal_plans": meal_plans,
             "shopping_items": shopping_items,
             "overdue_prep": overdue_prep,
             "home_location": home,
@@ -1189,7 +1189,7 @@ class SummaryGenerator:
             optional_guidelines.append("""STEM CONCEPT OF THE DAY: Include a "stem_concept" object with one simple, everyday STEM concept the family can notice or play with today.
     - Tailor the activities to the ages of the children described in FAMILY CONTEXT. If ages aren't clear, give one idea for younger kids and one for older kids.
     - Every idea MUST be SUPER EASY to fold into what the family is already doing today (a meal, an errand, the weather, a scheduled activity, play or bath time). No special supplies, no extra trips — just a few minutes and a question or observation.
-    - Keep it playful, curious, and encouraging — a fun bonus, not homework. Pick a concept that connects naturally to today's schedule, weather, or dinner when possible.
+    - Keep it playful, curious, and encouraging — a fun bonus, not homework. Pick a concept that connects naturally to today's schedule, weather, or a meal when possible.
     - DO NOT reuse any of the specific concepts listed under STEM CONCEPTS USED RECENTLY. Exploring a DIFFERENT sub-topic within the same broader area (e.g. a new idea in "weather" or "fractions") is fine — only the specific topics on that list are off-limits.""")
 
         # Optional shopping list — guideline only when the section is present
@@ -1275,7 +1275,7 @@ Guidelines:
 3. Identify time gaps as opportunities to tackle todos
 4. Recommend clothing based on TODAY'S weather and activities
 6. Consider family routines and how everyone can support each other. When todos are assigned to specific people, mention them by name.
-7. DINNER PREP: Only mention dinner prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for dinners 3+ days away.
+7. MEAL PREP: Only mention meal prep in briefing if action is needed TODAY, TOMORROW, or the day after (within 48 hours). Don't mention prep for meals 3+ days away.
 8. The briefing should surface important things that need attention TODAY or VERY SOON (within 1-2 days)
 9. If the weather is actively dangerous (snow, thunderstorms, or tornado risk) within the next 7 days, mention it.
 10. TASK FILTERING: The TODOS section below is pre-filtered. Only mention, reference, or suggest tasks that explicitly appear in the TODOS section. Do not infer, recall, or invent tasks that are not listed. If the TODOS section says "No todos currently active," do not suggest any specific tasks.
@@ -1328,8 +1328,8 @@ WEATHER FORECAST:
 TODOS:
 {todos}
 
-DINNER PLANS (next 7 days):
-{dinner_plans}{shopping_section}{prep_section}{sports_section}{stem_avoid_block}"""
+MEAL PLANS (next 7 days):
+{meal_plans}{shopping_section}{prep_section}{sports_section}{stem_avoid_block}"""
 
         try:
             response_text = self._call_llm(
@@ -1412,7 +1412,7 @@ comparing it against the raw input data that was available to the generator.
 Score each dimension from 1 (worst) to 5 (best).
 
 1. GROUNDEDNESS (no hallucination)
-Every claim in the summary — events, times, weather details, todos, dinner
+Every claim in the summary — events, times, weather details, todos, meal
 plans — must be traceable to the raw input data above. The summary must not
 invent events, fabricate weather conditions, or reference todos/plans that
 don't exist in the input.
@@ -1447,20 +1447,20 @@ Few-shot examples for actionability:
 4. COMPLETENESS
 The summary covers all key events for today from the input calendars,
 references todos (mentioning assignees by name when assigned), and integrates
-weather and dinner plans where relevant.
+weather and meal plans where relevant.
 - Score 5: All today's events present. Todos with assignees mentioned by name.
-- Score 3: Most events covered but some missing. Partial todo/dinner integration.
-- Score 1: Major events missing. Todos or dinner plans ignored entirely.
+- Score 3: Most events covered but some missing. Partial todo/meal integration.
+- Score 1: Major events missing. Todos or meal plans ignored entirely.
 
 5. GUIDELINE ADHERENCE
 The summary follows Rally's specific content rules:
 - Schedule shows TODAY's events only, in chronological order
 - Weather recommendation mentions clothing appropriate for today
-- Dinner prep mentioned only if needed within 48 hours (not 3+ days away)
+- Meal prep mentioned only if needed within 48 hours (not 3+ days away)
 - No HTML in any values — plain text only
 - JSON schema is correct (greeting, weather_summary, schedule array, briefing)
 - Score 5: All rules followed perfectly.
-- Score 3: Minor violations (e.g. slightly out of order, distant dinner prep mentioned).
+- Score 3: Minor violations (e.g. slightly out of order, distant meal prep mentioned).
 - Score 1: Major violations (future events in today's schedule, HTML, wrong schema).
 
 == RESPONSE FORMAT ==
@@ -1499,8 +1499,8 @@ WEATHER DATA:
 TODOS:
 {ctx["todos"]}
 
-DINNER PLANS:
-{ctx["dinner_plans"]}{shopping_ground_truth}
+MEAL PLANS:
+{ctx["meal_plans"]}{shopping_ground_truth}
 
 FAMILY MEMBERS:
 {ctx["family_members"]}"""

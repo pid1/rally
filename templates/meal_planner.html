@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set nav_active = "dinner-planner" %}
+{% set nav_active = "meal-planner" %}
 {% block title %}Meal Planner{% endblock %}
 {% block subtitle %}Meal Planner{% endblock %}
 
@@ -11,6 +11,9 @@
                 <div class="page-header-actions">
                     <button class="btn" id="btn-add-meal">Add Meal</button>
                 </div>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/meal-planner/previous">View previous meals</a>
             </div>
         </header>
 
@@ -111,7 +114,7 @@
 
         // API calls
         async function fetchPlans() {
-            const response = await fetch('/api/dinner-plans');
+            const response = await fetch('/api/meal-planner');
             const allPlans = await response.json();
 
             // Keep every meal from today onward (no upper bound — the planner

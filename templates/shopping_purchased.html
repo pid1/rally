@@ -43,21 +43,22 @@
         <div id="groups-container">
             <div class="container-loading-state">Loading purchased items…</div>
         </div>
+
+        <div class="load-more-container" id="load-more-container" style="display:none;">
+            <button type="button" class="btn btn--secondary" id="btn-load-more">Load more</button>
+        </div>
     </div>
 
+    <script src="/static/archive_list.js?v={{ css_version }}"></script>
     <script>
         // ── State ──
-        let items = [];
         let stores = [];
         let selectedStores = new Set();   // chip values: store ids as strings, or 'anywhere'
+        // Chip values with a purchase matching the current search, from the
+        // server — so the chips describe the whole archive, not the pages loaded.
+        let availableStores = new Set();
 
         const ANYWHERE = 'anywhere';
-
-        // The currently submitted search term ('' when no search is active).
-        // Search runs only on submit (button click or Enter), never on keystroke.
-        let searchTerm = '';
-        // Guards against a slow earlier request overwriting a newer one's results.
-        let requestToken = 0;
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -76,44 +77,48 @@
             stores = await response.json();
         }
 
-        // Search filters server-side — it is the one control that would need
-        // pagination if retention ever grew, so it lives in the query string
-        // from the start. Store chips filter client-side; see renderItems().
-        async function fetchItems() {
-            const token = ++requestToken;
-            const params = new URLSearchParams();
-            if (searchTerm) params.set('search', searchTerm);
-            const query = params.toString();
-            try {
-                const response = await fetch(`/api/shopping/purchased${query ? '?' + query : ''}`);
-                if (!response.ok) throw new Error('Failed to load purchased items');
-                const data = await response.json();
-                if (token !== requestToken) return;   // superseded by a newer request
-                items = data;
-                renderItems();
-            } catch (error) {
-                if (token !== requestToken) return;
-                console.error('Error loading purchased items:', error);
-                document.getElementById('groups-container').innerHTML =
-                    '<div class="container-empty-state">Could not load purchased items. Please try again.</div>';
-            }
-        }
+        // Search and the store filter are both server-side: the client only
+        // holds the pages it has loaded, so it cannot filter the archive itself.
+        const archive = new ArchiveList({
+            endpoint: '/api/shopping/purchased',
+            container: 'groups-container',
+            noun: ['item', 'items'],
+            loadingText: 'Loading purchased items…',
+            errorText: 'Could not load purchased items. Please try again.',
+            params: (params) => {
+                selectedStores.forEach(value => params.append('store', value));
+            },
+            // Chips describe what is on the page, so a search legitimately
+            // narrows the chip set. Clearing the selection keeps the two consistent.
+            resetFilters: () => selectedStores.clear(),
+            onPage: (page) => {
+                availableStores = new Set(page.stores);
+                renderStoreChips();
+            },
+            // A selected store renders as an empty group rather than a message.
+            emptyMessage: () => {
+                if (selectedStores.size > 0) return null;
+                return archive.searchTerm
+                    ? `No purchased items match "${escapeHtml(archive.searchTerm)}".`
+                    : 'Nothing purchased yet.';
+            },
+            render: renderGroups,
+        });
 
         // ── Filter chips ──
         //
-        // Chips describe what is on the page, not what stores exist. A store
+        // Chips describe what is in the archive, not what stores exist. A store
         // that is currently selected keeps its chip even with nothing under it,
         // or filtering to it would leave a filter with no visible way to undo it.
         function renderStoreChips() {
-            const present = new Set(items.map(chipValueForItem));
             const parts = [];
             stores.forEach(s => {
                 const value = String(s.id);
-                if (present.has(value) || selectedStores.has(value)) {
+                if (availableStores.has(value) || selectedStores.has(value)) {
                     parts.push(`<button type="button" class="filter-chip" data-value="${value}">${escapeHtml(s.name)}</button>`);
                 }
             });
-            if (present.has(ANYWHERE) || selectedStores.has(ANYWHERE)) {
+            if (availableStores.has(ANYWHERE) || selectedStores.has(ANYWHERE)) {
                 parts.push(`<button type="button" class="filter-chip" data-value="${ANYWHERE}">Anywhere</button>`);
             }
             document.getElementById('filter-store-chips').innerHTML = parts.join('');
@@ -126,19 +131,9 @@
             });
         }
 
-        function clearFilters() {
-            selectedStores.clear();
-            renderItems();
-        }
-
         // ── Rendering ──
         function chipValueForItem(item) {
             return item.store_id ? String(item.store_id) : ANYWHERE;
-        }
-
-        function visibleItems() {
-            if (selectedStores.size === 0) return items;
-            return items.filter(item => selectedStores.has(chipValueForItem(item)));
         }
 
         function groupLabel(value) {
@@ -146,25 +141,11 @@
             return storeName(parseInt(value, 10)) || 'Anywhere';
         }
 
-        function updateSearchCount(total) {
-            const el = document.getElementById('search-results-count');
-            if (!searchTerm) {
-                el.hidden = true;
-                return;
-            }
-            el.hidden = false;
-            el.textContent = total === 1 ? '1 matching item.' : `${total} matching items.`;
-        }
-
-        function renderItems() {
-            const container = document.getElementById('groups-container');
-            renderStoreChips();
-            updateSearchCount(items.length);
-
-            const visible = visibleItems();
-
+        // Groups are built from the rows loaded so far, so Load more drops older
+        // rows into the groups they belong to and a group's count can grow.
+        function renderGroups(items) {
             const groups = new Map();
-            visible.forEach(item => {
+            items.forEach(item => {
                 const key = chipValueForItem(item);
                 if (!groups.has(key)) groups.set(key, []);
                 groups.get(key).push(item);
@@ -184,18 +165,10 @@
                 return groupLabel(a).localeCompare(groupLabel(b));
             });
 
-            if (keys.length === 0) {
-                const message = searchTerm
-                    ? `No purchased items match "${escapeHtml(searchTerm)}".`
-                    : 'Nothing purchased yet.';
-                container.innerHTML = `<div class="container-empty-state">${message}</div>`;
-                return;
-            }
-
             // Same group markup as /shopping, which needs the wrapper so a drag
             // can be aimed at a whole group. Kept identical here so the two
             // views of one list do not drift into two shapes.
-            container.innerHTML = keys.map(key => {
+            return keys.map(key => {
                 const groupItems = groups.get(key);
                 const countLabel = `${groupItems.length} item${groupItems.length === 1 ? '' : 's'}`;
                 const rows = groupItems.length === 0
@@ -244,30 +217,6 @@
             return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
         }
 
-        // ── Search ──
-        function updateSearchButton() {
-            const hasText = document.getElementById('search-input').value.trim().length > 0;
-            document.getElementById('search-btn').disabled = !hasText;
-        }
-
-        function submitSearch() {
-            const value = document.getElementById('search-input').value.trim();
-            if (!value) return;
-            searchTerm = value;
-            // Chips describe what is on screen, so a search legitimately narrows
-            // the chip set. Clearing the selection keeps the two consistent.
-            selectedStores.clear();
-            fetchItems();
-        }
-
-        function clearSearch() {
-            searchTerm = '';
-            document.getElementById('search-input').value = '';
-            updateSearchButton();
-            selectedStores.clear();
-            fetchItems();
-        }
-
         // ── Event handlers ──
         document.getElementById('filter-store-chips').addEventListener('click', (e) => {
             const chip = e.target.closest('.filter-chip');
@@ -278,22 +227,19 @@
             } else {
                 selectedStores.add(value);
             }
-            renderItems();
+            syncChipState();
+            archive.reload();
         });
 
-        document.getElementById('filter-clear').addEventListener('click', clearFilters);
-        document.getElementById('search-btn').addEventListener('click', submitSearch);
-        document.getElementById('search-clear').addEventListener('click', clearSearch);
-        document.getElementById('search-input').addEventListener('input', updateSearchButton);
-        document.getElementById('search-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                submitSearch();
-            }
+        // Clear Filters leaves an active search in place.
+        document.getElementById('filter-clear').addEventListener('click', () => {
+            selectedStores.clear();
+            syncChipState();
+            archive.reload();
         });
 
         // ── Initialize ──
-        fetchStores().then(fetchItems);
+        fetchStores().then(() => archive.reload());
 
     </script>
 {% endblock %}

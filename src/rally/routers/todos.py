@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.models import FamilyMember, Todo
 from rally.recurrence import process_recurring_todos
-from rally.schemas import UNSET, CompletedTodoPage, TodoCreate, TodoResponse, TodoUpdate
+from rally.schemas import UNSET, ArchivePage, TodoCreate, TodoResponse, TodoUpdate
 from rally.todo_notifications import notify_assignment
 from rally.utils.settings import today_start_utc
 from rally.utils.timezone import now_utc
@@ -54,7 +54,7 @@ def list_todos(
     return todos
 
 
-@router.get("/completed", response_model=CompletedTodoPage)
+@router.get("/completed", response_model=ArchivePage[TodoResponse])
 def list_completed_todos(
     sort: str = Query("completed-newest", pattern=f"^({'|'.join(COMPLETED_SORTS)})$"),
     assignee: list[str] = Query(
@@ -130,7 +130,7 @@ def list_completed_todos(
 
     # Fetch one extra row to determine whether another page exists.
     rows = query.offset(offset).limit(limit + 1).all()
-    return CompletedTodoPage(items=rows[:limit], has_more=len(rows) > limit, total=total)
+    return ArchivePage[TodoResponse](items=rows[:limit], has_more=len(rows) > limit, total=total)
 
 
 @router.post("", response_model=TodoResponse, status_code=201)

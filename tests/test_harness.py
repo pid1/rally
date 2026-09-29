@@ -8,18 +8,18 @@ no network happens.
 
 from datetime import UTC, datetime
 
-from rally.models import DinnerPlan, FamilyMember, RecurringTodo, Setting, Todo
+from rally.models import FamilyMember, MealPlan, RecurringTodo, Setting, Todo
 
 # --- Seed factories ------------------------------------------------------------
 
 
 def test_seed_factories_persist_rows(
-    db_session, make_member, make_todo, make_recurring_todo, make_dinner_plan, make_setting
+    db_session, make_member, make_todo, make_recurring_todo, make_meal_plan, make_setting
 ):
     member = make_member("Dad")
     todo = make_todo("Buy milk", assigned_to=member.id)
     rt = make_recurring_todo("Water plants", recurrence_type="weekly", recurrence_day=1)
-    dp = make_dinner_plan("2026-02-01", plan="Tacos", rating=5)
+    dp = make_meal_plan("2026-02-01", plan="Tacos", rating=5)
     make_setting("local_timezone", "America/Chicago")
 
     assert member.id is not None and todo.id is not None
@@ -27,7 +27,7 @@ def test_seed_factories_persist_rows(
     assert db_session.query(FamilyMember).count() == 1
     assert db_session.query(Todo).count() == 1
     assert db_session.query(RecurringTodo).count() == 1
-    assert db_session.query(DinnerPlan).count() == 1
+    assert db_session.query(MealPlan).count() == 1
     assert db_session.get(Setting, "local_timezone").value == "America/Chicago"
 
 

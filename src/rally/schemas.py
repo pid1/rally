@@ -11,6 +11,21 @@ from rally import markdown, member_colors, member_prefs, notification_prefs
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
 
+
+class ArchivePage[T](BaseModel):
+    """One page of an archive: completed tasks, previous notes, previous meals,
+    purchased items.
+
+    Every archive pages the same way, so they share one shape. ``total`` counts
+    matches across every page, which is what the results count reports — a
+    per-page count would say "50 matching" no matter how many there are.
+    """
+
+    items: list[T]
+    has_more: bool  # True when another page exists beyond this one
+    total: int  # Total matches across all pages for the current query (search + filters)
+
+
 # Family Members
 
 
@@ -323,14 +338,6 @@ class TodoResponse(TodoBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CompletedTodoPage(BaseModel):
-    """One page of previously completed todos."""
-
-    items: list[TodoResponse]
-    has_more: bool  # True when another page exists beyond this one
-    total: int  # Total matches across all pages for the current query (search + filters)
-
-
 # Recurring Todos
 
 
@@ -446,6 +453,19 @@ class ShoppingItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PurchasedPage(ArchivePage[ShoppingItemResponse]):
+    """One page of purchased items, plus the stores the Store chips offer.
+
+    ``stores`` holds chip values — store ids as strings, and ``"anywhere"`` for
+    the catch-all — for every store with a purchase matching the current search,
+    *ignoring* the store filter. That is what the chips showed when they were
+    built from the whole archive in the browser, and answering it here keeps the
+    chips from depending on how many pages have been loaded.
+    """
+
+    stores: list[str]
+
+
 class ShoppingReorder(BaseModel):
     """The new contents of one store group, in the order they should read.
 
@@ -477,7 +497,7 @@ class ShoppingSuggestion(BaseModel):
 MEAL_TYPES = ("Breakfast", "Lunch", "Dinner", "Snacks")
 
 
-class DinnerPlanBase(BaseModel):
+class MealPlanBase(BaseModel):
     date: str  # YYYY-MM-DD format
     meal_type: str = "Dinner"  # Breakfast, Lunch, Dinner, Snacks
     plan: str
@@ -487,11 +507,11 @@ class DinnerPlanBase(BaseModel):
     review: str | None = None  # Free-text review
 
 
-class DinnerPlanCreate(DinnerPlanBase):
+class MealPlanCreate(MealPlanBase):
     pass
 
 
-class DinnerPlanUpdate(BaseModel):
+class MealPlanUpdate(BaseModel):
     date: str | None = None
     meal_type: str | None = None
     plan: str | None = None
@@ -499,14 +519,14 @@ class DinnerPlanUpdate(BaseModel):
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
 
 
-class DinnerPlanReviewUpdate(BaseModel):
+class MealPlanReviewUpdate(BaseModel):
     """Lightweight schema for submitting/editing a meal review."""
 
     rating: int | None = None  # 1-5; None means "clear rating"
     review: str | None = None  # Free-text; None means "clear review"
 
 
-class DinnerPlanResponse(DinnerPlanBase):
+class MealPlanResponse(MealPlanBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -592,14 +612,6 @@ class NoteResponse(NoteBase):
         into its textarea, and the page inserts ``body_html`` directly.
         """
         return markdown.render(self.body)
-
-
-class NotePage(BaseModel):
-    """One page of previous notes."""
-
-    items: list[NoteResponse]
-    has_more: bool  # True when another page exists beyond this one
-    total: int  # Total matches across all pages for the current query
 
 
 class FollowedTeamBase(BaseModel):

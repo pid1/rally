@@ -565,7 +565,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, DinnerPlan, Note)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, MealPlan, Note)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -591,7 +591,7 @@ rally/
 │   │   └── sources.py    # Fetch every configured calendar into one merged list
 │   ├── generator/
 │   │   ├── __init__.py
-│   │   ├── generate.py   # Summary generation logic with calendar, todos, and dinner plans
+│   │   ├── generate.py   # Summary generation logic with calendar, todos, and meal plans
 │   │   └── __main__.py   # CLI entry point
 │   ├── utils/
 │   │   ├── __init__.py
@@ -604,7 +604,7 @@ rally/
 │       ├── todos.py         # Todo CRUD API
 │       ├── shopping.py      # Shopping list, store, and autocomplete-suggestion API
 │       ├── recurring_todos.py # Recurring todo template CRUD API
-│       ├── dinner_planner.py # Dinner plan CRUD API
+│       ├── meal_planner.py  # Meal plan CRUD API, plus the paged previous-meals archive
 │       ├── notes.py        # Daily Note CRUD API plus the searchable previous-notes page
 │       ├── family.py        # Family member CRUD API
 │       ├── devices.py       # Device registry and the per-device behavioral settings API
@@ -615,6 +615,7 @@ rally/
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
+│   ├── archive_list.js      # The archive pages' shared search, results count and Load more
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
 ├── templates/
 │   ├── base.html            # The shared layout every page extends: <head>, header, menu button, sidebar
@@ -623,7 +624,8 @@ rally/
 │   ├── todo.html            # Todo management page
 │   ├── todo_completed.html  # Read-only previously-completed tasks page
 │   ├── shopping.html        # Shopping list page
-│   ├── dinner_planner.html  # Dinner planner page
+│   ├── meal_planner.html    # Meal planner page
+│   ├── meal_planner_previous.html # Previous meals: ratings, reviews, search and paging
 │   ├── notes.html           # Notes page: one Daily Note per day, today onward
 │   ├── notes_previous.html  # Read-only, searchable archive of past Daily Notes
 │   ├── _note_edit_modal.html # Shared note add/edit modal
@@ -690,7 +692,7 @@ rally/
 - ✅ FastAPI web application with routes
 - ✅ Summary generation (`rally.generator`) with ICS parsing and recurring event support
   - LLM system prompt includes task filtering guideline (guideline 10): the LLM only references tasks explicitly listed in the TODOS section of its prompt
-  - Todo and dinner plan date comparisons use the user's configured local timezone
+  - Todo and meal plan date comparisons use the user's configured local timezone
 - ✅ Configuration via Settings UI (stored in DB) with config.toml fallback
 - ✅ **Notes** (`/notes`) — one Daily Note per day, shown on the dashboard
   - The dashboard card is the **one card not taken from the snapshot**: `get_dashboard` reads today's note live on every request, so a note written at breakfast appears on the next load instead of waiting for the 4 AM generation. Everything else on that page is cached
@@ -745,7 +747,7 @@ rally/
 - ✅ Weather integration (configurable National Weather Service forecast URL — DWML feed)
 - ✅ Configurable LLM provider - Anthropic Claude or any OpenAI-compatible API
 - ✅ Idempotent database migrations - Run automatically on container startup
-- ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, and DinnerPlan models
+- ✅ SQLite database with FamilyMember, Calendar, Setting, DashboardSnapshot, Todo, RecurringTodo, and MealPlan models
 - ✅ Dashboard caching via DashboardSnapshot table (no auto-generation on page load)
 - ✅ Dashboard route (`/dashboard`) - renders from cached snapshot only
 - ✅ Navigation via a right-hand sidebar — docked open on wide screens, behind a hamburger menu otherwise — on a shared Jinja base layout (`templates/base.html`); see **Navigation**
@@ -827,7 +829,7 @@ rally/
   - `Add Item` is the header button, in the same position and styling as `Add Task` and `Add Meal`, and opens a dual-mode modal (add/edit) following `todo.html` exactly. `Save` closes it — burst entry was tried inline and as a stay-open modal, and both times cost more in consistency than they bought in keystrokes. The store select reads `Anywhere` on every open, ignoring the active chips, matching `openAddModal()` on `/todo`
   - Autocomplete is a custom dropdown (not a native `datalist`) reading `GET /api/shopping/suggestions` server-side, with a ~150 ms debounce and a request-sequence guard against out-of-order replies. ↑/↓ move, Enter accepts, Esc dismisses, `×` forgets a suggestion. Accepting fills the store **only when the user hasn't already chosen one**. `note` is deliberately not restored. The menu lives inside `.modal-body`, which is a scroll box, so it is capped at 240px with its own scroll rather than spilling down the page. Wired in add mode only — editing is a correction, not a lookup
   - Completed items stay on the list until **local midnight**, exactly like tasks, via the shared `today_start_utc()` helper in `utils/settings.py`. There is no countdown and no client-side expiry sweep — the page just refetches periodically
-  - Purchased items live on their own page (`/shopping/purchased`), reached by a `.view-switch` link exactly as `/todo/completed` is. A checkbox that changes what the list means underneath you is a mode; the archive is different data with a different lifetime. Backed by `GET /api/shopping/purchased` — store chips filter client-side, search filters server-side
+  - Purchased items live on their own page (`/shopping/purchased`), reached by a `.view-switch` link exactly as `/todo/completed` is. A checkbox that changes what the list means underneath you is a mode; the archive is different data with a different lifetime. Backed by `GET /api/shopping/purchased` — search, the store filter and paging are all server-side, since the page only holds what it has loaded; the store chips come from the response's `stores`
   - Store filter chips describe **what is on the list**, not what stores exist: a store earns a chip when it has an item in the current fetch, or when it is currently selected. That second clause prevents a filter that cannot be seen or undone. There is no `All` chip — no selection is the unfiltered state, matching the assignee chips on `/todo`
   - `Manage stores` sits in the Store toolbar group beside the chips it manages, styled `.filter-clear`. Opening it from the page rather than from the item modal designs the stacked-overlay problem out instead of mitigating it
   - **Two separate memories, deliberately.** `shopping_items` is a 30-day rolling record whose completed rows are *deleted*; `shopping_item_history` is permanent and deduplicated with a use counter. The purge is safe precisely because autocomplete reads history, not items — trimming one never damages the other
@@ -852,7 +854,7 @@ rally/
   - Standings (`espn.fetch_standings` / `mlb.fetch_standings`) back the record-driven rules. Requested at `level=3` so division membership arrives with the records — the schedule payload carries no team grouping at all. **Reasons may cite a record or a streak, never a game result**; scores remain a non-goal
   - ESPN gotchas the adapter guards, each of which otherwise produces a silent wrong answer: a bare team-schedule call returns only the season type the calendar is in (so all three are requested and merged), `?dates=` is ignored on team endpoints (so the window is filtered locally), `market: National` is meaningless in the NFL, and **regional entries are dropped entirely because `market` does not identify whose feed it is** — measured across a full Stars season, all 58 regional TV rows are tagged `Home` and every one is the opponent's network
   - All calls are issued concurrently under one short overall budget and are best-effort: a provider outage degrades to a missing section, never a failed summary
-- ✅ Dinner planner - Full CRUD API and UI
+- ✅ Meal planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
   - Optional attendees: select which family members are eating (defaults to everyone)
   - Optional cook assignment: who's preparing the meal
@@ -979,7 +981,8 @@ visual suite (above) before shipping a layout change.
 - `/shopping/purchased` - Read-only page of items purchased before today (local time), grouped by store; reachable only via the `View purchased items` link on `/shopping`, not from the nav bar
 - `/notes` - **Notes**: one **Daily Note** per day, from today onward with no upper bound. A day with no note has no card. `Add Note` opens a dual-mode modal; a date that already has a note returns `409` carrying that note's id, and the modal switches to editing it rather than refusing or overwriting. Text is markdown — bold, italic, bullet and numbered lists, and a line break per Enter — rendered **server-side** by `rally.markdown` and returned as `body_html` beside the raw `body`. Markup is rejected at write time (`schemas._reject_markup`) *and* escaped at render; the rule is tag-shaped (`<` + optional `/` + a letter) so `temp < 40` survives
 - `/notes/previous` - Read-only notes for days before today, newest first, with server-side search and paging. Reachable only via `View previous notes` on `/notes`, not from the nav
-- `/dinner-planner` - Dinner planning page with date picker and plan management
+- `/meal-planner` - Meal planning page with date picker and plan management
+- `/meal-planner/previous` - **Previous Meals**: meals from days before today, with ratings and reviews, Meal Type and Rating chips, Sort, server-side search over the meal and its review, and paging. Reachable only via `View previous meals` on `/meal-planner`, not from the nav. The one archive you can edit, so a save reloads what is loaded rather than jumping back to the first page
 - `/settings` - Settings, family member, calendar, and followed-team management page. **Personal Defaults** is the per-person, per-device behavioral section, and everything in it is scoped to the device it is being read on: a `This device` name, a `This device belongs to` control (the device→member binding, `localStorage` only, never sent anywhere), one dropdown per family member per setting in `member_prefs.CATALOG`, and **Devices Rally remembers** — every device, its answer count, when it was last seen, and a `Forget`. Saved on change; the `PUT` carries only the setting that moved
 - `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
 - `/preparedness` - Preparedness stock, grouped by location. Location and status chips, search, and an `Add Item` modal carrying the refresh schedule. Each scheduled row has a `Refreshed` button — the one action performed while standing in the garage holding the thing
@@ -1003,7 +1006,7 @@ visual suite (above) before shipping a layout change.
   - `GET /api/notes/previous?search=&limit=&offset=` - Days before today, newest first. Returns `{items, has_more, total}`; `total` counts every match, which is what the results count reports
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
-  - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
+  - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
   - `POST /api/todos` - Create new todo. Pushes to the assignee when one is set (see **Pushover on task assignment**)
   - `GET /api/todos/{id}` - Get specific todo
   - `PUT /api/todos/{id}` - Update todo. Pushes to the assignee only when `assigned_to` changes to somebody new
@@ -1018,7 +1021,7 @@ visual suite (above) before shipping a layout change.
   - `PUT /api/shopping/items/{id}` - Partial update of `name`, `note`, `store_id`, `completed` (`note`/`store_id` use the `UNSET` sentinel). Completion stamping matches `PUT /api/todos/{id}` exactly. Does **not** touch history. A *changed* `store_id` re-places the item at the top of its new group — a rank held at the old store means nothing at the new one
   - `POST /api/shopping/items/reorder` - Rewrite one store group's order. Body is `{store_id, item_ids}`: the **destination** store (`null` for the catch-all) and that group's items in the order they should read. Every listed item is assigned to `store_id` and numbered by its index, so a cross-store drag is the same call as a within-store one. Idempotent. Duplicate ids keep their first mention; an unknown id is `404` and changes nothing (all-or-nothing — a half-applied order is one nobody asked for); an unknown `store_id` is `422`. The group the item *left* is deliberately not renumbered, because positions are only ever compared. Returns the listed items in their new order
   - `DELETE /api/shopping/items/{id}` - Delete an item; history is untouched
-  - `GET /api/shopping/purchased?search=` - List items purchased **before** local midnight today — the exact complement of `GET /api/shopping/items`, including completed rows whose `completed_at` is `NULL` so nothing is invisible in both views. Ordered most-recent-first. Optional case-insensitive `search` across name and note. No sort/limit/offset: `PURCHASED_RETENTION_DAYS = 30` bounds the response. Runs the once-per-local-day retention purge
+  - `GET /api/shopping/purchased?search=&store=&limit=&offset=` - List items purchased **before** local midnight today — the exact complement of `GET /api/shopping/items`, including completed rows whose `completed_at` is `NULL` so nothing is invisible in both views. Ordered most-recent-first. Optional case-insensitive `search` across name and note; repeatable `store` (store ids and/or `anywhere`; OR semantics, empty means all); `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total, stores}` — `stores` is the chip values with a purchase matching the search, **ignoring** the store filter, so a selected chip does not take the others with it. Runs the once-per-local-day retention purge
   - `GET /api/shopping/suggestions?q=&limit=8` - Autocomplete over `shopping_item_history`. Substring (wildcard) match with `%`/`_` escaped, ranked prefix-matches-first then by `times_added` DESC, `last_added_at` DESC, `name` ASC. Empty `q` returns the top entries by use count. `limit` defaults to 8 and is clamped to 25
   - `DELETE /api/shopping/suggestions/{id}` - Forget a suggestion (history is permanent, so a typo'd add would otherwise haunt autocomplete forever). Leaves `shopping_items` alone
 - `/api/recurring-todos` - Recurring todo template CRUD endpoints
@@ -1028,13 +1031,15 @@ visual suite (above) before shipping a layout change.
   - `GET /api/recurring-todos/{id}` - Get specific template
   - `PUT /api/recurring-todos/{id}` - Update template. `start_date` uses the `UNSET` sentinel like `custom_rule`, and its three edit states are enforced here: freely editable before anything is generated; after the first instance exists but nothing has been completed, a change re-dates the open instance and resets `last_generated_date` to the new first occurrence (the template owns the anchor — hand-editing the task never moved it); after any instance has been completed the change is a `409`, because the last completion drives the series from then on. Re-sending the value already stored is not a change. A malformed date, or one that is not `YYYY-MM-DD`, is a `422`
   - `DELETE /api/recurring-todos/{id}` - Delete template
-- `/api/dinner-plans` - Dinner plan CRUD endpoints
-  - `GET /api/dinner-plans` - List all dinner plans
-  - `POST /api/dinner-plans` - Create new dinner plan (multiple per date allowed)
-  - `GET /api/dinner-plans/{id}` - Get specific plan
-  - `GET /api/dinner-plans/date/{date}` - Get all plans for a date (YYYY-MM-DD)
-  - `PUT /api/dinner-plans/{id}` - Update plan
-  - `DELETE /api/dinner-plans/{id}` - Delete plan
+- `/api/meal-planner` - Meal plan CRUD endpoints
+  - `GET /api/meal-planner` - List all meal plans
+  - `POST /api/meal-planner` - Create new meal plan (multiple per date allowed)
+  - `GET /api/meal-planner/previous?sort=&min_rating=&meal_type=&search=&limit=&offset=` - Meals before today (local time). `sort` is `rating_desc` (default), `date_desc` or `date_asc`, each ending in `id` so offset paging never repeats or skips a tied meal; repeatable `meal_type`; `search` matches the meal or its review, case-insensitively; `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`
+  - `GET /api/meal-planner/{id}` - Get specific plan
+  - `GET /api/meal-planner/date/{date}` - Get all plans for a date (YYYY-MM-DD)
+  - `PUT /api/meal-planner/{id}` - Update plan
+  - `PUT /api/meal-planner/{id}/review` - Set or clear a past meal's rating and review
+  - `DELETE /api/meal-planner/{id}` - Delete plan
 - `/api/family` - Family member CRUD endpoints. Every response carries `notifications: {kind: bool}` — **resolved** values with the defaults already filled in, so no client has to know what the defaults are. Behavioral preferences deliberately do *not* travel here: they belong to a person *on a device*, so a member record cannot carry one without carrying every device the household has ever used
   - `GET /api/family` - List all family members
   - `POST /api/family` - Create new family member. Accepts an optional `notifications` map; omitting it starts the member on the catalog defaults (everything on except `shopping_added`)
@@ -1103,9 +1108,9 @@ visual suite (above) before shipping a layout change.
 ### Navigation
 Every page extends **`templates/base.html`**, which owns the `<head>`, the wordmark header, the menu button and the sidebar. A page supplies only its `title` block (the part after `Rally — `, always an em dash), its `subtitle`, any page-specific `head` scripts, and its `content`; it names its own sidebar entry with `{% set nav_active = "…" %}` at the top. A nav change is therefore made **once**, in `base.html` — the old nav was copied into fourteen templates and had already drifted. Every page renders through the one Jinja environment in `src/rally/templating.py`, including the Dashboard, which used to be filled in with `str.replace` and so could not share a layout; its HTML-bearing values arrive as `Markup` so they are inserted exactly as before.
 
-Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Previous Meals, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
+Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
 
-- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
+- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/meal-planner/previous` → Meal Planner, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
 - **The go list is not in the sidebar**: it is a view of the inventory, reached by `View go list` on Preparedness
 - **Width alone decides the treatment**, in three bands:
   - **75rem (1200px) and wider — docked.** The page column (`--page-max`, 900px) and the sidebar (`--sidebar-width`, 18rem) fit side by side, so the sidebar is simply open: no button, no scrim, and `html` gains `padding-right: var(--sidebar-width)` so the column centers in the space left of it. Hiding it there would cost a click per navigation to save space the page cannot use. `sidebar.js` never repeats this width — it treats "the button is not displayed" as docked, and drops an overlay's open state when a resize crosses the line
@@ -1181,7 +1186,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `PrepItem` - Preparedness stock with a free-text `quantity`, optional location and notes, and an optional refresh schedule (`refresh_mode` none/date/interval, `refresh_interval_months`, `next_refresh_date`, `remind_days_before`, `last_refreshed_on`). `next_refresh_date` is stored and indexed rather than derived — it is the only column the digest reads
 - `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimization
 - `MemberNotificationPref` - One family member's answer for one kind of notification (`event_reminder`, `event_change`, `task_assignment`, `prep_refresh`, `shopping_added`), unique on `(family_member_id, kind)`. **An absent row means the kind's default** — the row only exists once somebody has expressed a preference, the same discipline `todo_notify_enabled` follows. A preference only ever *narrows* the kind's audience rule; it can never add somebody to an audience they were not already in
-- `DinnerPlan` - Meal planning with date, plan text, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
+- `MealPlan` - Meal planning (stored in the `dinner_plans` table, a name kept from when it only planned dinners) with date, meal type, plan text, rating and review, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues
 

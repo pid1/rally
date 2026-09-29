@@ -42,8 +42,8 @@ PAGES = {
     "shopping-purchased": "/shopping/purchased",
     "notes": "/notes",
     "notes-previous": "/notes/previous",
-    "dinner-planner": "/dinner-planner",
-    "meal-history": "/meal-history",
+    "meal-planner": "/meal-planner",
+    "meal-planner-previous": "/meal-planner/previous",
     "preparedness": "/preparedness",
     "go-list": "/go-list",
     "settings": "/settings",
@@ -67,8 +67,8 @@ TOOLBAR_PAGES = [
     "todo-completed",
     "shopping",
     "shopping-purchased",
-    "dinner-planner",
-    "meal-history",
+    "meal-planner",
+    "meal-planner-previous",
     "preparedness",
 ]
 
