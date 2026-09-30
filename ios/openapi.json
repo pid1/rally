@@ -2399,6 +2399,12 @@
             "title": "Description",
             "type": "string"
           },
+          "description_html": {
+            "description": "The description as paragraphs, line breaks and links, built server-side.\n\nTravels beside ``description`` rather than replacing it: the edit form\nloads the raw text into its textarea, and the detail view inserts this\ndirectly. Computed here, on the way out, so a description already sitting\nin ``calendar_cache`` is formatted without a resync.",
+            "readOnly": true,
+            "title": "Description Html",
+            "type": "string"
+          },
           "editable": {
             "default": false,
             "title": "Editable",
@@ -2545,7 +2551,8 @@
           "end_time_label",
           "start_form",
           "end_form",
-          "dates"
+          "dates",
+          "description_html"
         ],
         "title": "OccurrenceResponse",
         "type": "object"
