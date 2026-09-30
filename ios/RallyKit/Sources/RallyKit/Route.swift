@@ -17,6 +17,17 @@ public enum Route: String, CaseIterable, Sendable {
     case saveMemberPreferences
     case preferenceCatalog
     case dashboard
+    // Tasks
+    case todos
+    case createTodo
+    case updateTodo
+    case deleteTodo
+    case completedTodos
+    case recurringTodos
+    case createRecurringTodo
+    case updateRecurringTodo
+    case deleteRecurringTodo
+    case previewRecurrence
     // Shopping
     case shoppingStores
     case createShoppingStore
@@ -41,6 +52,16 @@ public enum Route: String, CaseIterable, Sendable {
         case .saveMemberPreferences: (.put, "/api/devices/{device_id}/preferences/{member_id}")
         case .preferenceCatalog: (.get, "/api/preferences/catalog")
         case .dashboard: (.get, "/api/dashboard")
+        case .todos: (.get, "/api/todos")
+        case .createTodo: (.post, "/api/todos")
+        case .updateTodo: (.put, "/api/todos/{todo_id}")
+        case .deleteTodo: (.delete, "/api/todos/{todo_id}")
+        case .completedTodos: (.get, "/api/todos/completed")
+        case .recurringTodos: (.get, "/api/recurring-todos")
+        case .createRecurringTodo: (.post, "/api/recurring-todos")
+        case .updateRecurringTodo: (.put, "/api/recurring-todos/{rt_id}")
+        case .deleteRecurringTodo: (.delete, "/api/recurring-todos/{rt_id}")
+        case .previewRecurrence: (.post, "/api/recurring-todos/preview")
         case .shoppingStores: (.get, "/api/shopping/stores")
         case .createShoppingStore: (.post, "/api/shopping/stores")
         case .updateShoppingStore: (.put, "/api/shopping/stores/{store_id}")

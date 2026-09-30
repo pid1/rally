@@ -54,7 +54,9 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
       store is the edit form's Store field, since a SwiftUI `List` cannot drop across
       sections. The Siri action is `AddToShoppingListIntent` ("Add to my shopping list
       in Rally"), which replaces the Shortcuts recipe in `docs/voice-shortcuts.md`
-- [ ] Tasks: recurring templates, completed history
+- [x] Tasks: recurring templates (daily/weekly/monthly/Custom… with the server-read preview),
+      completed history, assignee chips, sort, swipe to delete
+- [x] App icon (`Assets.xcassets/AppIcon`, from the supplied artwork, filled full-bleed)
 - [ ] Dashboard
 - [ ] Calendar: agenda, time grid, month grid, event add/edit/delete, recurrence
       and scope prompts, read-only external events

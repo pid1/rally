@@ -52,25 +52,7 @@ struct PurchasedView: View {
         .searchable(text: Bindable(model).search, prompt: "Search purchased items")
         .safeAreaInset(edge: .top, spacing: 0) {
             let chips = model.chips(stores: stores)
-            if !chips.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: RallyDesign.space[2]) {
-                        ForEach(chips) { chip in
-                            let on = model.selected.contains(chip.value)
-                            Button { model.toggleFilter(chip.value) } label: {
-                                Text(chip.title)
-                                    .padding(.horizontal, RallyDesign.space[3])
-                                    .frame(minHeight: RallyDesign.targetMin)
-                                    .background(on ? RallyDesign.color("ink") : RallyDesign.color("surfaceSunken"), in: Capsule())
-                                    .foregroundStyle(on ? RallyDesign.color("surface") : RallyDesign.color("ink"))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, RallyDesign.space[4])
-                }
-                .background(.bar)
-            }
+            if !chips.isEmpty { ChipBar(chips: chips, selected: model.selected, toggle: model.toggleFilter) }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if model.hasLoaded {

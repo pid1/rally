@@ -64,11 +64,11 @@ public final class PurchasedModel {
 
     /// Chips for the stores with a purchase, plus any selected one — a filter
     /// that cannot be seen cannot be undone.
-    public func chips(stores: [ShoppingStore]) -> [ShoppingChip] {
+    public func chips(stores: [ShoppingStore]) -> [FilterChip] {
         let present = Set(chipValues).union(selected)
         var chips = ShoppingLogic.sortedStores(stores)
             .filter { present.contains(String($0.id)) }
-            .map { ShoppingChip(value: String($0.id), title: $0.name) }
+            .map { FilterChip(value: String($0.id), title: $0.name) }
         if present.contains(ShoppingLogic.anywhere) { chips.append(.init(value: ShoppingLogic.anywhere, title: "Anywhere")) }
         return chips
     }

@@ -13,7 +13,9 @@ struct MainTabView: View {
                 NavigationStack { PlaceholderScreen(title: "Dashboard") }
             }
             Tab("Tasks", systemImage: "checklist") {
-                NavigationStack { PlaceholderScreen(title: "Tasks") }
+                NavigationStack {
+                    if let client = app.client { TasksView(client: client) }
+                }
             }
             Tab("Shopping", systemImage: "cart") {
                 NavigationStack {

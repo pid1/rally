@@ -1,9 +1,12 @@
 import Foundation
 import SwiftUI
 
-public struct ShoppingChip: Identifiable, Equatable, Sendable {
+/// One filter chip: what it selects, and what it says. Shopping stores, task
+/// assignees and the archives all use it.
+public struct FilterChip: Identifiable, Equatable, Sendable {
     public let value: String
     public let title: String
+    public init(value: String, title: String) { self.value = value; self.title = title }
     public var id: String { value }
 }
 
@@ -30,13 +33,13 @@ public enum ShoppingLogic {
     /// earns one when an item is on screen, or when it is currently selected.
     /// The second clause stops a filter that cannot be seen or undone — tick off
     /// the last Costco item while filtered to Costco and the chip must stay.
-    public static func chips(stores: [ShoppingStore], items: [ShoppingItem], selected: Set<String>) -> [ShoppingChip] {
+    public static func chips(stores: [ShoppingStore], items: [ShoppingItem], selected: Set<String>) -> [FilterChip] {
         let present = Set(items.map(key(for:)))
         var chips = sortedStores(stores)
             .filter { present.contains(String($0.id)) || selected.contains(String($0.id)) }
-            .map { ShoppingChip(value: String($0.id), title: $0.name) }
+            .map { FilterChip(value: String($0.id), title: $0.name) }
         if present.contains(anywhere) || selected.contains(anywhere) {
-            chips.append(ShoppingChip(value: anywhere, title: "Anywhere"))
+            chips.append(FilterChip(value: anywhere, title: "Anywhere"))
         }
         return chips
     }

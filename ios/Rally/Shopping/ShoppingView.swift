@@ -132,37 +132,17 @@ private struct ShoppingRow: View {
 }
 
 /// Store filter chips plus the way into managing stores. Chips describe what is
-/// on the list; there is no "All" chip, because no selection *is* unfiltered.
+/// on the list, not which stores exist.
 private struct FilterBar: View {
     let model: ShoppingModel
     let manageStores: () -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: RallyDesign.space[2]) {
-                ForEach(model.chips) { chip in
-                    let on = model.selected.contains(chip.value)
-                    Button { model.toggleFilter(chip.value) } label: {
-                        Text(chip.title)
-                            .padding(.horizontal, RallyDesign.space[3])
-                            .frame(minHeight: RallyDesign.targetMin)
-                            .background(on ? RallyDesign.color("ink") : RallyDesign.color("surfaceSunken"), in: Capsule())
-                            .foregroundStyle(on ? RallyDesign.color("surface") : RallyDesign.color("ink"))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
-                if !model.selected.isEmpty {
-                    Button("Clear") { model.clearFilters() }
-                        .frame(minHeight: RallyDesign.targetMin)
-                }
-                Button(action: manageStores) {
-                    Label("Stores", systemImage: "storefront").frame(minHeight: RallyDesign.targetMin)
-                }
-                .accessibilityIdentifier("shopping-manage-stores")
+        ChipBar(chips: model.chips, selected: model.selected, toggle: model.toggleFilter, clear: model.clearFilters) {
+            Button(action: manageStores) {
+                Label("Stores", systemImage: "storefront").frame(minHeight: RallyDesign.targetMin)
             }
-            .padding(.horizontal, RallyDesign.space[4])
+            .accessibilityIdentifier("shopping-manage-stores")
         }
-        .background(.bar)
     }
 }

@@ -18,7 +18,7 @@ public final class ShoppingModel {
     public init(client: APIClient) { self.client = client }
 
     public var groups: [ShoppingGroup] { ShoppingLogic.groups(stores: stores, items: items, selected: selected) }
-    public var chips: [ShoppingChip] { ShoppingLogic.chips(stores: stores, items: items, selected: selected) }
+    public var chips: [FilterChip] { ShoppingLogic.chips(stores: stores, items: items, selected: selected) }
 
     // MARK: Loading
 
