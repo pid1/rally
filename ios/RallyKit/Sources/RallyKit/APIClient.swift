@@ -63,6 +63,7 @@ public struct APIClient: Sendable {
             throw APIError.unreachable(error.localizedDescription)
         }
         guard (200..<300).contains(response.statusCode) else {
+            if response.statusCode == 409, let conflict = Self.conflict(in: data) { throw conflict }
             throw APIError.http(status: response.statusCode, detail: Self.detail(in: data))
         }
         return data
@@ -101,12 +102,35 @@ public struct APIClient: Sendable {
         catch { throw APIError.decoding(String(describing: error)) }
     }
 
-    /// FastAPI's `{"detail": "…"}`. A validation failure's `detail` is a list
-    /// of objects instead, which is not something to show a person.
+    /// What to tell the person. FastAPI's `detail` is usually a string; a
+    /// `{"message": …}` object carries an id alongside; and a validation failure
+    /// (`422`) is a list whose first `msg` is the one a field validator wrote for
+    /// a person ("Notes can't contain HTML tags…"). Pydantic prefixes those with
+    /// "Value error, ", which is noise here.
     static func detail(in data: Data) -> String? {
+        guard let object = try? JSONDecoder().decode([String: JSONValue].self, from: data) else { return nil }
+        switch object["detail"] {
+        case .string(let text)?: return text
+        case .object(let fields)?:
+            if case .string(let message)? = fields["message"] { return message }
+            return nil
+        case .array(let items)?:
+            for case .object(let item) in items {
+                if case .string(let message)? = item["msg"] {
+                    return message.hasPrefix("Value error, ") ? String(message.dropFirst("Value error, ".count)) : message
+                }
+            }
+            return nil
+        default: return nil
+        }
+    }
+
+    static func conflict(in data: Data) -> APIError? {
         guard let object = try? JSONDecoder().decode([String: JSONValue].self, from: data),
-              case .string(let text)? = object["detail"] else { return nil }
-        return text
+              case .object(let fields)? = object["detail"],
+              case .string(let message)? = fields["message"],
+              case .int(let id)? = fields["id"] else { return nil }
+        return .conflict(message: message, id: id)
     }
 }
 

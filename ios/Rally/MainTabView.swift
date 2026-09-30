@@ -35,10 +35,15 @@ struct MainTabView: View {
 }
 
 struct MoreView: View {
+    @Environment(AppModel.self) private var app
+
     var body: some View {
         NavigationStack {
             List {
-                NavigationLink("Notes") { PlaceholderScreen(title: "Notes") }
+                NavigationLink("Notes") {
+                    if let client = app.client { NotesView(client: client) }
+                }
+                .accessibilityIdentifier("more-notes")
                 NavigationLink("Meal Planner") { PlaceholderScreen(title: "Meal Planner") }
                 NavigationLink("Preparedness") { PlaceholderScreen(title: "Preparedness") }
                 Section {

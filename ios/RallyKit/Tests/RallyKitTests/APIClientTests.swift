@@ -83,9 +83,22 @@ struct APIClientTests {
         }
     }
 
-    @Test func validationDetailListIsNotShown() {
-        let data = Data(#"{"detail":[{"loc":["body"],"msg":"bad"}]}"#.utf8)
-        #expect(APIClient.detail(in: data) == nil)
+    @Test func validationMessagesWrittenForPeopleAreShown() {
+        let data = Data(#"{"detail":[{"loc":["body"],"msg":"Value error, Notes can't contain HTML tags."}]}"#.utf8)
+        #expect(APIClient.detail(in: data) == "Notes can't contain HTML tags.")
+        #expect(APIClient.detail(in: Data(#"{"detail":[{"loc":["body"]}]}"#.utf8)) == nil)
+    }
+
+    @Test func aConflictCarriesTheExistingRowsID() async {
+        let rec = Recorder()
+        rec.status = 409
+        rec.body = Data(#"{"detail":{"message":"A note already exists for 2026-09-30","id":7}}"#.utf8)
+        do {
+            _ = try await APIClient(baseURL: base, transport: rec.transport()).familyMembers()
+            Issue.record("expected a throw")
+        } catch {
+            #expect(error as? APIError == .conflict(message: "A note already exists for 2026-09-30", id: 7))
+        }
     }
 
     @Test func connectionCheckClassifiesAnswers() async {
