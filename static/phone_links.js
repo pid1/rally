@@ -12,6 +12,9 @@
  * first and builds the anchors itself, so what comes back is safe to hand to
  * innerHTML, and a phone number is the only thing in it that becomes markup.
  *
+ * Where the text has already been rendered to markup on the server, call
+ * linkPhoneNumbers() on the element it was inserted into instead.
+ *
  * What counts as a phone number:
  *
  *   - A North American one: ten digits, optionally led by 1 or +1, written any
@@ -100,6 +103,22 @@
         return null;
     }
 
+    /* Every phone number in the text, in order, as offsets into it. The one
+       place a run of digits is turned into a decision, shared by both entry
+       points below so that what counts as a number cannot differ between them. */
+    function phoneMatches(source) {
+        const found = [];
+        let run;
+        RUN.lastIndex = 0;
+        while ((run = RUN.exec(source)) !== null) {
+            const match = findNumber(source, run[0], run.index);
+            if (!match) continue;
+            found.push(match);
+            RUN.lastIndex = match.end;
+        }
+        return found;
+    }
+
     /* Escape text for innerHTML, with its phone numbers marked up as tel:
        links. The link text is the number exactly as it was written; only the
        href is normalized. */
@@ -107,19 +126,50 @@
         const source = text == null ? '' : String(text);
         let html = '';
         let cursor = 0;
-        let run;
-        RUN.lastIndex = 0;
-        while ((run = RUN.exec(source)) !== null) {
-            const found = findNumber(source, run[0], run.index);
-            if (!found) continue;
+        for (const found of phoneMatches(source)) {
             html += escapeHtml(source.slice(cursor, found.start));
             html += `<a class="phone-link" href="tel:${found.number}">`
                 + `${escapeHtml(source.slice(found.start, found.end))}</a>`;
             cursor = found.end;
-            RUN.lastIndex = found.end;
         }
         return html + escapeHtml(source.slice(cursor));
     }
 
+    /* The same links for text that is already markup. escapeHtmlWithPhoneLinks
+       takes raw text and escapes it, so handed rendered HTML it would print the
+       tags; this walks the text nodes of an element that is already in the page
+       and wraps numbers where they stand, touching no markup.
+
+       A number inside an existing link is left alone — a link inside a link is
+       not valid, and the author's own link is the better answer. A number split
+       across two elements ("<b>800</b>-111-1234") is not found, because each
+       text node is read on its own; that is the price of never rewriting the
+       markup around it. */
+    function linkPhoneNumbers(root) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        for (const node of nodes) {
+            if (node.parentElement && node.parentElement.closest('a')) continue;
+            const text = node.nodeValue;
+            const matches = phoneMatches(text);
+            if (!matches.length) continue;
+            const fragment = document.createDocumentFragment();
+            let cursor = 0;
+            for (const found of matches) {
+                fragment.append(text.slice(cursor, found.start));
+                const link = document.createElement('a');
+                link.className = 'phone-link';
+                link.href = `tel:${found.number}`;
+                link.textContent = text.slice(found.start, found.end);
+                fragment.append(link);
+                cursor = found.end;
+            }
+            fragment.append(text.slice(cursor));
+            node.replaceWith(fragment);
+        }
+    }
+
     window.escapeHtmlWithPhoneLinks = escapeHtmlWithPhoneLinks;
+    window.linkPhoneNumbers = linkPhoneNumbers;
 })();
