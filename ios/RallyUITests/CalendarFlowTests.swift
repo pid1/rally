@@ -57,7 +57,9 @@ final class CalendarFlowTests: XCTestCase {
         app.buttons["calendar-add"].tap()
         let title = app.textFields["event-title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap(); title.typeText("Dentist run")
+        // Unique per run: the demo data outlives a run, and a second match makes the tap ambiguous.
+        let eventName = "Dentist run \(Int(Date().timeIntervalSince1970) % 100000)"
+        title.tap(); title.typeText(eventName)
         // The demo family has several native calendars, so the owner must be chosen.
         let save = app.buttons["event-save"]
         if app.buttons["event-calendar"].exists {
@@ -69,19 +71,21 @@ final class CalendarFlowTests: XCTestCase {
             // Calendars are listed under their owner's name; the filter chip behind the sheet
             // is also labelled "Mom", so target the calendar row itself.
             let row = app.buttons["Mom's Calendar"]
-            XCTAssertTrue(row.waitForExistence(timeout: 5), "the pushed picker lists the owner's calendar")
+            // The list is lazy and grows with every member the demo data has gained.
+            for _ in 0..<6 where !(row.exists && row.isHittable) { app.swipeUp() }
+            XCTAssertTrue(row.exists, "the pushed picker lists the owner's calendar")
             row.tap()
             // Some OS versions pop the pushed picker on selection; others need Back.
             if !save.waitForExistence(timeout: 3) { app.navigationBars.buttons.element(boundBy: 0).tap() }
             XCTAssertTrue(save.waitForExistence(timeout: 5))
-            XCTAssertEqual(app.textFields["event-title"].value as? String, "Dentist run",
+            XCTAssertEqual(app.textFields["event-title"].value as? String, eventName,
                            "coming back from the picker must not reset what was typed")
             XCTAssertTrue(save.isEnabled, "choosing a calendar unblocks Save")
         }
         shot(app, "calendar-5-editor")
         save.tap()
 
-        let row = app.staticTexts["Dentist run"]
+        let row = app.staticTexts[eventName]
         XCTAssertTrue(row.waitForExistence(timeout: 10), "the new event is on today's agenda")
         row.tap()
         XCTAssertTrue(app.descendants(matching: .any)["detail-row-when"].waitForExistence(timeout: 5))

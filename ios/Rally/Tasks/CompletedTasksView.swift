@@ -17,6 +17,14 @@ struct CompletedTasksView: View {
 
     var body: some View {
         List {
+            // Filters live in the list: pinned with safeAreaInset, the horizontal scroller slid
+            // under the navigation bar on some screens and left a blank band.
+            Section {
+                ChipBar(chips: chips, selected: model.assignees, toggle: model.toggleAssignee, clear: { model.assignees = [] })
+        
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
             if model.hasLoaded && model.items.isEmpty {
                 ContentUnavailableView(model.search.isEmpty && model.assignees.isEmpty ? "Nothing completed yet" : "No matches",
                                        systemImage: "checkmark.circle").listRowBackground(Color.clear)
@@ -55,9 +63,6 @@ struct CompletedTasksView: View {
                 } label: { Image(systemName: "arrow.up.arrow.down") }
                     .accessibilityLabel("Sort")
             }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ChipBar(chips: chips, selected: model.assignees, toggle: model.toggleAssignee, clear: { model.assignees = [] })
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if model.hasLoaded {

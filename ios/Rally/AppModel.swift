@@ -61,6 +61,8 @@ final class AppModel {
             return .connected(familyCount: count)
         case .unreachable:
             return .failed("Couldn't reach \(url.host() ?? "that address"). If it's on your tailnet, check that Tailscale is connected on this phone.")
+        case .blocked:
+            return .failed(APIError.blockedByATS.localizedDescription)
         case .notRally:
             return .failed("Something answered, but it doesn't look like Rally. Check the address and port.")
         case .failed(let message):

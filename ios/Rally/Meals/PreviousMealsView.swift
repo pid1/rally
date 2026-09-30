@@ -24,6 +24,22 @@ struct PreviousMealsView: View {
 
     var body: some View {
         List {
+            // Filters live in the list: pinned with safeAreaInset, the horizontal scroller slid
+            // under the navigation bar on some screens and left a blank band.
+            Section {
+                VStack(spacing: 0) {
+                    ChipBar(chips: MealLogic.mealTypes.map { FilterChip(value: $0, title: $0) }, selected: loader.filter.mealTypes,
+                            toggle: { type in
+                                if loader.filter.mealTypes.contains(type) { loader.filter.mealTypes.remove(type) } else { loader.filter.mealTypes.insert(type) }
+                            })
+                    ChipBar(chips: ratingChips, selected: loader.filter.minRating.map { [String($0)] } ?? [],
+                            // Single-select: tapping the active chip clears it.
+                            toggle: { value in loader.filter.minRating = loader.filter.minRating == Int(value) ? nil : Int(value) })
+                }
+        
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
             if loader.hasLoaded && loader.items.isEmpty {
                 ContentUnavailableView(loader.search.isEmpty && loader.filter.mealTypes.isEmpty && loader.filter.minRating == nil
                                        ? "No earlier meals" : "No meals match", systemImage: "fork.knife")
@@ -60,17 +76,6 @@ struct PreviousMealsView: View {
                         ForEach(MealSort.allCases) { Text($0.title).tag($0) }
                     }
                 } label: { Image(systemName: "arrow.up.arrow.down") }.accessibilityLabel("Sort")
-            }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                ChipBar(chips: MealLogic.mealTypes.map { FilterChip(value: $0, title: $0) }, selected: loader.filter.mealTypes,
-                        toggle: { type in
-                            if loader.filter.mealTypes.contains(type) { loader.filter.mealTypes.remove(type) } else { loader.filter.mealTypes.insert(type) }
-                        })
-                ChipBar(chips: ratingChips, selected: loader.filter.minRating.map { [String($0)] } ?? [],
-                        // Single-select: tapping the active chip clears it.
-                        toggle: { value in loader.filter.minRating = loader.filter.minRating == Int(value) ? nil : Int(value) })
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {

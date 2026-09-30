@@ -6,6 +6,8 @@ public enum ConnectionStatus: Equatable, Sendable {
     case unreachable
     /// Something answered, and it was not Rally.
     case notRally
+    /// iOS refused the address itself (plain HTTP under ATS); nothing was sent.
+    case blocked
     case failed(String)
 }
 
@@ -19,6 +21,7 @@ extension APIClient {
         } catch let error as APIError {
             switch error {
             case .unreachable: return .unreachable
+            case .blockedByATS: return .blocked
             case .decoding: return .notRally
             case .http(let status, _) where status == 404: return .notRally
             default: return .failed(error.localizedDescription)

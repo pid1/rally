@@ -126,3 +126,37 @@ struct APIClientTests {
         #expect(Int(date.timeIntervalSince1970) == 1_790_777_100)
     }
 }
+
+struct TransportSecurityTests {
+    let base = URL(string: "http://rally.tailnet.ts.net:8000")!
+
+    @Test func anATSRefusalIsNotReportedAsANetworkProblem() async {
+        let rec = Recorder()
+        rec.failure = URLError(.appTransportSecurityRequiresSecureConnection)
+        let client = APIClient(baseURL: base, transport: rec.transport())
+        #expect(await client.checkConnection() == .blocked)
+        #expect(APIError.blockedByATS.localizedDescription.contains("plain http://"))
+        #expect(!APIError.blockedByATS.localizedDescription.contains("Tailscale"))
+    }
+
+    @Test func otherTransportFailuresStillMeanUnreachable() async {
+        let rec = Recorder()
+        rec.failure = URLError(.timedOut)
+        #expect(await APIClient(baseURL: base, transport: rec.transport()).checkConnection() == .unreachable)
+    }
+}
+
+/// `localhost` is exempt from App Transport Security, so no simulator test can see this go wrong:
+/// it once left the exception out of the built app and blocked a tailnet address on a real phone.
+struct ProjectConfigTests {
+    private static let ios = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+    @Test func theAppAllowsPlainHTTPAndProjectYmlPointsAtTheFileThatSaysSo() throws {
+        let plist = try String(contentsOf: Self.ios.appendingPathComponent("Config/AppInfo.plist"), encoding: .utf8)
+        #expect(plist.contains("<key>NSAppTransportSecurity</key>") && plist.contains("<key>NSAllowsArbitraryLoads</key>"))
+        let project = try String(contentsOf: Self.ios.appendingPathComponent("project.yml"), encoding: .utf8)
+        #expect(project.contains("INFOPLIST_FILE: Config/AppInfo.plist"))
+        #expect(!project.contains("INFOPLIST_KEY_NSAppTransportSecurity"), "that key is silently dropped")
+    }
+}

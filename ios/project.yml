@@ -34,10 +34,8 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        # Rally serves plain HTTP, and the address is whatever the person types
-        # (a tailnet name, a LAN IP), so ATS cannot be scoped to a domain. The
-        # transport on a tailnet is already WireGuard. Revisit before TestFlight.
-        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads: YES
+        # ATS lives in Config/AppInfo.plist: INFOPLIST_KEY_* cannot set a nested dictionary.
+        INFOPLIST_FILE: Config/AppInfo.plist
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Rally connects to your Rally server on your home network."
   RallyUITests:
     type: bundle.ui-testing

@@ -14,6 +14,13 @@ struct ShoppingView: View {
 
     var body: some View {
         List {
+            // Filters live in the list: pinned with safeAreaInset, the horizontal scroller slid
+            // under the navigation bar on some screens and left a blank band.
+            Section {
+     FilterBar(model: model, manageStores: { showingStores = true }) 
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
             if model.hasLoaded && model.groups.isEmpty {
                 ContentUnavailableView("Nothing on the list yet", systemImage: "cart",
                                        description: Text("Tap + to add the first item."))
@@ -49,7 +56,6 @@ struct ShoppingView: View {
         }
         .listStyle(.insetGrouped)
         .environment(\.editMode, $editMode)
-        .safeAreaInset(edge: .top, spacing: 0) { FilterBar(model: model, manageStores: { showingStores = true }) }
         .navigationTitle("Shopping")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

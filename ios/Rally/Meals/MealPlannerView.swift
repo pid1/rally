@@ -13,6 +13,15 @@ struct MealPlannerView: View {
     var body: some View {
         let days = model.days(today: today)
         List {
+            // Filters live in the list: pinned with safeAreaInset, the horizontal scroller slid
+            // under the navigation bar on some screens and left a blank band.
+            Section {
+                ChipBar(chips: MealLogic.mealTypes.map { FilterChip(value: $0, title: $0) }, selected: model.mealTypes,
+                        toggle: model.toggleType, clear: { model.mealTypes = [] })
+        
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
             if model.hasLoaded && days.isEmpty {
                 ContentUnavailableView(model.mealTypes.isEmpty ? "No upcoming meals" : "No meals match",
                                        systemImage: "fork.knife",
@@ -34,10 +43,6 @@ struct MealPlannerView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ChipBar(chips: MealLogic.mealTypes.map { FilterChip(value: $0, title: $0) }, selected: model.mealTypes,
-                    toggle: model.toggleType, clear: { model.mealTypes = [] })
-        }
         .navigationTitle("Meal Planner")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

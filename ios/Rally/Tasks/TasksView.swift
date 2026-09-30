@@ -13,6 +13,15 @@ struct TasksView: View {
 
     var body: some View {
         List {
+            // Filters live in the list: pinned with safeAreaInset, the horizontal scroller slid
+            // under the navigation bar on some screens and left a blank band.
+            Section {
+                ChipBar(chips: model.chips(members: app.members), selected: model.assignees,
+                        toggle: model.toggleAssignee, clear: { model.assignees = [] })
+        
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
             Section {
                 if model.hasLoaded && visible.isEmpty {
                     ContentUnavailableView(model.assignees.isEmpty ? "All caught up" : "Nothing for that filter",
@@ -47,10 +56,6 @@ struct TasksView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ChipBar(chips: model.chips(members: app.members), selected: model.assignees,
-                    toggle: model.toggleAssignee, clear: { model.assignees = [] })
-        }
         .navigationTitle("Tasks")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

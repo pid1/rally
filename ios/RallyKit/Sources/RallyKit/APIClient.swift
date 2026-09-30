@@ -54,7 +54,7 @@ public struct APIClient: Sendable {
         let request = try makeRequest(route, [:], query: query, body: nil)
         let data: Data, response: HTTPURLResponse
         do { (data, response) = try await transport(request) }
-        catch { throw APIError.unreachable(error.localizedDescription) }
+        catch { throw Self.classify(error) }
         guard (200..<300).contains(response.statusCode) else {
             throw APIError.http(status: response.statusCode, detail: Self.detail(in: data))
         }
@@ -74,13 +74,18 @@ public struct APIClient: Sendable {
         } catch let error as APIError {
             throw error
         } catch {
-            throw APIError.unreachable(error.localizedDescription)
+            throw Self.classify(error)
         }
         guard (200..<300).contains(response.statusCode) else {
             if response.statusCode == 409, let conflict = Self.conflict(in: data) { throw conflict }
             throw APIError.http(status: response.statusCode, detail: Self.detail(in: data))
         }
         return data
+    }
+
+    static func classify(_ error: Error) -> APIError {
+        (error as? URLError)?.code == .appTransportSecurityRequiresSecureConnection
+            ? .blockedByATS : .unreachable(error.localizedDescription)
     }
 
     func makeRequest(_ route: Route, _ args: [String: String], query: [URLQueryItem], body: Data?) throws -> URLRequest {

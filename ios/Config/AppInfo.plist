@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Merged into the generated Info.plist. Nested dictionaries cannot be set with INFOPLIST_KEY_*
+		build settings (the key is silently dropped), which is how this exception went missing and a
+		tailnet address was blocked on a real phone while every simulator test passed: `localhost`
+		is exempt from ATS, so nothing in the suite ever exercised it.
+
+		Rally serves plain HTTP and the address is whatever the person types (a tailnet name, a LAN
+		IP), so ATS cannot be scoped to one domain. A tailnet is already WireGuard-encrypted.
+		Revisit before TestFlight, most likely with `tailscale serve` for HTTPS.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

@@ -13,6 +13,9 @@ public enum APIError: Error, Equatable, Sendable {
     /// that is not Rally, or one older than the app.
     case decoding(String)
     case invalidURL
+    /// iOS refused a plain-`http://` address (App Transport Security). Not a network problem, so it must
+    /// not be reported as one — "check that Tailscale is connected" is the wrong advice for it.
+    case blockedByATS
 }
 
 extension APIError: LocalizedError {
@@ -28,6 +31,8 @@ extension APIError: LocalizedError {
             return "The server's answer wasn't what Rally expected. Is this a Rally server, and is it up to date?"
         case .invalidURL:
             return "That isn't a valid server address."
+        case .blockedByATS:
+            return "iOS blocked this app from using a plain http:// address. Use https://, or reinstall a build that allows plain HTTP on your tailnet."
         }
     }
 }

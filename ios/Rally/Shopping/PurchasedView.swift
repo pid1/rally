@@ -17,6 +17,16 @@ struct PurchasedView: View {
 
     var body: some View {
         List {
+            // Filters live in the list: pinned with safeAreaInset, the horizontal scroller slid
+            // under the navigation bar on some screens and left a blank band.
+            let chips = model.chips(stores: stores)
+            if !chips.isEmpty {
+                Section {
+                    ChipBar(chips: chips, selected: model.selected, toggle: model.toggleFilter)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+            }
             if model.hasLoaded && model.items.isEmpty {
                 ContentUnavailableView(model.search.isEmpty && model.selected.isEmpty ? "Nothing purchased yet" : "No matches",
                                        systemImage: "bag")
@@ -50,10 +60,6 @@ struct PurchasedView: View {
         .navigationTitle("Purchased")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: Bindable(model).search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search purchased items")
-        .safeAreaInset(edge: .top, spacing: 0) {
-            let chips = model.chips(stores: stores)
-            if !chips.isEmpty { ChipBar(chips: chips, selected: model.selected, toggle: model.toggleFilter) }
-        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if model.hasLoaded {
                 Text("\(model.total) purchased item\(model.total == 1 ? "" : "s")")

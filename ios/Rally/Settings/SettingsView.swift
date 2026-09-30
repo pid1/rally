@@ -72,6 +72,7 @@ struct SettingsView: View {
         case .connected: "Connected"
         case .unreachable: "Can't reach server"
         case .notRally: "Not a Rally server"
+        case .blocked: "Blocked by iOS"
         case .failed: "Error"
         case nil: "Checking…"
         }
