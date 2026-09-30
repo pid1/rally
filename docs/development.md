@@ -122,6 +122,25 @@ pushing to Pushover.
 
 The sample family is Mom, Dad, Emma and Jake. The data is anchored to the day you run it, so the calendar always has this week's events in it and the preparedness list always has something overdue. The screenshots in this repository and the walkthrough video in the README were both recorded against it.
 
+## iOS app
+
+The native client lives in `ios/` (see `ios/PLAN.md`). Requirements: Xcode and
+`brew install xcodegen`.
+
+```bash
+cd ios
+(cd RallyKit && swift test)        # logic, API layer, design-token drift checks
+xcodegen                           # generate Rally.xcodeproj from project.yml
+xcodebuild -project Rally.xcodeproj -scheme Rally \
+  -destination 'platform=iOS Simulator,name=iPhone 17' test CODE_SIGNING_ALLOWED=NO
+```
+
+The UI tests drive the real app against a Rally server on `localhost:8100`, so
+start `demo` first. On first launch enter any address the phone can reach; if the
+server is on a tailnet, connect Tailscale on the phone first. After any API
+change, run `openapi` — `RallyKit`'s tests check every route the app uses against
+`ios/openapi.json`.
+
 ## Database migrations
 
 Migrations are plain Python files under `migrations/`, run in order by `migrations/run_migrations.py`, which `entrypoint.sh` executes on container startup. Every migration is **idempotent**: it checks whether its change already exists before applying it, so running it twice is safe and an upgrade needs no manual step.

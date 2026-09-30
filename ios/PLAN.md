@@ -29,17 +29,23 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
 
 ## Phase 2 — App skeleton
 
-- [ ] Xcode project + local Swift package `RallyKit` (models, `APIClient`, view
-      models) so most logic is testable with `swift test`, no simulator
-- [ ] Generate the client from `ios/openapi.json` (`swift-openapi-generator`).
-      **First verify it keeps "omitted" distinct from `null`** for the API's
-      `UNSET`-sentinel partial updates; fallback is a hand-written encoder
-- [ ] Server-URL onboarding + settings, connection test, unreachable state
-- [ ] Device token + person-on-device binding via `/api/devices`
-- [ ] Design tokens (grayscale, serif, five member colors, 44pt targets) with a
-      test that fails if they drift from `member_colors.py`
-- [ ] Navigation: tab bar + "More" for the eight sections
-- [ ] `swift test` green; app launches in the simulator against `demo`
+- [x] Xcode project (generated from `ios/project.yml` with XcodeGen) + local Swift
+      package `RallyKit` (`APIClient`, models, persistence, design tokens), testable
+      with `swift test`, no simulator
+- [x] **Hand-written API layer, not generated.** A generated client turns `nil`
+      into an omitted key, so it can never send the explicit `null` that clears a
+      field (un-assign a task, clear a due date). `Patch<T>` / `PatchBody` carry
+      unset / null / value. `Route` lists every endpoint the app calls and
+      `SpecCoverageTests` checks each against `ios/openapi.json`
+- [x] Server-URL onboarding + Settings, connection test, unreachable banner
+- [x] Device token + person-on-device binding via `/api/devices`
+- [x] Design tokens with tests that fail if they drift from `member_colors.py` and
+      `static/styles.css`
+- [x] Navigation: tab bar (Dashboard, Tasks, Shopping, Calendar) + More (Notes,
+      Meal Planner, Preparedness, Settings); screens are placeholders until phase 3
+- [x] `swift test` green (24 tests); `RallyUITests` green (4 tests) against `demo`
+- [ ] Polish noted for phase 3: large navigation titles and Picker menu rows use the
+      system sans rather than the serif; member color dots missing in the owner menu
 
 ## Phase 3 — Screens (one commit each)
 
