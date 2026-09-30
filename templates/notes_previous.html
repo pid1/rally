@@ -86,7 +86,7 @@
             render: (notes) => notes.map(note => `
                 <div class="editable-item" data-id="${note.id}">
                     <div class="editable-item-content">
-                        <div class="editable-item-multiline">${note.body_html}</div>
+                        <div class="rich-text editable-item-multiline">${note.body_html}</div>
                         <div class="date-label">${escapeHtml(formatDate(note.date))}</div>
                     </div>
                 </div>
