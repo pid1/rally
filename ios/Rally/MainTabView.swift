@@ -10,7 +10,9 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             Tab("Dashboard", systemImage: "sun.max") {
-                NavigationStack { PlaceholderScreen(title: "Dashboard") }
+                NavigationStack {
+                    if let client = app.client { DashboardView(client: client) }
+                }
             }
             Tab("Tasks", systemImage: "checklist") {
                 NavigationStack {

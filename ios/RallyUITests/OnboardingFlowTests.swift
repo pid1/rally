@@ -90,3 +90,20 @@ extension OnboardingFlowTests {
         shot(app, "6-pick-owner")
     }
 }
+
+extension OnboardingFlowTests {
+    /// The landing tab shows today from the snapshot, and the note live.
+    func testDashboardShowsTodayAndTheNote() {
+        let app = launch()
+        let field = app.textFields["server-address"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("localhost:8100")
+        app.buttons["server-connect"].tap()
+        XCTAssertTrue(app.staticTexts["dashboard-greeting"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Dentist — Emma"].exists || app.staticTexts["Dentist — Emma"].waitForExistence(timeout: 5))
+        shot(app, "dashboard-1")
+        app.swipeUp()
+        shot(app, "dashboard-2")
+    }
+}

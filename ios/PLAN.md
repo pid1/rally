@@ -57,7 +57,8 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
 - [x] Tasks: recurring templates (daily/weekly/monthly/Custom… with the server-read preview),
       completed history, assignee chips, sort, swipe to delete
 - [x] App icon (`Assets.xcassets/AppIcon`, from the supplied artwork, filled full-bleed)
-- [ ] Dashboard
+- [x] Dashboard (native cards; the Daily Note is rendered by `NoteMarkdown`, which mirrors the
+      server's tiny renderer — bold, italic, lists, line breaks — rather than a web view)
 - [ ] Calendar: agenda, time grid, month grid, event add/edit/delete, recurrence
       and scope prompts, read-only external events
 - [ ] Meal Planner: incl. previous meals, ratings, reviews
