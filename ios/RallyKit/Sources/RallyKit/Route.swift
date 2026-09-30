@@ -8,6 +8,7 @@ public enum HTTPMethod: String, Sendable { case get = "GET", post = "POST", put 
 /// `SpecCoverageTests` can check each one against `ios/openapi.json`: a
 /// renamed endpoint then fails a test here instead of a screen in the app.
 public enum Route: String, CaseIterable, Sendable {
+    // Family, devices, dashboard
     case listFamily
     case listDevices
     case announceDevice
@@ -16,24 +17,45 @@ public enum Route: String, CaseIterable, Sendable {
     case saveMemberPreferences
     case preferenceCatalog
     case dashboard
+    // Shopping
+    case shoppingStores
+    case createShoppingStore
+    case updateShoppingStore
+    case deleteShoppingStore
+    case shoppingItems
+    case createShoppingItem
+    case updateShoppingItem
+    case deleteShoppingItem
+    case reorderShoppingItems
+    case shoppingPurchased
+    case shoppingSuggestions
+    case forgetShoppingSuggestion
 
-    public var method: HTTPMethod {
+    private var spec: (HTTPMethod, String) {
         switch self {
-        case .listFamily, .listDevices, .devicePreferences, .preferenceCatalog, .dashboard: .get
-        case .announceDevice, .saveMemberPreferences: .put
-        case .forgetDevice: .delete
+        case .listFamily: (.get, "/api/family")
+        case .listDevices: (.get, "/api/devices")
+        case .announceDevice: (.put, "/api/devices/{device_id}")
+        case .forgetDevice: (.delete, "/api/devices/{device_id}")
+        case .devicePreferences: (.get, "/api/devices/{device_id}/preferences")
+        case .saveMemberPreferences: (.put, "/api/devices/{device_id}/preferences/{member_id}")
+        case .preferenceCatalog: (.get, "/api/preferences/catalog")
+        case .dashboard: (.get, "/api/dashboard")
+        case .shoppingStores: (.get, "/api/shopping/stores")
+        case .createShoppingStore: (.post, "/api/shopping/stores")
+        case .updateShoppingStore: (.put, "/api/shopping/stores/{store_id}")
+        case .deleteShoppingStore: (.delete, "/api/shopping/stores/{store_id}")
+        case .shoppingItems: (.get, "/api/shopping/items")
+        case .createShoppingItem: (.post, "/api/shopping/items")
+        case .updateShoppingItem: (.put, "/api/shopping/items/{item_id}")
+        case .deleteShoppingItem: (.delete, "/api/shopping/items/{item_id}")
+        case .reorderShoppingItems: (.post, "/api/shopping/items/reorder")
+        case .shoppingPurchased: (.get, "/api/shopping/purchased")
+        case .shoppingSuggestions: (.get, "/api/shopping/suggestions")
+        case .forgetShoppingSuggestion: (.delete, "/api/shopping/suggestions/{history_id}")
         }
     }
 
-    public var template: String {
-        switch self {
-        case .listFamily: "/api/family"
-        case .listDevices: "/api/devices"
-        case .announceDevice, .forgetDevice: "/api/devices/{device_id}"
-        case .devicePreferences: "/api/devices/{device_id}/preferences"
-        case .saveMemberPreferences: "/api/devices/{device_id}/preferences/{member_id}"
-        case .preferenceCatalog: "/api/preferences/catalog"
-        case .dashboard: "/api/dashboard"
-        }
-    }
+    public var method: HTTPMethod { spec.0 }
+    public var template: String { spec.1 }
 }

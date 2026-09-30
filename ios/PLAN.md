@@ -49,7 +49,11 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
 
 ## Phase 3 — Screens (one commit each)
 
-- [ ] Shopping: stores, reorder, autocomplete, purchased archive, Siri/App Intent
+- [x] Shopping: stores, reorder, autocomplete, purchased archive, Siri/App Intent.
+      Deviation: a drag reorders *within* a store (Edit → handles); moving to another
+      store is the edit form's Store field, since a SwiftUI `List` cannot drop across
+      sections. The Siri action is `AddToShoppingListIntent` ("Add to my shopping list
+      in Rally"), which replaces the Shortcuts recipe in `docs/voice-shortcuts.md`
 - [ ] Tasks: recurring templates, completed history
 - [ ] Dashboard
 - [ ] Calendar: agenda, time grid, month grid, event add/edit/delete, recurrence

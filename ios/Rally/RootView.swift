@@ -7,6 +7,7 @@ struct RootView: View {
     var body: some View {
         if model.hasServer {
             MainTabView()
+                .id(model.serverURL) // a new server means every screen starts over
                 .safeAreaInset(edge: .top, spacing: 0) {
                     if model.isUnreachable { UnreachableBanner() }
                 }

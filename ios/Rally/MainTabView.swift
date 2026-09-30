@@ -5,6 +5,8 @@ import SwiftUI
 /// sections, so the three least-reached ones live under More — the same
 /// order the web sidebar lists them in, with Settings last.
 struct MainTabView: View {
+    @Environment(AppModel.self) private var app
+
     var body: some View {
         TabView {
             Tab("Dashboard", systemImage: "sun.max") {
@@ -14,7 +16,9 @@ struct MainTabView: View {
                 NavigationStack { PlaceholderScreen(title: "Tasks") }
             }
             Tab("Shopping", systemImage: "cart") {
-                NavigationStack { PlaceholderScreen(title: "Shopping") }
+                NavigationStack {
+                    if let client = app.client { ShoppingView(client: client) }
+                }
             }
             Tab("Calendar", systemImage: "calendar") {
                 NavigationStack { PlaceholderScreen(title: "Calendar") }

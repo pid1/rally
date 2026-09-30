@@ -22,3 +22,10 @@ Two details make this hold up in a kitchen:
 Adding an item already on the open list for that store returns the existing item rather than creating a duplicate, so a repeated "add milk" is harmless.
 
 > **Note:** a HomePod cannot join a Tailscale tailnet, so a kitchen-speaker shortcut needs Rally's LAN address. Shortcuts on a phone can use MagicDNS.
+
+## The Rally iOS app
+
+If you use the native iOS app, none of the above is needed: it ships an App Intent, so
+"Add to my shopping list in Rally" works from Siri, Spotlight and the Shortcuts app with
+no setup beyond entering your server address once. It asks what to add, and accepts an
+optional store name (anything Rally doesn't recognize lands under "Anywhere").
