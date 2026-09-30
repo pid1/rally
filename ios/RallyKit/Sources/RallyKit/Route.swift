@@ -28,6 +28,16 @@ public enum Route: String, CaseIterable, Sendable {
     case updateRecurringTodo
     case deleteRecurringTodo
     case previewRecurrence
+    // Settings
+    case settings
+    case saveSettings
+    // Meals
+    case mealPlans
+    case createMeal
+    case updateMeal
+    case deleteMeal
+    case reviewMeal
+    case previousMeals
     // Notes
     case notes
     case createNote
@@ -68,6 +78,14 @@ public enum Route: String, CaseIterable, Sendable {
         case .updateRecurringTodo: (.put, "/api/recurring-todos/{rt_id}")
         case .deleteRecurringTodo: (.delete, "/api/recurring-todos/{rt_id}")
         case .previewRecurrence: (.post, "/api/recurring-todos/preview")
+        case .settings: (.get, "/api/settings")
+        case .saveSettings: (.put, "/api/settings")
+        case .mealPlans: (.get, "/api/meal-planner")
+        case .createMeal: (.post, "/api/meal-planner")
+        case .updateMeal: (.put, "/api/meal-planner/{plan_id}")
+        case .deleteMeal: (.delete, "/api/meal-planner/{plan_id}")
+        case .reviewMeal: (.put, "/api/meal-planner/{plan_id}/review")
+        case .previousMeals: (.get, "/api/meal-planner/previous")
         case .notes: (.get, "/api/notes")
         case .createNote: (.post, "/api/notes")
         case .updateNote: (.put, "/api/notes/{note_id}")

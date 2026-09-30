@@ -61,7 +61,8 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
       server's tiny renderer — bold, italic, lists, line breaks — rather than a web view)
 - [ ] Calendar: agenda, time grid, month grid, event add/edit/delete, recurrence
       and scope prompts, read-only external events
-- [ ] Meal Planner: incl. previous meals, ratings, reviews
+- [x] Meal Planner: incl. previous meals, ratings, reviews. `AppModel.install` carries the
+      install's own timezone, so "today" agrees with the server's rather than the phone's
 - [x] Notes: incl. previous-notes archive (adding to a day that has a note switches to it and
       appends what was typed, as on the web; past days are read-only)
 - [ ] Preparedness + go list: Refreshed, AI review, export share sheet

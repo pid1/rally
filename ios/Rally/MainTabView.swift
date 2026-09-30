@@ -44,7 +44,10 @@ struct MoreView: View {
                     if let client = app.client { NotesView(client: client) }
                 }
                 .accessibilityIdentifier("more-notes")
-                NavigationLink("Meal Planner") { PlaceholderScreen(title: "Meal Planner") }
+                NavigationLink("Meal Planner") {
+                    if let client = app.client { MealPlannerView(client: client) }
+                }
+                .accessibilityIdentifier("more-meals")
                 NavigationLink("Preparedness") { PlaceholderScreen(title: "Preparedness") }
                 Section {
                     NavigationLink("Settings") { SettingsView() }

@@ -17,3 +17,10 @@ extension Binding where Value == String? {
             set: { wrappedValue = $0 ? (wrappedValue ?? DayString.string(fallback)) : nil })
     }
 }
+
+extension Binding where Value == String {
+    /// A non-optional `YYYY-MM-DD` field viewed as the optional the `day()` helper expects.
+    var nonOptional: Binding<String?> {
+        Binding<String?>(get: { wrappedValue }, set: { wrappedValue = $0 ?? wrappedValue })
+    }
+}

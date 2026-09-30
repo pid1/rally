@@ -64,7 +64,7 @@ struct ArchiveLoaderTests {
 
     @Test func pagesAndKeepsItsPlaceOnRefresh() async {
         let backend = Backend()
-        let loader = ArchiveLoader<Note>(pageSize: 2) { search, limit, offset in
+        let loader = ArchiveLoader<Note, NoFilter>(pageSize: 2) { search, limit, offset in
             backend.calls.append((search, limit, offset))
             let rows = (offset..<min(offset + limit, 5)).map {
                 #"{"id":\#($0),"date":"2026-09-01","body":"n","body_html":"","created_at":"2026-09-01T00:00:00","updated_at":"2026-09-01T00:00:00"}"#

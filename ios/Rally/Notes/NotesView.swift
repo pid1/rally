@@ -19,7 +19,7 @@ struct NotesView: View {
             ForEach(model.notes) { note in
                 Button { editing = .edit(note, notice: nil) } label: {
                     VStack(alignment: .leading, spacing: RallyDesign.space[2]) {
-                        Text(NoteLogic.heading(note.date).uppercased())
+                        Text(NoteLogic.heading(note.date, calendar: app.install.calendar).uppercased())
                             .font(.caption.weight(.semibold)).tracking(1.2)
                             .foregroundStyle(RallyDesign.color("inkMuted"))
                         MarkdownText(markdown: note.body).foregroundStyle(RallyDesign.color("ink"))
@@ -66,6 +66,7 @@ enum NoteTarget: Identifiable {
 
 struct NoteEditor: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var app
     let model: NotesModel
     @State var target: NoteTarget
 
@@ -90,7 +91,7 @@ struct NoteEditor: View {
                     // Past days are read-only, so the picker cannot reach one.
                     DatePicker("Day", selection: Binding(get: { DayString.date(date) ?? .now },
                                                          set: { date = DayString.string($0) }),
-                               in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
+                               in: app.install.calendar.startOfDay(for: .now)..., displayedComponents: .date)
                 }
                 Section {
                     TextEditor(text: $bodyText)
@@ -125,7 +126,7 @@ struct NoteEditor: View {
 
     private func load(_ target: NoteTarget) {
         switch target {
-        case .add: date = DayString.string(.now); focused = true
+        case .add: date = app.install.today(); focused = true
         case .edit(let note, let message): date = note.date; bodyText = note.body; notice = message; focused = true
         }
     }
@@ -155,11 +156,11 @@ struct NoteEditor: View {
 
 /// Days before today. Read-only: no edit, no delete, no add.
 struct PreviousNotesView: View {
-    @State private var loader: ArchiveLoader<Note>
+    @State private var loader: ArchiveLoader<Note, NoFilter>
 
     init(client: APIClient?) {
         let client = client ?? APIClient(baseURL: URL(string: "http://invalid")!)
-        _loader = State(initialValue: ArchiveLoader<Note> { search, limit, offset in
+        _loader = State(initialValue: ArchiveLoader<Note, NoFilter> { search, limit, offset in
             try await client.previousNotes(search: search, limit: limit, offset: offset)
         })
     }

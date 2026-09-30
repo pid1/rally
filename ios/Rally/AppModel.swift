@@ -12,6 +12,9 @@ final class AppModel {
     private(set) var members: [FamilyMember] = []
     private(set) var memberID: Int?
     private(set) var isRefreshing = false
+    /// The install's own settings the app has to agree with the server about —
+    /// chiefly which day it is.
+    private(set) var install = InstallSettings.fallback
 
     init(settings: LocalSettings = LocalSettings()) {
         // UI tests start from a blank slate; nothing else sets this.
@@ -85,6 +88,7 @@ final class AppModel {
         guard case .connected = connection else { return }
 
         do { members = try await client.familyMembers() } catch { /* the check above already reported */ }
+        if let values = try? await client.settings() { install = InstallSettings(values) }
         // No label: launching must not overwrite a name somebody typed. The
         // first hello needs one so the registry is not a column of tokens.
         let known = (try? await client.devices())?.contains { $0.id == deviceID } ?? false
