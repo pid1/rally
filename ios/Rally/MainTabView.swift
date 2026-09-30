@@ -25,7 +25,9 @@ struct MainTabView: View {
                 }
             }
             Tab("Calendar", systemImage: "calendar") {
-                NavigationStack { PlaceholderScreen(title: "Calendar") }
+                NavigationStack {
+                    if let client = app.client { CalendarView(client: client, timeZone: app.install.timeZone) }
+                }
             }
             Tab("More", systemImage: "ellipsis") {
                 MoreView()

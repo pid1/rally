@@ -59,8 +59,13 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
 - [x] App icon (`Assets.xcassets/AppIcon`, from the supplied artwork, filled full-bleed)
 - [x] Dashboard (native cards; the Daily Note is rendered by `NoteMarkdown`, which mirrors the
       server's tiny renderer — bold, italic, lists, line breaks — rather than a web view)
-- [ ] Calendar: agenda, time grid, month grid, event add/edit/delete, recurrence
-      and scope prompts, read-only external events
+- [x] Calendar: Calendar/Agenda × Day/Week/Month/Next 30 days, time grid on the five-minute
+      lattice (30 min = 44pt, short-event tabs, column packing on the painted extent, one now
+      line across every column), month grid with stacked event text, member filter chips,
+      detail sheet (external events say why they are read-only), add/edit/delete with the
+      this / this-and-following / all scopes, the full Repeats vocabulary (Custom…, Ends,
+      read-back from the server) and Notify attendees. Landing view comes from the device's
+      Personal Defaults. Not yet: the `Refresh` button and stale-cache notice for external feeds
 - [x] Meal Planner: incl. previous meals, ratings, reviews. `AppModel.install` carries the
       install's own timezone, so "today" agrees with the server's rather than the phone's
 - [x] Notes: incl. previous-notes archive (adding to a day that has a note switches to it and

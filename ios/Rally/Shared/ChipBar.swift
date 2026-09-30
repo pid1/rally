@@ -17,7 +17,10 @@ struct ChipBar<Trailing: View>: View {
                 ForEach(chips) { chip in
                     let on = selected.contains(chip.value)
                     Button { toggle(chip.value) } label: {
-                        Text(chip.title)
+                        HStack(spacing: RallyDesign.space[1]) {
+                            if let hex = chip.colorHex { Circle().fill(RallyDesign.memberColor(hex: hex)).frame(width: 8, height: 8) }
+                            Text(chip.title)
+                        }
                             .padding(.horizontal, RallyDesign.space[3])
                             .frame(minHeight: RallyDesign.targetMin)
                             .background(on ? RallyDesign.color("ink") : RallyDesign.color("surfaceSunken"), in: Capsule())

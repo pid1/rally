@@ -6,7 +6,9 @@ import SwiftUI
 public struct FilterChip: Identifiable, Equatable, Sendable {
     public let value: String
     public let title: String
-    public init(value: String, title: String) { self.value = value; self.title = title }
+    /// A member's identity color, drawn as a dot. The one color on a page.
+    public let colorHex: String?
+    public init(value: String, title: String, colorHex: String? = nil) { self.value = value; self.title = title; self.colorHex = colorHex }
     public var id: String { value }
 }
 
