@@ -126,3 +126,77 @@ def test_a_task_description_renders_its_number_as_a_link(browser, live_server):
         assert link.evaluate("(el) => getComputedStyle(el).display") == "inline"
     finally:
         context.close()
+
+
+# --- linkPhoneNumbers: the same decisions, on markup that is already there ---------
+
+WALK_JS = """
+(html) => {
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    document.body.append(host);
+    linkPhoneNumbers(host);
+    const result = {
+        html: host.innerHTML,
+        text: host.textContent,
+        links: [...host.querySelectorAll('a')].map((a) => ({
+            href: a.getAttribute('href'),
+            text: a.textContent,
+            cls: a.className,
+        })),
+    };
+    host.remove();
+    return result;
+}
+"""
+
+
+@pytest.fixture(scope="module")
+def walk(browser, live_server):
+    """Return `walk(html) -> dict`: run `linkPhoneNumbers` over an element holding it."""
+    context = browser.new_context()
+    page = context.new_page()
+    page.goto(f"{live_server}/todo")
+    page.wait_for_function("typeof linkPhoneNumbers === 'function'")
+    try:
+        yield lambda html: page.evaluate(WALK_JS, html)
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(("written", "link_text", "href"), LINKED)
+def test_the_walker_links_exactly_what_the_escaping_helper_links(walk, written, link_text, href):
+    result = walk(f"<p>{written}</p>")
+    assert [(link["text"], link["href"]) for link in result["links"]] == [(link_text, href)]
+    assert result["links"][0]["cls"] == "phone-link"
+    assert result["text"] == written
+
+
+@pytest.mark.parametrize("written", NOT_LINKED)
+def test_the_walker_leaves_what_only_looks_like_a_number_alone(walk, written):
+    result = walk(f"<p>{written}</p>")
+    assert result["links"] == []
+    assert result["text"] == written
+
+
+def test_the_walker_keeps_the_markup_around_a_number(walk):
+    result = walk(
+        "<p><strong>Coach:</strong> <em>800-111-1234</em></p><ul><li>206-555-0147</li></ul>"
+    )
+    assert result["html"] == (
+        '<p><strong>Coach:</strong> <em><a class="phone-link" href="tel:+18001111234">800-111-1234</a></em></p>'
+        '<ul><li><a class="phone-link" href="tel:+12065550147">206-555-0147</a></li></ul>'
+    )
+
+
+def test_the_walker_leaves_a_number_inside_an_existing_link_alone(walk):
+    result = walk('<p><a href="https://example.com/8001111234">Call 800-111-1234</a></p>')
+    assert [link["href"] for link in result["links"]] == ["https://example.com/8001111234"]
+
+
+def test_the_walker_is_not_fooled_by_text_that_looks_like_markup(walk):
+    # A text node holding "<script>" is text, and must stay text through the walk.
+    result = walk("<p>&lt;script&gt;alert(1)&lt;/script&gt; 800-111-1234</p>")
+    assert "<script" not in result["html"]
+    assert result["text"] == "<script>alert(1)</script> 800-111-1234"
+    assert [link["href"] for link in result["links"]] == ["tel:+18001111234"]

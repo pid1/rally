@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
 
-from rally import markdown, member_colors, member_prefs, notification_prefs
+from rally import markdown, member_colors, member_prefs, notification_prefs, rich_text
 
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
@@ -766,6 +766,18 @@ class OccurrenceResponse(BaseModel):
     recurrence_text: str = ""
     editable: bool = False
     notify_minutes_before: int | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def description_html(self) -> str:
+        """The description as paragraphs, line breaks and links, built server-side.
+
+        Travels beside ``description`` rather than replacing it: the edit form
+        loads the raw text into its textarea, and the detail view inserts this
+        directly. Computed here, on the way out, so a description already sitting
+        in ``calendar_cache`` is formatted without a resync.
+        """
+        return rich_text.render_description(self.description, source=self.source)
 
 
 class OccurrencePage(BaseModel):

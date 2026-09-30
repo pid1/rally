@@ -1894,7 +1894,11 @@
                 ['where', 'Where', occurrence.location || '—'],
                 ['who', 'Who', occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || 'Nobody in particular')],
                 ['calendar', 'Calendar', occurrence.calendar_label || occurrence.source],
-                ['notes', 'Notes', occurrence.description || '—']
+                /* Notes is the one row that arrives as markup: the server has
+                   already turned the description into paragraphs, line breaks
+                   and links (see `rally.rich_text`), so it is inserted as it
+                   is rather than escaped. Every other value here is text. */
+                ['notes', 'Notes', occurrence.description_html || '—', true]
             );
             if (occurrence.notify_minutes_before) {
                 rows.push(['reminder', 'Reminder', `${occurrence.notify_minutes_before} minutes before`]);
@@ -1906,8 +1910,17 @@
             }
 
             document.getElementById('detail-body').innerHTML = rows
-                .map(([key, label, value]) => `<div class="event-detail-row" id="detail-row-${key}"><span class="event-detail-label">${label}</span><span id="detail-value-${key}">${escapeHtmlWithPhoneLinks(value)}</span></div>`)
+                .map(([key, label, value, isHtml]) => {
+                    const cell = isHtml
+                        ? `<div class="event-detail-value rich-text" id="detail-value-${key}">${value}</div>`
+                        : `<span class="event-detail-value" id="detail-value-${key}">${escapeHtmlWithPhoneLinks(value)}</span>`;
+                    return `<div class="event-detail-row" id="detail-row-${key}"><span class="event-detail-label">${label}</span>${cell}</div>`;
+                })
                 .join('');
+            // A number in the notes was a link before they were formatted, and
+            // still is: the escaped-text helper cannot run on markup, so this
+            // wraps the numbers where they stand.
+            linkPhoneNumbers(document.getElementById('detail-value-notes'));
 
             document.getElementById('btn-detail-edit').style.display = occurrence.editable ? '' : 'none';
             document.getElementById('btn-notify-attendees').style.display =

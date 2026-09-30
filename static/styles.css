@@ -513,22 +513,28 @@ footer {
     color: var(--ink);
 }
 
-/* A phone number the family wrote into a task, a note or an event, marked up
-   so a tap dials it. It takes its size, color and italics from the line it
-   sits in — an italic muted task description, a plain Notes row — and adds
-   only the underline that says it is a link. Kept inline on purpose: a 44px
-   tap target here would break the sentence it sits in, which is the case
-   WCAG 2.5.8 exempts. */
-.phone-link {
+/* A link inside a line of text somebody else wrote: a phone number the family
+   put in a task, a note or an event, or a URL in an event's Notes. It takes its
+   size, color and italics from the line it sits in — an italic muted task
+   description, a plain Notes row — and adds only the underline that says it is
+   a link. Kept inline on purpose: a 44px tap target here would break the
+   sentence it sits in, which is the case WCAG 2.5.8 exempts. Not `.link-quiet`,
+   which is a page-header control with a target-height box of its own. */
+.phone-link,
+.inline-link {
     color: inherit;
     text-decoration: underline;
     text-underline-offset: 3px;
-    /* A number split across two lines has to be read twice to be dialed. */
-    white-space: nowrap;
 }
 
-.phone-link:hover {
+.phone-link:hover,
+.inline-link:hover {
     color: var(--ink);
+}
+
+.phone-link {
+    /* A number split across two lines has to be read twice to be dialed. */
+    white-space: nowrap;
 }
 
 /* ---- Toolbar ----
@@ -1125,13 +1131,43 @@ label.weekday-label,
     overflow-wrap: break-word;
 }
 
-/* Rendered block content inside a list row — paragraphs, emphasis and lists —
-   as opposed to `.editable-item-description`, which is one muted meta line and
-   is the wrong treatment for several lines with a list in them.
+/* Block content that arrived as markup — paragraphs, emphasis, lists — rather
+   than as a line of text. Inherits its size and color from wherever it sits, so
+   it is right in a list row (`.editable-item-multiline`, below) and in a detail
+   row alike, and owns only the structure: the spacing between blocks and the
+   rule that its first and last child never add space outside it. */
+.rich-text {
+    overflow-wrap: break-word;
+}
 
-   Named for the row family rather than for notes: nothing here is
-   note-specific, so a later feature that renders block content in a row can
-   use it as-is. It sits as a sibling of `.editable-item-title` inside
+.rich-text > :first-child {
+    margin-top: 0;
+}
+
+.rich-text > :last-child {
+    margin-bottom: 0;
+}
+
+.rich-text p {
+    margin: 0 0 var(--space-2);
+}
+
+.rich-text ul,
+.rich-text ol {
+    margin: 0 0 var(--space-2);
+    padding-left: var(--space-5);
+}
+
+.rich-text li {
+    margin-bottom: var(--space-1);
+}
+
+/* Rendered block content inside a list row, as opposed to
+   `.editable-item-description`, which is one muted meta line and is the wrong
+   treatment for several lines with a list in them. Carries only the row's
+   typography; the structure is `.rich-text`, which goes on the same element.
+
+   It sits as a sibling of `.editable-item-title` inside
    `.editable-item-content`, which is also what makes the single-line
    correction above resolve correctly — a row with a title and a multiline
    block is already the two-child case that rule tests for. */
@@ -1139,29 +1175,6 @@ label.weekday-label,
     font-size: var(--text-base);
     color: var(--ink);
     line-height: var(--leading-normal);
-    overflow-wrap: break-word;
-}
-
-.editable-item-multiline > :first-child {
-    margin-top: 0;
-}
-
-.editable-item-multiline > :last-child {
-    margin-bottom: 0;
-}
-
-.editable-item-multiline p {
-    margin: 0 0 var(--space-2);
-}
-
-.editable-item-multiline ul,
-.editable-item-multiline ol {
-    margin: 0 0 var(--space-2);
-    padding-left: var(--space-5);
-}
-
-.editable-item-multiline li {
-    margin-bottom: var(--space-1);
 }
 
 /* The date a record *is* — as opposed to `.todo-due-date` /
@@ -2221,6 +2234,15 @@ body.is-dragging {
     flex-shrink: 0;
     width: 7rem;
     color: var(--ink-muted);
+}
+
+/* The value beside a label. Without `min-width: 0` a flex child refuses to be
+   narrower than its longest unbreakable run, so a long tracking URL or a word
+   pasted without spaces would widen the row past the modal instead of
+   wrapping. The link inherits the wrapping from here; it needs none of its own. */
+.event-detail-value {
+    min-width: 0;
+    overflow-wrap: break-word;
 }
 
 .event-scope-prompt {

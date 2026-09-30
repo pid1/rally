@@ -199,7 +199,9 @@ The button family collapsed from nine ad hoc classes (`.btn-add`, `.btn-primary`
 
 Everything focusable shows a ring: one `:focus-visible` rule in the base layer, and no component may switch it off (E1). Hit areas are ≥44px wherever a finger is likely — keyed off `(pointer: coarse)` as well as width, because the wall tablet is a coarse pointer at desktop size (E2).
 
-`.phone-link` is the one component that deliberately stays inline and under 44px: it wraps a phone number found inside a line of family-written text, takes its size, color and italics from that line, and adds only an underline. A 44px target would break the sentence around it, which is the case WCAG 2.5.8 exempts.
+`.phone-link` and `.inline-link` are the components that deliberately stay inline and under 44px: one wraps a phone number, the other a URL, found inside a line of text somebody else wrote. Each takes its size, color and italics from that line and adds only an underline. A 44px target would break the sentence around it, which is the case WCAG 2.5.8 exempts.
+
+`.rich-text` is the structure for block content that arrives as markup (paragraphs, emphasis, lists): the spacing between blocks and nothing else, with size and color inherited from wherever it sits. A Daily Note card and an event's Notes row both use it.
 
 ### 4. The toolbar
 
