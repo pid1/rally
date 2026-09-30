@@ -28,6 +28,32 @@ public enum Route: String, CaseIterable, Sendable {
     case updateRecurringTodo
     case deleteRecurringTodo
     case previewRecurrence
+    // Settings pages
+    case createFamilyMember
+    case updateFamilyMember
+    case deleteFamilyMember
+    case testMemberPushover
+    case testPushover
+    case testWeather
+    case testLLM
+    case createCalendar
+    case updateCalendar
+    case deleteCalendar
+    case testCalendar
+    case aiSettings
+    case saveAISetting
+    case aiHistory
+    case aiRollback
+    case llmConfig
+    case saveLLMConfig
+    case llmHistory
+    case llmRollback
+    case notificationsOverview
+    case followedTeams
+    case createFollowedTeam
+    case updateFollowedTeam
+    case deleteFollowedTeam
+    case testFollowedTeam
     // Calendar
     case events
     case createEvent
@@ -101,6 +127,31 @@ public enum Route: String, CaseIterable, Sendable {
         case .updateRecurringTodo: (.put, "/api/recurring-todos/{rt_id}")
         case .deleteRecurringTodo: (.delete, "/api/recurring-todos/{rt_id}")
         case .previewRecurrence: (.post, "/api/recurring-todos/preview")
+        case .createFamilyMember: (.post, "/api/family")
+        case .updateFamilyMember: (.put, "/api/family/{member_id}")
+        case .deleteFamilyMember: (.delete, "/api/family/{member_id}")
+        case .testMemberPushover: (.post, "/api/family/{member_id}/test-pushover")
+        case .testPushover: (.post, "/api/settings/test-pushover")
+        case .testWeather: (.post, "/api/settings/test-weather")
+        case .testLLM: (.post, "/api/settings/test-llm")
+        case .createCalendar: (.post, "/api/calendars")
+        case .updateCalendar: (.put, "/api/calendars/{cal_id}")
+        case .deleteCalendar: (.delete, "/api/calendars/{cal_id}")
+        case .testCalendar: (.post, "/api/calendars/{cal_id}/test")
+        case .aiSettings: (.get, "/api/settings/ai")
+        case .saveAISetting: (.put, "/api/settings/ai/{field_name}")
+        case .aiHistory: (.get, "/api/settings/ai/{field_name}/history")
+        case .aiRollback: (.post, "/api/settings/ai/{field_name}/rollback")
+        case .llmConfig: (.get, "/api/settings/llm/config")
+        case .saveLLMConfig: (.put, "/api/settings/llm/config")
+        case .llmHistory: (.get, "/api/settings/llm/config/history")
+        case .llmRollback: (.post, "/api/settings/llm/config/rollback")
+        case .notificationsOverview: (.get, "/api/notifications/overview")
+        case .followedTeams: (.get, "/api/followed-teams")
+        case .createFollowedTeam: (.post, "/api/followed-teams")
+        case .updateFollowedTeam: (.put, "/api/followed-teams/{team_id}")
+        case .deleteFollowedTeam: (.delete, "/api/followed-teams/{team_id}")
+        case .testFollowedTeam: (.post, "/api/followed-teams/{team_id}/test")
         case .events: (.get, "/api/events")
         case .createEvent: (.post, "/api/events")
         case .event: (.get, "/api/events/{event_id}")

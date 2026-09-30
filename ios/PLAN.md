@@ -73,8 +73,13 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
 - [x] Preparedness + go list: Refreshed, locations (walking order), go list with PDF/Markdown/CSV
       share sheet, AI review (shown only when `prep_review_enabled`). Filter chips live *in* the
       list on this screen: pinned above a searchable screen they slid under the nav bar
-- [ ] Settings: family, calendars, LLM/AI settings with history, notifications,
-      sports teams, Personal Defaults
+- [x] Settings: a hub of Family Members (closed five-color palette, Pushover key, per-kind
+      notification toggles), Personal Defaults (+ the device list with Forget), Calendars (ICS and
+      CalDAV, test connection), Household Settings (timezone, weather, home, meals, Pushover token,
+      what Rally sends, task/learning/shopping/preparedness/sports toggles — only changed keys are
+      sent), AI (agent voice and family context with version history and rollback; LLM provider,
+      model and token budget with save-and-verify and history) and Sports Teams. Every admin model is
+      built in `init`, not lazily: a sheet that depended on a model created in `.task` never presented
 
 ## Testing
 
