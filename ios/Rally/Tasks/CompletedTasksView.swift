@@ -45,7 +45,7 @@ struct CompletedTasksView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Completed")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: Bindable(model).search, prompt: "Search completed tasks")
+        .searchable(text: Bindable(model).search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search completed tasks")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

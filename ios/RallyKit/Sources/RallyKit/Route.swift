@@ -28,6 +28,20 @@ public enum Route: String, CaseIterable, Sendable {
     case updateRecurringTodo
     case deleteRecurringTodo
     case previewRecurrence
+    // Preparedness
+    case prepLocations
+    case createPrepLocation
+    case updatePrepLocation
+    case deletePrepLocation
+    case prepItems
+    case createPrepItem
+    case updatePrepItem
+    case deletePrepItem
+    case refreshPrepItem
+    case goList
+    case exportGoList
+    case prepReview
+    case runPrepReview
     // Settings
     case settings
     case saveSettings
@@ -78,6 +92,19 @@ public enum Route: String, CaseIterable, Sendable {
         case .updateRecurringTodo: (.put, "/api/recurring-todos/{rt_id}")
         case .deleteRecurringTodo: (.delete, "/api/recurring-todos/{rt_id}")
         case .previewRecurrence: (.post, "/api/recurring-todos/preview")
+        case .prepLocations: (.get, "/api/preparedness/locations")
+        case .createPrepLocation: (.post, "/api/preparedness/locations")
+        case .updatePrepLocation: (.put, "/api/preparedness/locations/{location_id}")
+        case .deletePrepLocation: (.delete, "/api/preparedness/locations/{location_id}")
+        case .prepItems: (.get, "/api/preparedness/items")
+        case .createPrepItem: (.post, "/api/preparedness/items")
+        case .updatePrepItem: (.put, "/api/preparedness/items/{item_id}")
+        case .deletePrepItem: (.delete, "/api/preparedness/items/{item_id}")
+        case .refreshPrepItem: (.post, "/api/preparedness/items/{item_id}/refresh")
+        case .goList: (.get, "/api/preparedness/go-list")
+        case .exportGoList: (.get, "/api/preparedness/go-list/export")
+        case .prepReview: (.get, "/api/preparedness/review")
+        case .runPrepReview: (.post, "/api/preparedness/review")
         case .settings: (.get, "/api/settings")
         case .saveSettings: (.put, "/api/settings")
         case .mealPlans: (.get, "/api/meal-planner")

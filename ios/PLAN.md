@@ -65,7 +65,9 @@ A fully native SwiftUI client for Rally. Worked on one long-lived branch
       install's own timezone, so "today" agrees with the server's rather than the phone's
 - [x] Notes: incl. previous-notes archive (adding to a day that has a note switches to it and
       appends what was typed, as on the web; past days are read-only)
-- [ ] Preparedness + go list: Refreshed, AI review, export share sheet
+- [x] Preparedness + go list: Refreshed, locations (walking order), go list with PDF/Markdown/CSV
+      share sheet, AI review (shown only when `prep_review_enabled`). Filter chips live *in* the
+      list on this screen: pinned above a searchable screen they slid under the nav bar
 - [ ] Settings: family, calendars, LLM/AI settings with history, notifications,
       sports teams, Personal Defaults
 

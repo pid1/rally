@@ -32,7 +32,12 @@ struct ChipBar<Trailing: View>: View {
                 trailing()
             }
             .padding(.horizontal, RallyDesign.space[4])
+            .padding(.vertical, RallyDesign.space[1])
         }
+        // A horizontal ScrollView grows to fill any safe area it touches, which put
+        // the chips under the navigation bar on screens with a search field. A fixed
+        // height keeps it a bar.
+        .frame(height: RallyDesign.targetMin + RallyDesign.space[1] * 2)
         .background(.bar)
     }
 }

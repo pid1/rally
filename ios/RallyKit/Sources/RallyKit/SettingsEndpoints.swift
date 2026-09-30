@@ -22,6 +22,8 @@ public struct InstallSettings: Sendable, Equatable {
     /// must still agree with the server about which notes and meals are past.
     public var timeZone: TimeZone
     public var defaultMealType: String
+    /// Off by default: the AI review is a real LLM call.
+    public var prepReviewEnabled: Bool = false
 
     public static let fallback = InstallSettings(timeZone: .current, defaultMealType: "Dinner")
 
@@ -33,6 +35,7 @@ public struct InstallSettings: Sendable, Equatable {
         timeZone = values["local_timezone"].flatMap(TimeZone.init(identifier:)) ?? .current
         let type = values["meal_default_type"] ?? "Dinner"
         defaultMealType = MealLogic.mealTypes.contains(type) ? type : "Dinner"
+        prepReviewEnabled = values["prep_review_enabled"] == "true"
     }
 
     public var calendar: Calendar {

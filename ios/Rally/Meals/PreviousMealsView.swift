@@ -52,7 +52,7 @@ struct PreviousMealsView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Previous Meals")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: Bindable(loader).search, prompt: "Search previous meals")
+        .searchable(text: Bindable(loader).search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search previous meals")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

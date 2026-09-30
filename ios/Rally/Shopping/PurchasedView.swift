@@ -49,7 +49,7 @@ struct PurchasedView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Purchased")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: Bindable(model).search, prompt: "Search purchased items")
+        .searchable(text: Bindable(model).search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search purchased items")
         .safeAreaInset(edge: .top, spacing: 0) {
             let chips = model.chips(stores: stores)
             if !chips.isEmpty { ChipBar(chips: chips, selected: model.selected, toggle: model.toggleFilter) }

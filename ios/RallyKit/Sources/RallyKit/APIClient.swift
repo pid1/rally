@@ -49,6 +49,20 @@ public struct APIClient: Sendable {
         _ = try await execute(route, args, query: query, body: nil)
     }
 
+    /// Fetch a file the server sends as an attachment, with the name it suggests.
+    public func download(_ route: Route, query: [URLQueryItem] = []) async throws -> (data: Data, filename: String) {
+        let request = try makeRequest(route, [:], query: query, body: nil)
+        let data: Data, response: HTTPURLResponse
+        do { (data, response) = try await transport(request) }
+        catch { throw APIError.unreachable(error.localizedDescription) }
+        guard (200..<300).contains(response.statusCode) else {
+            throw APIError.http(status: response.statusCode, detail: Self.detail(in: data))
+        }
+        let disposition = response.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        let name = disposition.components(separatedBy: "filename=").last?.trimmingCharacters(in: CharacterSet(charactersIn: "\" ;")) ?? ""
+        return (data, name.isEmpty ? "download" : name)
+    }
+
     // MARK: Plumbing
 
     func execute(_ route: Route, _ args: [String: String], query: [URLQueryItem], body: Data?) async throws -> Data {

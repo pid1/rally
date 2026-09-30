@@ -56,8 +56,10 @@ final class ShoppingFlowTests: XCTestCase {
         let store = app.textFields["new-store-name"]
         XCTAssertTrue(store.waitForExistence(timeout: 5))
         store.tap()
-        store.typeText("Test Mart\n")
-        XCTAssertTrue(app.buttons["Test Mart"].waitForExistence(timeout: 5))
+        // Unique per run: store names are unique on the server, and the demo data outlives a run.
+        let storeName = "Mart \(Int(Date().timeIntervalSince1970) % 100000)"
+        store.typeText("\(storeName)\n")
+        XCTAssertTrue(app.buttons[storeName].waitForExistence(timeout: 5))
         shot(app, "shopping-4-stores")
         app.buttons["Done"].tap()
     }

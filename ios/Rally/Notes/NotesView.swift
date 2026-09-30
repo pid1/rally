@@ -188,7 +188,7 @@ struct PreviousNotesView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Previous Notes")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: Bindable(loader).search, prompt: "Search notes")
+        .searchable(text: Bindable(loader).search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search notes")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if loader.hasLoaded {
                 Text("\(loader.total) note\(loader.total == 1 ? "" : "s")")
