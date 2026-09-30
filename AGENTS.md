@@ -82,6 +82,7 @@ All commands should be run inside `devenv shell`.
 | `seed` | Seed database with sample data | No |
 | `resetdb` | Delete and reinitialize database | No |
 | `generate` | Generate real dashboard snapshot using APIs | No |
+| `openapi` | Rewrite `ios/openapi.json` (the iOS client's spec); a stale copy fails `tests/test_openapi.py` | No |
 
 #### Docker
 
@@ -633,7 +634,11 @@ rally/
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
 ├── agent_voice.txt.example # Example AI agent voice/tone profile
+├── ios/                  # Native iOS client (in progress; see ios/PLAN.md)
+│   ├── PLAN.md           # The implementation plan and its progress
+│   └── openapi.json      # The API spec the client is generated from, checked in
 ├── scripts/
+│   ├── export_openapi.py # Writes/checks ios/openapi.json
 │   └── capture_screenshots.py # Regenerates docs/screenshots from a seeded throwaway DB
 ├── migrations/            # Database migration scripts
 │   ├── migrate_add_due_date.py        # Migration 001: add due_date to todos
@@ -989,6 +994,7 @@ visual suite (above) before shipping a layout change.
 - `/go-list` - The printable packing list: every item grouped by location, in walking order, with the unassigned group last. Print stylesheet plus Markdown / CSV / PDF export. Reachable only via the `View go list` link on `/preparedness`, not from the nav bar — it is a view of the inventory, and its nav marks Preparedness as the section you are in
 
 ### API Routes
+- `/api/dashboard` - The dashboard as JSON (`DashboardResponse`): the cached snapshot's greeting, weather, schedule, briefing and STEM concept, plus today's Daily Note read live, exactly as `/dashboard` reads it. `has_snapshot: false` carries the same explanatory text the page shows rather than a `404`, so a client renders it without a special case. **Never generates** — that is an LLM call
 - `/api/dashboard/regenerate` - Force dashboard regeneration and save new snapshot
 - `/api/events` - Calendar events. **Two shapes travel through here and they are deliberately different**: an *event* is the stored rule (what the edit form reads), an *occurrence* is one dated instance of it (what every view renders)
   - `GET /api/events?start=&end=&member=&source=` - Expanded **occurrences** from every source, merged and ordered. Local dates; window capped at 366 days; repeatable `member` filters by attendee with OR semantics; `source` is `all` (default), `native`, or `external`. Also runs the once-per-minute due-reminder check

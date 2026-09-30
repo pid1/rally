@@ -1149,3 +1149,42 @@ class PrepReviewResponse(BaseModel):
     current_item_count: int
     stale: bool
     created_at: datetime
+
+
+# Dashboard
+
+
+class DashboardScheduleItem(BaseModel):
+    time: str
+    title: str
+    notes: str = ""
+
+
+class DashboardActivity(BaseModel):
+    idea: str
+    audience: str = ""
+
+
+class DashboardStemConcept(BaseModel):
+    title: str
+    field: str = ""
+    explanation: str = ""
+    activities: list[DashboardActivity] = []
+
+
+class DashboardResponse(BaseModel):
+    """The dashboard as data: the cached snapshot plus today's live note.
+
+    ``has_snapshot`` is False when nothing has been generated yet; the text
+    fields then carry the same explanation ``/dashboard`` shows, so a client
+    that renders them needs no special case.
+    """
+
+    has_snapshot: bool
+    generated_at: datetime | None = None  # UTC; None without a snapshot
+    greeting: str = ""
+    weather_summary: str = ""
+    schedule: list[DashboardScheduleItem] = []
+    briefing: str = ""
+    stem_concept: DashboardStemConcept | None = None
+    note: NoteResponse | None = None

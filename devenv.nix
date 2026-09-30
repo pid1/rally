@@ -117,6 +117,13 @@ in
       uv run --directory . python scripts/capture_screenshots.py "$@"
     '';
 
+    # Rewrite ios/openapi.json, the spec the iOS client is generated from.
+    # tests/test_openapi.py fails when the checked-in copy is stale.
+    openapi.exec = ''
+      cd ${config.env.DEVENV_ROOT}
+      uv run --directory . python scripts/export_openapi.py "$@"
+    '';
+
     # Quality commands (NOTE: currently checks app/ which doesn't exist yet)
     lint.exec = "uv run ruff check .";
     lint-fix.exec = "uv run ruff check . --fix";

@@ -56,6 +56,7 @@ All of these are devenv scripts, available inside the shell.
 | `seed` | Seed the dev database with sample data |
 | `resetdb` | Delete and reinitialize the dev database |
 | `generate` | Generate a real dashboard summary from the configured APIs |
+| `openapi` | Rewrite `ios/openapi.json`, the spec the iOS client is generated from. `tests/test_openapi.py` fails when it is stale, so run it after any API change |
 | `lint` / `lint-fix` | ruff |
 | `format` | ruff format |
 | `check` | `lint` plus format check, which is what CI runs |
