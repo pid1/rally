@@ -66,6 +66,8 @@ Every page is built for a phone first and scales up to a wall display. The desig
 
 <img src="docs/screenshots/readme-mobile.png" alt="Rally on a phone" width="320">
 
+There is also a native iOS app, built in SwiftUI against the same API. Point it at your server's address (over Tailscale, say) and every page is there — plus a Siri action for the shopping list. See [Development](docs/development.md#ios-app) to build it.
+
 ## Getting started
 
 Rally ships as a Docker container:

@@ -136,10 +136,18 @@ xcodebuild -project Rally.xcodeproj -scheme Rally \
 ```
 
 The UI tests drive the real app against a Rally server on `localhost:8100`, so
-start `demo` first. On first launch enter any address the phone can reach; if the
+start `demo` first. They add rows to that throwaway database, which is what it is for,
+and each one names its own data so a second run does not collide with the first. On first launch enter any address the phone can reach; if the
 server is on a tailnet, connect Tailscale on the phone first. After any API
 change, run `openapi` — `RallyKit`'s tests check every route the app uses against
 `ios/openapi.json`.
+
+How it is laid out: `RallyKit` holds everything that is not a screen (the API
+client, models, view models, and the pure logic for calendars, recurrence, dates and
+grouping) so it is testable with `swift test` and no simulator; `Rally/` has one folder
+per screen; `ios/PLAN.md` records the decisions and what is deliberately out of v1.
+`Rally.xcodeproj` is generated from `ios/project.yml` and gitignored. To run on a
+device, set `DEVELOPMENT_TEAM` in `project.yml`.
 
 ## Database migrations
 

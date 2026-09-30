@@ -634,9 +634,13 @@ rally/
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
 ├── agent_voice.txt.example # Example AI agent voice/tone profile
-├── ios/                  # Native iOS client (in progress; see ios/PLAN.md)
-│   ├── PLAN.md           # The implementation plan and its progress
-│   └── openapi.json      # The API spec the client is generated from, checked in
+├── ios/                  # Native SwiftUI client (see ios/PLAN.md and the iOS section of docs/development.md)
+│   ├── PLAN.md           # The implementation plan, its decisions and what is deliberately not in v1
+│   ├── openapi.json      # The API spec, checked in; RallyKit's tests check every route the app calls against it
+│   ├── project.yml       # XcodeGen source for Rally.xcodeproj (the .xcodeproj itself is gitignored)
+│   ├── RallyKit/         # Swift package: API client, models, view models, recurrence/calendar/date logic, design tokens — tested with `swift test`, no simulator
+│   ├── Rally/            # The app: one folder per screen (Shopping, Tasks, Dashboard, Calendar, Meals, Notes, Preparedness, Settings)
+│   └── RallyUITests/     # XCUITest flows, run against a `demo` server on localhost:8100
 ├── scripts/
 │   ├── export_openapi.py # Writes/checks ios/openapi.json
 │   └── capture_screenshots.py # Regenerates docs/screenshots from a seeded throwaway DB
@@ -892,6 +896,14 @@ rally/
   - **Groundedness is the whole design.** Asking what is *absent* is the prompt shape most likely to produce invention, so the model is told the inventory is the only evidence of what the family owns, warned not to flag a category the list already covers under different words, and required to put anything it does not know — unstated ages, unset home — into an `assumptions` field rather than guessing. Absent inputs are passed as an explicit `(not recorded)` so there is no silent hole to fill
   - Responses are normalized before storage: unknown priorities coerce to `medium`, gaps without an item are dropped, and the list is capped — a review is read by someone deciding what to buy, so a half-parsed field is worse than a missing one
   - Snapshotted into `prep_reviews` and read back on view, following `DashboardSnapshot`. The response carries `stale` so a review of 38 items is visibly stale once you hold 44
+- ✅ **Native iOS app** (`ios/`) — every page of the web app, as SwiftUI, against the same JSON API
+  - The server's address is whatever the person types, so **Tailscale is supported by being a network, not by code**: the phone's VPN routes it. Plain HTTP is allowed (`NSAllowsArbitraryLoads`) because a tailnet is already encrypted; tighten it before TestFlight. No auth, same as the server
+  - **The API layer is hand-written, not generated.** A generated client turns `nil` into an omitted key, so it can never send the explicit `null` that clears a field (un-assign a task, clear a due date). `Patch<T>` / `PatchBody` carry unset / null / value, and every request is built key by key. `Route` lists each endpoint the app calls so `SpecCoverageTests` can check it against `ios/openapi.json`
+  - **Logic lives in `RallyKit`, not in views.** Grouping, chips, sorting, reorder, the five-minute calendar lattice and column packing, the RRULE compile/parse rules and every request body are pure and tested. A rule the web page keeps in its script is ported with a test, not reinvented — several of these tests are the original bug reports (a title-only edit must not send `start`/`end`; a weekly rule on a different day is not "weekly"; a selected filter must keep its chip)
+  - `AppModel.install` carries the install's own timezone, so "today" agrees with the server's rather than the phone's. Design tokens are copied from `static/styles.css` and `member_colors.py` and `DesignTokenTests` fails if a copy drifts
+  - Screen models are built in `init`, never lazily in `.task`: a sheet that depended on a model created in `.task` silently never presented. Likewise an editor's setup runs **once** — `onAppear` fires again when a pushed picker pops back and reset the draft
+  - Drag-to-reorder is within a store (Edit → handles); moving to another store is the edit form's Store field, because a SwiftUI `List` cannot drop across sections. `AddToShoppingListIntent` replaces the Shortcuts recipe in `docs/voice-shortcuts.md`
+  - Not in v1: widgets, an offline cache, push via APNs (Rally sends Pushover), and the `Refresh` button / stale-cache notice for external calendar feeds
 - ✅ Seed command for development data
 - ✅ Generate command for real API data
 - ✅ Scheduled generation at 4:00 AM in configured timezone (in Docker)
