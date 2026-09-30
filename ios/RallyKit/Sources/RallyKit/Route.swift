@@ -1,0 +1,206 @@
+import Foundation
+
+public enum HTTPMethod: String, Sendable { case get = "GET", post = "POST", put = "PUT", delete = "DELETE" }
+
+/// Every endpoint the app calls, by the path template the server declares.
+///
+/// Routes are an enum rather than string literals at call sites so that
+/// `SpecCoverageTests` can check each one against `ios/openapi.json`: a
+/// renamed endpoint then fails a test here instead of a screen in the app.
+public enum Route: String, CaseIterable, Sendable {
+    // Family, devices, dashboard
+    case listFamily
+    case listDevices
+    case announceDevice
+    case forgetDevice
+    case devicePreferences
+    case saveMemberPreferences
+    case preferenceCatalog
+    case dashboard
+    // Tasks
+    case todos
+    case createTodo
+    case updateTodo
+    case deleteTodo
+    case completedTodos
+    case recurringTodos
+    case createRecurringTodo
+    case updateRecurringTodo
+    case deleteRecurringTodo
+    case previewRecurrence
+    // Settings pages
+    case createFamilyMember
+    case updateFamilyMember
+    case deleteFamilyMember
+    case testMemberPushover
+    case testPushover
+    case testWeather
+    case testLLM
+    case createCalendar
+    case updateCalendar
+    case deleteCalendar
+    case testCalendar
+    case aiSettings
+    case saveAISetting
+    case aiHistory
+    case aiRollback
+    case llmConfig
+    case saveLLMConfig
+    case llmHistory
+    case llmRollback
+    case notificationsOverview
+    case followedTeams
+    case createFollowedTeam
+    case updateFollowedTeam
+    case deleteFollowedTeam
+    case testFollowedTeam
+    // Calendar
+    case events
+    case createEvent
+    case event
+    case updateEvent
+    case deleteEvent
+    case describeRecurrence
+    case notifyEvent
+    case calendars
+    // Preparedness
+    case prepLocations
+    case createPrepLocation
+    case updatePrepLocation
+    case deletePrepLocation
+    case prepItems
+    case createPrepItem
+    case updatePrepItem
+    case deletePrepItem
+    case refreshPrepItem
+    case goList
+    case exportGoList
+    case prepReview
+    case runPrepReview
+    // Settings
+    case settings
+    case saveSettings
+    // Meals
+    case mealPlans
+    case createMeal
+    case updateMeal
+    case deleteMeal
+    case reviewMeal
+    case previousMeals
+    // Notes
+    case notes
+    case createNote
+    case updateNote
+    case deleteNote
+    case previousNotes
+    // Shopping
+    case shoppingStores
+    case createShoppingStore
+    case updateShoppingStore
+    case deleteShoppingStore
+    case shoppingItems
+    case createShoppingItem
+    case updateShoppingItem
+    case deleteShoppingItem
+    case reorderShoppingItems
+    case shoppingPurchased
+    case shoppingSuggestions
+    case forgetShoppingSuggestion
+
+    private var spec: (HTTPMethod, String) {
+        switch self {
+        case .listFamily: (.get, "/api/family")
+        case .listDevices: (.get, "/api/devices")
+        case .announceDevice: (.put, "/api/devices/{device_id}")
+        case .forgetDevice: (.delete, "/api/devices/{device_id}")
+        case .devicePreferences: (.get, "/api/devices/{device_id}/preferences")
+        case .saveMemberPreferences: (.put, "/api/devices/{device_id}/preferences/{member_id}")
+        case .preferenceCatalog: (.get, "/api/preferences/catalog")
+        case .dashboard: (.get, "/api/dashboard")
+        case .todos: (.get, "/api/todos")
+        case .createTodo: (.post, "/api/todos")
+        case .updateTodo: (.put, "/api/todos/{todo_id}")
+        case .deleteTodo: (.delete, "/api/todos/{todo_id}")
+        case .completedTodos: (.get, "/api/todos/completed")
+        case .recurringTodos: (.get, "/api/recurring-todos")
+        case .createRecurringTodo: (.post, "/api/recurring-todos")
+        case .updateRecurringTodo: (.put, "/api/recurring-todos/{rt_id}")
+        case .deleteRecurringTodo: (.delete, "/api/recurring-todos/{rt_id}")
+        case .previewRecurrence: (.post, "/api/recurring-todos/preview")
+        case .createFamilyMember: (.post, "/api/family")
+        case .updateFamilyMember: (.put, "/api/family/{member_id}")
+        case .deleteFamilyMember: (.delete, "/api/family/{member_id}")
+        case .testMemberPushover: (.post, "/api/family/{member_id}/test-pushover")
+        case .testPushover: (.post, "/api/settings/test-pushover")
+        case .testWeather: (.post, "/api/settings/test-weather")
+        case .testLLM: (.post, "/api/settings/test-llm")
+        case .createCalendar: (.post, "/api/calendars")
+        case .updateCalendar: (.put, "/api/calendars/{cal_id}")
+        case .deleteCalendar: (.delete, "/api/calendars/{cal_id}")
+        case .testCalendar: (.post, "/api/calendars/{cal_id}/test")
+        case .aiSettings: (.get, "/api/settings/ai")
+        case .saveAISetting: (.put, "/api/settings/ai/{field_name}")
+        case .aiHistory: (.get, "/api/settings/ai/{field_name}/history")
+        case .aiRollback: (.post, "/api/settings/ai/{field_name}/rollback")
+        case .llmConfig: (.get, "/api/settings/llm/config")
+        case .saveLLMConfig: (.put, "/api/settings/llm/config")
+        case .llmHistory: (.get, "/api/settings/llm/config/history")
+        case .llmRollback: (.post, "/api/settings/llm/config/rollback")
+        case .notificationsOverview: (.get, "/api/notifications/overview")
+        case .followedTeams: (.get, "/api/followed-teams")
+        case .createFollowedTeam: (.post, "/api/followed-teams")
+        case .updateFollowedTeam: (.put, "/api/followed-teams/{team_id}")
+        case .deleteFollowedTeam: (.delete, "/api/followed-teams/{team_id}")
+        case .testFollowedTeam: (.post, "/api/followed-teams/{team_id}/test")
+        case .events: (.get, "/api/events")
+        case .createEvent: (.post, "/api/events")
+        case .event: (.get, "/api/events/{event_id}")
+        case .updateEvent: (.put, "/api/events/{event_id}")
+        case .deleteEvent: (.delete, "/api/events/{event_id}")
+        case .describeRecurrence: (.post, "/api/events/describe-recurrence")
+        case .notifyEvent: (.post, "/api/events/{event_id}/notify")
+        case .calendars: (.get, "/api/calendars")
+        case .prepLocations: (.get, "/api/preparedness/locations")
+        case .createPrepLocation: (.post, "/api/preparedness/locations")
+        case .updatePrepLocation: (.put, "/api/preparedness/locations/{location_id}")
+        case .deletePrepLocation: (.delete, "/api/preparedness/locations/{location_id}")
+        case .prepItems: (.get, "/api/preparedness/items")
+        case .createPrepItem: (.post, "/api/preparedness/items")
+        case .updatePrepItem: (.put, "/api/preparedness/items/{item_id}")
+        case .deletePrepItem: (.delete, "/api/preparedness/items/{item_id}")
+        case .refreshPrepItem: (.post, "/api/preparedness/items/{item_id}/refresh")
+        case .goList: (.get, "/api/preparedness/go-list")
+        case .exportGoList: (.get, "/api/preparedness/go-list/export")
+        case .prepReview: (.get, "/api/preparedness/review")
+        case .runPrepReview: (.post, "/api/preparedness/review")
+        case .settings: (.get, "/api/settings")
+        case .saveSettings: (.put, "/api/settings")
+        case .mealPlans: (.get, "/api/meal-planner")
+        case .createMeal: (.post, "/api/meal-planner")
+        case .updateMeal: (.put, "/api/meal-planner/{plan_id}")
+        case .deleteMeal: (.delete, "/api/meal-planner/{plan_id}")
+        case .reviewMeal: (.put, "/api/meal-planner/{plan_id}/review")
+        case .previousMeals: (.get, "/api/meal-planner/previous")
+        case .notes: (.get, "/api/notes")
+        case .createNote: (.post, "/api/notes")
+        case .updateNote: (.put, "/api/notes/{note_id}")
+        case .deleteNote: (.delete, "/api/notes/{note_id}")
+        case .previousNotes: (.get, "/api/notes/previous")
+        case .shoppingStores: (.get, "/api/shopping/stores")
+        case .createShoppingStore: (.post, "/api/shopping/stores")
+        case .updateShoppingStore: (.put, "/api/shopping/stores/{store_id}")
+        case .deleteShoppingStore: (.delete, "/api/shopping/stores/{store_id}")
+        case .shoppingItems: (.get, "/api/shopping/items")
+        case .createShoppingItem: (.post, "/api/shopping/items")
+        case .updateShoppingItem: (.put, "/api/shopping/items/{item_id}")
+        case .deleteShoppingItem: (.delete, "/api/shopping/items/{item_id}")
+        case .reorderShoppingItems: (.post, "/api/shopping/items/reorder")
+        case .shoppingPurchased: (.get, "/api/shopping/purchased")
+        case .shoppingSuggestions: (.get, "/api/shopping/suggestions")
+        case .forgetShoppingSuggestion: (.delete, "/api/shopping/suggestions/{history_id}")
+        }
+    }
+
+    public var method: HTTPMethod { spec.0 }
+    public var template: String { spec.1 }
+}

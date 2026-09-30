@@ -1,0 +1,56 @@
+# The Xcode project is generated from this file (`brew install xcodegen`, then
+# `xcodegen` in ios/). Rally.xcodeproj is gitignored: a generated project file is
+# a merge conflict waiting to happen, and this file is the thing worth reviewing.
+name: Rally
+options:
+  bundleIdPrefix: com.roemersoftworks
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set your own team to run on a device; the simulator needs none.
+    DEVELOPMENT_TEAM: ""
+packages:
+  RallyKit:
+    path: RallyKit
+targets:
+  Rally:
+    type: application
+    platform: iOS
+    sources: [Rally]
+    dependencies:
+      - package: RallyKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roemersoftworks.rally
+        GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: Rally
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        # ATS lives in Config/AppInfo.plist: INFOPLIST_KEY_* cannot set a nested dictionary.
+        INFOPLIST_FILE: Config/AppInfo.plist
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Rally connects to your Rally server on your home network."
+  RallyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [RallyUITests]
+    dependencies:
+      - target: Rally
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roemersoftworks.rally.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Rally:
+    build:
+      targets:
+        Rally: all
+    test:
+      targets: [RallyUITests]

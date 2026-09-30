@@ -11,6 +11,11 @@ from rally import markdown
 from rally.database import get_db
 from rally.generator.generate import SummaryGenerator
 from rally.models import DashboardSnapshot, Note
+from rally.schemas import (
+    DashboardResponse,
+    DashboardScheduleItem,
+    DashboardStemConcept,
+)
 from rally.templating import templates
 from rally.utils.settings import today_local_str
 from rally.utils.timezone import ensure_utc, now_utc
@@ -134,6 +139,25 @@ def _dashboard_context(data: dict, date_str: str, timestamp: datetime, note_html
     }
 
 
+def _todays_note(db: Session) -> Note | None:
+    return db.query(Note).filter(Note.date == today_local_str(db)).first()
+
+
+def _latest_snapshot(db: Session) -> DashboardSnapshot | None:
+    """The most recent active snapshot, regardless of date.
+
+    Snapshots are generated in the family's local timezone (e.g. 4 AM Central)
+    but viewed against UTC-based dates, so filtering on "today" would miss
+    them for part of every day.
+    """
+    return (
+        db.query(DashboardSnapshot)
+        .filter(DashboardSnapshot.is_active == True)  # noqa: E712
+        .order_by(DashboardSnapshot.timestamp.desc())
+        .first()
+    )
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def get_dashboard(request: Request, db: Session = Depends(get_db)):
     """Serve the generated daily dashboard from cached snapshot.
@@ -142,18 +166,9 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
     live on every request, so a note added or corrected during the day appears
     on the next load rather than waiting for the next generation.
     """
-    note = db.query(Note).filter(Note.date == today_local_str(db)).first()
+    note = _todays_note(db)
     note_html = markdown.render(note.body) if note else ""
-
-    # Fetch the most recent active snapshot (regardless of date)
-    # This handles timezone differences between when snapshots are generated
-    # (in local timezone, e.g., 4 AM Central) vs when they're viewed (UTC-based)
-    snapshot = (
-        db.query(DashboardSnapshot)
-        .filter(DashboardSnapshot.is_active == True)  # noqa: E712
-        .order_by(DashboardSnapshot.timestamp.desc())
-        .first()
-    )
+    snapshot = _latest_snapshot(db)
 
     if not snapshot:
         # No snapshot exists - show error message
@@ -180,3 +195,66 @@ async def regenerate_dashboard():
     data = generator.generate_summary()
     generator.save_snapshot(data)
     return {"status": "success", "message": "Dashboard regenerated"}
+
+
+def _stem_from_snapshot(stem: object) -> DashboardStemConcept | None:
+    """Normalize the LLM's ``stem_concept`` the way ``_build_stem_section`` does.
+
+    A model can return anything, so entries that are not shaped like an
+    activity are dropped rather than failing the whole response.
+    """
+    if not isinstance(stem, dict) or not str(stem.get("title", "")).strip():
+        return None
+    activities = [
+        {"idea": str(a["idea"]).strip(), "audience": str(a.get("audience", "")).strip()}
+        for a in stem.get("activities") or []
+        if isinstance(a, dict) and str(a.get("idea", "")).strip()
+    ]
+    return DashboardStemConcept(
+        title=str(stem["title"]).strip(),
+        field=str(stem.get("field", "")).strip(),
+        explanation=str(stem.get("explanation", "")).strip(),
+        activities=activities,
+    )
+
+
+@router.get("/api/dashboard", response_model=DashboardResponse)
+async def get_dashboard_data(db: Session = Depends(get_db)):
+    """The dashboard as JSON, for clients that render it themselves.
+
+    Same sources as ``/dashboard``: the cached snapshot, plus today's Daily
+    Note read live. Never generates anything — that costs an LLM call.
+    """
+    note = _todays_note(db)
+    snapshot = _latest_snapshot(db)
+    if not snapshot:
+        return DashboardResponse(
+            has_snapshot=False,
+            greeting="No dashboard data available for today.",
+            weather_summary=(
+                "Run the 'generate' command to create today's dashboard, or wait for the "
+                "scheduled generation at 4:00 AM Central."
+            ),
+            note=note,
+        )
+
+    data = snapshot.data or {}
+    schedule = [
+        DashboardScheduleItem(
+            time=str(item.get("time", "")),
+            title=str(item.get("title", "")),
+            notes=str(item.get("notes") or ""),
+        )
+        for item in data.get("schedule", [])
+        if isinstance(item, dict)
+    ]
+    return DashboardResponse(
+        has_snapshot=True,
+        generated_at=ensure_utc(snapshot.timestamp),
+        greeting=str(data.get("greeting", "")),
+        weather_summary=str(data.get("weather_summary", "")),
+        schedule=schedule,
+        briefing=str(data.get("briefing", "")),
+        stem_concept=_stem_from_snapshot(data.get("stem_concept")),
+        note=note,
+    )

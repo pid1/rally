@@ -88,3 +88,81 @@ def test_dashboard_renders_schedule_notes_and_briefing(client, db_session):
     assert "Pack an umbrella" in html  # briefing section
     assert "School" in html
     assert "Gym" in html
+
+
+def test_api_dashboard_without_snapshot(client):
+    body = client.get("/api/dashboard").json()
+
+    assert body["has_snapshot"] is False
+    assert body["generated_at"] is None
+    assert "No dashboard data available" in body["greeting"]
+    assert body["schedule"] == []
+    assert body["note"] is None
+
+
+def test_api_dashboard_returns_snapshot_fields(client, db_session):
+    db_session.add(
+        DashboardSnapshot(
+            date="2026-03-15",
+            data={
+                "greeting": "Hello Fam",
+                "weather_summary": "Sunny",
+                "schedule": [
+                    {"time": "9:00 AM", "title": "Dentist", "notes": "Bring forms"},
+                    {"time": "1:00 PM", "title": "Lunch"},
+                    "not a dict",
+                ],
+                "briefing": "Trash day",
+                "stem_concept": {
+                    "title": "Buoyancy",
+                    "field": "Science",
+                    "explanation": "Things float.",
+                    "activities": [{"idea": "Tub toys", "audience": "kids"}, {"idea": " "}, 3],
+                },
+            },
+            is_active=True,
+        )
+    )
+    db_session.commit()
+
+    body = client.get("/api/dashboard").json()
+
+    assert body["has_snapshot"] is True
+    assert body["generated_at"].endswith("Z") or "+00:00" in body["generated_at"]
+    assert body["greeting"] == "Hello Fam"
+    assert body["weather_summary"] == "Sunny"
+    assert body["briefing"] == "Trash day"
+    assert body["schedule"] == [
+        {"time": "9:00 AM", "title": "Dentist", "notes": "Bring forms"},
+        {"time": "1:00 PM", "title": "Lunch", "notes": ""},
+    ]
+    assert body["stem_concept"]["title"] == "Buoyancy"
+    assert body["stem_concept"]["activities"] == [{"idea": "Tub toys", "audience": "kids"}]
+
+
+def test_api_dashboard_omits_stem_without_title(client, db_session):
+    db_session.add(
+        DashboardSnapshot(
+            date="2026-03-15", data={"greeting": "Hi", "stem_concept": {}}, is_active=True
+        )
+    )
+    db_session.commit()
+
+    assert client.get("/api/dashboard").json()["stem_concept"] is None
+
+
+def test_api_dashboard_reads_todays_note_live(client, db_session):
+    from rally.utils.settings import today_local_str
+
+    db_session.add(DashboardSnapshot(date="2026-03-15", data={"greeting": "Hi"}, is_active=True))
+    db_session.commit()
+    assert client.get("/api/dashboard").json()["note"] is None
+
+    resp = client.post(
+        "/api/notes", json={"date": today_local_str(db_session), "body": "**Pizza**"}
+    )
+    assert resp.status_code == 201
+
+    note = client.get("/api/dashboard").json()["note"]
+    assert note["body"] == "**Pizza**"
+    assert "<strong>Pizza</strong>" in note["body_html"]

@@ -56,6 +56,7 @@ All of these are devenv scripts, available inside the shell.
 | `seed` | Seed the dev database with sample data |
 | `resetdb` | Delete and reinitialize the dev database |
 | `generate` | Generate a real dashboard summary from the configured APIs |
+| `openapi` | Rewrite `ios/openapi.json`, the spec the iOS client is generated from. `tests/test_openapi.py` fails when it is stale, so run it after any API change |
 | `lint` / `lint-fix` | ruff |
 | `format` | ruff format |
 | `check` | `lint` plus format check, which is what CI runs |
@@ -120,6 +121,33 @@ rather than its result banner, because producing that banner means really
 pushing to Pushover.
 
 The sample family is Mom, Dad, Emma and Jake. The data is anchored to the day you run it, so the calendar always has this week's events in it and the preparedness list always has something overdue. The screenshots in this repository and the walkthrough video in the README were both recorded against it.
+
+## iOS app
+
+The native client lives in `ios/` (see `ios/PLAN.md`). Requirements: Xcode and
+`brew install xcodegen`.
+
+```bash
+cd ios
+(cd RallyKit && swift test)        # logic, API layer, design-token drift checks
+xcodegen                           # generate Rally.xcodeproj from project.yml
+xcodebuild -project Rally.xcodeproj -scheme Rally \
+  -destination 'platform=iOS Simulator,name=iPhone 17' test CODE_SIGNING_ALLOWED=NO
+```
+
+The UI tests drive the real app against a Rally server on `localhost:8100`, so
+start `demo` first. They add rows to that throwaway database, which is what it is for,
+and each one names its own data so a second run does not collide with the first. On first launch enter any address the phone can reach; if the
+server is on a tailnet, connect Tailscale on the phone first. After any API
+change, run `openapi` — `RallyKit`'s tests check every route the app uses against
+`ios/openapi.json`.
+
+How it is laid out: `RallyKit` holds everything that is not a screen (the API
+client, models, view models, and the pure logic for calendars, recurrence, dates and
+grouping) so it is testable with `swift test` and no simulator; `Rally/` has one folder
+per screen; `ios/PLAN.md` records the decisions and what is deliberately out of v1.
+`Rally.xcodeproj` is generated from `ios/project.yml` and gitignored. To run on a
+device, set `DEVELOPMENT_TEAM` in `project.yml`.
 
 ## Database migrations
 
