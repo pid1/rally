@@ -269,8 +269,9 @@ def test_every_view_is_reachable_on_a_phone(browser, live_server):
     so a phone had no view choice at all.
 
     View and Range are two controls now: the renderer and the slice of time.
-    `Next 30 days` is a list-only idea, so it is hidden while View is Calendar
-    rather than offered and then refused.
+    Each rolling range belongs to one View: `Next 30 days` is list-only and
+    `Next 3 days` is grid-only, so each is detached under the other View rather
+    than offered and then refused.
     """
     context, page = _calendar(browser, live_server)
     try:
@@ -283,15 +284,67 @@ def test_every_view_is_reachable_on_a_phone(browser, live_server):
             return page.eval_on_selector_all("#range-select option", "els => els.map(e => e.value)")
 
         # Removed from the DOM, not `hidden`: iOS Safari ignores `hidden` on <option>.
-        assert ranges() == ["day", "week", "month"], (
+        assert ranges() == ["day", "week", "month", "rolling3"], (
             "Calendar cannot draw a rolling 30 days, so it must not offer it"
         )
         page.select_option("#view-select", "agenda")
         page.wait_for_timeout(400)
-        assert ranges() == ["day", "week", "month", "rolling30"]
+        assert ranges() == ["day", "week", "month", "rolling30"], (
+            "Agenda is a list, so it must not offer the three-column grid"
+        )
         page.select_option("#view-select", "calendar")
         page.wait_for_timeout(400)
-        assert ranges() == ["day", "week", "month"]
+        assert ranges() == ["day", "week", "month", "rolling3"]
+    finally:
+        context.close()
+
+
+def test_next_3_days_is_a_three_column_grid_that_steps_by_three(browser, live_server):
+    """Three days is wide enough to read and short enough to see at a glance.
+
+    On a 390px phone a Week column is 50px; three columns are about 116px, and
+    every one must still clear the 44px hit-area floor. Prev/Next move by the
+    window's own length, so consecutive windows never overlap.
+    """
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#range-select", "rolling3")
+        page.wait_for_function(
+            "document.querySelectorAll('.calendar-timegrid-daylabel').length === 3"
+        )
+
+        widths = page.eval_on_selector_all(
+            ".calendar-timegrid-daylabel", "els => els.map(e => e.getBoundingClientRect().width)"
+        )
+        assert all(width >= 44 for width in widths), f"columns under the 44px floor: {widths}"
+
+        first = page.evaluate("isoDate(anchor)")
+        page.click("#btn-next")
+        page.wait_for_timeout(400)
+        moved = page.evaluate(
+            "(iso) => (parseIso(isoDate(anchor)) - parseIso(iso)) / 86400000", first
+        )
+        assert moved == 3, f"Next must step three days, stepped {moved}"
+        page.click("#btn-today")
+        page.wait_for_timeout(400)
+        assert page.evaluate("isoDate(anchor)") == page.evaluate("todayIso()")
+    finally:
+        context.close()
+
+
+def test_switching_to_agenda_leaves_next_3_days_for_day(browser, live_server):
+    """Agenda cannot draw the grid's three-day window, so it lands on Day —
+    the narrowest range — rather than keeping a value the select no longer
+    offers."""
+    context, page = _calendar(browser, live_server)
+    try:
+        page.select_option("#range-select", "rolling3")
+        page.wait_for_function(
+            "document.querySelectorAll('.calendar-timegrid-daylabel').length === 3"
+        )
+        page.select_option("#view-select", "agenda")
+        page.wait_for_timeout(400)
+        assert page.input_value("#range-select") == "day"
     finally:
         context.close()
 

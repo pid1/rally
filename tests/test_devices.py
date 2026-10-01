@@ -176,6 +176,21 @@ def test_a_value_outside_the_choices_is_rejected(client, db_session, make_member
     assert db_session.query(MemberPreference).count() == 0
 
 
+def test_a_view_is_not_offered_the_range_only_the_other_can_draw(client, db_session, make_member):
+    """`agenda:rolling3` is the mirror of `calendar:rolling30`: `Next 3 days`
+    is a time grid, so a list cannot land on it."""
+    member = make_member("Jon")
+    url = f"/api/devices/{PHONE}/preferences/{member.id}"
+
+    rejected = client.put(url, json={"values": {KEY: "agenda:rolling3"}})
+    assert rejected.status_code == 422
+    assert db_session.query(MemberPreference).count() == 0
+
+    accepted = client.put(url, json={"values": {KEY: "calendar:rolling3"}})
+    assert accepted.status_code == 200
+    assert accepted.json()["values"] == {KEY: "calendar:rolling3"}
+
+
 def test_saving_for_a_member_who_does_not_exist_is_a_404(client):
     response = client.put(
         f"/api/devices/{PHONE}/preferences/9999", json={"values": {KEY: "agenda:day"}}

@@ -113,7 +113,13 @@ def test_calendar_offers_view_mode_and_range_as_separate_controls():
     assert 'id="range-select"' in html
     for option in ('value="calendar"', 'value="agenda"'):
         assert option in html, f"the View selector is missing {option}"
-    for option in ('value="day"', 'value="week"', 'value="month"', 'value="rolling30"'):
+    for option in (
+        'value="day"',
+        'value="week"',
+        'value="month"',
+        'value="rolling3"',
+        'value="rolling30"',
+    ):
         assert option in html, f"the Range selector is missing {option}"
 
 
