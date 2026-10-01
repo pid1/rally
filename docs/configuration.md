@@ -64,13 +64,13 @@ Rally has no sign-in. It is one household on one network, and the tablet on the 
 
 | Setting | Choices | Default |
 |---|---|---|
-| Calendar opens on | **Match the screen**, or Calendar/Agenda crossed with Day, Week, Month, and (Agenda only) Next 30 days | Match the screen |
+| Calendar opens on | **Match the screen**, or Calendar/Agenda crossed with Day, Week, Month, plus Next 3 days (Calendar only) and Next 30 days (Agenda only) | Match the screen |
 
 **Match the screen** is Rally's own rule and what every device gets until somebody changes it: a phone-width screen opens the calendar on the day, a wider one on the month. It is a real option rather than only the absence of one, so a device can be handed the decision back after having been given a specific view. Because it is the default, upgrading moves nobody's screen.
 
 This sets where the calendar **starts**, not where it keeps you. Changing `View` or `Range` once you are there still works and is still never remembered — which calendar you want next is a function of why you opened it, and a remembered Day view is exactly wrong for the Sunday planning session.
 
-A grid cannot draw *Next 30 days*, so that range is offered under Agenda only.
+Each rolling range is offered under one View only: a grid cannot draw *Next 30 days*, and *Next 3 days* is a time grid, so a list cannot draw it.
 
 ![Personal defaults in Settings: this device, who it belongs to, one answer per family member, and the list of devices Rally remembers](screenshots/settings-personal-defaults.png)
 
