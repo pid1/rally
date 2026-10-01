@@ -1988,10 +1988,15 @@
 
         /* Calendar cannot draw `Next 30 days`, so switching into it falls back
            to Month — the nearest thing a grid offers to a long look ahead. */
+        const ROLLING_OPTION = document.querySelector('#range-select option[value="rolling30"]');
+
+        /* The option is detached rather than given `hidden`: iOS Safari renders
+           its own picker and ignores `hidden` (and `display: none`) on an
+           <option>, so a hidden entry was still offered on a phone. */
         function syncRangeOptions() {
             const select = document.getElementById('range-select');
-            const rolling = select.querySelector('option[value="rolling30"]');
-            rolling.hidden = mode === 'calendar';
+            if (mode === 'calendar') ROLLING_OPTION.remove();
+            else if (!ROLLING_OPTION.isConnected) select.appendChild(ROLLING_OPTION);
             if (mode === 'calendar' && !CALENDAR_RANGES.includes(range)) range = 'month';
             select.value = range;
         }
