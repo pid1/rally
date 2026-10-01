@@ -1161,3 +1161,226 @@ class PrepReviewResponse(BaseModel):
     current_item_count: int
     stale: bool
     created_at: datetime
+
+
+# --- Checklists ------------------------------------------------------------------
+
+# When a day's copy of a checklist should be packed. Only the daily summary acts
+# on it; nothing is hidden or locked by it.
+PackTiming = Literal["day_of", "day_before"]
+
+
+def _require_name(value: str) -> str:
+    """Trim a name and refuse one that is empty once trimmed."""
+    value = (value or "").strip()
+    if not value:
+        raise ValueError("A name can't be empty.")
+    return value
+
+
+def _require_iso_date(value: str) -> str:
+    """Accept exactly ``YYYY-MM-DD``, the shape every date column compares on.
+
+    ``date.fromisoformat`` alone also accepts ``20261003``, which would then
+    compare wrongly against every stored string.
+    """
+    from datetime import date as _date
+
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value or ""):
+        raise ValueError("Dates are YYYY-MM-DD.")
+    _date.fromisoformat(value)
+    return value
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    if value is None or value is UNSET:
+        return value
+    value = value.strip()
+    return value or None
+
+
+class ChecklistCreate(BaseModel):
+    name: str
+    description: str | None = None
+    pack_timing: PackTiming = "day_of"
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        return _require_name(value)
+
+    @field_validator("description")
+    @classmethod
+    def _validate_description(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class ChecklistUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    pack_timing: PackTiming | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        return None if value is None else _require_name(value)
+
+    @field_validator("description")
+    @classmethod
+    def _validate_description(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class ChecklistGroupCreate(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        return _require_name(value)
+
+
+class ChecklistGroupUpdate(ChecklistGroupCreate):
+    pass
+
+
+class ChecklistGroupResponse(BaseModel):
+    id: int
+    name: str
+    sort_order: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChecklistItemCreate(BaseModel):
+    name: str
+    note: str | None = None
+    group_id: int | None = None  # None is the "General" catch-all
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        return _require_name(value)
+
+    @field_validator("note")
+    @classmethod
+    def _validate_note(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class ChecklistItemUpdate(BaseModel):
+    name: str | None = None
+    note: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    group_id: int | None = UNSET  # None means "General"; UNSET means "not provided"
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        return None if value is None else _require_name(value)
+
+    @field_validator("note")
+    @classmethod
+    def _validate_note(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class ChecklistItemResponse(BaseModel):
+    id: int
+    group_id: int | None = None
+    name: str
+    note: str | None = None
+    sort_order: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChecklistReorder(BaseModel):
+    """One group of a checklist as it should now read, top to bottom.
+
+    The same contract as ``ShoppingReorder``: ``group_id`` is the destination,
+    so dragging an item into another group is a reorder whose payload happens to
+    name an item that used to live elsewhere.
+    """
+
+    group_id: int | None = None  # None is the "General" catch-all
+    item_ids: list[int]
+
+
+class ChecklistSummary(BaseModel):
+    """A row on the Checklists page."""
+
+    id: int
+    name: str
+    description: str | None = None
+    pack_timing: PackTiming
+    item_count: int
+    group_count: int
+    day_count: int  # Every day it is on, past included — what deleting it would remove
+    upcoming_days: int  # Days from today on
+
+
+class ChecklistResponse(ChecklistSummary):
+    """A checklist with its groups and items, each in display order."""
+
+    groups: list[ChecklistGroupResponse]
+    items: list[ChecklistItemResponse]
+
+
+class ChecklistDayCreate(BaseModel):
+    checklist_id: int
+    date: str  # YYYY-MM-DD
+    label: str | None = None
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, value: str) -> str:
+        return _require_iso_date(value)
+
+    @field_validator("label")
+    @classmethod
+    def _validate_label(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class ChecklistDayUpdate(BaseModel):
+    date: str | None = None
+    label: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, value: str | None) -> str | None:
+        return None if value is None else _require_iso_date(value)
+
+    @field_validator("label")
+    @classmethod
+    def _validate_label(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class ChecklistDaySummary(BaseModel):
+    """A day's checklist as a row: what it is, when, and how far along."""
+
+    id: int
+    checklist_id: int
+    checklist_name: str
+    date: str
+    label: str | None = None
+    pack_timing: PackTiming
+    pack_date: str  # The day it should be packed: the date itself, or the day before
+    total: int
+    checked: int
+
+
+class ChecklistDayItem(ChecklistItemResponse):
+    checked: bool
+
+
+class ChecklistDayResponse(ChecklistDaySummary):
+    """The day's checklist itself: the checklist's groups and items, with checks."""
+
+    groups: list[ChecklistGroupResponse]
+    items: list[ChecklistDayItem]
+
+
+class ChecklistCheck(BaseModel):
+    checked: bool

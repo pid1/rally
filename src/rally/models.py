@@ -868,3 +868,130 @@ class CalendarCache(Base):
     retry_after: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class Checklist(Base):
+    """A reusable packing list: Swim at Nana's, Beach day, School backpack.
+
+    This is the master. It is never checked off itself — a ``ChecklistDay``
+    puts it on a date, and checking happens there. ``pack_timing`` says when
+    that day's copy should be packed, which is what the daily summary keys its
+    reminder on: ``day_of`` or ``day_before``.
+
+    ``name`` is unique case-insensitively, like store and location names, so
+    "Add to a Day" can never offer two entries that read the same.
+    """
+
+    __tablename__ = "checklists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pack_timing: Mapped[str] = mapped_column(String(10), default="day_of")  # day_of | day_before
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_checklists_name_nocase", text("name COLLATE NOCASE"), unique=True),
+        CheckConstraint("pack_timing IN ('day_of','day_before')", name="ck_checklist_pack_timing"),
+    )
+
+
+class ChecklistGroup(Base):
+    """A named group of a checklist's items — usually a person ("Emma").
+
+    Free text rather than a family member reference: a group is just as often
+    "Cooler" or "Car" as somebody's name, and "Group by person" only needs to
+    create one per member by name. Items in no group have ``group_id IS
+    NULL`` and render as General, the same catch-all convention as
+    ``ShoppingItem.store_id``.
+    """
+
+    __tablename__ = "checklist_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to checklists.id
+    name: Mapped[str] = mapped_column(String(100))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)  # Creation order; new groups last
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_checklist_groups_checklist_name_nocase",
+            "checklist_id",
+            text("name COLLATE NOCASE"),
+            unique=True,
+        ),
+    )
+
+
+class ChecklistItem(Base):
+    """One thing to pack, on the master checklist.
+
+    Items live on the checklist only. A day's copy never duplicates them — it
+    records which of them are checked (``ChecklistDayCheck``) — so an edit here
+    is on every day the checklist is on, with nothing to sync.
+
+    ``sort_order`` is the position *within its group*, compared and never
+    counted on to be contiguous, the same contract as
+    ``ShoppingItem.sort_order``. A new item goes to the bottom of its group
+    rather than the top: a packing list is read top to bottom, and it is
+    entered in that order too.
+    """
+
+    __tablename__ = "checklist_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to checklists.id
+    group_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK to checklist_groups.id; NULL is the "General" catch-all
+    name: Mapped[str] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class ChecklistDay(Base):
+    """A checklist put on a date: "Swim at Nana's" on Saturday.
+
+    This is the copy the family checks off, but it holds no items of its own —
+    only its checks. ``(checklist_id, date)`` is unique, because the same list
+    twice on one day would be two copies of one bag.
+
+    ``date`` is ``String(10)`` YYYY-MM-DD like ``Todo.due_date``: a day on a
+    wall calendar, never an instant.
+    """
+
+    __tablename__ = "checklist_days"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checklist_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to checklists.id
+    date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
+    label: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_checklist_days_checklist_date", "checklist_id", "date", unique=True),
+    )
+
+
+class ChecklistDayCheck(Base):
+    """An item checked off on one day. The row's existence *is* the check.
+
+    Keyed on ``(day_id, item_id)``, which is the whole reason checking off on
+    Saturday cannot touch the master or any other day: there is no column on
+    either for it to write. Unchecking deletes the row.
+    """
+
+    __tablename__ = "checklist_day_checks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to checklist_days.id
+    item_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to checklist_items.id
+    checked_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (Index("ix_checklist_day_checks_day_item", "day_id", "item_id", unique=True),)

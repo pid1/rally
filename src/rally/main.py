@@ -9,6 +9,7 @@ from starlette.responses import Response
 from rally import member_colors, member_prefs
 from rally.database import init_db
 from rally.routers import (
+    checklists,
     dashboard,
     devices,
     events,
@@ -69,6 +70,8 @@ app.include_router(settings.router)
 app.include_router(shopping.router)
 app.include_router(notes.router)
 app.include_router(preparedness.router)
+app.include_router(checklists.router)
+app.include_router(checklists.days_router)
 
 
 @app.get("/", response_class=RedirectResponse)

@@ -48,8 +48,9 @@ def today_local_str(db: Session) -> str:
     sit on both sides of midnight or neither.
 
     The callers are Notes (``/notes`` vs ``/notes/previous``), the Meal Planner
-    (Current & Upcoming vs Previous Meals), the dashboard's Daily Note lookup, and
-    the shopping purge's once-per-local-day marker. They agree because they all
+    (Current & Upcoming vs Previous Meals), Checklists (Coming up vs Earlier,
+    and the rule that a checklist is put on today or later), the dashboard's
+    Daily Note lookup, and the shopping purge's once-per-local-day marker. They agree because they all
     ask here; two of them used to carry their own copy, which is exactly the
     drift this exists to stop.
 
