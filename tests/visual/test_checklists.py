@@ -188,8 +188,10 @@ def test_dragging_an_item_onto_another_group_moves_it(browser, live_server, chec
         page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         page.mouse.down()
         page.mouse.move(target["x"] + 200, target["y"] + 30, steps=20)
-        page.mouse.up()
-        page.wait_for_timeout(500)
+        # Wait for the save, not a fixed pause: the API is checked below.
+        with page.expect_response("**/items/reorder"):
+            page.mouse.up()
+        page.wait_for_load_state("networkidle")
 
         assert sections(page)["Grown-up"] == ["Snacks", "Keys"]
     finally:
@@ -228,7 +230,10 @@ def test_a_new_day_appears_under_coming_up(browser, live_server, checklist):
         page.fill("#day-label", "Long weekend")
         page.click("#day-form ~ .modal-actions button[type=submit]")
         page.wait_for_selector("#day-modal-overlay", state="hidden")
+        # The modal closes before the list is refetched, so wait for the row
+        # rather than reading the list the moment the modal hides.
         row = page.locator("#days-container .editable-item", has_text="Long weekend")
+        row.wait_for()
         assert row.count() == 1
         assert "0 of 4 packed" in row.text_content()
     finally:
