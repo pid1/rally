@@ -202,9 +202,13 @@
                 hint.textContent = '';
                 return;
             }
-            hint.textContent = chosen.pack_timing === 'day_before'
-                ? `Pack it ${weekdayOf(addDays(date, -1))}, the day before.`
-                : 'Pack it the day of.';
+            if (chosen.pack_timing !== 'day_before') {
+                hint.textContent = 'Pack it the day of.';
+            } else if (addDays(date, -1) < todayLocal()) {
+                hint.textContent = 'It packs the day before, so pack it today.';
+            } else {
+                hint.textContent = `Pack it ${weekdayOf(addDays(date, -1))}, the day before.`;
+            }
         }
 
         function openDayModal(checklistId) {

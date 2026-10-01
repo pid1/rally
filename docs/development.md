@@ -84,7 +84,7 @@ CI runs `pytest`, `ruff check .` and `ruff format --check .`, plus the visual su
 
 ## Sample data
 
-`seed` populates a whole family: four members with their own calendars and events, tasks including recurring templates, a shopping list with purchase history, meal plans past and future, and a preparedness inventory spanning overdue, due-soon and scheduled stock.
+`seed` populates a whole family: four members with their own calendars and events, tasks including recurring templates, a shopping list with purchase history, meal plans past and future, four checklists on upcoming and past days (one grouped by person and partly packed), and a preparedness inventory spanning overdue, due-soon and scheduled stock.
 
 It seeds no external calendar feeds. A seeded feed URL cannot resolve, so it would only ever render an error banner.
 
@@ -145,6 +145,7 @@ src/rally/          Application code
   notifications.py  Pushover delivery: reminders, change notices, digests
 templates/          Jinja templates, one per page, each extending base.html (head, header, sidebar)
 static/styles.css   The whole stylesheet
+static/*.js         Shared page behavior: modals, the sidebar, grouped lists, drag to reorder
 migrations/         Idempotent migration scripts
 tests/              Pytest suite; tests/visual is the design-system suite
 docs/               This documentation

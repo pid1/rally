@@ -24,7 +24,7 @@ You can run the same demo instance yourself in about a minute: see [docs/develop
 
 At 4 AM Rally gathers the day's events, the forecast, the tasks that are due and tonight's dinner, then asks the AI model of your choosing to write the family a short plan in plain language. The page is served from a cache, so the kitchen display never sits waiting on an API.
 
-You can fold in more if you want it: your open shopping list, anything overdue in your emergency stock, tonight's games for the teams you follow, a STEM idea for the kids. Each one is a toggle in Settings.
+You can fold in more if you want it: your open shopping list, the checklists you need to pack this week, anything overdue in your emergency stock, tonight's games for the teams you follow, a STEM idea for the kids. Each one is a toggle in Settings.
 
 ### A calendar the whole family shares
 
@@ -53,6 +53,14 @@ Some things aren't a task, an event or a meal — they're a heads-up. *Soccer pr
 Notes take a little formatting — **bold**, *italic* and lists — and the dashboard reads them live, so a note added at breakfast is there on the next refresh rather than tomorrow. Past days move to a searchable archive and stop being editable.
 
 ![The Rally notes page: one note per day, with the coming week planned out](docs/screenshots/readme-notes.png)
+
+### Checklists for the things you pack again and again
+
+Swim at Nana's, a beach day, the school backpacks, Dad's work bag: keep each packing list once, grouped by person if you like, and add it to a day whenever you need it. That day gets its own copy to check off, so packing for Saturday never leaves next time's list half done, and anything you add to the list shows up on every day it's on.
+
+The morning briefing reminds you on the packing day (the day before or the day of, your choice per list), names who still has what to pack, and points out what might need restocking or be hard to find at the last minute, like a nearly empty bottle of sunscreen.
+
+![A day's copy of the Swim at Nana's checklist, grouped by person, partly packed](docs/screenshots/readme-checklists.png)
 
 ### Emergency stock
 

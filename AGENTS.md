@@ -422,6 +422,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 
 - `031_add_device_preferences` - Add the `devices` and `member_preferences` tables plus their indexes, including the unique index on `(family_member_id, device_id, pref_key)`. Per-family-member *behavioral* settings, answered once per device — what a screen does when one person opens it, as opposed to migration 027, which decides who hears about what. The first setting is the calendar's landing view. `devices.id` is TEXT because the browser mints the token itself and has to keep using the same one, which a server-assigned id cannot do without a round trip before the first paint. Purely additive and it writes **no rows**: an absent row means the setting's default, which is always `auto` — Rally's own rule, the behavior that predates the table — so upgrading moves nobody's screen
 - `032_add_event_override_calendar` - Add `event_overrides.calendar_id`. Which calendar an event sits on decides its color, its owner's name and — when nobody was named explicitly — its attendee list, which is what the member filter matches on. That was a property of the *series* alone, so "put this one Tuesday on Sam's calendar" had nowhere to live. NULL means **inherit from the series**, the rule every other nullable column in the table already follows, which is why this writes **no rows**: an existing override keeps NULL and resolves to exactly the calendar it renders on today. No foreign key, matching `event_attendees` and `member_notification_prefs` — a stray id is handled where it is read instead, and a deleted calendar degrades to "on the series' calendar" rather than to an occurrence with no color and no filter that matches it
+- `034_add_checklists` - Add the `checklists`, `checklist_groups`, `checklist_items`, `checklist_days` and `checklist_day_checks` tables plus their indexes. The unique indexes carry rules the API relies on: one checklist per name and one group per name within a checklist (both case-insensitive), one copy of a checklist per day, one check per item per day. Purely additive and writes **no rows**
 
 ### Running Migrations
 
@@ -565,7 +566,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, MealPlan, Note)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, MealPlan, Note, Checklist, ChecklistGroup, ChecklistItem, ChecklistDay, ChecklistDayCheck)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -576,6 +577,7 @@ rally/
 │   ├── todo_notifications.py # The push that goes to a task's assignee when it lands on their list
 │   ├── shopping_notifications.py # Batched "added to the shopping list" pushes, behind a settle window
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
+│   ├── checklists.py     # Checklist display order, progress counts, pack dates, the delete cascade and the summary's CHECKLISTS text
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── markdown.py       # The one markdown renderer: a note's bold/italic/lists, nothing else
 │   ├── rich_text.py      # An event's Notes as paragraphs, line breaks and links: a plain-text path and an allowlist HTML converter
@@ -607,6 +609,7 @@ rally/
 │       ├── recurring_todos.py # Recurring todo template CRUD API
 │       ├── meal_planner.py  # Meal plan CRUD API, plus the paged previous-meals archive
 │       ├── notes.py        # Daily Note CRUD API plus the searchable previous-notes page
+│       ├── checklists.py   # Checklist, group and item API (/api/checklists) and days with their checks (/api/checklist-days)
 │       ├── family.py        # Family member CRUD API
 │       ├── devices.py       # Device registry and the per-device behavioral settings API
 │       └── settings.py      # Settings and calendar management API
@@ -615,6 +618,8 @@ rally/
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists
+│   ├── list_group.js        # listGroupHtml(): the markup for one titled group of rows (.list-group)
+│   ├── checklists.js        # What the checklist pages share: date and progress wording, group order, a JSON fetch helper
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
 │   ├── archive_list.js      # The archive pages' shared search, results count and Load more
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
@@ -630,6 +635,9 @@ rally/
 │   ├── notes.html           # Notes page: one Daily Note per day, today onward
 │   ├── notes_previous.html  # Read-only, searchable archive of past Daily Notes
 │   ├── _note_edit_modal.html # Shared note add/edit modal
+│   ├── checklists.html      # Checklists: days coming up, and the reusable checklists
+│   ├── checklist_edit.html  # One checklist: its items by group, drag to reorder, manage groups
+│   ├── checklist_day.html   # One day's copy of a checklist, checked off while packing
 │   └── settings.html        # Settings, family member, and calendar management page
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
@@ -661,6 +669,7 @@ rally/
 │   ├── migrate_027_add_member_notification_prefs.py # Migration 027: per-member notification preferences
 │   ├── migrate_031_add_device_preferences.py # Migration 031: device registry and per-device behavioral settings
 │   ├── migrate_033_add_notes.py # Migration 033: add notes table (one Daily Note per day)
+│   ├── migrate_034_add_checklists.py # Migration 034: checklists, their groups, items, days and checks
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium
@@ -703,6 +712,18 @@ rally/
   - `body_html` is inserted into the DOM as markup rather than through a page's `escapeHtml()`. It is one of only two values in Rally that render rather than escape (the other is an event's `description_html`, below), which is why the renderer config has a test per property
   - The day boundary is `utils.settings.today_local_str()` — the single helper for "today's local date as a `YYYY-MM-DD` string", used by Notes, the Meal Planner, the dashboard's note lookup and the shopping purge marker. The Meal Planner and the shopping purge each carried their own copy before this; consolidating them is why a date column can no longer mean two different days in two places. Use `today_local()` directly only when you need a `date` for arithmetic rather than a string to compare
   - Phone links are deliberately **not** applied to notes — see issue #230. `escapeHtmlWithPhoneLinks()` cannot simply be called on either the markdown or the rendered HTML
+- ✅ **Checklists** (`/checklists`) — reusable packing lists, put on a day and checked off there (#249)
+  - A `Checklist` is the master: a name, an optional description, `pack_timing` (`day_of` or `day_before`), optional named **groups** (usually people) and its items. Items in no group have `group_id IS NULL` and read as **General**, the `store_id IS NULL` convention
+  - A `ChecklistDay` puts a checklist on a date and holds **no items of its own** — only `ChecklistDayCheck` rows, one per item checked on that day. Both rules the feature exists for follow from that shape with no code to enforce them: an edit to the checklist (add, rename, regroup, reorder, delete) is on every day it is on, and a check on one day cannot reach the checklist or any other day, because neither has a column for it to write. Do not add a copy step; there is nothing to sync and syncing is where a merge rule goes wrong
+  - Days include past ones, which therefore show the checklist as it is now. Freezing a past trip's list is deliberately out of scope
+  - SQLite does not enforce the references, so every delete cascades by hand: a checklist takes its groups, items, days and checks (`checklists.delete_checklist`); an item takes its checks; a day takes its checks; a group's items move to the bottom of General rather than going with it
+  - A group reference must be one of **that checklist's** groups (`_require_group`), and an item can only be checked on a day of its own checklist. An item whose group no longer exists is filed under General on read (`effective_group_id`) rather than dropped from every day
+  - Progress counts join checks to items that still exist, so a stray check can never report "15 of 14 packed"
+  - Items are ordered per group by `sort_order`, compared and never assumed contiguous, the `shopping_items.sort_order` contract. A new item, and an item moved to another group, goes to the **bottom** of its group: a packing list is entered and read top to bottom. `POST /api/checklists/{id}/items/reorder` is the shopping reorder contract (destination group, all-or-nothing, duplicates keep their first mention)
+  - A checklist goes on today or later (`422` otherwise) and once per day (`409` with `{message, id}`, the Notes shape, so the page opens the existing day). The boundary is `today_local_str()`
+  - **Group by person** (`POST /api/checklists/{id}/groups/members`) adds a group per family member who has none, matched by name ignoring case. Groups are free text rather than member references because a group is as often "Cooler" as a name
+  - On a day's checklist a checked row stays where it is, dimmed: packing goes in list order and a row that jumps to the bottom loses people's place. The progress line is an `aria-live` status; a tick re-renders only the counts so focus stays on the box. The page refetches every minute for a second person packing on another device, but never mid-save or while a checkbox has focus
+  - **In the daily summary** (`checklists_in_summary_enabled`, default on): `checklists.summary_text()` lists every day's checklist from today through `SUMMARY_LOOKAHEAD_DAYS` (7) that still has something unchecked, with only the unchecked items under their groups and a status of `PACK TODAY` (today is the pack date), `TODAY`, or `UPCOMING (in N days)`. An item whose trimmed, casefolded name is open on the shopping list is marked `(already on the shopping list)` — the whole name, the same key shopping history dedupes on, because a fuzzy match that wrongly said "sunscreen is handled" is worse than none. The `CHECKLISTS` guideline asks for a packing reminder on the packing day, restocking and hard-to-get flags early enough to act, an `UPCOMING` checklist mentioned only for those flags, and nothing that is not in the section. Section and guideline are omitted when empty, and the text is eval ground truth
 - ✅ **Native calendaring** (`/calendar`) — Rally owns events, and shows them
   - One normalized `Occurrence` shape (`src/rally/calendars/`) produced by the native, ICS and CalDAV adapters and merged in one place. `generate.fetch_calendars()` is now a thin caller
   - Fixed four defects the old dict-based read path made unavoidable: events sorted lexicographically by a 12-hour clock string (so 9 AM sorted after 1 PM), all-day events rendered as midnight appointments (a `date` also has `strftime`), a `(date, title)` dedupe key that dropped the second same-named event of a day, and a 7-day window measured in UTC dates
@@ -787,6 +808,7 @@ rally/
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
   - `home_location` (free text, e.g. "Highland Village, TX") is the family's home, sent to the LLM as its own `HOME:` block alongside `FAMILY CONTEXT`. First-party rather than prose inside the context so other views can read it structurally. An unset value omits the whole block — a labeled section with nothing after it invites the model to invent one
   - `calendar_sync_interval_minutes` (default "5") is how stale a cached external calendar may get before the background sync refreshes it. A calendar being rate-limited is exempt while its `calendar_cache.retry_after` is in the future — that column, not this key, schedules its next attempt
+  - `checklists_in_summary_enabled` ("true"/"false", default **"true"**) folds checklists on a day in the next week that still have something unpacked into the daily summary (Checklists section). Defaults on for the same reason as `prep_overdue_in_summary_enabled`: the section omits itself unless something is coming up
   - `prep_overdue_in_summary_enabled` ("true"/"false", default **"true"**) folds preparedness stock that is past its refresh date into the daily summary. Defaults on, unlike the shopping and sports toggles: those add a standing block that costs tokens every day, whereas this one is normally empty and omits itself entirely, so it only costs anything on the days it matters
   - `prep_review_enabled` ("true"/"false", default **"false"**) adds the `Review` button to `/preparedness`. Off by default because it is a real LLM call and is only useful once a reasonable amount of stock has been entered
   - `prep_notify_enabled` ("true"/"false", default "true"), `prep_notify_time` (local HH:MM, default "08:00") and `prep_default_remind_days` (default "14") drive the preparedness refresh digest. `prep_last_digest_date` is internal bookkeeping written by the once-per-local-day gate — never surfaced in the UI, exactly like `shopping_last_purge_date`
@@ -997,6 +1019,9 @@ visual suite (above) before shipping a layout change.
 - `/notes` - **Notes**: one **Daily Note** per day, from today onward with no upper bound. A day with no note has no card. `Add Note` opens a dual-mode modal; a date that already has a note returns `409` carrying that note's id, and the modal switches to editing it rather than refusing or overwriting. Text is markdown — bold, italic, bullet and numbered lists, and a line break per Enter — rendered **server-side** by `rally.markdown` and returned as `body_html` beside the raw `body`. Markup is rejected at write time (`schemas._reject_markup`) *and* escaped at render; the rule is tag-shaped (`<` + optional `/` + a letter) so `temp < 40` survives
 - `/notes/previous` - Read-only notes for days before today, newest first, with server-side search and paging. Reachable only via `View previous notes` on `/notes`, not from the nav
 - `/meal-planner` - Meal planning page with date picker and plan management
+- `/checklists` - **Checklists**: `Coming Up` (every day's checklist from today on, with its pack day and progress, plus an `Earlier` glance at the ten most recent past days) and the reusable checklists with `Add to a Day` and `Edit`. `Add to a Day` on a date the checklist is already on opens that day
+- `/checklists/{id}` - One checklist: its items as `.list-group`s (General last), `Add Item` with `Save & Add Another` that keeps the group, `Edit` per row, drag between groups, `Manage groups` (rename, delete, add, one per family member) and `Edit details` (name, description, pack timing, delete). Marks Checklists in the sidebar; `404` for an unknown id
+- `/checklists/days/{id}` - One day's copy: the checklist's items with checkboxes, progress, `Uncheck All` and `Remove from day`. No item editing here, by design — that is the checklist's job. Marks Checklists in the sidebar; `404` for an unknown id
 - `/meal-planner/previous` - **Previous Meals**: meals from days before today, with ratings and reviews, Meal Type and Rating chips, Sort, server-side search over the meal and its review, and paging. Reachable only via `View previous meals` on `/meal-planner`, not from the nav. The one archive you can edit, so a save reloads what is loaded rather than jumping back to the first page
 - `/settings` - Settings, family member, calendar, and followed-team management page. **Personal Defaults** is the per-person, per-device behavioral section, and everything in it is scoped to the device it is being read on: a `This device` name, a `This device belongs to` control (the device→member binding, `localStorage` only, never sent anywhere), one dropdown per family member per setting in `member_prefs.CATALOG`, and **Devices Rally remembers** — every device, its answer count, when it was last seen, and a `Forget`. Saved on change; the `PUT` carries only the setting that moved
 - `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
@@ -1019,6 +1044,24 @@ visual suite (above) before shipping a layout change.
   - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, muted, failed}` **by name**: "it worked" and "both phones buzzed" are different claims. An attendee with no Pushover key is reported as *skipped*, and one who turned event reminders off is reported as *muted* — the button is filtered like every other push rather than exempted, so it has to say who it dropped
 - `/api/notes` - Daily Note CRUD. `GET` lists `date >= today` ascending; `POST`/`PUT` reject markup, an empty body, and any write into the past (`403`); a duplicate date is `409` with `{message, id}`
   - `GET /api/notes/previous?search=&limit=&offset=` - Days before today, newest first. Returns `{items, has_more, total}`; `total` counts every match, which is what the results count reports
+- `/api/checklists` - Checklists, their groups and their items. Every edit here reaches every day the checklist is on
+  - `GET /api/checklists` - Every checklist by name, with `item_count`, `group_count`, `day_count` (past included — what a delete would remove) and `upcoming_days`
+  - `POST /api/checklists` - Create. `{name, description?, pack_timing?}`; `pack_timing` is `day_of` (default) or `day_before`; `409` on a case-insensitive name clash
+  - `GET /api/checklists/{id}` - The checklist with `groups` and `items`, each in display order
+  - `PUT /api/checklists/{id}` - Partial update; `description` uses `UNSET`
+  - `DELETE /api/checklists/{id}` - Delete it with its groups, items, days and checks (`204`)
+  - `POST|PUT|DELETE /api/checklists/{id}/groups[/{group_id}]` - Group CRUD. New groups go last; `409` on a name clash within the checklist; delete moves the group's items to the bottom of General
+  - `POST /api/checklists/{id}/groups/members` - One group per family member who has none (by name, ignoring case). Idempotent; returns every group in order
+  - `POST|PUT|DELETE /api/checklists/{id}/items[/{item_id}]` - Item CRUD. `note` and `group_id` use `UNSET`; a new item, or one moved to another group, goes to the bottom of its group; delete removes its checks; a group from another checklist is `422`
+  - `POST /api/checklists/{id}/items/reorder` - `{group_id, item_ids}`: the destination group in its new order. All-or-nothing (`404` for an item that is not this checklist's)
+- `/api/checklist-days` - Checklists on days, and the checks made on them. Nothing here writes to a checklist
+  - `GET /api/checklist-days?when=upcoming|past&limit=` - `upcoming` (default) is today on, soonest first; `past` is newest first, 10 by default. Each row carries `checklist_name`, `pack_timing`, `pack_date`, `total`, `checked`
+  - `POST /api/checklist-days` - `{checklist_id, date, label?}`. `422` for a date before today or an unknown checklist; `409` with `{message, id}` when the checklist is already on that date
+  - `GET /api/checklist-days/{id}` - The day: its summary plus the checklist's `groups` and `items`, each item with `checked`
+  - `PUT /api/checklist-days/{id}` - Move it (`date`, same `422`/`409` rules) or relabel it (`label`, `UNSET`). Checks stay
+  - `DELETE /api/checklist-days/{id}` - Take the checklist off the day, with its checks
+  - `PUT /api/checklist-days/{id}/items/{item_id}` - `{checked}`. Idempotent; `404` for an item not on that checklist. Returns the whole day so progress comes from the server
+  - `POST /api/checklist-days/{id}/reset` - Uncheck everything on that day
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
   - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
@@ -1123,9 +1166,9 @@ visual suite (above) before shipping a layout change.
 ### Navigation
 Every page extends **`templates/base.html`**, which owns the `<head>`, the wordmark header, the menu button and the sidebar. A page supplies only its `title` block (the part after `Rally — `, always an em dash), its `subtitle`, any page-specific `head` scripts, and its `content`; it names its own sidebar entry with `{% set nav_active = "…" %}` at the top. A nav change is therefore made **once**, in `base.html` — the old nav was copied into fourteen templates and had already drifted. Every page renders through the one Jinja environment in `src/rally/templating.py`, including the Dashboard, which used to be filled in with `str.replace` and so could not share a layout; its HTML-bearing values arrive as `Markup` so they are inserted exactly as before.
 
-Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
+Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Checklists, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
 
-- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/meal-planner/previous` → Meal Planner, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
+- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/meal-planner/previous` → Meal Planner, `/checklists/{id}` and `/checklists/days/{id}` → Checklists, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
 - **The go list is not in the sidebar**: it is a view of the inventory, reached by `View go list` on Preparedness
 - **Width alone decides the treatment**, in three bands:
   - **75rem (1200px) and wider — docked.** The page column (`--page-max`, 900px) and the sidebar (`--sidebar-width`, 18rem) fit side by side, so the sidebar is simply open: no button, no scrim, and `html` gains `padding-right: var(--sidebar-width)` so the column centers in the space left of it. Hiding it there would cost a click per navigation to save space the page cannot use. `sidebar.js` never repeats this width — it treats "the button is not displayed" as docked, and drops an overlay's open state when a resize crosses the line
@@ -1201,6 +1244,11 @@ The database is automatically created when the app starts. Migrations run automa
 - `PrepItem` - Preparedness stock with a free-text `quantity`, optional location and notes, and an optional refresh schedule (`refresh_mode` none/date/interval, `refresh_interval_months`, `next_refresh_date`, `remind_days_before`, `last_refreshed_on`). `next_refresh_date` is stored and indexed rather than derived — it is the only column the digest reads
 - `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimization
 - `MemberNotificationPref` - One family member's answer for one kind of notification (`event_reminder`, `event_change`, `task_assignment`, `prep_refresh`, `shopping_added`), unique on `(family_member_id, kind)`. **An absent row means the kind's default** — the row only exists once somebody has expressed a preference, the same discipline `todo_notify_enabled` follows. A preference only ever *narrows* the kind's audience rule; it can never add somebody to an audience they were not already in
+- `Checklist` - A reusable packing list: name (unique case-insensitively), optional description, `pack_timing` (`day_of` | `day_before`)
+- `ChecklistGroup` - A named group of a checklist's items, in creation order (`sort_order`). Unique name per checklist, case-insensitively
+- `ChecklistItem` - One item on a checklist: name, optional note, `group_id` (NULL is General) and `sort_order` within its group
+- `ChecklistDay` - A checklist on a date (YYYY-MM-DD) with an optional label. Unique per `(checklist_id, date)`. Holds no items of its own
+- `ChecklistDayCheck` - One item checked on one day; the row's existence is the check. Unique per `(day_id, item_id)`
 - `MealPlan` - Meal planning (stored in the `dinner_plans` table, a name kept from when it only planned dinners) with date, meal type, plan text, rating and review, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues

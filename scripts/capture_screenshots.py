@@ -327,6 +327,37 @@ def _open_review(page):
     page.locator("#review-details").scroll_into_view_if_needed()
 
 
+def _wait_for_checklist(page):
+    """The checklist pages fill their groups after load."""
+    page.wait_for_selector("#groups-container .list-group")
+    page.wait_for_timeout(300)
+
+
+def _open_checklist_modal(button, overlay):
+    def go(page):
+        _wait_for_checklist(page)
+        page.click(button)
+        page.wait_for_selector(f"{overlay} .modal-content", state="visible")
+        page.wait_for_timeout(300)
+
+    return go
+
+
+def _open_add_to_day(page):
+    """Add to a Day on Swim at Nana's, the way the issue's example starts."""
+    page.wait_for_selector("#checklists-container .editable-item")
+    page.locator("#checklists-container .editable-item", has_text="Swim at Nana's").get_by_role(
+        "button", name="Add to a Day"
+    ).click()
+    page.wait_for_selector("#day-modal-overlay .modal-content", state="visible")
+    page.wait_for_timeout(300)
+
+
+def _checklists_settings_section(page):
+    page.locator("#checklists-form").scroll_into_view_if_needed()
+    page.wait_for_timeout(300)
+
+
 SHOTS: tuple[Shot, ...] = (
     # README heroes — retina, whole page.
     Shot("readme-dashboard", "/dashboard"),
@@ -335,6 +366,7 @@ SHOTS: tuple[Shot, ...] = (
     Shot("readme-shopping", "/shopping"),
     Shot("readme-notes", "/notes"),
     Shot("readme-preparedness", "/preparedness"),
+    Shot("readme-checklists", "/checklists/days/1", setup=_wait_for_checklist),
     Shot("readme-mobile", "/calendar", width=390, height=844, full_page=False),
     # Calendar reference shots — 1x, matching the inline docs.
     Shot("calendar-month", "/calendar", scale=1, setup=_calendar("calendar", "month")),
@@ -393,6 +425,49 @@ SHOTS: tuple[Shot, ...] = (
         setup=_wait_for_list,
     ),
     Shot("shopping-purchased", "/shopping/purchased", width=1440, scale=1, setup=_wait_for_list),
+    # Checklists: the page, one checklist, a day's copy on a desk and a phone,
+    # and the modals and the Settings toggle cropped to themselves.
+    Shot("checklists", "/checklists", width=1440, scale=1),
+    Shot("checklist-edit", "/checklists/1", width=1440, scale=1, setup=_wait_for_checklist),
+    Shot("checklist-day", "/checklists/days/1", width=1440, scale=1, setup=_wait_for_checklist),
+    Shot(
+        "checklist-day-mobile",
+        "/checklists/days/1",
+        width=390,
+        height=844,
+        scale=1,
+        full_page=False,
+        setup=_wait_for_checklist,
+    ),
+    Shot(
+        "checklist-add-item",
+        "/checklists/1",
+        scale=1,
+        element="#item-modal-overlay .modal-content",
+        setup=_open_checklist_modal("#btn-add-item", "#item-modal-overlay"),
+    ),
+    Shot(
+        "checklist-manage-groups",
+        "/checklists/1",
+        scale=1,
+        element="#groups-modal-overlay .modal-content",
+        setup=_open_checklist_modal("#btn-manage-groups", "#groups-modal-overlay"),
+    ),
+    Shot(
+        "checklist-add-to-day",
+        "/checklists",
+        scale=1,
+        element="#day-modal-overlay .modal-content",
+        setup=_open_add_to_day,
+    ),
+    Shot(
+        "checklists-settings",
+        "/settings",
+        width=1440,
+        scale=1,
+        element="#checklists-form",
+        setup=_checklists_settings_section,
+    ),
     # Preparedness reference shots.
     Shot("preparedness-inventory", "/preparedness", width=1440, scale=1),
     Shot("preparedness-go-list", "/go-list", width=1440, scale=1),
