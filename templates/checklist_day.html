@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% set nav_active = "checklists" %}
+{% block title %}Checklist{% endblock %}
+{% block subtitle %}Checklists{% endblock %}
+{% block head %}
+<script src="/static/phone_links.js?v={{ css_version }}"></script>
+{% endblock %}
+
+{% block content %}
+    <div class="page stack" id="day-page" data-day-id="{{ day_id }}">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2 id="day-title">Checklist</h2>
+                <div class="page-header-actions">
+                    <button type="button" class="btn btn--secondary" id="btn-reset">Uncheck All</button>
+                </div>
+            </div>
+            <div class="page-header-meta">
+                <p class="page-note" id="day-when"></p>
+                <a class="link-quiet" href="/checklists">All checklists</a>
+                <a class="link-quiet" id="link-edit-checklist" href="/checklists">Edit checklist</a>
+                <button type="button" class="btn btn--quiet" id="btn-remove-day">Remove from day</button>
+            </div>
+        </header>
+
+        <!-- The progress line is the answer to "are we done?", so it is read
+             out whenever a check changes it. -->
+        <p class="checklist-progress" id="day-progress" role="status" aria-live="polite"></p>
+
+        <div id="groups-container">
+            <div class="container-loading-state">Loading checklist…</div>
+        </div>
+
+        <p class="page-note">Checking things off here changes this day only. To add, rename or regroup items, edit the checklist: changes there show up on every day it's on.</p>
+    </div>
+
+    <script src="/static/list_group.js?v={{ css_version }}"></script>
+    <script src="/static/checklists.js?v={{ css_version }}"></script>
+    <script>
+        const { escapeHtml, escapeAttr, formatLongDate, progressLabel, checklistSections, requestJson } = Checklists;
+        const DAY_ID = parseInt(document.getElementById('day-page').dataset.dayId, 10);
+        const BASE = `/api/checklist-days/${DAY_ID}`;
+
+        let day = null;
+        // Held while a check is in flight, so a refetch cannot paint over a
+        // box somebody has just ticked with the state from before it.
+        let pending = 0;
+
+        async function load() {
+            try {
+                day = await requestJson(BASE);
+            } catch (error) {
+                console.error('Error loading checklist:', error);
+                document.getElementById('groups-container').innerHTML =
+                    '<div class="container-empty-state">Could not load this checklist. Try again in a moment.</div>';
+                return;
+            }
+            render();
+        }
+
+        function render() {
+            document.getElementById('day-title').textContent = day.checklist_name;
+            document.title = `Rally — ${day.checklist_name}`;
+            document.getElementById('link-edit-checklist').href = `/checklists/${day.checklist_id}`;
+
+            const when = [formatLongDate(day.date)];
+            if (day.label) when.push(day.label);
+            let text = when.join(' · ');
+            if (day.pack_date !== day.date) text += ` · Pack ${formatLongDate(day.pack_date)}`;
+            document.getElementById('day-when').textContent = text;
+
+            renderProgress();
+            const container = document.getElementById('groups-container');
+            if (day.items.length === 0) {
+                container.innerHTML = '<div class="container-empty-state">This checklist has nothing on it yet. Add items to the checklist and they appear here.</div>';
+                return;
+            }
+            // Checked rows stay where they are, dimmed: packing goes in list
+            // order, and a row that jumps to the bottom loses people's place.
+            container.innerHTML = checklistSections(day.groups, day.items).map(section => listGroupHtml({
+                key: section.key,
+                name: section.name,
+                countLabel: section.name
+                    ? progressLabel(section.items.filter(i => i.checked).length, section.items.length)
+                    : null,
+                rowsHtml: section.items.map(renderItemRow).join(''),
+            })).join('');
+        }
+
+        function renderProgress() {
+            document.getElementById('day-progress').textContent = progressLabel(day.checked, day.total);
+        }
+
+        function renderItemRow(item) {
+            return `
+                <div class="editable-item ${item.checked ? 'completed' : ''}" data-id="${item.id}">
+                    <label class="item-checkbox">
+                        <input type="checkbox" ${item.checked ? 'checked' : ''}
+                               data-item="${item.id}"
+                               aria-label="Packed ${escapeAttr(item.name)}">
+                    </label>
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(item.name)}</div>
+                        ${item.note ? `<div class="editable-item-description">${escapeHtmlWithPhoneLinks(item.note)}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        document.getElementById('groups-container').addEventListener('change', async (e) => {
+            const box = e.target.closest('input[data-item]');
+            if (!box) return;
+            const itemId = parseInt(box.dataset.item, 10);
+            box.closest('.editable-item').classList.toggle('completed', box.checked);
+            pending += 1;
+            try {
+                day = await requestJson(`${BASE}/items/${itemId}`, { method: 'PUT', body: { checked: box.checked } });
+            } catch (error) {
+                console.error('Error saving check:', error);
+                alert('Failed to save. The list has been put back the way it was saved.');
+                pending -= 1;
+                await load();
+                return;
+            }
+            pending -= 1;
+            // Only the counts move; re-rendering every row would drop focus
+            // from the box that was just ticked.
+            if (pending === 0) {
+                renderProgress();
+                updateGroupCounts();
+            }
+        });
+
+        function updateGroupCounts() {
+            checklistSections(day.groups, day.items).forEach(section => {
+                if (!section.name) return;
+                const group = document.querySelector(`.list-group[data-group="${section.key}"] .list-group-count`);
+                if (group) {
+                    group.textContent = progressLabel(section.items.filter(i => i.checked).length, section.items.length);
+                }
+            });
+        }
+
+        document.getElementById('btn-reset').addEventListener('click', async () => {
+            if (!day || day.checked === 0) return;
+            if (!confirm('Uncheck everything on this day?')) return;
+            try {
+                day = await requestJson(`${BASE}/reset`, { method: 'POST' });
+            } catch (error) {
+                alert('Failed to uncheck everything');
+                return;
+            }
+            render();
+        });
+
+        document.getElementById('btn-remove-day').addEventListener('click', async () => {
+            if (!confirm(`Take ${day.checklist_name} off ${formatLongDate(day.date)}? The checklist itself stays.`)) return;
+            try {
+                await requestJson(BASE, { method: 'DELETE' });
+            } catch (error) {
+                alert('Failed to remove it from the day');
+                return;
+            }
+            window.location.href = '/checklists';
+        });
+
+        load();
+        // Two people packing two bags on two devices: pick up the other
+        // person's checks without a reload. Never mid-save, and never while
+        // somebody is on a checkbox, since re-rendering would take it away.
+        setInterval(() => {
+            const container = document.getElementById('groups-container');
+            if (pending === 0 && !document.hidden && !container.contains(document.activeElement)) load();
+        }, 60000);
+    </script>
+{% endblock %}

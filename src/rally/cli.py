@@ -7,6 +7,11 @@ from rally.calendars.inputs import resolve_event_times
 from rally.database import SessionLocal, init_db
 from rally.models import (
     Calendar,
+    Checklist,
+    ChecklistDay,
+    ChecklistDayCheck,
+    ChecklistGroup,
+    ChecklistItem,
     DashboardSnapshot,
     Event,
     EventAttendee,
@@ -34,6 +39,8 @@ def seed():
         # Clear existing data
         db.query(MealPlan).delete()
         db.query(Note).delete()
+        for model in (ChecklistDayCheck, ChecklistDay, ChecklistItem, ChecklistGroup, Checklist):
+            db.query(model).delete()
         db.query(EventAttendee).delete()
         db.query(Event).delete()
         db.query(Calendar).delete()
@@ -614,6 +621,127 @@ def seed():
         for note in notes:
             db.add(note)
 
+        # Checklists: reusable packing lists, put on days. Swim at Nana's is
+        # grouped by child with shared things under General, which is the
+        # shape the feature was built for; the others show an ungrouped list
+        # and the two pack timings. The first day added is the coming
+        # Saturday's swim, so it is day 1 for the visual suite.
+        checklist_specs = [
+            (
+                "Swim at Nana's",
+                "Saturdays at Nana's pool, a couple of times a month.",
+                "day_before",
+                [
+                    ("Emma", "Swimsuit", None),
+                    ("Emma", "Goggles", "The blue pair. The green ones leak."),
+                    ("Emma", "Towel", None),
+                    ("Emma", "Hair ties", None),
+                    ("Jake", "Swimsuit", None),
+                    ("Jake", "Rash guard", None),
+                    ("Jake", "Towel", None),
+                    ("Jake", "Water wings", None),
+                    (None, "Sunscreen", "SPF 50. The bottle is nearly empty."),
+                    (None, "Snacks for the drive", None),
+                    (None, "Water bottles", None),
+                    (None, "Change of clothes", "One for each kid"),
+                    (None, "Wet bag for suits", None),
+                ],
+            ),
+            (
+                "School backpack",
+                None,
+                "day_before",
+                [
+                    ("Emma", "Homework folder", None),
+                    ("Emma", "Library book", "Due back Friday"),
+                    ("Emma", "PE shoes", None),
+                    ("Jake", "Lunchbox", None),
+                    ("Jake", "Take-home folder", None),
+                    ("Jake", "Jacket", None),
+                ],
+            ),
+            (
+                "Beach day",
+                "Lake beach with the kids.",
+                "day_of",
+                [
+                    (None, "Beach towels", None),
+                    (None, "Sunscreen", None),
+                    (None, "Umbrella", None),
+                    (None, "Sand toys", None),
+                    (None, "Cooler with lunch", "Ice packs are in the garage freezer"),
+                ],
+            ),
+            (
+                "Dad's work bag",
+                None,
+                "day_of",
+                [
+                    (None, "Laptop and charger", None),
+                    (None, "Badge", None),
+                    (None, "Headphones", None),
+                ],
+            ),
+        ]
+        checklist_items: dict[tuple[str, str, str | None], ChecklistItem] = {}
+        seeded_checklists: dict[str, Checklist] = {}
+        for name, description, timing, entries in checklist_specs:
+            checklist = Checklist(name=name, description=description, pack_timing=timing)
+            db.add(checklist)
+            db.flush()
+            seeded_checklists[name] = checklist
+            groups: dict[str, ChecklistGroup] = {}
+            positions: dict[str | None, int] = {}
+            for group_name, item_name, item_note in entries:
+                if group_name and group_name not in groups:
+                    groups[group_name] = ChecklistGroup(
+                        checklist_id=checklist.id, name=group_name, sort_order=len(groups)
+                    )
+                    db.add(groups[group_name])
+                    db.flush()
+                group_id = groups[group_name].id if group_name else None
+                position = positions.get(group_name, 0)
+                positions[group_name] = position + 1
+                item = ChecklistItem(
+                    checklist_id=checklist.id,
+                    group_id=group_id,
+                    name=item_name,
+                    note=item_note,
+                    sort_order=position,
+                )
+                db.add(item)
+                checklist_items[(name, item_name, group_name)] = item
+        db.flush()
+
+        # The coming Saturday — a week out when today already is one, so the
+        # swim is always upcoming with a packing day before it.
+        saturday = (5 - today_date.weekday()) % 7 or 7
+
+        def put_on_day(name, offset, label=None, checked=()):
+            day = ChecklistDay(
+                checklist_id=seeded_checklists[name].id, date=in_days(offset), label=label
+            )
+            db.add(day)
+            db.flush()
+            for item_name, group_name in checked:
+                item = checklist_items[(name, item_name, group_name)]
+                db.add(ChecklistDayCheck(day_id=day.id, item_id=item.id))
+            return day
+
+        nana_items = [(i, g) for g, i, _ in checklist_specs[0][3]]
+        checklist_days = [
+            put_on_day(
+                "Swim at Nana's",
+                saturday,
+                label="Cousins are coming too",
+                checked=[("Swimsuit", "Emma"), ("Goggles", "Emma"), ("Towel", "Emma")],
+            ),
+            put_on_day("School backpack", 1),
+            put_on_day("Beach day", 6),
+            put_on_day("Swim at Nana's", saturday - 14, checked=nana_items),
+            put_on_day("Swim at Nana's", saturday - 28, checked=nana_items),
+        ]
+
         db.commit()
         print("✅ Database seeded with sample data")
         print(f"   - 1 dashboard snapshot for {today}")
@@ -628,6 +756,10 @@ def seed():
         print(f"   - {len(meal_plans)} upcoming meal plans")
         print(f"   - {len(past_meals)} past meal plans")
         print(f"   - {len(prep_items)} preparedness items across 3 locations")
+        print(
+            f"   - {len(seeded_checklists)} checklists with {len(checklist_items)} items,"
+            f" on {len(checklist_days)} days"
+        )
 
     except Exception as e:
         db.rollback()

@@ -1,13 +1,15 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 from starlette.responses import Response
 
 from rally import member_colors, member_prefs
-from rally.database import init_db
+from rally.database import get_db, init_db
+from rally.models import Checklist, ChecklistDay
 from rally.routers import (
     checklists,
     dashboard,
@@ -23,6 +25,7 @@ from rally.routers import (
     todos,
 )
 from rally.templating import templates
+from rally.utils.settings import local_timezone_name
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -141,6 +144,38 @@ def meal_planner_page(request: Request):
 def meal_planner_previous_page(request: Request):
     """Serve the page of meals from days that have passed, with their reviews."""
     return templates.TemplateResponse(request, "meal_planner_previous.html")
+
+
+@app.get("/checklists", response_class=HTMLResponse)
+def checklists_page(request: Request, db: Session = Depends(get_db)):
+    """Serve the Checklists page: days coming up, and the reusable checklists.
+
+    The family's timezone is rendered in so "Add to a Day" can default its
+    date to the family's today rather than the browser's, before any fetch.
+    """
+    return templates.TemplateResponse(
+        request, "checklists.html", {"local_timezone": local_timezone_name(db)}
+    )
+
+
+@app.get("/checklists/days/{day_id}", response_class=HTMLResponse)
+def checklist_day_page(request: Request, day_id: int, db: Session = Depends(get_db)):
+    """Serve one day's checklist, the copy that gets checked off."""
+    if not db.query(ChecklistDay.id).filter(ChecklistDay.id == day_id).first():
+        raise HTTPException(status_code=404, detail="Checklist day not found")
+    return templates.TemplateResponse(request, "checklist_day.html", {"day_id": day_id})
+
+
+@app.get("/checklists/{checklist_id}", response_class=HTMLResponse)
+def checklist_edit_page(request: Request, checklist_id: int, db: Session = Depends(get_db)):
+    """Serve the page for editing one checklist: its items and its groups."""
+    if not db.query(Checklist.id).filter(Checklist.id == checklist_id).first():
+        raise HTTPException(status_code=404, detail="Checklist not found")
+    return templates.TemplateResponse(
+        request,
+        "checklist_edit.html",
+        {"checklist_id": checklist_id, "local_timezone": local_timezone_name(db)},
+    )
 
 
 @app.get("/preparedness", response_class=HTMLResponse)

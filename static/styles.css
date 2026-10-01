@@ -1131,6 +1131,16 @@ label.weekday-label,
     overflow-wrap: break-word;
 }
 
+/* A row's facts, beneath its title: when, how many, how far along. Not
+   italic, unlike `.editable-item-description`, because it is Rally's wording
+   rather than something the family wrote. */
+.editable-item-meta {
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    letter-spacing: var(--tracking-normal);
+    margin-top: var(--space-1);
+}
+
 /* Block content that arrived as markup — paragraphs, emphasis, lists — rather
    than as a line of text. Inherits its size and color from wherever it sits, so
    it is right in a list row (`.editable-item-multiline`, below) and in a detail
@@ -2262,6 +2272,22 @@ body.is-dragging {
     padding: var(--space-3);
     border: 1px solid var(--rule);
     background: var(--surface-sunken);
+    font-size: var(--text-sm);
+}
+
+/* ---- Checklists ---- */
+/* "3 of 14 packed": the answer to "are we done?", so it reads at body size in
+   the ink color rather than as a muted caption. On a row it is the last meta
+   line, and keeps the meta size. */
+.checklist-progress {
+    /* Bottom only: the space above comes from `.stack`, like every block. */
+    margin-bottom: 0;
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.editable-item-meta.checklist-progress {
     font-size: var(--text-sm);
 }
 

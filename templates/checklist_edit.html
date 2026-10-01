@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+{% set nav_active = "checklists" %}
+{% block title %}Edit Checklist{% endblock %}
+{% block subtitle %}Checklists{% endblock %}
+{% block head %}
+<script src="/static/phone_links.js?v={{ css_version }}"></script>
+{% endblock %}
+
+{% block content %}
+    <div class="page stack" id="checklist-page" data-checklist-id="{{ checklist_id }}">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2 id="checklist-title">Checklist</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-item">Add Item</button>
+                </div>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/checklists">All checklists</a>
+                <button type="button" class="btn btn--quiet" id="btn-edit-details">Edit details</button>
+                <button type="button" class="btn btn--quiet" id="btn-manage-groups">Manage groups</button>
+                <p class="page-note" id="checklist-description" hidden></p>
+                <p class="page-note" id="checklist-summary"></p>
+            </div>
+        </header>
+
+        <div id="groups-container">
+            <div class="container-loading-state">Loading checklist…</div>
+        </div>
+
+        <!-- Reordering is otherwise a purely visual event: a screen reader
+             following the grip button hears nothing when the row moves. -->
+        <div class="sr-only" id="reorder-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- Add / Edit Item: one modal, two modes, as on Tasks and Shopping. -->
+    <div class="modal-overlay" id="item-modal-overlay">
+        <div class="modal-content">
+            <h3 id="item-modal-title">Add Item</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="item-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="item-name">Item</label>
+                        <input type="text" id="item-name" placeholder="e.g. Goggles" maxlength="200" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="item-note">Notes (optional)</label>
+                        <textarea id="item-note" rows="2" placeholder="Which one, how many, where it's kept"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="item-group">Group</label>
+                        <select id="item-group"></select>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" class="btn">Save</button>
+                        <!-- Add mode only. A submit button, so the required-field
+                             check runs for both; `submitter` tells them apart.
+                             Ordered as on the Meal Planner: the two saving actions
+                             adjacent, Cancel past both. -->
+                        <button type="submit" class="btn btn--secondary" id="btn-save-add-another">Save &amp; Add Another</button>
+                        <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
+                        <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
+                    </div>
+                </form>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage groups -->
+    <div class="modal-overlay" id="groups-modal-overlay">
+        <div class="modal-content">
+            <h3>Manage Groups</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="group-add-form" class="form-group">
+                    <label for="group-add-name">Add a group</label>
+                    <div class="manage-row">
+                        <input type="text" id="group-add-name" placeholder="A person, a bag, the car" maxlength="100" required>
+                        <button type="submit" class="btn btn--sm">Add</button>
+                    </div>
+                </form>
+                <div class="form-group">
+                    <button type="button" class="btn btn--secondary btn--sm" id="btn-group-by-person">Add a group for each family member</button>
+                </div>
+                <div id="group-manage-list"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn--secondary" id="btn-close-groups">Done</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit details -->
+    <div class="modal-overlay" id="details-modal-overlay">
+        <div class="modal-content">
+            <h3>Edit Checklist</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="details-form">
+                    <div class="form-group">
+                        <label for="details-name">Name</label>
+                        <input type="text" id="details-name" maxlength="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="details-description">Description (optional)</label>
+                        <textarea id="details-description" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="details-pack-timing">Pack</label>
+                        <select id="details-pack-timing">
+                            <option value="day_of">The day of</option>
+                            <option value="day_before">The day before</option>
+                        </select>
+                        <small>When the daily summary reminds you to pack it.</small>
+                    </div>
+                </form>
+                <div class="modal-actions">
+                    <button type="submit" form="details-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-details">Cancel</button>
+                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-checklist">Delete</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/list_group.js?v={{ css_version }}"></script>
+    <script src="/static/drag_reorder.js?v={{ css_version }}"></script>
+    <script src="/static/checklists.js?v={{ css_version }}"></script>
+    <script>
+        const { GENERAL, escapeHtml, escapeAttr, itemCount, packTimingLabel, checklistSections, groupIdForKey, requestJson } = Checklists;
+        const CHECKLIST_ID = parseInt(document.getElementById('checklist-page').dataset.checklistId, 10);
+        const BASE = `/api/checklists/${CHECKLIST_ID}`;
+
+        let checklist = null;
+        let editingItemId = null;
+
+        // ── Loading and rendering ──
+
+        async function load() {
+            try {
+                checklist = await requestJson(BASE);
+            } catch (error) {
+                console.error('Error loading checklist:', error);
+                document.getElementById('groups-container').innerHTML =
+                    '<div class="container-empty-state">Could not load this checklist. Try again in a moment.</div>';
+                return;
+            }
+            render();
+        }
+
+        function render() {
+            document.getElementById('checklist-title').textContent = checklist.name;
+            document.title = `Rally — ${checklist.name}`;
+            const description = document.getElementById('checklist-description');
+            description.textContent = checklist.description || '';
+            description.hidden = !checklist.description;
+            const summary = [packTimingLabel(checklist.pack_timing)];
+            if (checklist.upcoming_days) {
+                summary.push(`On ${checklist.upcoming_days} upcoming day${checklist.upcoming_days === 1 ? '' : 's'}`);
+            }
+            document.getElementById('checklist-summary').textContent = summary.join(' · ');
+
+            const container = document.getElementById('groups-container');
+            if (checklist.items.length === 0 && checklist.groups.length === 0) {
+                container.innerHTML = '<div class="container-empty-state">Nothing on this checklist yet. Click "Add Item" to start it.</div>';
+                return;
+            }
+            const sections = checklistSections(checklist.groups, checklist.items, { keepEmpty: true });
+            container.innerHTML = sections.map(section => listGroupHtml({
+                key: section.key,
+                name: section.name,
+                countLabel: section.name ? itemCount(section.items.length) : null,
+                rowsHtml: section.items.map(renderItemRow).join(''),
+                emptyText: section.groupId === null ? 'Nothing ungrouped.' : 'Nothing in this group yet.',
+            })).join('');
+        }
+
+        function renderItemRow(item) {
+            return `
+                <div class="editable-item" data-id="${item.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(item.name)}</div>
+                        ${item.note ? `<div class="editable-item-description">${escapeHtmlWithPhoneLinks(item.note)}</div>` : ''}
+                    </div>
+                    <div class="editable-item-actions">
+                        <button type="button" class="btn btn--sm" data-edit="${item.id}">Edit</button>
+                        <button type="button" class="btn drag-handle"
+                                aria-label="Reorder ${escapeAttr(item.name)}"
+                                title="Drag to reorder or move to another group. Arrow keys work too.">
+                            <span aria-hidden="true">⠿</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function groupName(groupId) {
+            const group = checklist.groups.find(g => g.id === groupId);
+            return group ? group.name : GENERAL;
+        }
+
+        // ── Add / Edit Item ──
+
+        const itemForm = document.getElementById('item-form');
+        const addAnotherBtn = document.getElementById('btn-save-add-another');
+
+        function fillGroupSelect(selected) {
+            const select = document.getElementById('item-group');
+            select.innerHTML = `<option value="">${GENERAL}</option>` +
+                checklist.groups.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+            select.value = selected == null ? '' : String(selected);
+        }
+
+        function openAddItem(groupId = null) {
+            editingItemId = null;
+            document.getElementById('item-modal-title').textContent = 'Add Item';
+            itemForm.reset();
+            fillGroupSelect(groupId);
+            addAnotherBtn.style.display = '';
+            document.getElementById('btn-delete-item').style.display = 'none';
+            showModalOverlay('item-modal-overlay');
+            document.getElementById('item-name').focus();
+        }
+
+        function openEditItem(id) {
+            const item = checklist.items.find(i => i.id === id);
+            if (!item) return;
+            editingItemId = id;
+            document.getElementById('item-modal-title').textContent = 'Edit Item';
+            document.getElementById('item-name').value = item.name;
+            document.getElementById('item-note').value = item.note || '';
+            fillGroupSelect(item.group_id);
+            addAnotherBtn.style.display = 'none';
+            document.getElementById('btn-delete-item').style.display = '';
+            showModalOverlay('item-modal-overlay');
+        }
+
+        function closeItemModal() {
+            hideModalOverlay('item-modal-overlay');
+            editingItemId = null;
+        }
+
+        itemForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const another = e.submitter === addAnotherBtn;
+            const groupValue = document.getElementById('item-group').value;
+            const payload = {
+                name: document.getElementById('item-name').value,
+                note: document.getElementById('item-note').value || null,
+                group_id: groupValue ? parseInt(groupValue, 10) : null,
+            };
+            try {
+                if (editingItemId) {
+                    await requestJson(`${BASE}/items/${editingItemId}`, { method: 'PUT', body: payload });
+                } else {
+                    await requestJson(`${BASE}/items`, { method: 'POST', body: payload });
+                }
+            } catch (error) {
+                alert(error.message || 'Failed to save item');
+                return;
+            }
+            await load();
+            if (another) {
+                // Keep the group: a packing list is entered one group at a time.
+                document.getElementById('item-name').value = '';
+                document.getElementById('item-note').value = '';
+                document.getElementById('item-name').focus();
+                document.getElementById('reorder-status').textContent =
+                    `Added ${payload.name} to ${groupName(payload.group_id)}.`;
+            } else {
+                closeItemModal();
+            }
+        });
+
+        document.getElementById('btn-delete-item').addEventListener('click', async () => {
+            const item = checklist.items.find(i => i.id === editingItemId);
+            if (!item) return;
+            if (!confirm(`Delete ${item.name}? It comes off every day this checklist is on.`)) return;
+            try {
+                await requestJson(`${BASE}/items/${item.id}`, { method: 'DELETE' });
+                closeItemModal();
+                await load();
+            } catch (error) {
+                alert('Failed to delete item');
+            }
+        });
+
+        document.getElementById('btn-add-item').addEventListener('click', () => openAddItem());
+        document.getElementById('btn-cancel-item').addEventListener('click', closeItemModal);
+        document.getElementById('item-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'item-modal-overlay') closeItemModal();
+        });
+        document.getElementById('groups-container').addEventListener('click', (e) => {
+            const button = e.target.closest('[data-edit]');
+            if (button) openEditItem(parseInt(button.dataset.edit, 10));
+        });
+
+        // ── Manage groups ──
+
+        function renderGroupManageList() {
+            const list = document.getElementById('group-manage-list');
+            if (checklist.groups.length === 0) {
+                list.innerHTML = `<div class="container-empty-state">No groups yet. Items you add land under "${GENERAL}".</div>`;
+                return;
+            }
+            list.innerHTML = checklist.groups.map(g => `
+                <div class="manage-row" data-id="${g.id}">
+                    <input type="text" value="${escapeAttr(g.name)}" aria-label="Group name" maxlength="100">
+                    <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
+                    <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        async function afterGroupChange() {
+            await load();
+            renderGroupManageList();
+        }
+
+        document.getElementById('group-manage-list').addEventListener('click', async (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+            const row = button.closest('.manage-row');
+            const groupId = parseInt(row.dataset.id, 10);
+            try {
+                if (button.dataset.action === 'rename') {
+                    const name = row.querySelector('input').value.trim();
+                    if (!name) return;
+                    await requestJson(`${BASE}/groups/${groupId}`, { method: 'PUT', body: { name } });
+                } else {
+                    if (!confirm(`Delete ${groupName(groupId)}? Its items move to "${GENERAL}" — nothing is lost.`)) return;
+                    await requestJson(`${BASE}/groups/${groupId}`, { method: 'DELETE' });
+                }
+            } catch (error) {
+                alert(error.status === 409 ? 'This checklist already has a group with that name.' : 'Failed to update the group.');
+                return;
+            }
+            await afterGroupChange();
+        });
+
+        document.getElementById('group-add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('group-add-name');
+            const name = input.value.trim();
+            if (!name) return;
+            try {
+                await requestJson(`${BASE}/groups`, { method: 'POST', body: { name } });
+            } catch (error) {
+                alert(error.status === 409 ? 'This checklist already has a group with that name.' : 'Failed to add the group.');
+                return;
+            }
+            input.value = '';
+            await afterGroupChange();
+        });
+
+        document.getElementById('btn-group-by-person').addEventListener('click', async () => {
+            try {
+                await requestJson(`${BASE}/groups/members`, { method: 'POST' });
+            } catch (error) {
+                alert('Failed to add groups for the family.');
+                return;
+            }
+            await afterGroupChange();
+        });
+
+        function closeGroupsModal() {
+            hideModalOverlay('groups-modal-overlay');
+        }
+
+        document.getElementById('btn-manage-groups').addEventListener('click', () => {
+            renderGroupManageList();
+            showModalOverlay('groups-modal-overlay');
+        });
+        document.getElementById('btn-close-groups').addEventListener('click', closeGroupsModal);
+        document.getElementById('groups-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'groups-modal-overlay') closeGroupsModal();
+        });
+
+        // ── Edit details ──
+
+        function closeDetailsModal() {
+            hideModalOverlay('details-modal-overlay');
+        }
+
+        document.getElementById('btn-edit-details').addEventListener('click', () => {
+            document.getElementById('details-name').value = checklist.name;
+            document.getElementById('details-description').value = checklist.description || '';
+            document.getElementById('details-pack-timing').value = checklist.pack_timing;
+            showModalOverlay('details-modal-overlay');
+        });
+        document.getElementById('btn-cancel-details').addEventListener('click', closeDetailsModal);
+        document.getElementById('details-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'details-modal-overlay') closeDetailsModal();
+        });
+
+        document.getElementById('details-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('details-name').value,
+                description: document.getElementById('details-description').value || null,
+                pack_timing: document.getElementById('details-pack-timing').value,
+            };
+            try {
+                checklist = await requestJson(BASE, { method: 'PUT', body: payload });
+            } catch (error) {
+                alert(error.status === 409 ? 'A checklist with that name already exists.' : (error.message || 'Failed to save'));
+                return;
+            }
+            closeDetailsModal();
+            render();
+        });
+
+        document.getElementById('btn-delete-checklist').addEventListener('click', async () => {
+            const days = checklist.day_count;
+            const onDays = days ? ` It is on ${days} day${days === 1 ? '' : 's'}, and ${days === 1 ? 'that comes' : 'those come'} off too.` : '';
+            if (!confirm(`Delete ${checklist.name}?${onDays}`)) return;
+            try {
+                await requestJson(BASE, { method: 'DELETE' });
+            } catch (error) {
+                alert('Failed to delete checklist');
+                return;
+            }
+            window.location.href = '/checklists';
+        });
+
+        // ── Drag to reorder ──
+        //
+        // The group key is the section key: a group id as a string, or
+        // `general` for the catch-all. Dropping on another group is the move.
+        initDragReorder({
+            container: document.getElementById('groups-container'),
+            groupSelector: '.list-group',
+            listSelector: '.list-container',
+            itemSelector: '.editable-item',
+            handleSelector: '.drag-handle',
+            canDrag: () => true,
+            groupKey: (group) => group.dataset.group,
+            groupLabel: (group) => groupName(groupIdForKey(group.dataset.group)),
+            itemLabel: (row) => row.querySelector('.editable-item-title').textContent,
+            announce: (message) => {
+                document.getElementById('reorder-status').textContent = message;
+            },
+            onReorder: async (key, itemIds) => {
+                try {
+                    await requestJson(`${BASE}/items/reorder`, {
+                        method: 'POST',
+                        body: { group_id: groupIdForKey(key), item_ids: itemIds },
+                    });
+                } catch (error) {
+                    console.error('Error reordering items:', error);
+                    alert('Failed to save the new order');
+                }
+                // Either way: on success to pick up the group change, on
+                // failure to put back what the server actually has.
+                await load();
+            }
+        });
+
+        load();
+    </script>
+
+    <script src="/static/modal.js?v={{ css_version }}"></script>
+{% endblock %}
