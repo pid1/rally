@@ -276,17 +276,22 @@ def test_every_view_is_reachable_on_a_phone(browser, live_server):
     try:
         views = page.eval_on_selector_all("#view-select option", "els => els.map(e => e.value)")
         assert views == ["calendar", "agenda"]
-        ranges = page.eval_on_selector_all("#range-select option", "els => els.map(e => e.value)")
-        assert ranges == ["day", "week", "month", "rolling30"]
         assert page.is_visible("#view-select"), "the selector must not be hidden on a phone"
         assert page.is_visible("#range-select"), "the selector must not be hidden on a phone"
 
-        assert page.eval_on_selector("#range-select option[value=rolling30]", "el => el.hidden"), (
+        def ranges():
+            return page.eval_on_selector_all("#range-select option", "els => els.map(e => e.value)")
+
+        # Removed from the DOM, not `hidden`: iOS Safari ignores `hidden` on <option>.
+        assert ranges() == ["day", "week", "month"], (
             "Calendar cannot draw a rolling 30 days, so it must not offer it"
         )
         page.select_option("#view-select", "agenda")
         page.wait_for_timeout(400)
-        assert not page.eval_on_selector("#range-select option[value=rolling30]", "el => el.hidden")
+        assert ranges() == ["day", "week", "month", "rolling30"]
+        page.select_option("#view-select", "calendar")
+        page.wait_for_timeout(400)
+        assert ranges() == ["day", "week", "month"]
     finally:
         context.close()
 
