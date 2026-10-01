@@ -67,6 +67,7 @@ def make_generator(tz: str = "UTC") -> SummaryGenerator:
     gen.shopping_list_in_summary_enabled = False
     gen.sports_watchlist_enabled = False
     gen.prep_overdue_in_summary_enabled = False
+    gen.checklists_in_summary_enabled = False
     gen.max_tokens = LLM_MAX_TOKENS
     return gen
 
@@ -1056,3 +1057,112 @@ def test_overdue_prep_is_recorded_for_eval_ground_truth(frozen_now):
     gen.generate_summary()
 
     assert gen._generation_context["overdue_prep"] == "- Water drums (Garage) — overdue"
+
+
+# --- checklists in the briefing ------------------------------------------------------
+
+NANA = (
+    '- "Swim at Nana\'s" for Saturday, October 3, packed the day before (Friday, October 2)'
+    " — PACK TODAY. 3 of 5 packed.\n"
+    "  General:\n"
+    "    - Sunscreen — SPF 50. The bottle is nearly empty."
+)
+
+
+def _checklist_gen(text: str):
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+    gen.checklists_in_summary_enabled = True
+    gen.load_checklists = lambda: text
+    return gen
+
+
+def test_checklists_reach_the_user_prompt(frozen_now):
+    frozen_now(FROZEN)
+    gen = _checklist_gen(NANA)
+
+    gen.generate_summary()
+
+    prompt = _user_prompt(gen)
+    assert "CHECKLISTS (packing lists on days in the next week" in prompt
+    assert "Sunscreen — SPF 50. The bottle is nearly empty." in prompt
+
+
+def test_the_checklists_guideline_carries_the_restocking_and_grounding_rules(frozen_now):
+    frozen_now(FROZEN)
+    gen = _checklist_gen(NANA)
+
+    gen.generate_summary()
+
+    system = _prompt_from(gen)
+    assert "CHECKLISTS:" in system
+    assert "PACK TODAY or TODAY" in system
+    assert "hard to get at the last minute" in system
+    assert "commonly run low or need restocking" in system
+    assert "(already on the shopping list)" in system
+    assert "Never" in system and "invent items" in system
+
+
+def test_no_checklists_section_or_guideline_when_nothing_is_coming_up(frozen_now):
+    frozen_now(FROZEN)
+    gen = _checklist_gen("")
+
+    gen.generate_summary()
+
+    assert "CHECKLISTS" not in _user_prompt(gen)
+    assert "CHECKLISTS:" not in _prompt_from(gen)
+
+
+def test_the_checklists_toggle_skips_the_query_entirely(frozen_now):
+    frozen_now(FROZEN)
+    gen = _summary_gen('{"greeting":"Hi","weather_summary":"S","schedule":[],"briefing":""}')
+    gen.checklists_in_summary_enabled = False
+
+    def fail():
+        raise AssertionError("checklists were loaded with the toggle off")
+
+    gen.load_checklists = fail
+
+    gen.generate_summary()
+
+    assert "CHECKLISTS" not in _user_prompt(gen)
+
+
+def test_checklists_are_eval_ground_truth(frozen_now):
+    frozen_now(FROZEN)
+    gen = _checklist_gen(NANA)
+    gen.generate_summary()
+    assert gen._generation_context["checklists"] == NANA
+
+    judge = _eval_gen('{"overall_score":4.0,"pass":true}')
+    judge._generation_context["checklists"] = NANA
+    judge.evaluate_summary({"greeting": "Hi"})
+    assert "CHECKLISTS (unchecked items):" in judge.client.last_kwargs["messages"][0]["content"]
+
+
+def test_the_eval_omits_checklists_when_there_were_none():
+    judge = _eval_gen('{"overall_score":4.0,"pass":true}')
+    judge.evaluate_summary({"greeting": "Hi"})
+    assert "CHECKLISTS" not in judge.client.last_kwargs["messages"][0]["content"]
+
+
+def test_load_checklists_uses_the_family_s_today(frozen_now, db_session, monkeypatch):
+    """Late on Friday in Chicago is already Saturday in UTC: the loader must
+    hand the module the family's date, not the server's."""
+    from zoneinfo import ZoneInfo
+
+    from rally import checklists
+    from rally.generator import generate
+
+    frozen_now(datetime(2026, 10, 3, 3, 30, tzinfo=UTC))  # Fri 10:30 PM in Chicago
+    # The test database, never the real one.
+    monkeypatch.setattr(generate, "SessionLocal", lambda: db_session)
+    seen = {}
+    monkeypatch.setattr(
+        checklists, "summary_text", lambda db, today: seen.setdefault("today", today) and ""
+    )
+    gen = make_generator("America/Chicago")
+    gen.local_tz = ZoneInfo("America/Chicago")
+
+    gen.load_checklists()
+
+    assert seen["today"].isoformat() == "2026-10-02"

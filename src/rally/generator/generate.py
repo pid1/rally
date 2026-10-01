@@ -300,6 +300,16 @@ class SummaryGenerator:
             db_settings.get("prep_overdue_in_summary_enabled", "true") == "true"
         )
 
+        # Optional: checklists coming up in the next week (toggle in Settings).
+        #
+        # Defaults ON for the same reason as overdue preparedness stock: the
+        # section omits itself entirely unless a checklist is on a day this
+        # week with something still unpacked, so it costs nothing on the days
+        # it has nothing to say.
+        self.checklists_in_summary_enabled = (
+            db_settings.get("checklists_in_summary_enabled", "true") == "true"
+        )
+
         # Optional: 14-day TV and radio listings for followed teams (toggle in Settings)
         self.sports_watchlist_enabled = (
             db_settings.get("sports_watchlist_enabled", "false") == "true"
@@ -660,6 +670,22 @@ class SummaryGenerator:
                     entry += f" [{item.quantity}]"
                 lines.append(entry)
             return "\n".join(lines)
+        finally:
+            db.close()
+
+    def load_checklists(self) -> str:
+        """Checklists on a day in the next week that still have something unpacked.
+
+        The text, its statuses and its grouping live in ``rally.checklists`` so
+        they can be tested without a generator. "Today" is the family's local
+        date, the same day the briefing is written for.
+        """
+        db = SessionLocal()
+        try:
+            from rally import checklists
+
+            today = now_utc().astimezone(self.local_tz).date()
+            return checklists.summary_text(db, today)
         finally:
             db.close()
 
@@ -1131,6 +1157,7 @@ class SummaryGenerator:
         overdue_prep = (
             self.load_overdue_prep_items() if self.prep_overdue_in_summary_enabled else ""
         )
+        checklists = self.load_checklists() if self.checklists_in_summary_enabled else ""
 
         cal_text = self.format_calendar_section(calendars)
 
@@ -1145,6 +1172,7 @@ class SummaryGenerator:
             "meal_plans": meal_plans,
             "shopping_items": shopping_items,
             "overdue_prep": overdue_prep,
+            "checklists": checklists,
             "home_location": home,
             "family_members": ", ".join(family_members.values())
             if family_members
@@ -1211,6 +1239,29 @@ class SummaryGenerator:
                 "complete list of what is overdue. Keep it brief and practical (what to swap, "
                 "and where it is), and do not let it dominate the briefing: it is one line of "
                 "housekeeping, not the theme of the day."
+            )
+
+        # Optional checklists — guideline only when one is actually coming up
+        if checklists:
+            optional_guidelines.append(
+                "CHECKLISTS: The CHECKLISTS section below lists packing checklists on days in "
+                "the next week, with ONLY the items not yet checked off, under the group "
+                "(usually a person) each belongs to.\n"
+                "    - For a checklist marked PACK TODAY or TODAY, remind the family to pack it in "
+                "the briefing: say how much is left and, when the groups are people, who packs "
+                "what. Keep it to the point; do not recite every item.\n"
+                "    - Look at the unchecked items on every listed checklist and flag, briefly, any "
+                "that commonly run low or need restocking (sunscreen, diapers, snacks, "
+                "medication, batteries) and any that may be hard to get at the last minute "
+                "(prescriptions, specialty gear, documents, anything that has to be ordered), "
+                "early enough to act on. Use the item notes: a note saying something is running "
+                "low is the strongest signal there is.\n"
+                "    - For a checklist marked UPCOMING, mention it ONLY to flag an item like that. "
+                "Never remind the family to pack something days early.\n"
+                '    - An item marked "(already on the shopping list)" is being handled; do not '
+                "tell the family to buy it.\n"
+                "    - Only reference checklists and items that appear in that section. Never "
+                "invent items or assume what the family owns."
             )
 
         # Optional sports watchlist — guideline only when the section is present
@@ -1309,6 +1360,15 @@ Do NOT include any HTML in your response. Plain text only for all values."""
                 "overdue items; do not infer others):\n" + overdue_prep
             )
 
+        # Omitted entirely when nothing is coming up, like the preparedness
+        # section: an empty labeled section invites a comment on it.
+        checklists_section = ""
+        if checklists:
+            checklists_section = (
+                "\n\nCHECKLISTS (packing lists on days in the next week — only items not yet "
+                "checked off are listed):\n" + checklists
+            )
+
         sports_section = ""
         if self.sports_watchlist_enabled and sports_watchlist:
             sports_section = f"\n\nSPORTS (followed teams — TV and radio):\n{sports_watchlist}"
@@ -1329,7 +1389,7 @@ TODOS:
 {todos}
 
 MEAL PLANS (next 7 days):
-{meal_plans}{shopping_section}{prep_section}{sports_section}{stem_avoid_block}"""
+{meal_plans}{shopping_section}{prep_section}{checklists_section}{sports_section}{stem_avoid_block}"""
 
         try:
             response_text = self._call_llm(
@@ -1485,6 +1545,12 @@ Respond with ONLY a JSON object (no markdown fences):
         if ctx.get("shopping_items"):
             shopping_ground_truth = f"\n\nSHOPPING LIST:\n{ctx['shopping_items']}"
 
+        # Checklist items the briefing mentions would otherwise read to the
+        # judge as invented. Omitted when there were none, as in generation.
+        checklists_ground_truth = ""
+        if ctx.get("checklists"):
+            checklists_ground_truth = f"\n\nCHECKLISTS (unchecked items):\n{ctx['checklists']}"
+
         # Dynamic data → user prompt
         eval_user = f"""== GENERATED SUMMARY (to evaluate) ==
 {summary_json}
@@ -1500,7 +1566,7 @@ TODOS:
 {ctx["todos"]}
 
 MEAL PLANS:
-{ctx["meal_plans"]}{shopping_ground_truth}
+{ctx["meal_plans"]}{shopping_ground_truth}{checklists_ground_truth}
 
 FAMILY MEMBERS:
 {ctx["family_members"]}"""
