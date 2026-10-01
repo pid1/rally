@@ -85,16 +85,18 @@ class BehaviorSetting:
     default: str = AUTO
 
 
-# Every combination the calendar's two toolbar controls can express, with one
-# deliberate omission: `calendar:rolling30`. A grid cannot draw a rolling
-# thirty days — `syncRangeOptions()` hides that range in Calendar mode — so
-# offering it here would be offering a landing view the page then silently
-# changes out from under you.
+# Every combination the calendar's two toolbar controls can express, with two
+# deliberate omissions: `calendar:rolling30` and `agenda:rolling3`. Each range
+# is drawn by one View only — a grid cannot draw a rolling thirty days, and
+# `Next 3 days` is a time grid — and `syncRangeOptions()` detaches it under the
+# other, so offering either pair here would be offering a landing view the
+# page then silently changes out from under you.
 CALENDAR_VIEW_CHOICES: tuple[Choice, ...] = (
     Choice(value=AUTO, label="Match the screen — day on a phone, month on a computer"),
     Choice(value="calendar:day", label="Calendar · Day"),
     Choice(value="calendar:week", label="Calendar · Week"),
     Choice(value="calendar:month", label="Calendar · Month"),
+    Choice(value="calendar:rolling3", label="Calendar · Next 3 days"),
     Choice(value="agenda:day", label="Agenda · Day"),
     Choice(value="agenda:week", label="Agenda · Week"),
     Choice(value="agenda:month", label="Agenda · Month"),

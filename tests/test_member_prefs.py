@@ -45,7 +45,7 @@ def test_every_calendar_choice_is_a_view_and_range_the_toolbar_can_express():
     only the calendar can resolve it.
     """
     views = {"calendar", "agenda"}
-    ranges = {"day", "week", "month", "rolling30"}
+    ranges = {"day", "week", "month", "rolling3", "rolling30"}
 
     for choice in member_prefs.CALENDAR_VIEW_CHOICES:
         if choice.value == member_prefs.AUTO:
@@ -55,15 +55,19 @@ def test_every_calendar_choice_is_a_view_and_range_the_toolbar_can_express():
         assert span in ranges, choice.value
 
 
-def test_the_grid_is_never_offered_a_range_it_cannot_draw():
-    """`calendar:rolling30` would be a landing view the page silently changes.
+def test_a_view_is_never_offered_a_range_it_cannot_draw():
+    """`calendar:rolling30` and `agenda:rolling3` would be landing views the
+    page silently changes.
 
-    `syncRangeOptions()` hides `Next 30 days` in Calendar mode, so offering it
-    here means somebody picks it and lands on Month without being told.
+    `syncRangeOptions()` detaches `Next 30 days` in Calendar mode and `Next 3
+    days` in Agenda mode, so offering either pair here means somebody picks it
+    and lands on a different range without being told.
     """
     values = {choice.value for choice in member_prefs.CALENDAR_VIEW_CHOICES}
     assert "calendar:rolling30" not in values
     assert "agenda:rolling30" in values
+    assert "agenda:rolling3" not in values
+    assert "calendar:rolling3" in values
 
 
 def test_is_valid_rejects_unknown_keys_and_values():

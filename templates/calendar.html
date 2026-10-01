@@ -29,14 +29,16 @@
             </div>
             <!-- View is the renderer, Range is the slice of time. They were one
                  control, which is why Day and Week both rendered lists: there
-                 was no way to say "a week, drawn as a calendar". `Next 30 days`
-                 is the old rolling agenda window and exists in Agenda only. -->
+                 was no way to say "a week, drawn as a calendar". `Next 3 days`
+                 exists in Calendar only and `Next 30 days`, the old rolling
+                 agenda window, in Agenda only: see VIEW_ONLY_RANGES. -->
             <div class="toolbar-group toolbar-group--pair">
                 <span class="toolbar-label" id="range-select-label">Range</span>
                 <select id="range-select" class="select toolbar-control" aria-labelledby="range-select-label">
                     <option value="day">Day</option>
                     <option value="week">Week</option>
                     <option value="month">Month</option>
+                    <option value="rolling3">Next 3 days</option>
                     <option value="rolling30">Next 30 days</option>
                 </select>
             </div>
@@ -327,10 +329,16 @@
         let tickDate = todayIso();
 
         const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const AGENDA_DAYS = 30;
-        // Ranges Calendar can draw. `rolling30` is a list-only idea: a grid of
-        // 30 arbitrary days starting on a Wednesday is not a calendar.
-        const CALENDAR_RANGES = ['day', 'week', 'month'];
+        // The rolling ranges: a window of N days from the anchor, not a slice
+        // of a week or month.
+        const ROLLING_RANGE_DAYS = { rolling3: 3, rolling30: 30 };
+        // A range only one View can draw. A grid of 30 arbitrary days starting
+        // on a Wednesday is not a calendar, so `rolling30` is Agenda-only;
+        // three columns is a time grid, so `rolling3` is Calendar-only.
+        const VIEW_ONLY_RANGES = { rolling3: 'calendar', rolling30: 'agenda' };
+        // Where somebody lands when the View they switch to cannot draw the
+        // range they were on. Keyed on the View being switched *to*.
+        const VIEW_FALLBACK_RANGE = { calendar: 'month', agenda: 'day' };
         const MINUTES_PER_DAY = 24 * 60;
         // The grid is drawn on a five-minute lattice: both starts and heights
         // snap to it, which is the resolution a calendar is read at anyway.
@@ -413,8 +421,8 @@
                 const start = startOfWeek(anchor);
                 return { start, end: addDays(start, 7) };
             }
-            if (range === 'rolling30') {
-                return { start: startOfDay(anchor), end: addDays(startOfDay(anchor), AGENDA_DAYS) };
+            if (ROLLING_RANGE_DAYS[range]) {
+                return { start: startOfDay(anchor), end: addDays(startOfDay(anchor), ROLLING_RANGE_DAYS[range]) };
             }
             if (mode === 'calendar') {
                 const start = gridStart(anchor);
@@ -560,8 +568,12 @@
         }
 
         function rangeLabel() {
+            if (range === 'rolling3') {
+                const start = startOfDay(anchor);
+                return spanLabel(start, addDays(start, ROLLING_RANGE_DAYS.rolling3 - 1));
+            }
             if (range === 'rolling30') {
-                const end = addDays(startOfDay(anchor), AGENDA_DAYS - 1);
+                const end = addDays(startOfDay(anchor), ROLLING_RANGE_DAYS.rolling30 - 1);
                 return `${anchor.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
             }
             if (range === 'day') {
@@ -571,18 +583,22 @@
             }
             if (range === 'week') {
                 const start = startOfWeek(anchor);
-                const end = addDays(start, 6);
-                const left = start.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
-                // A week that stays in one month reads "August 9 – 15, 2026";
-                // one that straddles repeats the month. Built by hand because
-                // toLocaleDateString has no {day, year} format and silently
-                // produces "2026 (day: 15)" if you ask for one.
-                const right = start.getMonth() === end.getMonth()
-                    ? `${end.getDate()}, ${end.getFullYear()}`
-                    : end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-                return `${left} – ${right}`;
+                return spanLabel(start, addDays(start, 6));
             }
             return anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        }
+
+        /* A span of days as one title. One that stays in one month reads
+           "August 9 – 15, 2026"; one that straddles repeats the month. Built by
+           hand because toLocaleDateString has no {day, year} format and
+           silently produces "2026 (day: 15)" if you ask for one. Week and
+           `Next 3 days` both name a span and share it. */
+        function spanLabel(start, end) {
+            const left = start.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+            const right = start.getMonth() === end.getMonth()
+                ? `${end.getDate()}, ${end.getFullYear()}`
+                : end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+            return `${left} – ${right}`;
         }
 
         function occurrencesOn(dateIso) {
@@ -955,10 +971,11 @@
             /* The date rolled over, and everything that says which day it is
                went stale at once: the line, `is-today`, the Day title. Day
                names exactly one date, so on a tablet nobody touches it has to
-               follow the date or it is still showing yesterday at breakfast.
-               Week and Month name a span and keep the one they are on. */
+               follow the date or it is still showing yesterday at breakfast;
+               `Next 3 days` is anchored to a single date too, and starts on
+               it. Week, Month and `Next 30 days` keep the window they are on. */
             tickDate = today;
-            if (range === 'day') anchor = parseIso(today);
+            if (range === 'day' || range === 'rolling3') anchor = parseIso(today);
             load();
         }
 
@@ -1971,8 +1988,8 @@
                 anchor = addDays(startOfDay(anchor), direction);
             } else if (range === 'week') {
                 anchor = addDays(startOfWeek(anchor), direction * 7);
-            } else if (range === 'rolling30') {
-                anchor = addDays(startOfDay(anchor), direction * AGENDA_DAYS);
+            } else if (ROLLING_RANGE_DAYS[range]) {
+                anchor = addDays(startOfDay(anchor), direction * ROLLING_RANGE_DAYS[range]);
             } else {
                 anchor = new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1);
             }
@@ -1986,18 +2003,28 @@
             return startOfDay(base);
         }
 
-        /* Calendar cannot draw `Next 30 days`, so switching into it falls back
-           to Month — the nearest thing a grid offers to a long look ahead. */
-        const ROLLING_OPTION = document.querySelector('#range-select option[value="rolling30"]');
+        /* The options only one View can draw, kept in hand so they can be
+           detached and put back. Captured once, before the first sync removes
+           either of them. */
+        const VIEW_ONLY_OPTIONS = Object.fromEntries(
+            Object.keys(VIEW_ONLY_RANGES).map(value =>
+                [value, document.querySelector(`#range-select option[value="${value}"]`)])
+        );
 
-        /* The option is detached rather than given `hidden`: iOS Safari renders
-           its own picker and ignores `hidden` (and `display: none`) on an
-           <option>, so a hidden entry was still offered on a phone. */
+        /* A range the View cannot draw is detached rather than given `hidden`:
+           iOS Safari renders its own picker and ignores `hidden` (and
+           `display: none`) on an <option>, so a hidden entry was still offered
+           on a phone. Switching to a View that cannot draw the range you are
+           on falls back to VIEW_FALLBACK_RANGE — the nearest thing it offers. */
         function syncRangeOptions() {
             const select = document.getElementById('range-select');
-            if (mode === 'calendar') ROLLING_OPTION.remove();
-            else if (!ROLLING_OPTION.isConnected) select.appendChild(ROLLING_OPTION);
-            if (mode === 'calendar' && !CALENDAR_RANGES.includes(range)) range = 'month';
+            Object.entries(VIEW_ONLY_RANGES).forEach(([value, view]) => {
+                const option = VIEW_ONLY_OPTIONS[value];
+                if (view !== mode) option.remove();
+                else if (!option.isConnected) select.appendChild(option);
+            });
+            const only = VIEW_ONLY_RANGES[range];
+            if (only && only !== mode) range = VIEW_FALLBACK_RANGE[mode];
             select.value = range;
         }
 
