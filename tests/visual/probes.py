@@ -121,7 +121,7 @@ MEASURE_JS = r"""
     // help-text link cannot be 44px tall without wrecking the sentence.
     if (getComputedStyle(el).display === 'inline') continue;
     let hit = el;
-    const wrapper = el.closest('label, .todo-checkbox');
+    const wrapper = el.closest('label, .item-checkbox');
     if (wrapper && visible(wrapper)) hit = wrapper;
     const r = hit.getBoundingClientRect();
     out.targets.push({

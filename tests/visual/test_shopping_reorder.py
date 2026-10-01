@@ -26,8 +26,8 @@ PHONE = {"width": 390, "height": 844}
 
 GROUPS_JS = """() => {
     const out = {};
-    for (const group of document.querySelectorAll('.shopping-group')) {
-        const name = group.querySelector('.shopping-group-name').textContent.trim();
+    for (const group of document.querySelectorAll('.list-group')) {
+        const name = group.querySelector('.list-group-name').textContent.trim();
         out[name] = [...group.querySelectorAll('.editable-item:not(.completed)')]
             .map(row => row.querySelector('.editable-item-title').textContent.trim());
     }
@@ -138,7 +138,7 @@ def test_a_reorder_survives_a_reload(shopping):
 
 def test_dragging_a_row_onto_another_store_moves_it_there(shopping, live_server):
     trader_joes = shopping.locator(
-        '.shopping-group:has(.shopping-group-name:text-is("Trader Joe\'s"))'
+        '.list-group:has(.list-group-name:text-is("Trader Joe\'s"))'
     ).bounding_box()
 
     drag_to(shopping, "Stamps", trader_joes["x"] + 200, trader_joes["y"] + 40)
@@ -157,9 +157,7 @@ def test_dragging_a_row_onto_another_store_moves_it_there(shopping, live_server)
 def test_escape_abandons_a_drag(shopping):
     before = groups(shopping)
     start_x, start_y = center(grip(shopping, "Batteries").bounding_box())
-    target = shopping.locator(
-        '.shopping-group:has(.shopping-group-name:text-is("Costco"))'
-    ).bounding_box()
+    target = shopping.locator('.list-group:has(.list-group-name:text-is("Costco"))').bounding_box()
 
     shopping.mouse.move(start_x, start_y)
     shopping.mouse.down()
@@ -210,14 +208,12 @@ def test_a_group_emptied_by_dragging_is_still_a_drop_target(shopping):
     shopping.click('.filter-chip[data-value="2"]')
     shopping.wait_for_timeout(200)
 
-    costco = shopping.locator('.shopping-group:has(.shopping-group-name:text-is("Costco"))')
+    costco = shopping.locator('.list-group:has(.list-group-name:text-is("Costco"))')
     for name in ["Almond milk", "Frozen dumplings"]:
         box = costco.bounding_box()
         drag_to(shopping, name, box["x"] + 200, box["y"] + 40)
 
-    trader_joes = shopping.locator(
-        '.shopping-group:has(.shopping-group-name:text-is("Trader Joe\'s"))'
-    )
+    trader_joes = shopping.locator('.list-group:has(.list-group-name:text-is("Trader Joe\'s"))')
     assert groups(shopping)["Trader Joe's"] == []
     assert trader_joes.locator(".container-empty-state").count() == 1
 

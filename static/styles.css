@@ -1206,6 +1206,81 @@ label.weekday-label,
     margin-left: var(--space-1);
 }
 
+/* The checkbox at the start of a row: checking a task off, ticking an item
+   purchased, packing an item on a day's checklist. That is the primary gesture
+   wherever it appears, so the hit area is a full target square even though the
+   control itself stays small. Formerly `.todo-checkbox`. */
+.item-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--target-min);
+    min-height: var(--target-min);
+    flex-shrink: 0;
+}
+
+/* A titled group of rows: a store on Shopping and Purchased, a group on a
+   checklist. The heading is the identity carrier, since a group has no color —
+   Rally is grayscale/e-ink first. `static/list_group.js` writes the markup.
+   Formerly `.shopping-group`. */
+.list-group-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin: var(--space-6) 0 var(--space-3);
+}
+
+/* The header is now the first child of its own .list-group, so the reset
+   has to key off the group rather than the header — otherwise every heading on
+   the page loses the space that separates one group from the next. */
+.list-group:first-child .list-group-header {
+    margin-top: 0;
+}
+
+.list-group-name {
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
+    white-space: nowrap;
+}
+
+.list-group-rule {
+    flex: 1;
+    border-bottom: 1px solid var(--rule);
+}
+
+.list-group-count {
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    color: var(--ink-subtle);
+    white-space: nowrap;
+}
+
+/* One editable row in a "Manage …" modal: stores, preparedness locations,
+   checklist groups. Formerly `.store-manage-row`. */
+.manage-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule-subtle);
+}
+
+.manage-row input[type="text"] {
+    appearance: none;
+    flex: 1;
+    min-width: 0;
+    min-height: var(--target-min);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+}
+
 /* ---- Per-person behavioral defaults ---- */
 /* One field per setting inside a family member's row on Settings, scoped to
    the device the page is being read on.
@@ -1430,17 +1505,6 @@ label.weekday-label,
 }
 
 /* ---- Tasks ---- */
-/* Checking a task off is the primary gesture on this page, so the hit area is
-   a full target square even though the control itself stays small. */
-.todo-checkbox {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: var(--target-min);
-    min-height: var(--target-min);
-    flex-shrink: 0;
-}
-
 .todo-due-date {
     font-size: var(--text-sm);
     color: var(--ink-muted);
@@ -1595,64 +1659,6 @@ label.weekday-label,
 
 .autocomplete-dismiss:hover {
     color: var(--ink);
-}
-
-/* Store group heading: the identity carrier, since stores have no color —
-   Rally is grayscale/e-ink first. */
-.shopping-group-header {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-3);
-    margin: var(--space-6) 0 var(--space-3);
-}
-
-/* The header is now the first child of its own .shopping-group, so the reset
-   has to key off the group rather than the header — otherwise every heading on
-   the page loses the space that separates one store from the next. */
-.shopping-group:first-child .shopping-group-header {
-    margin-top: 0;
-}
-
-.shopping-group-name {
-    font-family: var(--font-display);
-    font-size: var(--text-base);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wider);
-    white-space: nowrap;
-}
-
-.shopping-group-rule {
-    flex: 1;
-    border-bottom: 1px solid var(--rule);
-}
-
-.shopping-group-count {
-    font-size: var(--text-xs);
-    letter-spacing: var(--tracking-wide);
-    color: var(--ink-subtle);
-    white-space: nowrap;
-}
-
-.store-manage-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--rule-subtle);
-}
-
-.store-manage-row input[type="text"] {
-    appearance: none;
-    flex: 1;
-    min-width: 0;
-    min-height: var(--target-min);
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--rule);
-    background: var(--surface);
-    color: var(--ink);
-    font-family: var(--font-body);
-    font-size: var(--text-base);
 }
 
 /* Drag to reorder.

@@ -940,10 +940,16 @@ When touching the UI:
   as the toolbar's last child, never inside a `.toolbar-group`.
 - **Modals are `.modal-content > h3 + .modal-scroll > .modal-body`**, and the
   page loads `/static/modal.js`.
-- **A reorderable list is `.shopping-group > .shopping-group-header +
-  .list-container > .editable-item[data-id]`**, and the page loads
-  `/static/drag_reorder.js`. The group wrapper is what makes a whole group —
-  heading included, and an empty one — a drop target.
+- **A grouped list is `.list-group > .list-group-header +
+  .list-container > .editable-item[data-id]`, written by `listGroupHtml()`
+  in `/static/list_group.js`** rather than by hand; a reorderable one also
+  loads `/static/drag_reorder.js`. The group wrapper is what makes a whole
+  group — heading included, and an empty one — a drop target.
+- **Shared list components are named for what they are, not for the page that
+  introduced them.** A row's checkbox hit area is `.item-checkbox`, a titled
+  group is `.list-group`, and a row in a "Manage …" modal is `.manage-row`
+  (once `.todo-checkbox`, `.shopping-group` and `.store-manage-row`). A
+  component a second page wants is renamed before it is reused.
 - **Hit areas are `var(--target-min)`**, which is 44px on coarse pointers and
   narrow viewports. The calendar is where this bites, and the resolution is the
   same for both of its grids: hold the column at 44px and let the grid scroll

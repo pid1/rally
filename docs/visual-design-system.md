@@ -185,7 +185,7 @@ display adds on top of a set that already works without it.
 
 The one substantive color change: `--ink-subtle` (#767676) replaced `--light-gray` (#999999) everywhere it carried text, clearing WCAG AA at 4.54:1. #999 no longer exists.
 
-Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated uppercase sizes collapsed to three related ones (C6): `.shopping-group-name` at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
+Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated uppercase sizes collapsed to three related ones (C6): `.list-group-name` at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
 
 ### 2. Layout primitives
 
@@ -202,6 +202,8 @@ Everything focusable shows a ring: one `:focus-visible` rule in the base layer, 
 `.phone-link` and `.inline-link` are the components that deliberately stay inline and under 44px: one wraps a phone number, the other a URL, found inside a line of text somebody else wrote. Each takes its size, color and italics from that line and adds only an underline. A 44px target would break the sentence around it, which is the case WCAG 2.5.8 exempts.
 
 `.rich-text` is the structure for block content that arrives as markup (paragraphs, emphasis, lists): the spacing between blocks and nothing else, with size and color inherited from wherever it sits. A Daily Note card and an event's Notes row both use it.
+
+Three list components are named for what they are rather than for the page that introduced them, and the findings above use their earlier names. `.item-checkbox` (formerly `.todo-checkbox`) is the full-size hit area around a row's checkbox, on Tasks, Shopping and a day's checklist. `.list-group` and its `-header`, `-name`, `-rule` and `-count` parts (formerly `.shopping-group`) are a titled group of rows, on Shopping, Purchased and both checklist pages; `static/list_group.js` writes the markup so no page builds it by hand. `.manage-row` (formerly `.store-manage-row`) is one editable row in a "Manage …" modal: stores, locations and checklist groups.
 
 ### 4. The toolbar
 

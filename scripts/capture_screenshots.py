@@ -302,7 +302,7 @@ def _open_event_detail(page):
 
 def _wait_for_list(page):
     """Archive pages fill their list after load; wait for the rows."""
-    page.wait_for_selector("#list-container .history-card, #groups-container .shopping-group")
+    page.wait_for_selector("#list-container .history-card, #groups-container .list-group")
     page.wait_for_timeout(300)
 
 

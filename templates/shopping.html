@@ -89,7 +89,7 @@
             <div class="modal-body">
                 <form id="store-add-form" class="form-group">
                     <label>Add a store</label>
-                    <div class="store-manage-row">
+                    <div class="manage-row">
                         <input type="text" id="store-add-name" placeholder="Store name" required>
                         <button type="submit" class="btn btn--sm">Add</button>
                     </div>
@@ -103,6 +103,7 @@
         </div>
     </div>
 
+    <script src="/static/list_group.js?v={{ css_version }}"></script>
     <script src="/static/drag_reorder.js?v={{ css_version }}"></script>
     <script>
         // ── State ──
@@ -300,20 +301,12 @@
             container.innerHTML = keys.map(key => {
                 const groupItems = [...groups.get(key)].sort(compareItems);
                 const openCount = groupItems.filter(i => !i.completed).length;
-                const countLabel = `${openCount} item${openCount === 1 ? '' : 's'}`;
-                const rows = groupItems.length === 0
-                    ? '<div class="container-empty-state">Nothing here right now.</div>'
-                    : groupItems.map(renderItemRow).join('');
-                return `
-                    <section class="shopping-group" data-group="${escapeAttr(key)}">
-                        <div class="shopping-group-header">
-                            <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
-                            <span class="shopping-group-rule"></span>
-                            <span class="shopping-group-count">${countLabel}</span>
-                        </div>
-                        <div class="list-container">${rows}</div>
-                    </section>
-                `;
+                return listGroupHtml({
+                    key,
+                    name: groupLabel(key),
+                    countLabel: `${openCount} item${openCount === 1 ? '' : 's'}`,
+                    rowsHtml: groupItems.map(renderItemRow).join(''),
+                });
             }).join('');
         }
 
@@ -336,7 +329,7 @@
                 : '';
             return `
                 <div class="editable-item ${item.completed ? 'completed' : ''}" data-id="${item.id}">
-                    <div class="todo-checkbox">
+                    <div class="item-checkbox">
                         <input type="checkbox" ${item.completed ? 'checked' : ''}
                                aria-label="Mark ${escapeAttr(item.name)} as purchased"
                                onchange="toggleComplete(${item.id}, this.checked)">
@@ -625,7 +618,7 @@
                 return;
             }
             list.innerHTML = stores.map(s => `
-                <div class="store-manage-row" data-id="${s.id}">
+                <div class="manage-row" data-id="${s.id}">
                     <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
                     <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
                     <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
@@ -636,7 +629,7 @@
         document.getElementById('store-manage-list').addEventListener('click', async (e) => {
             const button = e.target.closest('button[data-action]');
             if (!button) return;
-            const row = button.closest('.store-manage-row');
+            const row = button.closest('.manage-row');
             const storeId = parseInt(row.dataset.id, 10);
 
             if (button.dataset.action === 'rename') {
@@ -722,7 +715,7 @@
         // a store id as a string, or ANYWHERE for the catch-all.
         const dragging = initDragReorder({
             container: document.getElementById('groups-container'),
-            groupSelector: '.shopping-group',
+            groupSelector: '.list-group',
             listSelector: '.list-container',
             itemSelector: '.editable-item',
             handleSelector: '.drag-handle',

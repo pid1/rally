@@ -1,8 +1,8 @@
 /* Drag-to-reorder for grouped lists.
  *
- * Markup contract, matching what /shopping renders:
+ * Markup contract, matching what `list_group.js` writes (Shopping, a checklist):
  *
- *   [container] > .shopping-group > .list-container > .editable-item[data-id]
+ *   [container] > .list-group > .list-container > .editable-item[data-id]
  *
  * and a handle inside each row that participates. Dropping a row on another
  * group's list moves it there, so "reorder" and "change group" are one gesture.

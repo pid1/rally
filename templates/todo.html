@@ -416,7 +416,7 @@
                     const recurringIcon = todo.recurring_todo_id ? '<span class="recurring-indicator">↻</span>' : '';
                     return `
                         <div class="editable-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
-                            <div class="todo-checkbox">
+                            <div class="item-checkbox">
                                 <input type="checkbox" ${todo.completed ? 'checked' : ''} 
                                        onchange="toggleComplete(${todo.id}, this.checked)">
                             </div>
