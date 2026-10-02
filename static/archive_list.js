@@ -1,10 +1,10 @@
 /* The archive pages' shared list: search, results count and Load more.
  *
- * Used by /todo/completed, /notes/previous, /meal-planner/previous and
- * /shopping/purchased. Each of those pages is a server-paged list with the same
- * toolbar and footer, and each used to carry its own copy of this logic; one
- * copy means search and paging behave the same way on all four and are fixed
- * in one place.
+ * Used by /todo/completed, /notes/previous, /meal-planner/previous,
+ * /shopping/purchased and /packing-lists/previous. Each of those pages is a
+ * server-paged list with the same toolbar and footer, and each used to carry
+ * its own copy of this logic; one copy means search and paging behave the same
+ * way on all of them and are fixed in one place.
  *
  * Markup contract (the same element ids on every archive page):
  *

@@ -143,6 +143,41 @@ def test_first_monthly_uses_current_period_clamped():
 # --- Custom rules: _next_custom ------------------------------------------------
 
 
+# --- Daily, weekdays only: weekends are skipped ------------------------------
+
+WEEKDAYS_ONLY = {"weekdays_only": True}
+
+
+def test_daily_weekdays_only_steps_over_the_weekend():
+    # Thu 2026-10-01, Fri 10-02, then Mon 10-05: Saturday and Sunday are skipped.
+    t = rt("daily", custom_rule=WEEKDAYS_ONLY)
+    assert get_next_recurrence_date(t, date(2026, 10, 1)) == date(2026, 10, 2)
+    assert get_next_recurrence_date(t, date(2026, 10, 2)) == date(2026, 10, 5)
+    assert get_next_recurrence_date(t, date(2026, 10, 3)) == date(2026, 10, 5)
+
+
+def test_daily_weekdays_only_first_is_the_next_weekday():
+    t = rt("daily", custom_rule=WEEKDAYS_ONLY)
+    assert get_first_recurrence_date(t, date(2026, 10, 1)) == date(2026, 10, 1)
+    assert get_first_recurrence_date(t, date(2026, 10, 3)) == date(2026, 10, 5)
+    # A start date on a Sunday floors to the Monday after it.
+    starts_sunday = rt("daily", custom_rule=WEEKDAYS_ONLY, start_date="2026-10-11")
+    assert get_first_recurrence_date(starts_sunday, date(2026, 10, 1)) == date(2026, 10, 12)
+
+
+def test_daily_weekdays_only_last_is_the_weekday_before_a_weekend():
+    t = rt("daily", custom_rule=WEEKDAYS_ONLY)
+    assert get_last_recurrence_date(t, date(2026, 10, 4)) == date(2026, 10, 2)
+    assert get_last_recurrence_date(t, date(2026, 10, 5)) == date(2026, 10, 5)
+
+
+def test_plain_daily_still_lands_on_weekends():
+    assert get_next_recurrence_date(rt("daily"), date(2026, 10, 2)) == date(2026, 10, 3)
+    assert get_next_recurrence_date(
+        rt("daily", custom_rule={"weekdays_only": False}), date(2026, 10, 2)
+    ) == date(2026, 10, 3)
+
+
 def test_next_custom_daily_interval():
     assert _next_custom({"freq": "daily", "interval": 2}, date(2026, 1, 1)) == date(2026, 1, 3)
 

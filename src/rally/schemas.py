@@ -2,9 +2,16 @@
 
 import re
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from rally import markdown, member_colors, member_prefs, notification_prefs, rich_text
 
@@ -1163,11 +1170,11 @@ class PrepReviewResponse(BaseModel):
     created_at: datetime
 
 
-# --- Checklists ------------------------------------------------------------------
+# --- Packing Lists ------------------------------------------------------------------
 
-# When a day's copy of a checklist should be packed. Only the daily summary acts
-# on it; nothing is hidden or locked by it.
-PackTiming = Literal["day_of", "day_before"]
+# How many days ahead a day's packing list is packed: 0 is the day itself. Only
+# the daily summary and the pack line act on it; nothing is hidden or locked.
+PackDaysBefore = Annotated[int, Field(ge=0)]
 
 
 def _require_name(value: str) -> str:
@@ -1199,10 +1206,10 @@ def _blank_to_none(value: str | None) -> str | None:
     return value or None
 
 
-class ChecklistCreate(BaseModel):
+class PackingListCreate(BaseModel):
     name: str
     description: str | None = None
-    pack_timing: PackTiming = "day_of"
+    pack_days_before: PackDaysBefore = 0
 
     @field_validator("name")
     @classmethod
@@ -1215,10 +1222,10 @@ class ChecklistCreate(BaseModel):
         return _blank_to_none(value)
 
 
-class ChecklistUpdate(BaseModel):
+class PackingListUpdate(BaseModel):
     name: str | None = None
     description: str | None = UNSET  # None means "clear"; UNSET means "not provided"
-    pack_timing: PackTiming | None = None
+    pack_days_before: PackDaysBefore | None = None
 
     @field_validator("name")
     @classmethod
@@ -1231,7 +1238,7 @@ class ChecklistUpdate(BaseModel):
         return _blank_to_none(value)
 
 
-class ChecklistGroupCreate(BaseModel):
+class PackingListBagCreate(BaseModel):
     name: str
 
     @field_validator("name")
@@ -1240,53 +1247,81 @@ class ChecklistGroupCreate(BaseModel):
         return _require_name(value)
 
 
-class ChecklistGroupUpdate(ChecklistGroupCreate):
+class PackingListBagUpdate(PackingListBagCreate):
     pass
 
 
-class ChecklistGroupResponse(BaseModel):
+class PackingListBagResponse(BaseModel):
     id: int
     name: str
-    sort_order: int
+    item_count: int = 0  # Template items in it, across every packing list
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class ChecklistItemCreate(BaseModel):
+class PackingListItemCreate(BaseModel):
+    """An item, on a template or on one day.
+
+    The bag comes as a name (``bag``), typed on the item: a name already in
+    the household's list, in any case, is that bag, and a new one joins the
+    list. ``bag_id`` names one that exists; sending both is a ``422``.
+    ``owner_id`` is a family member; ``None`` is Everyone.
+    """
+
     name: str
     note: str | None = None
-    group_id: int | None = None  # None is the "General" catch-all
+    owner_id: int | None = None
+    bag: str | None = None
+    bag_id: int | None = None
 
     @field_validator("name")
     @classmethod
     def _validate_name(cls, value: str) -> str:
         return _require_name(value)
 
-    @field_validator("note")
+    @field_validator("note", "bag")
     @classmethod
-    def _validate_note(cls, value: str | None) -> str | None:
+    def _validate_blank(cls, value: str | None) -> str | None:
         return _blank_to_none(value)
 
+    @model_validator(mode="after")
+    def _one_bag(self):
+        if self.bag is not None and self.bag_id is not None:
+            raise ValueError("Send a bag by name or by id, not both.")
+        return self
 
-class ChecklistItemUpdate(BaseModel):
+
+class PackingListItemUpdate(BaseModel):
+    """A partial edit. ``note``, ``owner_id``, ``bag`` and ``bag_id`` use
+    ``UNSET``: left out, they stay; ``null`` clears (Everyone, No bag)."""
+
     name: str | None = None
-    note: str | None = UNSET  # None means "clear"; UNSET means "not provided"
-    group_id: int | None = UNSET  # None means "General"; UNSET means "not provided"
+    note: str | None = UNSET
+    owner_id: int | None = UNSET
+    bag: str | None = UNSET
+    bag_id: int | None = UNSET
 
     @field_validator("name")
     @classmethod
     def _validate_name(cls, value: str | None) -> str | None:
         return None if value is None else _require_name(value)
 
-    @field_validator("note")
+    @field_validator("note", "bag")
     @classmethod
-    def _validate_note(cls, value: str | None) -> str | None:
+    def _validate_blank(cls, value: str | None) -> str | None:
         return _blank_to_none(value)
 
+    @model_validator(mode="after")
+    def _one_bag(self):
+        if self.bag is not UNSET and self.bag_id is not UNSET:
+            raise ValueError("Send a bag by name or by id, not both.")
+        return self
 
-class ChecklistItemResponse(BaseModel):
+
+class PackingListItemResponse(BaseModel):
     id: int
-    group_id: int | None = None
+    owner_id: int | None = None
+    bag_id: int | None = None
     name: str
     note: str | None = None
     sort_order: int
@@ -1294,40 +1329,54 @@ class ChecklistItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ChecklistReorder(BaseModel):
-    """One group of a checklist as it should now read, top to bottom.
+class PackingListReorder(BaseModel):
+    """One group of a packing list, in one view, as it should now read.
 
-    The same contract as ``ShoppingReorder``: ``group_id`` is the destination,
-    so dragging an item into another group is a reorder whose payload happens to
-    name an item that used to live elsewhere.
+    ``view`` says what the groups are — owners or bags — and ``key`` which one
+    the items were dropped in (``None`` is Everyone, or No bag). Every listed
+    item takes that owner or bag, so dragging into another group is a reorder
+    whose payload names an item that used to live elsewhere: the
+    ``ShoppingReorder`` contract, one level up.
     """
 
-    group_id: int | None = None  # None is the "General" catch-all
+    view: Literal["owner", "bag"]
+    key: int | None = None
     item_ids: list[int]
 
 
-class ChecklistSummary(BaseModel):
-    """A row on the Checklists page."""
+class PackingListSuggestion(BaseModel):
+    """An item name from history, with the owner and bag it last had."""
+
+    id: int
+    name: str
+    owner_id: int | None = None
+    bag_id: int | None = None
+    bag_name: str | None = None
+    times_added: int
+
+
+class PackingListSummary(BaseModel):
+    """A row on the Packing Lists page."""
 
     id: int
     name: str
     description: str | None = None
-    pack_timing: PackTiming
+    pack_days_before: int
     item_count: int
-    group_count: int
     day_count: int  # Every day it is on, past included — what deleting it would remove
     upcoming_days: int  # Days from today on
 
 
-class ChecklistResponse(ChecklistSummary):
-    """A checklist with its groups and items, each in display order."""
+class PackingListResponse(PackingListSummary):
+    """A packing list with its items, in order, and the schedule it repeats on
+    (``None`` when it does not)."""
 
-    groups: list[ChecklistGroupResponse]
-    items: list[ChecklistItemResponse]
+    items: list[PackingListItemResponse]
+    schedule: PackingListScheduleResponse | None = None
 
 
-class ChecklistDayCreate(BaseModel):
-    checklist_id: int
+class PackingListDayCreate(BaseModel):
+    packing_list_id: int
     date: str  # YYYY-MM-DD
     label: str | None = None
 
@@ -1342,9 +1391,12 @@ class ChecklistDayCreate(BaseModel):
         return _blank_to_none(value)
 
 
-class ChecklistDayUpdate(BaseModel):
+class PackingListDayUpdate(BaseModel):
     date: str | None = None
     label: str | None = UNSET  # None means "clear"; UNSET means "not provided"
+    # This day's own lead time. None follows the packing list template again;
+    # UNSET leaves it as it is.
+    pack_days_before: PackDaysBefore | None = UNSET
 
     @field_validator("date")
     @classmethod
@@ -1357,30 +1409,161 @@ class ChecklistDayUpdate(BaseModel):
         return _blank_to_none(value)
 
 
-class ChecklistDaySummary(BaseModel):
-    """A day's checklist as a row: what it is, when, and how far along."""
+class PackingListDaySummary(BaseModel):
+    """A day's packing list as a row: what it is, when, and how far along."""
 
     id: int
-    checklist_id: int
-    checklist_name: str
+    packing_list_id: int
+    packing_list_name: str
     date: str
     label: str | None = None
-    pack_timing: PackTiming
-    pack_date: str  # The day it should be packed: the date itself, or the day before
+    packing_list_description: str | None = None
+    pack_days_before: int  # In effect for this day: its own, or the template's
+    pack_date: str  # The day it should be packed: the date itself, or that many days before
+    schedule_id: int | None = None  # The schedule that put it there; None when added by hand
     total: int
     checked: int
+    # Items this day differs from its template on: edited, removed or added.
+    changed_count: int = 0
 
 
-class ChecklistDayItem(ChecklistItemResponse):
+class PackingListDayItemResponse(BaseModel):
+    """One item as it reads on one day, after the day's own changes.
+
+    ``source`` says which endpoint edits it: ``packing_list`` is a packing list item
+    (``/items/{id}``, ``id`` is the packing list item's), ``day`` is an item only
+    this day has (``/day-items/{id}``). ``changed`` marks a packing list item this
+    day has edited, which a later edit to the packing list no longer reaches.
+    """
+
+    id: int
+    source: Literal["packing_list", "day"]
+    owner_id: int | None = None
+    bag_id: int | None = None
+    name: str
+    note: str | None = None
+    sort_order: int
     checked: bool
+    changed: bool = False
 
 
-class ChecklistDayResponse(ChecklistDaySummary):
-    """The day's checklist itself: the checklist's groups and items, with checks."""
+class PackingListDayResponse(PackingListDaySummary):
+    """The day's packing list itself: its items as this day has them, with checks."""
 
-    groups: list[ChecklistGroupResponse]
-    items: list[ChecklistDayItem]
+    items: list[PackingListDayItemResponse]
 
 
-class ChecklistCheck(BaseModel):
-    checked: bool
+class PackingListDayItemCreate(PackingListItemCreate):
+    """An item only one day has: a name, and optionally a note, owner and bag."""
+
+
+class PackingListDayItemUpdate(PackingListItemUpdate):
+    """Check, edit, or both, for an item on one day — a template item or one
+    the day added. Partial, like an item update. An edit changes the item on
+    this day only; the template keeps its own."""
+
+    checked: bool | None = None
+
+
+# The rule shapes ``rally.recurrence`` understands. Validated here rather than
+# trusted, because a rule nothing can read would make a schedule that silently
+# never puts anything on a day.
+RecurrenceType = Literal["daily", "weekly", "monthly", "custom"]
+
+
+def check_recurrence_rule(
+    recurrence_type: str, recurrence_day: int | None, custom_rule: dict | None
+):
+    if recurrence_type == "weekly" and not (
+        recurrence_day is not None and 0 <= recurrence_day <= 6
+    ):
+        raise ValueError("A weekly schedule needs a day of the week.")
+    if recurrence_type == "monthly" and not (
+        recurrence_day is not None and 1 <= recurrence_day <= 31
+    ):
+        raise ValueError("A monthly schedule needs a day of the month.")
+    if recurrence_type == "custom":
+        freq = (custom_rule or {}).get("freq")
+        if freq not in ("daily", "weekly", "monthly"):
+            raise ValueError("A custom schedule needs a rule.")
+        if freq == "weekly" and not custom_rule.get("weekdays"):
+            raise ValueError("A custom weekly schedule needs at least one day of the week.")
+        if freq == "monthly" and not (
+            (custom_rule.get("mode", "day") == "day" and custom_rule.get("day"))
+            or (custom_rule.get("ordinal") and custom_rule.get("weekday") is not None)
+        ):
+            raise ValueError("A custom monthly schedule needs a day of the month or a weekday.")
+
+
+def check_date_range(start_date: str | None, end_date: str | None):
+    if start_date and end_date and end_date < start_date:
+        raise ValueError("The end date can't be before the start date.")
+
+
+class PackingListScheduleCreate(BaseModel):
+    packing_list_id: int
+    recurrence_type: RecurrenceType
+    recurrence_day: int | None = None  # 0-6 (Monday first) for weekly, 1-31 for monthly
+    custom_rule: dict | None = None
+    start_date: str | None = None  # YYYY-MM-DD; None means "from today"
+    end_date: str | None = None  # YYYY-MM-DD, inclusive; None means "no end"
+    label: str | None = None
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _validate_dates(cls, value: str | None) -> str | None:
+        return _require_iso_date(value) if value else None
+
+    @field_validator("label")
+    @classmethod
+    def _validate_label(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+    @model_validator(mode="after")
+    def _validate_rule(self):
+        check_recurrence_rule(self.recurrence_type, self.recurrence_day, self.custom_rule)
+        check_date_range(self.start_date, self.end_date)
+        return self
+
+
+class PackingListScheduleUpdate(BaseModel):
+    """A partial edit. The rule is re-checked against the merged schedule."""
+
+    packing_list_id: int | None = None
+    recurrence_type: RecurrenceType | None = None
+    recurrence_day: int | None = UNSET  # None means "clear"; UNSET means "not provided"
+    custom_rule: dict | None = UNSET
+    start_date: str | None = UNSET
+    end_date: str | None = UNSET
+    label: str | None = UNSET
+    active: bool | None = None
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _validate_dates(cls, value: str | None) -> str | None:
+        if value is UNSET:
+            return value
+        return _require_iso_date(value) if value else None
+
+    @field_validator("label")
+    @classmethod
+    def _validate_label(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class PackingListScheduleResponse(BaseModel):
+    id: int
+    packing_list_id: int
+    packing_list_name: str
+    recurrence_type: str
+    recurrence_day: int | None = None
+    custom_rule: dict | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    label: str | None = None
+    active: bool
+    last_generated_date: str | None = None
+
+
+# PackingListResponse names the schedule before it is defined.
+PackingListResponse.model_rebuild()

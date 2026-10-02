@@ -44,11 +44,8 @@ PAGES = {
     "notes-previous": "/notes/previous",
     "meal-planner": "/meal-planner",
     "meal-planner-previous": "/meal-planner/previous",
-    "checklists": "/checklists",
-    # The seed's first checklist and first day: Swim at Nana's, grouped by
-    # person, on the coming Saturday with a few items already packed.
-    "checklist-edit": "/checklists/1",
-    "checklist-day": "/checklists/days/1",
+    "packing_lists": "/packing-lists",
+    "packing-lists-previous": "/packing-lists/previous",
     "preparedness": "/preparedness",
     "go-list": "/go-list",
     "settings": "/settings",

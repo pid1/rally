@@ -1,0 +1,110 @@
+{#- The repeat controls: Daily, Weekly, Monthly and Custom, shared by every
+    "Add Recurring" modal (Recurring Tasks on /todo, schedules on /packing-lists).
+    Behavior lives in /static/recurrence_form.js, and the rule they compile is
+    the one shape rally.recurrence reads.
+
+    The ids are fixed rather than prefixed: one page never holds two of these.
+    Set task_options to show the control that only means something for a
+    task, whose next instance can follow a completion: "calculate next due
+    date from".
+
+    "Schedule on weekdays only" appears twice and means two things, on
+    purpose: under Daily it skips Saturday and Sunday; under Custom, every N
+    days, it moves a weekend date to the following Monday. Each page passes
+    the Custom one's hover text as weekdays_only_title, worded for what that
+    page schedules. -#}
+<div class="form-group">
+    <label>Recurrence</label>
+    <select id="recurring-type" required>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="custom">Custom</option>
+    </select>
+</div>
+<div class="form-group" id="daily-weekdays-only-group">
+    <label class="checkbox-label">
+        <input type="checkbox" id="daily-weekdays-only">
+        Schedule on weekdays only
+    </label>
+</div>
+<div class="form-group" id="recurring-day-group" style="display:none;">
+    <label id="recurring-day-label">Day</label>
+    <select id="recurring-day"></select>
+</div>
+<div id="recurring-custom-group" style="display:none;">
+    <div class="form-group">
+        <label>Repeat every</label>
+        <div class="custom-recurrence-row">
+            <input type="number" id="custom-interval" min="1" value="1" class="remind-days-input">
+            <select id="custom-freq" style="flex:1;">
+                <option value="daily">Days</option>
+                <option value="weekly">Weeks</option>
+                <option value="monthly">Months</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-group" id="custom-weekdays-only-group" style="display:none;">
+        <label title="{{ weekdays_only_title }}">
+            <input type="checkbox" id="custom-weekdays-only">
+            Schedule on weekdays only
+        </label>
+    </div>
+{% if task_options %}
+    <div class="form-group" id="custom-next-due-from-group" style="display:none;">
+        <label title="&quot;Due date of the last task&quot; keeps the original cadence — the interval after the last task's due date — but if that date has already passed, it falls back to the interval after completion so a task is never created already overdue. &quot;Date the last task was completed&quot; schedules the next task the interval after you finish the last one.">Calculate next due date from:</label>
+        <div class="radio-options">
+            <label>
+                <input type="radio" name="custom-next-due-from" value="due_date" checked>
+                Due date of the last task
+            </label>
+            <label>
+                <input type="radio" name="custom-next-due-from" value="completion_date">
+                Date the last task was completed
+            </label>
+        </div>
+    </div>
+{% endif %}
+    <div class="form-group" id="custom-weekly-group" style="display:none;">
+        <label>On</label>
+        <div class="weekday-checkboxes" id="custom-weekdays">
+            <label class="weekday-label"><input type="checkbox" value="0"> Mon</label>
+            <label class="weekday-label"><input type="checkbox" value="1"> Tue</label>
+            <label class="weekday-label"><input type="checkbox" value="2"> Wed</label>
+            <label class="weekday-label"><input type="checkbox" value="3"> Thu</label>
+            <label class="weekday-label"><input type="checkbox" value="4"> Fri</label>
+            <label class="weekday-label"><input type="checkbox" value="5"> Sat</label>
+            <label class="weekday-label"><input type="checkbox" value="6"> Sun</label>
+        </div>
+    </div>
+    <div class="form-group" id="custom-monthly-group" style="display:none;">
+        <label>On</label>
+        <div class="radio-options" style="margin-bottom:8px;">
+            <label><input type="radio" name="custom-monthly-mode" value="day" checked> Day of month</label>
+            <label><input type="radio" name="custom-monthly-mode" value="weekday"> Relative weekday</label>
+        </div>
+        <div id="custom-monthly-day-group">
+            <select id="custom-monthly-day"></select>
+        </div>
+        <div id="custom-monthly-weekday-group" style="display:none;">
+            <div class="custom-recurrence-row">
+                <select id="custom-ordinal" style="flex:1;">
+                    <option value="first">First</option>
+                    <option value="second">Second</option>
+                    <option value="third">Third</option>
+                    <option value="fourth">Fourth</option>
+                    <option value="last">Last</option>
+                </select>
+                <select id="custom-weekday" style="flex:1;">
+                    <option value="0">Monday</option>
+                    <option value="1">Tuesday</option>
+                    <option value="2">Wednesday</option>
+                    <option value="3">Thursday</option>
+                    <option value="4">Friday</option>
+                    <option value="5">Saturday</option>
+                    <option value="6">Sunday</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>

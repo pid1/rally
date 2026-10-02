@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from rally import member_colors, member_prefs, notification_prefs
+from rally import member_colors, member_prefs, notification_prefs, packing_lists
 from rally.database import get_db
 from rally.models import Calendar, FamilyMember
 from rally.schemas import UNSET, FamilyMemberCreate, FamilyMemberResponse, FamilyMemberUpdate
@@ -136,6 +136,9 @@ def delete_family_member(member_id: int, db: Session = Depends(get_db)):
     # a member and a device with a foreign key to neither, so nothing else will
     # ever collect them.
     member_prefs.delete_member_preferences(db, member_id)
+    # What they owned on any packing list becomes Everyone's rather than pointing
+    # at nobody.
+    packing_lists.clear_member(db, member_id)
     db.delete(db_member)
     db.commit()
     return None

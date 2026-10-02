@@ -24,7 +24,7 @@ SIDEBAR_ORDER = [
     ("/calendar", "Calendar"),
     ("/notes", "Notes"),
     ("/meal-planner", "Meal Planner"),
-    ("/checklists", "Checklists"),
+    ("/packing-lists", "Packing Lists"),
     ("/preparedness", "Preparedness"),
     ("/settings", "Settings"),
 ]
@@ -38,9 +38,10 @@ PAGES = {
     "/calendar": ("Calendar", "/calendar"),
     "/notes": ("Notes", "/notes"),
     "/notes/previous": ("Previous Notes", "/notes"),
+    "/packing-lists/previous": ("Previous Packing Lists", "/packing-lists"),
     "/meal-planner": ("Meal Planner", "/meal-planner"),
     "/meal-planner/previous": ("Previous Meals", "/meal-planner"),
-    "/checklists": ("Checklists", "/checklists"),
+    "/packing-lists": ("Packing Lists", "/packing-lists"),
     "/preparedness": ("Preparedness", "/preparedness"),
     "/go-list": ("Go List", "/preparedness"),
     "/settings": ("Settings", "/settings"),
@@ -67,7 +68,7 @@ def _links(sidebar: str) -> list[tuple[str, str, bool]]:
 @pytest.mark.parametrize("path", ALL_PATHS)
 def test_every_page_carries_the_sidebar_in_order(client, path):
     """Every page link in the order they had across the row and the dropdown,
-    with Checklists after Meal Planner and Settings moved up from the footer
+    with Packing Lists after Meal Planner and Settings moved up from the footer
     to the end."""
     html = client.get(path).text
     links = _links(_sidebar(html))
@@ -105,26 +106,15 @@ def test_each_page_marks_itself_or_its_parent(client, path, expected):
     assert current == ([expected] if expected else []), path
 
 
-def test_a_checklist_and_a_day_mark_checklists(client):
-    """The two checklist subpages need a row to exist, so they are seeded here
-    rather than listed in PAGES."""
-    checklist = client.post("/api/checklists", json={"name": "Beach day"}).json()
+def test_the_retired_packing_list_pages_are_gone(client):
+    """A packing list is edited, and a day checked off, in place on /packing-lists:
+    both pages that used to hold them were retired rather than redirected."""
+    packing_list = client.post("/api/packing-lists", json={"name": "Beach day"}).json()
     day = client.post(
-        "/api/checklist-days", json={"checklist_id": checklist["id"], "date": "2999-01-01"}
+        "/api/packing-list-days", json={"packing_list_id": packing_list["id"], "date": "2999-01-01"}
     ).json()
-    for path, title in (
-        (f"/checklists/{checklist['id']}", "Edit Checklist"),
-        (f"/checklists/days/{day['id']}", "Checklist"),
-    ):
-        html = client.get(path).text
-        current = [href for href, _, cur in _links(_sidebar(html)) if cur]
-        assert current == ["/checklists"], path
-        assert f"<title>Rally — {title}</title>" in html
-
-
-def test_a_missing_checklist_or_day_is_a_404(client):
-    assert client.get("/checklists/999").status_code == 404
-    assert client.get("/checklists/days/999").status_code == 404
+    assert client.get(f"/packing-lists/{packing_list['id']}").status_code == 404
+    assert client.get(f"/packing-lists/days/{day['id']}").status_code == 404
 
 
 def test_the_dashboard_marks_itself(client):

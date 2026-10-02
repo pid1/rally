@@ -12,6 +12,33 @@ from sqlalchemy.orm import Session
 from rally.models import RecurringTodo, Todo
 from rally.utils.timezone import today_utc
 
+# ── Daily, weekdays only ─────────────────────────────────────────────────────
+#
+# The built-in Daily rule can skip weekends: ``custom_rule`` carries
+# ``{"weekdays_only": true}`` alongside ``recurrence_type == "daily"``. A
+# Saturday or Sunday is simply not a day it lands on. (Custom "every N days"
+# with weekdays only is different: it *moves* a weekend date to Monday, see
+# ``_next_custom``.)
+
+
+def _daily_weekdays_only(rt: RecurringTodo) -> bool:
+    return bool(rt.custom_rule and rt.custom_rule.get("weekdays_only"))
+
+
+def _on_or_after_weekday(day: date) -> date:
+    """The first Monday-to-Friday date on or after ``day``."""
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return day
+
+
+def _on_or_before_weekday(day: date) -> date:
+    """The last Monday-to-Friday date on or before ``day``."""
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
+
+
 # ── Custom rule helpers ──────────────────────────────────────────────────────
 
 
@@ -189,7 +216,7 @@ def _first_custom(rule: dict, today: date) -> date:
 def get_last_recurrence_date(rt: RecurringTodo, today: date) -> date:
     """Get the most recent date this recurrence should have fired."""
     if rt.recurrence_type == "daily":
-        return today
+        return _on_or_before_weekday(today) if _daily_weekdays_only(rt) else today
     elif rt.recurrence_type == "weekly":
         day = rt.recurrence_day or 0
         days_since = (today.weekday() - day) % 7
@@ -216,7 +243,8 @@ def get_next_recurrence_date(rt: RecurringTodo, after_date: date) -> date:
     completing or deleting a recurring todo instance.
     """
     if rt.recurrence_type == "daily":
-        return after_date + timedelta(days=1)
+        following = after_date + timedelta(days=1)
+        return _on_or_after_weekday(following) if _daily_weekdays_only(rt) else following
     elif rt.recurrence_type == "weekly":
         day = rt.recurrence_day or 0
         days_until = (day - after_date.weekday()) % 7
@@ -265,7 +293,7 @@ def get_first_recurrence_date(rt: RecurringTodo, today: date) -> date:
     today = max(today, start) if start else today
 
     if rt.recurrence_type == "daily":
-        return today
+        return _on_or_after_weekday(today) if _daily_weekdays_only(rt) else today
     elif rt.recurrence_type == "weekly":
         day = rt.recurrence_day or 0
         days_until = (day - today.weekday()) % 7

@@ -17,10 +17,13 @@ MEASURE_JS = r"""
     };
   };
   // A closed sidebar keeps its box, parked off-canvas; `visibility` is what
-  // takes it off the page, so it counts as not visible here too.
+  // takes it off the page, so it counts as not visible here too. The inside
+  // of a closed <details> ("View more") keeps a box as well, behind
+  // `content-visibility`, which only `checkVisibility()` reports.
   const visible = (el) => {
     const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'
+      && (!el.checkVisibility || el.checkVisibility());
   };
 
   const root = getComputedStyle(document.documentElement);

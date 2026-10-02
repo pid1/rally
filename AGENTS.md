@@ -422,7 +422,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 
 - `031_add_device_preferences` - Add the `devices` and `member_preferences` tables plus their indexes, including the unique index on `(family_member_id, device_id, pref_key)`. Per-family-member *behavioral* settings, answered once per device — what a screen does when one person opens it, as opposed to migration 027, which decides who hears about what. The first setting is the calendar's landing view. `devices.id` is TEXT because the browser mints the token itself and has to keep using the same one, which a server-assigned id cannot do without a round trip before the first paint. Purely additive and it writes **no rows**: an absent row means the setting's default, which is always `auto` — Rally's own rule, the behavior that predates the table — so upgrading moves nobody's screen
 - `032_add_event_override_calendar` - Add `event_overrides.calendar_id`. Which calendar an event sits on decides its color, its owner's name and — when nobody was named explicitly — its attendee list, which is what the member filter matches on. That was a property of the *series* alone, so "put this one Tuesday on Sam's calendar" had nowhere to live. NULL means **inherit from the series**, the rule every other nullable column in the table already follows, which is why this writes **no rows**: an existing override keeps NULL and resolves to exactly the calendar it renders on today. No foreign key, matching `event_attendees` and `member_notification_prefs` — a stray id is handled where it is read instead, and a deleted calendar degrades to "on the series' calendar" rather than to an occurrence with no color and no filter that matches it
-- `034_add_checklists` - Add the `checklists`, `checklist_groups`, `checklist_items`, `checklist_days` and `checklist_day_checks` tables plus their indexes. The unique indexes carry rules the API relies on: one checklist per name and one group per name within a checklist (both case-insensitive), one copy of a checklist per day, one check per item per day. Purely additive and writes **no rows**
+- `034_add_packing_lists` - Add the `packing_lists`, `packing_list_bags`, `packing_list_items`, `packing_list_item_history`, `packing_list_schedules`, `packing_list_days`, `packing_list_day_items` and `packing_list_day_checks` tables plus their indexes. The unique indexes carry rules the API relies on: one template per name and one bag per name (both case-insensitive), one schedule per template, one copy of a template per day, one check per item per day, one reading of a template item per day (a partial index, since a day's own items have no `item_id`), and one history row per item name. `packing_lists.pack_days_before` is `CHECK >= 0`. Purely additive and writes **no rows**
 
 ### Running Migrations
 
@@ -566,7 +566,7 @@ rally/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI application
 │   ├── database.py       # SQLAlchemy database setup
-│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, MealPlan, Note, Checklist, ChecklistGroup, ChecklistItem, ChecklistDay, ChecklistDayCheck)
+│   ├── models.py         # Database models (FamilyMember, Calendar, Event, EventAttendee, EventOverride, EventNotification, Setting, AISettingsHistory, LLMSettingsHistory, StemConceptHistory, DashboardSnapshot, Todo, RecurringTodo, ShoppingStore, ShoppingItem, ShoppingItemHistory, MemberNotificationPref, Device, MemberPreference, MealPlan, Note, PackingList, PackingListBag, PackingListItem, PackingListItemHistory, PackingListSchedule, PackingListDay, PackingListDayItem, PackingListDayCheck)
 │   ├── schemas.py        # Pydantic schemas
 │   ├── cli.py            # CLI commands (seed, etc.)
 │   ├── recurrence.py     # Recurring todo processing (template → instance generation, next-date calculation)
@@ -577,7 +577,7 @@ rally/
 │   ├── todo_notifications.py # The push that goes to a task's assignee when it lands on their list
 │   ├── shopping_notifications.py # Batched "added to the shopping list" pushes, behind a settle window
 │   ├── preparedness.py   # Refresh schedule arithmetic and the daily refresh digest
-│   ├── checklists.py     # Checklist display order, progress counts, pack dates, the delete cascade and the summary's CHECKLISTS text
+│   ├── packing_lists.py     # Packing list item order, a day's overlay (`resolve_day`), pack dates, bags, item history, the delete cascades, schedule processing and the summary's PACKING LISTS text
 │   ├── golist.py         # Go list grouping plus the md/csv/pdf renderers
 │   ├── markdown.py       # The one markdown renderer: a note's bold/italic/lists, nothing else
 │   ├── rich_text.py      # An event's Notes as paragraphs, line breaks and links: a plain-text path and an allowlist HTML converter
@@ -609,17 +609,19 @@ rally/
 │       ├── recurring_todos.py # Recurring todo template CRUD API
 │       ├── meal_planner.py  # Meal plan CRUD API, plus the paged previous-meals archive
 │       ├── notes.py        # Daily Note CRUD API plus the searchable previous-notes page
-│       ├── checklists.py   # Checklist, group and item API (/api/checklists) and days with their checks (/api/checklist-days)
+│       ├── packing_lists.py   # Packing list templates and items (/api/packing-lists), bags (/api/packing-list-bags), item suggestions (/api/packing-list-items), days with their checks and own changes (/api/packing-list-days) and schedules (/api/packing-list-schedules)
 │       ├── family.py        # Family member CRUD API
 │       ├── devices.py       # Device registry and the per-device behavioral settings API
 │       └── settings.py      # Settings and calendar management API
 ├── static/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
-│   ├── modal.js             # Shared modal chassis: scroll fade, show/hide
+│   ├── modal.js             # Shared modal chassis: scroll fade, show/hide, and the page scroll lock behind an open modal
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
-│   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists
+│   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists, optionally fenced to a `scope`
 │   ├── list_group.js        # listGroupHtml(): the markup for one titled group of rows (.list-group)
-│   ├── checklists.js        # What the checklist pages share: date and progress wording, group order, a JSON fetch helper
+│   ├── packing_lists.js        # What the packing list pages share: date, pack-day and progress wording, grouping by owner or bag, a day box and its entries, a JSON fetch helper
+│   ├── autocomplete.js      # attachAutocomplete(): a text field's suggestion menu (Shopping item names; packing list item names and bags)
+│   ├── recurrence_form.js   # The shared repeat controls (Daily/Weekly/Monthly/Custom): rule in, rule out, read-back line
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
 │   ├── archive_list.js      # The archive pages' shared search, results count and Load more
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
@@ -635,9 +637,9 @@ rally/
 │   ├── notes.html           # Notes page: one Daily Note per day, today onward
 │   ├── notes_previous.html  # Read-only, searchable archive of past Daily Notes
 │   ├── _note_edit_modal.html # Shared note add/edit modal
-│   ├── checklists.html      # Checklists: days coming up, and the reusable checklists
-│   ├── checklist_edit.html  # One checklist: its items by group, drag to reorder, manage groups
-│   ├── checklist_day.html   # One day's copy of a checklist, checked off while packing
+│   ├── packing_lists.html      # Packing Lists: day boxes coming up, the packing list templates with their items and schedules, and the Schedule, Edit Packing List, item and Manage Bags modals
+│   ├── packing_lists_previous.html # Read-only, searchable archive of past days' packing lists
+│   ├── _recurrence_fields.html # The repeat controls shared by Recurring Tasks and packing list schedules
 │   └── settings.html        # Settings, family member, and calendar management page
 ├── config.toml.example   # Example configuration file
 ├── context.txt.example   # Example family context
@@ -669,7 +671,7 @@ rally/
 │   ├── migrate_027_add_member_notification_prefs.py # Migration 027: per-member notification preferences
 │   ├── migrate_031_add_device_preferences.py # Migration 031: device registry and per-device behavioral settings
 │   ├── migrate_033_add_notes.py # Migration 033: add notes table (one Daily Note per day)
-│   ├── migrate_034_add_checklists.py # Migration 034: checklists, their groups, items, days and checks
+│   ├── migrate_034_add_packing_lists.py # Migration 034: packing list templates, bags, items, item history, schedules, days, a day's own changes and checks
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium
@@ -712,18 +714,30 @@ rally/
   - `body_html` is inserted into the DOM as markup rather than through a page's `escapeHtml()`. It is one of only two values in Rally that render rather than escape (the other is an event's `description_html`, below), which is why the renderer config has a test per property
   - The day boundary is `utils.settings.today_local_str()` — the single helper for "today's local date as a `YYYY-MM-DD` string", used by Notes, the Meal Planner, the dashboard's note lookup and the shopping purge marker. The Meal Planner and the shopping purge each carried their own copy before this; consolidating them is why a date column can no longer mean two different days in two places. Use `today_local()` directly only when you need a `date` for arithmetic rather than a string to compare
   - Phone links are deliberately **not** applied to notes — see issue #230. `escapeHtmlWithPhoneLinks()` cannot simply be called on either the markdown or the rendered HTML
-- ✅ **Checklists** (`/checklists`) — reusable packing lists, put on a day and checked off there (#249)
-  - A `Checklist` is the master: a name, an optional description, `pack_timing` (`day_of` or `day_before`), optional named **groups** (usually people) and its items. Items in no group have `group_id IS NULL` and read as **General**, the `store_id IS NULL` convention
-  - A `ChecklistDay` puts a checklist on a date and holds **no items of its own** — only `ChecklistDayCheck` rows, one per item checked on that day. Both rules the feature exists for follow from that shape with no code to enforce them: an edit to the checklist (add, rename, regroup, reorder, delete) is on every day it is on, and a check on one day cannot reach the checklist or any other day, because neither has a column for it to write. Do not add a copy step; there is nothing to sync and syncing is where a merge rule goes wrong
-  - Days include past ones, which therefore show the checklist as it is now. Freezing a past trip's list is deliberately out of scope
-  - SQLite does not enforce the references, so every delete cascades by hand: a checklist takes its groups, items, days and checks (`checklists.delete_checklist`); an item takes its checks; a day takes its checks; a group's items move to the bottom of General rather than going with it
-  - A group reference must be one of **that checklist's** groups (`_require_group`), and an item can only be checked on a day of its own checklist. An item whose group no longer exists is filed under General on read (`effective_group_id`) rather than dropped from every day
-  - Progress counts join checks to items that still exist, so a stray check can never report "15 of 14 packed"
-  - Items are ordered per group by `sort_order`, compared and never assumed contiguous, the `shopping_items.sort_order` contract. A new item, and an item moved to another group, goes to the **bottom** of its group: a packing list is entered and read top to bottom. `POST /api/checklists/{id}/items/reorder` is the shopping reorder contract (destination group, all-or-nothing, duplicates keep their first mention)
-  - A checklist goes on today or later (`422` otherwise) and once per day (`409` with `{message, id}`, the Notes shape, so the page opens the existing day). The boundary is `today_local_str()`
-  - **Group by person** (`POST /api/checklists/{id}/groups/members`) adds a group per family member who has none, matched by name ignoring case. Groups are free text rather than member references because a group is as often "Cooler" as a name
-  - On a day's checklist a checked row stays where it is, dimmed: packing goes in list order and a row that jumps to the bottom loses people's place. The progress line is an `aria-live` status; a tick re-renders only the counts so focus stays on the box. The page refetches every minute for a second person packing on another device, but never mid-save or while a checkbox has focus
-  - **In the daily summary** (`checklists_in_summary_enabled`, default on): `checklists.summary_text()` lists every day's checklist from today through `SUMMARY_LOOKAHEAD_DAYS` (7) that still has something unchecked, with only the unchecked items under their groups and a status of `PACK TODAY` (today is the pack date), `TODAY`, or `UPCOMING (in N days)`. An item whose trimmed, casefolded name is open on the shopping list is marked `(already on the shopping list)` — the whole name, the same key shopping history dedupes on, because a fuzzy match that wrongly said "sunscreen is handled" is worse than none. The `CHECKLISTS` guideline asks for a packing reminder on the packing day, restocking and hard-to-get flags early enough to act, an `UPCOMING` checklist mentioned only for those flags, and nothing that is not in the section. Section and guideline are omitted when empty, and the text is eval ground truth
+- ✅ **Packing Lists** (`/packing-lists`) — reusable packing lists, put on a day and checked off there (#249)
+  - A `PackingList` is the **template**: a name, an optional description and `pack_days_before` (a whole number, `0` = pack the day of), plus its items. An item has a name, an optional note, an optional **owner** (a family member; none reads as **Everyone**) and an optional **bag** (none reads as **No bag**), and one `sort_order` for the whole template
+  - **Bags are one household list** (`packing_list_bags`), shared by every template, because the pool bag is the same pool bag on every list. A bag comes into being by being typed on an item (`bag_named`, matched ignoring case) and is renamed or deleted from **Manage bags**. Deleting one moves what was in it to No bag — on templates, on days' own items and in history — rather than taking anything with it
+  - **The page groups every packing list one of two ways**, chosen with the `View` chips: **By owner** (family members in name order, then Everyone) or **By bag** (bags A–Z, then No bag). It is a lens, not a filter — nothing is hidden — and it is not remembered: every visit opens By owner. Only groups with something in them are drawn, and **every group is headed, even when it is the only one**. Each item carries the other dimension on a muted line under its name (its bag By owner, its owner By bag, `No bag` / `Everyone` when it has none), so every row reads the same way
+  - Both views are cuts of the **one** template order. Dragging a row onto another group is the owner or bag change: `POST /api/packing-lists/{id}/items/reorder` takes `{view, key, item_ids}`, gives every listed item that group's owner (`view: owner`) or bag (`view: bag`), and deals them back into the slots they already held between them, so items in other groups keep their places. A drag cannot leave its packing list (`drag_reorder.js`'s `scope`). New items go to the bottom: a packing list is entered and read top to bottom
+  - **Item names are remembered** (`packing_list_item_history`), the shopping list's two-memory rule: history records *adds* (to a template or to one day), keyed by trimmed, casefolded name, with the owner and bag last used; renaming an item does not touch it and it survives the item's deletion. The item form's name field autocompletes from it through `attachAutocomplete` (add mode only), filling owner and bag only when nobody has chosen them; × forgets a suggestion. The bag field autocompletes from the bag list
+  - **A `PackingListDay` puts a template on a date.** It reads the template **live**, so an edit to the template reaches every day it is on with nothing to sync, and a check on one day (`PackingListDayCheck`) cannot reach the template or any other day. On top of that, a day keeps **its own changes** in `packing_list_day_items`: items added to that day only, that day's edit of a template item, and that day's removal of one. An edit copies the item whole (name, note, owner, bag), so from then on a template change to that item no longer reaches that day. `packing_lists.resolve_day()` is the one place the overlay is laid over the template — the page, the counts and the summary all read a day through it. Deleting a template item drops every day's reading of it
+  - A day marks what it changed: `(added)` / `(changed)` on the row (`.item-mark`), and an `N items changed` note beside the entry's Edit button (`changed_count`, counting edits, removals and additions)
+  - Days include past ones, which show the template as it is now (with their own changes). Freezing a past trip's list is deliberately out of scope
+  - **When to pack** is `pack_days_before` days ahead: the template's number, which a day can override (`packing_list_days.pack_days_before`, `NULL` follows the template). `pack_date()` is the arithmetic; the entry reads `Pack the day of`, `Pack Wednesday` or `Pack Wednesday, Sep 30`
+  - **Coming Up** is the Meal Planner's shape: one `.day-box.day-box--divided` per date, the day's packing lists stacked inside it as `.day-box-entry`s with a hairline between them, and the date stated once as the box's footer (`Today`, `Tomorrow`, or the long date). Each entry has its name — label ↻, pack line, progress, the changed note and **Edit**, and a collapsed **View more** (`.disclosure`) holding the items, grouped by the current view, each with its own Edit, then `Check All`, `Uncheck All`, `Add Item` and `Remove from day`. Check All and Uncheck All ask first, and do nothing when nothing would change. Which entries are open survives the refetch
+  - **Edit Packing List** (one day's entry) shows the template's name and description read-only and edits that day's date, label and lead time. A label set there is the day's own (`label_edited`) and a schedule's relabel passes over it
+  - **Packing: Due now** is a toolbar filter showing the days whose packing day has come (packing date ≤ today) and that have not passed, packed or not. `Clear Filters` resets it, and adding a day turns it off so the new day is not hidden
+  - **Packing List Templates** lists every template as a `.template-item` row (the dashed outline Recurring Tasks use): its name — schedule label ↻ (`Paused` / `Ended` when it is), the cadence, then **Schedule**, **Pause/Resume** (only when it repeats) and **Edit** (details only: name, description, lead time, delete). The row's own View more holds its items, grouped by the view, with drag to reorder, an Edit per item and `Add Item`. `Save & Add Another` keeps the owner and bag a list is being entered with
+  - **The Schedule modal** is one template's (`Schedule: <name>`, no picker) and has two sections, each with its own buttons: *One day* (date and label, `Add to Day` / Cancel; a date the template is already on opens that day instead, the `409 {message, id}` Notes shape) and *Repeating* (a `Repeats` checkbox and a folded **View schedule** holding the repeat controls, start and end dates, the read-back and a label for each day; `Update schedule`, which becomes `Remove schedule`, behind a confirmation, when Repeats is unchecked on a template that repeats; neither button when it does not repeat and Repeats is off)
+  - **Schedules** (`PackingListSchedule`, at most **one per template**): the cadences Recurring Tasks offer — Daily (optionally weekdays only), Weekly, Monthly and Custom — with optional start and end dates (both inclusive), a label for each day, and Pause/Resume on the template's row only. The controls are `_recurrence_fields.html` + `RecurrenceForm`, the same partial and script `/todo` uses, and the read-back comes from `POST /api/recurring-todos/preview`, trimmed to the end date in the browser. The schedule's columns are named as on `RecurringTodo`, so `rally.recurrence` reads it as-is
+  - `packing_lists.process_schedules()` creates ordinary `PackingListDay` rows (with `schedule_id`) for every occurrence from today through `SUMMARY_LOOKAHEAD_DAYS`, so every scheduled day the summary could mention exists before it is written. It runs from `GET /api/packing-list-days` and from the generator's `load_packing_lists()`, the `process_recurring_todos` arrangement. A date the template is already on by hand is kept, not duplicated
+  - **`last_generated_date` is a high-water mark**: a date at or before it is never generated again, which is what keeps a removed day from coming back. A paused schedule resumes along its own cadence (every 2 weeks stays on its weeks) and skips the dates it missed rather than putting them in the archive
+  - **A schedule has no hold over the days it made**, with one exception. Pausing it, changing its rule or dates, or deleting it leaves made days where they are; deleting it turns them into days added by hand (`schedule_id` cleared). A **new label** relabels the days it made from today on, except a day whose label was edited by hand. Deleting the template takes its schedule with it
+  - **A day before today is the archive** (`/packing-lists/previous`): the same boxes, read-only — every item row `.is-read-only`, no controls — with the View chips, search over the template's name and the day's label, and Load more, through `archive_list.js`. Read-only is enforced by the API as well: any write to a past day is a `403`, the Notes rule. The boundary is `today_local_str()`, so the two lists partition every day. There is no page for one template or one day: `/packing-lists/{id}` and `/packing-lists/days/{id}` are `404`s
+  - SQLite does not enforce the references, so every delete cascades by hand: a template takes its items, schedule, days and their checks and own changes (`packing_lists.delete_packing_list`); a day takes its checks and own changes; an item takes its checks and days' readings of it; a bag is cleared everywhere it is used; a family member's items become Everyone's (`packing_lists.clear_member`, called from `DELETE /api/family/{id}`). Bags and history belong to the household and outlive any template
+  - A template goes on today or later (`422` otherwise) and once per day (`409` with `{message, id}`). An owner must be a family member that exists and a bag id a bag that exists (`422`)
+  - On a day a checked row stays where it is, dimmed: packing goes in list order and a row that jumps to the bottom loses people's place. The progress line is an `aria-live` status; a tick re-renders only the counts so focus stays on the box. The page refetches every minute for a second person packing on another device, but never mid-save, while hidden, or while focus is inside Coming Up
+  - **In the daily summary** (`packing_lists_in_summary_enabled`, default on): `packing_lists.summary_text()` lists every day's packing list from today through `SUMMARY_LOOKAHEAD_DAYS` (7) that still has something unchecked, read through `resolve_day`, with only the unchecked items, **grouped by owner** (family members in name order, then Everyone, every group headed) and each item's bag as `(in <bag>)`. Its status is `TODAY` on the day, `PACK TODAY` from the packing day until then (so a list packed days ahead keeps coming up while something is left on it), otherwise `UPCOMING (in N days)`. An item whose trimmed, casefolded name is open on the shopping list is marked `(already on the shopping list)` — the whole name, the same key shopping history dedupes on, because a fuzzy match that wrongly said "sunscreen is handled" is worse than none. The `PACKING LISTS` guideline asks for a packing reminder on the packing day, restocking and hard-to-get flags early enough to act, an `UPCOMING` packing list mentioned only for those flags, and nothing that is not in the section. Section and guideline are omitted when empty, and the text is eval ground truth
 - ✅ **Native calendaring** (`/calendar`) — Rally owns events, and shows them
   - One normalized `Occurrence` shape (`src/rally/calendars/`) produced by the native, ICS and CalDAV adapters and merged in one place. `generate.fetch_calendars()` is now a thin caller
   - Fixed four defects the old dict-based read path made unavoidable: events sorted lexicographically by a 12-hour clock string (so 9 AM sorted after 1 PM), all-day events rendered as midnight appointments (a `date` also has `strftime`), a `(date, title)` dedupe key that dropped the second same-named event of a day, and a 7-day window measured in UTC dates
@@ -808,7 +822,7 @@ rally/
   - `shopping_last_purge_date` (local YYYY-MM-DD) is internal bookkeeping written by the shopping retention purge — never surfaced in the UI
   - `home_location` (free text, e.g. "Highland Village, TX") is the family's home, sent to the LLM as its own `HOME:` block alongside `FAMILY CONTEXT`. First-party rather than prose inside the context so other views can read it structurally. An unset value omits the whole block — a labeled section with nothing after it invites the model to invent one
   - `calendar_sync_interval_minutes` (default "5") is how stale a cached external calendar may get before the background sync refreshes it. A calendar being rate-limited is exempt while its `calendar_cache.retry_after` is in the future — that column, not this key, schedules its next attempt
-  - `checklists_in_summary_enabled` ("true"/"false", default **"true"**) folds checklists on a day in the next week that still have something unpacked into the daily summary (Checklists section). Defaults on for the same reason as `prep_overdue_in_summary_enabled`: the section omits itself unless something is coming up
+  - `packing_lists_in_summary_enabled` ("true"/"false", default **"true"**) folds packing lists on a day in the next week that still have something unpacked into the daily summary (Packing Lists section). Defaults on for the same reason as `prep_overdue_in_summary_enabled`: the section omits itself unless something is coming up
   - `prep_overdue_in_summary_enabled` ("true"/"false", default **"true"**) folds preparedness stock that is past its refresh date into the daily summary. Defaults on, unlike the shopping and sports toggles: those add a standing block that costs tokens every day, whereas this one is normally empty and omits itself entirely, so it only costs anything on the days it matters
   - `prep_review_enabled` ("true"/"false", default **"false"**) adds the `Review` button to `/preparedness`. Off by default because it is a real LLM call and is only useful once a reasonable amount of stock has been entered
   - `prep_notify_enabled` ("true"/"false", default "true"), `prep_notify_time` (local HH:MM, default "08:00") and `prep_default_remind_days` (default "14") drive the preparedness refresh digest. `prep_last_digest_date` is internal bookkeeping written by the once-per-local-day gate — never surfaced in the UI, exactly like `shopping_last_purge_date`
@@ -845,6 +859,7 @@ rally/
   - The two pages **partition** all todos — the local-midnight boundary comes from the shared `today_start_utc()` helper in `routers/todos.py`, so every todo appears on exactly one of them
 - ✅ Recurring todos - Full CRUD API and UI
   - Define recurring templates (daily, weekly, monthly)
+  - **Daily can skip weekends** (`Schedule on weekdays only` under Daily), stored as `custom_rule = {"weekdays_only": true}` beside `recurrence_type = "daily"` so no column is added. It is a different rule from Custom's checkbox of the same name, which moves a weekend date to the following Monday; the two are deliberately one label, and each page words the Custom one's hover text for what it schedules (`weekdays_only_title`). Read back as `Every weekday`, `Every weekend day` or `Every 2 weeks on weekdays`
   - Configurable recurrence day (day-of-week for weekly, day-of-month for monthly)
   - Optional due date and reminder window per template
   - Assign to family members
@@ -857,7 +872,7 @@ rally/
   - Activate/deactivate templates without deleting
 - ✅ Shopping list (`/shopping`) - Store-grouped family shopping list, a peer of Tasks and the Meal Planner
   - `Add Item` is the header button, in the same position and styling as `Add Task` and `Add Meal`, and opens a dual-mode modal (add/edit) following `todo.html` exactly. `Save` closes it — burst entry was tried inline and as a stay-open modal, and both times cost more in consistency than they bought in keystrokes. The store select reads `Anywhere` on every open, ignoring the active chips, matching `openAddModal()` on `/todo`
-  - Autocomplete is a custom dropdown (not a native `datalist`) reading `GET /api/shopping/suggestions` server-side, with a ~150 ms debounce and a request-sequence guard against out-of-order replies. ↑/↓ move, Enter accepts, Esc dismisses, `×` forgets a suggestion. Accepting fills the store **only when the user hasn't already chosen one**. `note` is deliberately not restored. The menu lives inside `.modal-body`, which is a scroll box, so it is capped at 240px with its own scroll rather than spilling down the page. Wired in add mode only — editing is a correction, not a lookup
+  - Autocomplete is the shared `attachAutocomplete` (`static/autocomplete.js`), a custom dropdown (not a native `datalist`) reading `GET /api/shopping/suggestions` server-side, with a ~150 ms debounce and a request-sequence guard against out-of-order replies. ↑/↓ move, Enter accepts, Esc dismisses, `×` forgets a suggestion. Accepting fills the store **only when the user hasn't already chosen one**. `note` is deliberately not restored. The menu lives inside `.modal-body`, which is a scroll box, so it is capped at 240px with its own scroll rather than spilling down the page. Wired in add mode only — editing is a correction, not a lookup
   - Completed items stay on the list until **local midnight**, exactly like tasks, via the shared `today_start_utc()` helper in `utils/settings.py`. There is no countdown and no client-side expiry sweep — the page just refetches periodically
   - Purchased items live on their own page (`/shopping/purchased`), reached by a `.view-switch` link exactly as `/todo/completed` is. A checkbox that changes what the list means underneath you is a mode; the archive is different data with a different lifetime. Backed by `GET /api/shopping/purchased` — search, the store filter and paging are all server-side, since the page only holds what it has loaded; the store chips come from the response's `stores`
   - Store filter chips describe **what is on the list**, not what stores exist: a store earns a chip when it has an item in the current fetch, or when it is currently selected. That second clause prevents a filter that cannot be seen or undone. There is no `All` chip — no selection is the unfiltered state, matching the assignee chips on `/todo`
@@ -970,8 +985,41 @@ When touching the UI:
 - **Shared list components are named for what they are, not for the page that
   introduced them.** A row's checkbox hit area is `.item-checkbox`, a titled
   group is `.list-group`, and a row in a "Manage …" modal is `.manage-row`
-  (once `.todo-checkbox`, `.shopping-group` and `.store-manage-row`). A
+  (once `.todo-checkbox`, `.shopping-group` and `.store-manage-row`), and a
+  recurring template's ↻ is `.recurring-icon` (once `.todo-recurring-icon`). A
   component a second page wants is renamed before it is reused.
+- **Part of a row kept folded away is `.disclosure`** — a native `<details>`
+  whose summary swaps `.disclosure-more` / `.disclosure-less`. A packing list's
+  day entry and its template row each hold their items in one.
+- **A day's plans are one `.day-box`**: everything planned for a date stacks
+  inside it as `.day-box-entry`s, and the date is stated once, as the box's
+  `.date-label` footer (once `.meal-day` / `.meal-day-meal`). The Meal
+  Planner's meals and the Packing Lists page's packing lists. `.day-box--divided`
+  adds a hairline between entries; only Packing Lists uses it so far.
+- **A template is `.template-item`**, the dashed outline a recurring task's
+  row has always had (once `.recurring-template`), on Recurring Tasks and
+  Packing List Templates.
+- **A row that cannot be acted on is `.is-read-only`**: an archived day's
+  items. **A note on a row about where it came from is `.item-mark`**:
+  `(added)` / `(changed)` on a day's packing list.
+- **A modal with two independent halves uses `.form-section`** (titled by
+  `.form-section-title`), each with its own `.modal-actions`: the Schedule
+  modal's *One day* and *Repeating*.
+- **A text field's suggestion menu is `attachAutocomplete()`** in
+  `/static/autocomplete.js`: `.autocomplete-wrap > input + .autocomplete-menu`,
+  a suggestion's second line is `.autocomplete-detail` (once
+  `.autocomplete-store`). The page supplies the source and what accepting does;
+  the debounce, the stale-reply guard, the keys and the × are the component's.
+- **An open modal locks the page behind it**: `modal.js` sets `html.modal-open`
+  while any overlay is shown, so a wheel or a finger in the modal never
+  scrolls the page underneath. Show and hide overlays with
+  `showModalOverlay()` / `hideModalOverlay()`, never by toggling the class
+  yourself, or the lock is left on.
+- **The repeat controls are one component**: `templates/_recurrence_fields.html`
+  plus `static/recurrence_form.js` (`RecurrenceForm`), on `/todo` and
+  `/packing-lists`. Set `task_options` on the include for the task-only
+  control, and `weekdays_only_title` for the hover text the page gives
+  Custom's weekdays-only checkbox. Never copy them into a page.
 - **Hit areas are `var(--target-min)`**, which is 44px on coarse pointers and
   narrow viewports. The calendar is where this bites, and the resolution is the
   same for both of its grids: hold the column at 44px and let the grid scroll
@@ -1019,9 +1067,8 @@ visual suite (above) before shipping a layout change.
 - `/notes` - **Notes**: one **Daily Note** per day, from today onward with no upper bound. A day with no note has no card. `Add Note` opens a dual-mode modal; a date that already has a note returns `409` carrying that note's id, and the modal switches to editing it rather than refusing or overwriting. Text is markdown — bold, italic, bullet and numbered lists, and a line break per Enter — rendered **server-side** by `rally.markdown` and returned as `body_html` beside the raw `body`. Markup is rejected at write time (`schemas._reject_markup`) *and* escaped at render; the rule is tag-shaped (`<` + optional `/` + a letter) so `temp < 40` survives
 - `/notes/previous` - Read-only notes for days before today, newest first, with server-side search and paging. Reachable only via `View previous notes` on `/notes`, not from the nav
 - `/meal-planner` - Meal planning page with date picker and plan management
-- `/checklists` - **Checklists**: `Coming Up` (every day's checklist from today on, with its pack day and progress, plus an `Earlier` glance at the ten most recent past days) and the reusable checklists with `Add to a Day` and `Edit`. `Add to a Day` on a date the checklist is already on opens that day
-- `/checklists/{id}` - One checklist: its items as `.list-group`s (General last), `Add Item` with `Save & Add Another` that keeps the group, `Edit` per row, drag between groups, `Manage groups` (rename, delete, add, one per family member) and `Edit details` (name, description, pack timing, delete). Marks Checklists in the sidebar; `404` for an unknown id
-- `/checklists/days/{id}` - One day's copy: the checklist's items with checkboxes, progress, `Uncheck All` and `Remove from day`. No item editing here, by design — that is the checklist's job. Marks Checklists in the sidebar; `404` for an unknown id
+- `/packing-lists` - **Packing Lists**: a `View` toggle (`By owner` / `By bag`) and a `Packing: Due now` filter; `Coming Up` (one day box per date from today on, each packing list in it with its pack day, progress, Edit and its items under a collapsed `View more`); and `Packing List Templates` (`Add Packing List Template`, and per template `Schedule`, `Pause`/`Resume`, `Edit` and its items under `View more`). `View previous packing lists` and `Manage bags` sit in the header. `Add to Day` on a date the template is already on opens that day
+- `/packing-lists/previous` - Read-only day boxes for days before today, newest first, with the `View` toggle, server-side search and paging. Reachable only via `View previous packing lists` on `/packing-lists`, not from the nav
 - `/meal-planner/previous` - **Previous Meals**: meals from days before today, with ratings and reviews, Meal Type and Rating chips, Sort, server-side search over the meal and its review, and paging. Reachable only via `View previous meals` on `/meal-planner`, not from the nav. The one archive you can edit, so a save reloads what is loaded rather than jumping back to the first page
 - `/settings` - Settings, family member, calendar, and followed-team management page. **Personal Defaults** is the per-person, per-device behavioral section, and everything in it is scoped to the device it is being read on: a `This device` name, a `This device belongs to` control (the device→member binding, `localStorage` only, never sent anywhere), one dropdown per family member per setting in `member_prefs.CATALOG`, and **Devices Rally remembers** — every device, its answer count, when it was last seen, and a `Forget`. Saved on change; the `PUT` carries only the setting that moved
 - `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
@@ -1044,24 +1091,43 @@ visual suite (above) before shipping a layout change.
   - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, muted, failed}` **by name**: "it worked" and "both phones buzzed" are different claims. An attendee with no Pushover key is reported as *skipped*, and one who turned event reminders off is reported as *muted* — the button is filtered like every other push rather than exempted, so it has to say who it dropped
 - `/api/notes` - Daily Note CRUD. `GET` lists `date >= today` ascending; `POST`/`PUT` reject markup, an empty body, and any write into the past (`403`); a duplicate date is `409` with `{message, id}`
   - `GET /api/notes/previous?search=&limit=&offset=` - Days before today, newest first. Returns `{items, has_more, total}`; `total` counts every match, which is what the results count reports
-- `/api/checklists` - Checklists, their groups and their items. Every edit here reaches every day the checklist is on
-  - `GET /api/checklists` - Every checklist by name, with `item_count`, `group_count`, `day_count` (past included — what a delete would remove) and `upcoming_days`
-  - `POST /api/checklists` - Create. `{name, description?, pack_timing?}`; `pack_timing` is `day_of` (default) or `day_before`; `409` on a case-insensitive name clash
-  - `GET /api/checklists/{id}` - The checklist with `groups` and `items`, each in display order
-  - `PUT /api/checklists/{id}` - Partial update; `description` uses `UNSET`
-  - `DELETE /api/checklists/{id}` - Delete it with its groups, items, days and checks (`204`)
-  - `POST|PUT|DELETE /api/checklists/{id}/groups[/{group_id}]` - Group CRUD. New groups go last; `409` on a name clash within the checklist; delete moves the group's items to the bottom of General
-  - `POST /api/checklists/{id}/groups/members` - One group per family member who has none (by name, ignoring case). Idempotent; returns every group in order
-  - `POST|PUT|DELETE /api/checklists/{id}/items[/{item_id}]` - Item CRUD. `note` and `group_id` use `UNSET`; a new item, or one moved to another group, goes to the bottom of its group; delete removes its checks; a group from another checklist is `422`
-  - `POST /api/checklists/{id}/items/reorder` - `{group_id, item_ids}`: the destination group in its new order. All-or-nothing (`404` for an item that is not this checklist's)
-- `/api/checklist-days` - Checklists on days, and the checks made on them. Nothing here writes to a checklist
-  - `GET /api/checklist-days?when=upcoming|past&limit=` - `upcoming` (default) is today on, soonest first; `past` is newest first, 10 by default. Each row carries `checklist_name`, `pack_timing`, `pack_date`, `total`, `checked`
-  - `POST /api/checklist-days` - `{checklist_id, date, label?}`. `422` for a date before today or an unknown checklist; `409` with `{message, id}` when the checklist is already on that date
-  - `GET /api/checklist-days/{id}` - The day: its summary plus the checklist's `groups` and `items`, each item with `checked`
-  - `PUT /api/checklist-days/{id}` - Move it (`date`, same `422`/`409` rules) or relabel it (`label`, `UNSET`). Checks stay
-  - `DELETE /api/checklist-days/{id}` - Take the checklist off the day, with its checks
-  - `PUT /api/checklist-days/{id}/items/{item_id}` - `{checked}`. Idempotent; `404` for an item not on that checklist. Returns the whole day so progress comes from the server
-  - `POST /api/checklist-days/{id}/reset` - Uncheck everything on that day
+- `/api/packing-lists` - Packing list templates and their items. Every edit here reaches every day the template is on, except an item a day has changed for itself
+  - `GET /api/packing-lists` - Every template by name, **whole**: `item_count`, `day_count` (past included — what a delete would remove), `upcoming_days`, its `items` in order and its `schedule` (or `null`)
+  - `POST /api/packing-lists` - Create. `{name, description?, pack_days_before?}` (`pack_days_before` ≥ 0, default `0`); `409` on a case-insensitive name clash
+  - `GET /api/packing-lists/{id}` - One template, whole
+  - `PUT /api/packing-lists/{id}` - Partial update; `description` uses `UNSET`
+  - `DELETE /api/packing-lists/{id}` - Delete it with its items, schedule, days, and their checks and own changes (`204`). Bags and history stay
+  - `POST /api/packing-lists/{id}/items` - `{name, note?, owner_id?, bag? | bag_id?}`. `bag` is a **name** (found ignoring case, or made); `bag_id` must exist; sending both is `422`, as is an unknown owner. Goes to the bottom and records item history
+  - `PUT /api/packing-lists/{id}/items/{item_id}` - Partial; `note`, `owner_id`, `bag` and `bag_id` use `UNSET`. Keeps its place and its checks; history is untouched
+  - `DELETE /api/packing-lists/{id}/items/{item_id}` - Delete it, its checks and every day's reading of it
+  - `POST /api/packing-lists/{id}/items/reorder` - `{view: "owner" | "bag", key, item_ids}`: one group as it should now read. Every listed item takes `key` as its owner or bag (`null` is Everyone / No bag) and the items are dealt into the slots they held between them. Duplicates keep their first mention; an item not on this template is `404` and nothing changes; an unknown owner or bag is `422`
+- `/api/packing-list-bags` - The household's bags, shared by every template
+  - `GET /api/packing-list-bags` - A to Z, each with `item_count` (template items in it)
+  - `POST /api/packing-list-bags` - `{name}`; `409` on a case-insensitive clash
+  - `PUT /api/packing-list-bags/{id}` - Rename it everywhere it is used; `409` on another bag's name
+  - `DELETE /api/packing-list-bags/{id}` - Delete it; what was in it goes to No bag on templates, days' own items and history
+- `/api/packing-list-items` - Item history, for autocomplete
+  - `GET /api/packing-list-items/suggestions?q=&limit=8` - Substring match, prefix matches first, then by use count and recency; empty `q` returns the most used. Each carries the `owner_id`, `bag_id` and `bag_name` it last had. `limit` is clamped to 25
+  - `DELETE /api/packing-list-items/suggestions/{id}` - Forget one; templates and days are left alone
+- `/api/packing-list-days` - Templates on days, the checks made on them and each day's own changes. Nothing here writes to a template, and nothing here writes to a day before today (`403`)
+  - `GET /api/packing-list-days` - Today on, soonest first, each day **whole** so an entry expands without a second fetch: `packing_list_name`, `packing_list_description`, `label`, `pack_days_before` (resolved), `pack_date`, `schedule_id`, `total`, `checked`, `changed_count` and its `items` as `resolve_day` reads them (each with `source` — `packing_list` or `day` — `owner_id`, `bag_id`, `checked` and `changed`). Runs `process_schedules()` first
+  - `GET /api/packing-list-days/previous?search=&limit=&offset=` - Days before today, newest first, whole. `search` matches the template's name or the day's label, case-insensitively. Returns `{items, has_more, total}`
+  - `POST /api/packing-list-days` - `{packing_list_id, date, label?}`. `422` for a date before today or an unknown template; `409` with `{message, id}` when it is already on that date
+  - `GET /api/packing-list-days/{id}` - One day, whole
+  - `PUT /api/packing-list-days/{id}` - Move it (`date`, same `422`/`409` rules), relabel it (`label`, `UNSET`; marks the label hand-edited) or give it its own lead time (`pack_days_before`, `UNSET`; `null` follows the template). Checks stay
+  - `DELETE /api/packing-list-days/{id}` - Take the template off the day, with its checks and own changes. A scheduled day stays off
+  - `PUT /api/packing-list-days/{id}/items/{item_id}` - Check, uncheck (`checked`) or edit (`name`, `note`, `owner_id`, `bag` / `bag_id`) a **template** item on this day only. Idempotent; `404` for an item not on that template. Returns the whole day
+  - `DELETE /api/packing-list-days/{id}/items/{item_id}` - Remove a template item from this day only
+  - `POST /api/packing-list-days/{id}/day-items` - Add an item to this day only, after everything else; records item history (`201`, the whole day)
+  - `PUT|DELETE /api/packing-list-days/{id}/day-items/{own_id}` - Edit, check or delete one of the day's own items
+  - `POST /api/packing-list-days/{id}/reset` - Uncheck everything on that day
+  - `POST /api/packing-list-days/{id}/check-all` - Check everything on that day as it reads (a removed item is not on it). Idempotent
+- `/api/packing-list-schedules` - Repeating schedules, at most one per template. A schedule creates days ahead of time and has no hold over them after, except its label
+  - `GET /api/packing-list-schedules` - Every schedule, paused ones included, by template name, with `packing_list_name`
+  - `POST /api/packing-list-schedules` - `{packing_list_id, recurrence_type, recurrence_day?, custom_rule?, start_date?, end_date?, label?}`. The rule is checked (`check_recurrence_rule`) — a weekly rule needs a day, a custom weekly one at least one weekday — and so is the range (`end_date` not before `start_date`); either is a `422`, as is an unknown template. A template that already repeats is `409` with `{message, id}`. Nothing is put on a day until days are next listed
+  - `GET /api/packing-list-schedules/{id}` - One schedule
+  - `PUT /api/packing-list-schedules/{id}` - Partial; `recurrence_day`, `custom_rule`, `start_date`, `end_date` and `label` use `UNSET`. `{"active": false}` pauses. The rule is re-checked against the **merged** schedule. Days already made keep their dates; a new `label` relabels the ones it made from today on that were not relabeled by hand
+  - `DELETE /api/packing-list-schedules/{id}` - Delete it; its days stay, with `schedule_id` cleared
 - `/api/todos` - Todo CRUD endpoints
   - `GET /api/todos` - List todos (incomplete, plus those completed since local midnight today)
   - `GET /api/todos/completed` - List todos completed **before** local midnight today — the exact complement of the above. Query params: `sort` (one of `completed-newest` (default), `completed-oldest`, `due-soonest`, `due-furthest`, `assignee`, `newest`, `oldest`), repeatable `assignee` (family member ID and/or `unassigned`; OR semantics, empty means all), `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`. Sorting, filtering and paging are server-side; recurring processing is deliberately **not** run here.
@@ -1166,9 +1232,9 @@ visual suite (above) before shipping a layout change.
 ### Navigation
 Every page extends **`templates/base.html`**, which owns the `<head>`, the wordmark header, the menu button and the sidebar. A page supplies only its `title` block (the part after `Rally — `, always an em dash), its `subtitle`, any page-specific `head` scripts, and its `content`; it names its own sidebar entry with `{% set nav_active = "…" %}` at the top. A nav change is therefore made **once**, in `base.html` — the old nav was copied into fourteen templates and had already drifted. Every page renders through the one Jinja environment in `src/rally/templating.py`, including the Dashboard, which used to be filled in with `str.replace` and so could not share a layout; its HTML-bearing values arrive as `Markup` so they are inserted exactly as before.
 
-Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Checklists, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
+Navigation is a **sidebar on the right** (`static/sidebar.js`): docked open where there is room beside the page, and behind a hamburger menu where it would cover content. It lists, in order: Dashboard, Tasks, Shopping, Calendar, Notes, Meal Planner, Packing Lists, Preparedness, then a hairline and **Settings** — the order the old row and `Other` dropdown had, with Settings moved up from the footer (which had left five pages with no way to reach Settings at all). A list scales with new pages where a button row did not, and it scrolls on its own once it runs out of height.
 
-- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/meal-planner/previous` → Meal Planner, `/checklists/{id}` and `/checklists/days/{id}` → Checklists, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
+- **A subpage marks its parent**: `/todo/completed` → Tasks, `/shopping/purchased` → Shopping, `/notes/previous` → Notes, `/meal-planner/previous` → Meal Planner, `/packing-lists/previous` → Packing Lists, `/go-list` → Preparedness. `/settings` marks Settings; `/styleguide` marks nothing. The mark is `aria-current="page"`, drawn in the `--ink`/`--inverse` inversion the old active button used
 - **The go list is not in the sidebar**: it is a view of the inventory, reached by `View go list` on Preparedness
 - **Width alone decides the treatment**, in three bands:
   - **75rem (1200px) and wider — docked.** The page column (`--page-max`, 900px) and the sidebar (`--sidebar-width`, 18rem) fit side by side, so the sidebar is simply open: no button, no scrim, and `html` gains `padding-right: var(--sidebar-width)` so the column centers in the space left of it. Hiding it there would cost a click per navigation to save space the page cannot use. `sidebar.js` never repeats this width — it treats "the button is not displayed" as docked, and drops an overlay's open state when a resize crosses the line
@@ -1244,11 +1310,14 @@ The database is automatically created when the app starts. Migrations run automa
 - `PrepItem` - Preparedness stock with a free-text `quantity`, optional location and notes, and an optional refresh schedule (`refresh_mode` none/date/interval, `refresh_interval_months`, `next_refresh_date`, `remind_days_before`, `last_refreshed_on`). `next_refresh_date` is stored and indexed rather than derived — it is the only column the digest reads
 - `PrepRefreshNotice` - Announce-once record keyed `f"{item_id}:{refresh_date}"`. Keying on the *pair* is what re-arms an item for free when its date moves; the unique index is the guarantee, not an optimization
 - `MemberNotificationPref` - One family member's answer for one kind of notification (`event_reminder`, `event_change`, `task_assignment`, `prep_refresh`, `shopping_added`), unique on `(family_member_id, kind)`. **An absent row means the kind's default** — the row only exists once somebody has expressed a preference, the same discipline `todo_notify_enabled` follows. A preference only ever *narrows* the kind's audience rule; it can never add somebody to an audience they were not already in
-- `Checklist` - A reusable packing list: name (unique case-insensitively), optional description, `pack_timing` (`day_of` | `day_before`)
-- `ChecklistGroup` - A named group of a checklist's items, in creation order (`sort_order`). Unique name per checklist, case-insensitively
-- `ChecklistItem` - One item on a checklist: name, optional note, `group_id` (NULL is General) and `sort_order` within its group
-- `ChecklistDay` - A checklist on a date (YYYY-MM-DD) with an optional label. Unique per `(checklist_id, date)`. Holds no items of its own
-- `ChecklistDayCheck` - One item checked on one day; the row's existence is the check. Unique per `(day_id, item_id)`
+- `PackingList` - A packing list template: name (unique case-insensitively), optional description, `pack_days_before` (≥ 0; `0` packs the day of)
+- `PackingListBag` - One of the household's bags, shared by every template. Unique name, case-insensitively; no bag is `bag_id IS NULL`
+- `PackingListItem` - One item on a template: name, optional note, optional `owner_id` (a family member; `NULL` is Everyone), optional `bag_id`, and `sort_order` — one order for the whole template, which both views group
+- `PackingListItemHistory` - Every item name ever added (`name_key` = trimmed + casefolded, unique), with the owner and bag last used, `times_added` and `last_added_at`. Powers autocomplete and outlives every item
+- `PackingListSchedule` - A template put on days by a repeating rule, one per template: `recurrence_type`, `recurrence_day`, `custom_rule`, `start_date`, `end_date` (inclusive), `label`, `active`, and `last_generated_date`, the high-water mark that keeps a removed day from coming back
+- `PackingListDay` - A template on a date (YYYY-MM-DD) with an optional `label` (and `label_edited` once it is changed by hand), an optional `pack_days_before` override, and the `schedule_id` that made it (NULL when added by hand). Unique per `(packing_list_id, date)`. Holds no copy of the template's items
+- `PackingListDayItem` - A day's own change: with `item_id`, that day's reading of a template item (its name, note, owner and bag, or `removed`); without, an item added to that day only, with its own `checked`. One reading per template item per day
+- `PackingListDayCheck` - One template item checked on one day; the row's existence is the check. Unique per `(day_id, item_id)`
 - `MealPlan` - Meal planning (stored in the `dinner_plans` table, a name kept from when it only planned dinners) with date, meal type, plan text, rating and review, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues

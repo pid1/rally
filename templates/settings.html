@@ -313,18 +313,18 @@
         </form>
     </div>
 
-    <!-- Checklists Section -->
+    <!-- Packing Lists Section -->
     <div class="border-container stack">
         <div class="page-header-row">
-            <h3>Checklists</h3>
+            <h3>Packing Lists</h3>
         </div>
-        <form id="checklists-form">
+        <form id="packing-lists-form">
             <div class="form-group">
                 <label class="checkbox-label">
-                    <input type="checkbox" id="checklists-in-summary">
-                    <span>Mention checklists in the daily summary</span>
+                    <input type="checkbox" id="packing-lists-in-summary">
+                    <span>Mention packing lists in the daily summary</span>
                 </label>
-                <small>When a checklist is on a day this week, The Briefing reminds you to pack it on its packing day and points out unpacked items that tend to run low or are hard to get at the last minute. Nothing is added on days when nothing is coming up.</small>
+                <small>When a packing list is on a day this week, The Briefing reminds you to pack it on its packing day and points out unpacked items that tend to run low or are hard to get at the last minute. Nothing is added on days when nothing is coming up.</small>
             </div>
             <button type="submit" class="btn">Save</button>
         </form>
@@ -1353,8 +1353,8 @@
             document.getElementById('prep-notify-time').value = s.prep_notify_time || '08:00';
             document.getElementById('prep-default-remind-days').value = s.prep_default_remind_days || '14';
 
-            // Checklists
-            document.getElementById('checklists-in-summary').checked = s.checklists_in_summary_enabled !== 'false';
+            // Packing Lists
+            document.getElementById('packing-lists-in-summary').checked = s.packing_lists_in_summary_enabled !== 'false';
 
             // Tasks
             document.getElementById('todo-notify-enabled').checked = s.todo_notify_enabled !== 'false';
@@ -2174,17 +2174,17 @@
             }
         });
 
-        // Checklists form
-        document.getElementById('checklists-form').addEventListener('submit', async (e) => {
+        // Packing Lists form
+        document.getElementById('packing-lists-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             try {
                 await saveSettings({
-                    checklists_in_summary_enabled: document.getElementById('checklists-in-summary').checked ? 'true' : 'false'
+                    packing_lists_in_summary_enabled: document.getElementById('packing-lists-in-summary').checked ? 'true' : 'false'
                 });
-                alert('Checklists settings saved.');
+                alert('Packing Lists settings saved.');
             } catch (error) {
-                console.error('Error saving checklists settings:', error);
-                alert('Failed to save checklists settings');
+                console.error('Error saving packing lists settings:', error);
+                alert('Failed to save packing lists settings');
             }
         });
 

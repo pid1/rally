@@ -90,7 +90,7 @@ def test_init_anthropic_provider_from_db(gen_db, mock_llm):
             "local_timezone": "America/Chicago",
             "stem_concept_enabled": "true",
             "shopping_list_in_summary_enabled": "true",
-            "checklists_in_summary_enabled": "false",
+            "packing_lists_in_summary_enabled": "false",
         },
     )
 
@@ -101,7 +101,7 @@ def test_init_anthropic_provider_from_db(gen_db, mock_llm):
     assert gen.local_tz_name == "America/Chicago"
     assert gen.stem_concept_enabled is True
     assert gen.shopping_list_in_summary_enabled is True
-    assert gen.checklists_in_summary_enabled is False
+    assert gen.packing_lists_in_summary_enabled is False
     assert gen.max_tokens == LLM_MAX_TOKENS  # default when unset
 
 
@@ -123,7 +123,7 @@ def test_init_local_provider_from_db(gen_db, mock_llm):
     assert gen.stem_concept_enabled is False  # default when unset
     assert gen.shopping_list_in_summary_enabled is False  # default when unset
     # On by default: the section omits itself on days with nothing coming up.
-    assert gen.checklists_in_summary_enabled is True
+    assert gen.packing_lists_in_summary_enabled is True
     assert gen.max_tokens == LLM_MAX_TOKENS  # default when unset
 
 

@@ -1,0 +1,1284 @@
+{% extends "base.html" %}
+{% set nav_active = "packing_lists" %}
+{% block title %}Packing Lists{% endblock %}
+{% block subtitle %}Packing Lists{% endblock %}
+{% block head %}
+<script src="/static/phone_links.js?v={{ css_version }}"></script>
+<script src="/static/recurrence_form.js?v={{ css_version }}"></script>
+{% endblock %}
+
+{% block content %}
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Packing Lists</h2>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/packing-lists/previous">View previous packing lists</a>
+                <!-- Bag management is navigation, not part of the view; it sits
+                     beside the archive link, where Shopping keeps Manage stores. -->
+                <button type="button" class="btn btn--quiet" id="btn-manage-bags">Manage bags</button>
+            </div>
+        </header>
+
+        <!-- The page's toolbar, where every Rally page has it: under the page
+             header, above the content. It filters Coming Up only.
+             Packing: Due now — every packing list whose packing day has come and
+             whose day has not passed, packed or not — the daily summary's
+             PACK TODAY rule. Styled as the Meal Planner's Meal Type chips. -->
+        <div class="toolbar">
+            <!-- How every packing list on the page is grouped: who owns what, or
+                 what goes in each bag. One is always chosen; it is a view, not
+                 a filter, so Clear Filters leaves it alone. -->
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="view-label">View</span>
+                <div class="filter-chips" id="view-chips" role="group" aria-labelledby="view-label">
+                    <button type="button" class="filter-chip active" data-view="owner" aria-pressed="true">By owner</button>
+                    <button type="button" class="filter-chip" data-view="bag" aria-pressed="false">By bag</button>
+                </div>
+            </div>
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="packing-label">Packing</span>
+                <div class="filter-chips" id="day-filters" role="group" aria-labelledby="packing-label">
+                    <button type="button" class="filter-chip" data-filter="due-now">Due now</button>
+                </div>
+            </div>
+            <div class="toolbar-reset">
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
+            </div>
+        </div>
+
+        <!-- Two sections under the one page title, each headed the way a
+             Settings section is: an h3 beside its own action. -->
+        <section class="stack">
+            <div class="page-header-row">
+                <h3>Coming Up</h3>
+            </div>
+            <div class="list-container" id="days-container">
+                <div class="container-loading-state">Loading…</div>
+            </div>
+        </section>
+
+        <section class="stack">
+            <div class="page-header-row">
+                <h3>Packing List Templates</h3>
+                <button class="btn" id="btn-add-packing-list">Add Packing List Template</button>
+            </div>
+            <p class="page-note">A packing list template is kept here and scheduled whenever you need it: on one day, or on a repeating schedule. Changes to a packing list template show up on every day it's on; changes made on a day stay on that day.</p>
+            <div class="list-container" id="packing-lists-container">
+                <div class="container-loading-state">Loading packing list templates…</div>
+            </div>
+        </section>
+
+        <!-- Reordering is otherwise a purely visual event: a screen reader
+             following the grip button hears nothing when the row moves. -->
+        <div class="sr-only" id="reorder-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- Schedule: one packing list, named in the title, with two independent
+         sections — a family can want both at once, Swim at Nana's every
+         Sunday and this Saturday too. Each section has its own button and
+         each button saves its section and closes, and each sits beside its own
+         Cancel. The repeat controls fold away under "View schedule", since most
+         visits here are for one day. -->
+    <div class="modal-overlay" id="schedule-modal-overlay">
+        <div class="modal-content">
+            <h3 id="schedule-modal-title">Schedule</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="schedule-day-form">
+                    <fieldset class="form-section">
+                        <legend class="form-section-title">One day</legend>
+                        <div class="form-group">
+                            <label for="day-date">Date</label>
+                            <input type="date" id="day-date" required>
+                            <small id="day-pack-hint"></small>
+                        </div>
+                        <div class="form-group">
+                            <label for="day-label">Label (optional)</label>
+                            <input type="text" id="day-label" placeholder="e.g. Cousins are coming too" maxlength="200">
+                        </div>
+                        <div class="modal-actions">
+                            <button type="submit" class="btn" id="btn-add-day">Add to Day</button>
+                            <button type="button" class="btn btn--secondary" data-cancel-schedule>Cancel</button>
+                        </div>
+                    </fieldset>
+                </form>
+
+                <form id="schedule-repeat-form">
+                    <fieldset class="form-section">
+                        <legend class="form-section-title">Repeating</legend>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="schedule-repeats">
+                                Repeats
+                            </label>
+                            <small>Adds itself to its days a week ahead. Changing or pausing it leaves the days it has already added alone.</small>
+                        </div>
+                        <details class="disclosure" id="schedule-details" style="display:none">
+                            <summary><span class="disclosure-more">View schedule</span><span class="disclosure-less">Hide schedule</span></summary>
+                            <div class="disclosure-body">
+                                {% with weekdays_only_title = "When checked, a day that falls on a weekend moves to the following Monday instead." %}{% include "_recurrence_fields.html" %}{% endwith %}
+                                <div class="form-group">
+                                    <label for="schedule-start-date">Starts (optional)</label>
+                                    <input type="date" id="schedule-start-date">
+                                    <small>Leave blank to start today.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="schedule-end-date">Ends (optional)</label>
+                                    <input type="date" id="schedule-end-date">
+                                    <small>The last day it can land on. Leave blank to keep going.</small>
+                                </div>
+                                <div class="recurrence-preview" id="recurrence-preview" aria-live="polite"></div>
+                                <div class="form-group">
+                                    <label for="schedule-label">Label on each day (optional)</label>
+                                    <input type="text" id="schedule-label" placeholder="e.g. Emma" maxlength="200">
+                                    <small>Changing it relabels the days it has already added, from today on.</small>
+                                </div>
+                            </div>
+                        </details>
+                        <!-- "Remove schedule" when Repeats has been turned off on a
+                             packing list that repeats. With Repeats off and no
+                             schedule there is nothing to update or remove, so
+                             the whole row, Cancel included, is not shown. -->
+                        <div class="modal-actions" id="schedule-repeat-actions">
+                            <button type="submit" class="btn" id="btn-update-schedule">Update schedule</button>
+                            <button type="button" class="btn btn--secondary" data-cancel-schedule>Cancel</button>
+                        </div>
+                    </fieldset>
+                </form>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add / Edit Packing List: its details. When it happens is Schedule's. -->
+    <div class="modal-overlay" id="packing-list-modal-overlay">
+        <div class="modal-content">
+            <h3 id="packing-list-modal-title">Add Packing List Template</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="packing-list-form">
+                    <div class="form-group">
+                        <label for="packing-list-name">Name</label>
+                        <input type="text" id="packing-list-name" placeholder="e.g. Beach day" maxlength="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="packing-list-description">Description (optional)</label>
+                        <textarea id="packing-list-description" rows="2" placeholder="When you use it, anything to remember"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Pack <input type="number" id="packing-list-pack-days" min="0" step="1" value="0" required class="remind-days-input" aria-label="Days before to pack"> days before</label>
+                        <small>0 means the same day.</small>
+                    </div>
+                </form>
+                <div class="modal-actions">
+                    <button type="submit" form="packing-list-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-packing-list">Cancel</button>
+                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-packing-list" style="display:none">Delete</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Packing List: one day's packing list — its date, label and packing
+         day. The name and description are the template's, shown as plain
+         text so they cannot be mistaken for something to edit here. -->
+    <div class="modal-overlay" id="day-edit-modal-overlay">
+        <div class="modal-content">
+            <h3>Edit Packing List</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="day-edit-form">
+                    <div class="form-group">
+                        <div class="editable-item-title" id="day-edit-name"></div>
+                        <div class="editable-item-description" id="day-edit-description"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="day-edit-date">Date</label>
+                        <input type="date" id="day-edit-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="day-edit-label">Label (optional)</label>
+                        <input type="text" id="day-edit-label" maxlength="200">
+                    </div>
+                    <div class="form-group">
+                        <label>Pack <input type="number" id="day-edit-pack-days" min="0" step="1" required class="remind-days-input" aria-label="Days before to pack"> days before</label>
+                        <small>0 means the same day.</small>
+                    </div>
+                </form>
+                <div class="modal-actions">
+                    <button type="submit" form="day-edit-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-day-edit">Cancel</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add / Edit Item: one modal for a packing list's items and a day's.
+         Which one it is editing decides the note under the title and what
+         its secondary button does. -->
+    <div class="modal-overlay" id="item-modal-overlay">
+        <div class="modal-content">
+            <h3 id="item-modal-title">Add Item</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="item-form" autocomplete="off">
+                    <p class="page-note" id="item-scope-note"></p>
+                    <div class="form-group">
+                        <label for="item-name">Item</label>
+                        <div class="autocomplete-wrap">
+                            <input type="text" id="item-name" placeholder="e.g. Goggles" maxlength="200"
+                                   role="combobox" aria-expanded="false" aria-autocomplete="list"
+                                   aria-controls="item-suggestions" required>
+                            <div class="autocomplete-menu" id="item-suggestions" role="listbox"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="item-note">Notes (optional)</label>
+                        <textarea id="item-note" rows="2" placeholder="Which one, how many, where it's kept"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="item-owner">Owner</label>
+                        <select id="item-owner"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="item-bag">Bag (optional)</label>
+                        <div class="autocomplete-wrap">
+                            <input type="text" id="item-bag" placeholder="e.g. Pool bag" maxlength="100"
+                                   role="combobox" aria-expanded="false" aria-autocomplete="list"
+                                   aria-controls="bag-suggestions">
+                            <div class="autocomplete-menu" id="bag-suggestions" role="listbox"></div>
+                        </div>
+                        <small>A new name is added to your bags.</small>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" class="btn">Save</button>
+                        <!-- Add mode only. A submit button, so the required-field
+                             check runs for both; `submitter` tells them apart. -->
+                        <button type="submit" class="btn btn--secondary" id="btn-save-add-another">Save &amp; Add Another</button>
+                        <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
+                        <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
+                    </div>
+                </form>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage bags: the household's list, shared by every packing list. -->
+    <div class="modal-overlay" id="bags-modal-overlay">
+        <div class="modal-content">
+            <h3>Manage Bags</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="bag-add-form" class="form-group">
+                    <label for="bag-add-name">Add a bag</label>
+                    <div class="manage-row">
+                        <input type="text" id="bag-add-name" placeholder="Pool bag, the car, a backpack" maxlength="100" required>
+                        <button type="submit" class="btn btn--sm">Add</button>
+                    </div>
+                </form>
+                <div id="bag-manage-list"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn--secondary" id="btn-close-bags">Done</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/list_group.js?v={{ css_version }}"></script>
+    <script src="/static/drag_reorder.js?v={{ css_version }}"></script>
+    <script src="/static/autocomplete.js?v={{ css_version }}"></script>
+    <script src="/static/packing_lists.js?v={{ css_version }}"></script>
+    <script>
+        const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, formatLongDate, addDays, weekdayOf, itemCount,
+            packDaysLabel, viewSections, otherDimension, keyToId, noteHtml,
+            dayBoxesHtml, updateDayCardCounts, requestJson } = PackingLists;
+        const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
+        const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        let days = [];
+        let packingLists = [];
+        // The family in Rally's order, the household's bags A to Z, and how
+        // the page groups every packing list: by owner (the default on every
+        // visit) or by bag.
+        let members = [];
+        let bags = [];
+        let view = 'owner';
+
+        function lens() {
+            return { view, members, bags };
+        }
+        // Which cards and rows are open, so a refetch puts them back.
+        const openDays = new Set();
+        const openPackingLists = new Set();
+        // Held while a check is in flight, so a refetch cannot paint over a
+        // box somebody has just ticked with the state from before it.
+        let pending = 0;
+
+        function todayLocal() {
+            return new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIMEZONE }).format(new Date());
+        }
+
+        function formatShortDate(value) {
+            const [y, m, d] = value.split('-').map(Number);
+            return `${MONTHS_SHORT[m - 1]} ${d}, ${y}`;
+        }
+
+        function packingListById(id) {
+            return packingLists.find(c => c.id === id);
+        }
+
+        function groupName(id) {
+            const list = view === 'bag' ? bags : members;
+            const found = list.find(entry => entry.id === id);
+            return found ? found.name : (view === 'bag' ? NO_BAG : EVERYONE);
+        }
+
+        // ── Rendering ──
+
+        // Packing: "Due now" narrows Coming Up to the packing lists whose packing day
+        // has come: packing day today or earlier, day today or later. Coming Up
+        // already holds only today on, so the packing day is the whole test.
+        // Client-side, over what is loaded; not remembered across visits.
+        let dueNowOnly = false;
+
+        function visibleDays(today) {
+            return dueNowOnly ? days.filter(day => day.pack_date <= today) : days;
+        }
+
+        function renderDays() {
+            const today = todayLocal();
+            const container = document.getElementById('days-container');
+            const shown = visibleDays(today);
+            if (shown.length) {
+                container.innerHTML = dayBoxesHtml(shown, { today, isOpen: day => openDays.has(day.id), lens: lens() });
+            } else if (dueNowOnly) {
+                container.innerHTML = '<div class="container-empty-state">Nothing to pack today. Clear the filter to see everything coming up.</div>';
+            } else {
+                container.innerHTML = '<div class="container-empty-state">Nothing coming up. Use "Schedule" on a packing list template below to put it on a day.</div>';
+            }
+        }
+
+        function setDueNow(on) {
+            dueNowOnly = on;
+            document.querySelector('#day-filters [data-filter="due-now"]').classList.toggle('active', on);
+            renderDays();
+        }
+
+        document.getElementById('day-filters').addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (chip) setDueNow(!dueNowOnly);
+        });
+        document.getElementById('filter-clear').addEventListener('click', () => setDueNow(false));
+
+        // View: one chip always chosen. Switching regroups everything already
+        // loaded; nothing is fetched.
+        function setView(next) {
+            view = next;
+            document.querySelectorAll('#view-chips [data-view]').forEach(chip => {
+                const on = chip.dataset.view === next;
+                chip.classList.toggle('active', on);
+                chip.setAttribute('aria-pressed', String(on));
+            });
+            renderDays();
+            renderPackingLists();
+        }
+
+        document.getElementById('view-chips').addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-view]');
+            if (chip && chip.dataset.view !== view) setView(chip.dataset.view);
+        });
+
+        function describeSchedule(s) {
+            const parts = [RecurrenceForm.describe(s)];
+            if (s.start_date && s.start_date > todayLocal()) parts.push(`starts ${formatShortDate(s.start_date)}`);
+            if (s.end_date) parts.push(`until ${formatShortDate(s.end_date)}`);
+            return parts.join(' · ');
+        }
+
+        function renderItemRow(item) {
+            const other = otherDimension(item, lens());
+            return `
+                <div class="editable-item" data-id="${item.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(item.name)}</div>
+                        ${other ? `<div class="editable-item-description">${escapeHtml(other)}</div>` : ''}
+                        ${item.note ? `<div class="editable-item-description">${noteHtml(item.note)}</div>` : ''}
+                    </div>
+                    <div class="editable-item-actions">
+                        <button type="button" class="btn btn--sm" data-edit-item="${item.id}">Edit</button>
+                        <button type="button" class="btn drag-handle"
+                                aria-label="Reorder ${escapeAttr(item.name)}"
+                                title="Drag to reorder, or onto another owner or bag to move it there. Arrow keys work too.">
+                            <span aria-hidden="true">⠿</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPackingListItems(c) {
+            if (c.items.length === 0) {
+                return '<div class="container-empty-state">Nothing on this packing list template yet.</div>';
+            }
+            // Section keys carry the packing list's id: every packing list's groups
+            // share one drag container, and the reorder has to know whose
+            // group a row was dropped in.
+            return viewSections(c.items, lens()).map(section => listGroupHtml({
+                key: `${c.id}:${section.key}`,
+                name: section.name,
+                countLabel: section.name ? itemCount(section.items.length) : null,
+                rowsHtml: section.items.map(renderItemRow).join(''),
+            })).join('');
+        }
+
+        function renderPackingListRow(c) {
+            const s = c.schedule;
+            const ended = s && s.end_date && s.end_date < todayLocal();
+            const repeats = s ? ' <span class="recurring-indicator" title="Repeats on a schedule">↻</span>' : '';
+            const status = s && !s.active
+                ? '<span class="recurring-paused">Paused</span>'
+                : (ended ? '<span class="recurring-paused">Ended</span>' : '');
+            const meta = [itemCount(c.item_count), packDaysLabel(c.pack_days_before)];
+            const pause = s
+                ? `<button type="button" class="btn btn--sm btn--secondary" data-toggle-schedule="${c.id}">${s.active ? 'Pause' : 'Resume'}</button>`
+                : '';
+            return `
+                <div class="editable-item template-item" data-packing-list-row="${c.id}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(c.name)}${s && s.label ? ` <span class="assignee-label">— ${escapeHtml(s.label)}</span>` : ''}${repeats}${status}</div>
+                        ${c.description ? `<div class="editable-item-description">${escapeHtml(c.description)}</div>` : ''}
+                        ${s ? `<div class="recurring-schedule">${escapeHtml(describeSchedule(s))}</div>` : ''}
+                        <div class="editable-item-meta">${escapeHtml(meta.join(' · '))}</div>
+                    </div>
+                    <div class="editable-item-actions">
+                        <button type="button" class="btn btn--sm btn--secondary" data-schedule="${c.id}">Schedule</button>
+                        ${pause}
+                        <button type="button" class="btn btn--sm" data-edit-packing-list="${c.id}">Edit</button>
+                    </div>
+                    <details class="disclosure" data-packing-list="${c.id}"${openPackingLists.has(c.id) ? ' open' : ''}>
+                        <summary><span class="disclosure-more">View more</span><span class="disclosure-less">View less</span></summary>
+                        <div class="disclosure-body">
+                            ${renderPackingListItems(c)}
+                            <div class="editable-item-actions packing-list-day-actions">
+                                <button type="button" class="btn btn--sm btn--secondary" data-add-item="${c.id}">Add Item</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            `;
+        }
+
+        function renderPackingLists() {
+            const container = document.getElementById('packing-lists-container');
+            container.innerHTML = packingLists.length
+                ? packingLists.map(renderPackingListRow).join('')
+                : '<div class="container-empty-state">No packing list templates yet. Click "Add Packing List Template" to make one you can reuse.</div>';
+        }
+
+        async function loadDays() {
+            days = await requestJson('/api/packing-list-days');
+            renderDays();
+        }
+
+        async function loadPackingLists() {
+            packingLists = await requestJson('/api/packing-lists');
+            renderPackingLists();
+        }
+
+        async function loadMembers() {
+            members = await requestJson('/api/family');
+        }
+
+        async function loadBags() {
+            bags = await requestJson('/api/packing-list-bags');
+        }
+
+        async function refresh() {
+            try {
+                // Who and which bags first: both views are drawn from them.
+                await Promise.all([loadMembers(), loadBags()]);
+                // Days next: listing them is what puts a schedule's days on.
+                await loadDays();
+                await loadPackingLists();
+            } catch (error) {
+                console.error('Error loading packing lists:', error);
+                document.getElementById('days-container').innerHTML =
+                    '<div class="container-empty-state">Could not load packing lists. Try again in a moment.</div>';
+            }
+        }
+
+        // Remember open disclosures. `toggle` does not bubble, so it is caught
+        // on the way down.
+        document.addEventListener('toggle', (e) => {
+            const details = e.target;
+            if (!(details instanceof HTMLDetailsElement)) return;
+            const set = details.dataset.day ? openDays : (details.dataset.packingList ? openPackingLists : null);
+            if (!set) return;
+            const id = parseInt(details.dataset.day || details.dataset.packingList, 10);
+            if (details.open) set.add(id); else set.delete(id);
+        }, true);
+
+        // ── A day's card ──
+
+        const daysContainer = document.getElementById('days-container');
+
+        function replaceDay(updated) {
+            days = days.map(d => (d.id === updated.id ? updated : d));
+        }
+
+        function dayItemUrl(dayId, item) {
+            return item.source === 'day'
+                ? `/api/packing-list-days/${dayId}/day-items/${item.id}`
+                : `/api/packing-list-days/${dayId}/items/${item.id}`;
+        }
+
+        daysContainer.addEventListener('change', async (e) => {
+            const box = e.target.closest('input[data-item]');
+            if (!box) return;
+            const dayId = parseInt(box.dataset.day, 10);
+            const item = { id: parseInt(box.dataset.item, 10), source: box.dataset.source };
+            box.closest('.editable-item').classList.toggle('completed', box.checked);
+            pending += 1;
+            let updated;
+            try {
+                updated = await requestJson(dayItemUrl(dayId, item), { method: 'PUT', body: { checked: box.checked } });
+            } catch (error) {
+                console.error('Error saving check:', error);
+                alert('Failed to save. The list has been put back the way it was saved.');
+                pending -= 1;
+                await loadDays();
+                return;
+            }
+            pending -= 1;
+            replaceDay(updated);
+            // Only the counts move; re-rendering every row would drop focus
+            // from the box that was just ticked.
+            if (pending === 0) {
+                days.forEach(day => {
+                    const card = daysContainer.querySelector(`[data-day-card="${day.id}"]`);
+                    if (card) updateDayCardCounts(card, day, lens());
+                });
+            }
+        });
+
+        daysContainer.addEventListener('click', async (e) => {
+            const editDay = e.target.closest('[data-edit-day]');
+            if (editDay) {
+                const day = days.find(d => d.id === parseInt(editDay.dataset.editDay, 10));
+                if (day) openDayEditModal(day);
+                return;
+            }
+            const editItem = e.target.closest('[data-edit-day-item]');
+            if (editItem) {
+                const day = days.find(d => d.id === parseInt(editItem.dataset.day, 10));
+                const item = day && day.items.find(i =>
+                    i.id === parseInt(editItem.dataset.editDayItem, 10) && i.source === editItem.dataset.source);
+                if (item) openItemModal({ scope: 'day', day, item });
+                return;
+            }
+            const addItem = e.target.closest('[data-add-day-item]');
+            if (addItem) {
+                const day = days.find(d => d.id === parseInt(addItem.dataset.addDayItem, 10));
+                if (day) openItemModal({ scope: 'day', day, item: null });
+                return;
+            }
+            const checkAll = e.target.closest('[data-check-all-day]');
+            if (checkAll) {
+                const day = days.find(d => d.id === parseInt(checkAll.dataset.checkAllDay, 10));
+                if (!day || day.total === 0 || day.checked === day.total) return;
+                if (!confirm(`Check everything on ${day.packing_list_name} for ${formatLongDate(day.date)}?`)) return;
+                try {
+                    replaceDay(await requestJson(`/api/packing-list-days/${day.id}/check-all`, { method: 'POST' }));
+                } catch (error) {
+                    alert('Failed to check everything');
+                    return;
+                }
+                renderDays();
+                return;
+            }
+            const reset = e.target.closest('[data-reset-day]');
+            const remove = e.target.closest('[data-remove-day]');
+            if (!reset && !remove) return;
+            const day = days.find(d => d.id === parseInt(reset ? reset.dataset.resetDay : remove.dataset.removeDay, 10));
+            if (!day) return;
+
+            if (reset) {
+                if (day.checked === 0) return;
+                if (!confirm(`Uncheck everything on ${day.packing_list_name} for ${formatLongDate(day.date)}?`)) return;
+                try {
+                    replaceDay(await requestJson(`/api/packing-list-days/${day.id}/reset`, { method: 'POST' }));
+                } catch (error) {
+                    alert('Failed to uncheck everything');
+                    return;
+                }
+                renderDays();
+                return;
+            }
+
+            if (!confirm(`Take ${day.packing_list_name} off ${formatLongDate(day.date)}? The packing list template itself stays.`)) return;
+            try {
+                await requestJson(`/api/packing-list-days/${day.id}`, { method: 'DELETE' });
+            } catch (error) {
+                alert('Failed to remove it from the day');
+                return;
+            }
+            openDays.delete(day.id);
+            await refresh();
+        });
+
+        // Open a day's card and bring it into view: where "Add to a Day" lands.
+        function revealDay(dayId) {
+            openDays.add(dayId);
+            renderDays();
+            const card = daysContainer.querySelector(`[data-day-card="${dayId}"]`);
+            if (card) card.scrollIntoView({ block: 'center' });
+        }
+
+        // ── Edit Packing List (one day's) ──
+        //
+        // Only what changed is sent. A label sent here becomes the day's own
+        // (a schedule's relabel then passes over it), and a lead time sent
+        // here stops following the template's — so re-sending the values the
+        // form opened with would quietly do both.
+        let editingDay = null;
+
+        function openDayEditModal(day) {
+            editingDay = day;
+            document.getElementById('day-edit-form').reset();
+            document.getElementById('day-edit-name').textContent = day.packing_list_name;
+            const description = document.getElementById('day-edit-description');
+            description.textContent = day.packing_list_description || '';
+            description.style.display = day.packing_list_description ? '' : 'none';
+            const date = document.getElementById('day-edit-date');
+            date.min = todayLocal();
+            date.value = day.date;
+            document.getElementById('day-edit-label').value = day.label || '';
+            document.getElementById('day-edit-pack-days').value = day.pack_days_before;
+            showModalOverlay('day-edit-modal-overlay');
+        }
+
+        function closeDayEditModal() {
+            hideModalOverlay('day-edit-modal-overlay');
+            editingDay = null;
+        }
+
+        document.getElementById('day-edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const day = editingDay;
+            const payload = {};
+            const date = document.getElementById('day-edit-date').value;
+            const label = document.getElementById('day-edit-label').value.trim() || null;
+            const packDays = parseInt(document.getElementById('day-edit-pack-days').value, 10);
+            if (date !== day.date) payload.date = date;
+            if (label !== (day.label || null)) payload.label = label;
+            if (packDays !== day.pack_days_before) payload.pack_days_before = packDays;
+            if (Object.keys(payload).length === 0) {
+                closeDayEditModal();
+                return;
+            }
+            try {
+                await requestJson(`/api/packing-list-days/${day.id}`, { method: 'PUT', body: payload });
+            } catch (error) {
+                if (error.status === 409 && error.detail && error.detail.id) {
+                    // Already on that date: open that day instead, as Add to
+                    // Day does. Nothing was saved, so nothing moves.
+                    closeDayEditModal();
+                    await loadDays();
+                    revealDay(error.detail.id);
+                    return;
+                }
+                alert(error.message || 'Failed to save the packing list');
+                return;
+            }
+            closeDayEditModal();
+            // A new date can move it to another day's box.
+            await loadDays();
+        });
+
+        document.getElementById('btn-cancel-day-edit').addEventListener('click', closeDayEditModal);
+        document.getElementById('day-edit-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'day-edit-modal-overlay') closeDayEditModal();
+        });
+
+        // ── Add / Edit Item ──
+        //
+        // `itemContext` says what the modal is editing:
+        //   { scope: 'packing list', packing list, item | null }  — every day it is on
+        //   { scope: 'day', day, item | null }              — that day only
+        let itemContext = null;
+        const itemForm = document.getElementById('item-form');
+        const addAnotherBtn = document.getElementById('btn-save-add-another');
+        const deleteItemBtn = document.getElementById('btn-delete-item');
+
+        const nameInput = document.getElementById('item-name');
+        const ownerSelect = document.getElementById('item-owner');
+        const bagInput = document.getElementById('item-bag');
+        const modalBody = document.querySelector('#item-modal-overlay .modal-body');
+
+        function fillOwnerSelect(selected) {
+            ownerSelect.innerHTML = `<option value="">${EVERYONE}</option>` +
+                members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+            ownerSelect.value = selected == null ? '' : String(selected);
+        }
+
+        function bagNameOf(id) {
+            const bag = bags.find(b => b.id === id);
+            return bag ? bag.name : '';
+        }
+
+        // Item names come from history, ranked by the server. Wired in add
+        // mode only: editing is a correction, not a lookup — Shopping's rule.
+        // Picking one fills the owner and bag it last had, but only where the
+        // form has neither yet, so a choice somebody made is never overwritten.
+        const nameAutocomplete = attachAutocomplete({
+            input: nameInput,
+            menu: document.getElementById('item-suggestions'),
+            scrollBox: modalBody,
+            enabled: () => !!(itemContext && !itemContext.item),
+            source: (query) => requestJson(`/api/packing-list-items/suggestions?q=${encodeURIComponent(query)}`),
+            label: (s) => ({ name: s.name, detail: s.bag_name }),
+            onAccept: (suggestion) => {
+                if (ownerSelect.value === '' && members.some(m => m.id === suggestion.owner_id)) {
+                    ownerSelect.value = String(suggestion.owner_id);
+                }
+                if (!bagInput.value.trim() && suggestion.bag_name) bagInput.value = suggestion.bag_name;
+            },
+            onForget: (suggestion) =>
+                requestJson(`/api/packing-list-items/suggestions/${suggestion.id}`, { method: 'DELETE' }),
+        });
+
+        // Bags come from the household's list, matched here: the list is
+        // short and already loaded. A name not on it becomes a new bag on save.
+        const bagAutocomplete = attachAutocomplete({
+            input: bagInput,
+            menu: document.getElementById('bag-suggestions'),
+            scrollBox: modalBody,
+            source: async (query) => {
+                const q = query.toLowerCase();
+                return bags.filter(b => b.name.toLowerCase().includes(q))
+                    .sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)));
+            },
+            label: (b) => ({ name: b.name }),
+        });
+
+        function openItemModal(context) {
+            itemContext = context;
+            const { scope, item } = context;
+            itemForm.reset();
+            nameAutocomplete.close();
+            bagAutocomplete.close();
+            document.getElementById('item-modal-title').textContent = item ? 'Edit Item' : 'Add Item';
+            document.getElementById('item-scope-note').textContent = scope === 'day'
+                ? `For "${context.day.packing_list_name}" on ${formatLongDate(context.day.date)} only. The packing list template stays as it is.`
+                : `Changes show up on every day ${context.packingList.name} is on, except where a day has changed this item.`;
+            document.getElementById('item-name').value = item ? item.name : '';
+            document.getElementById('item-note').value = item ? (item.note || '') : '';
+            fillOwnerSelect(item ? item.owner_id : null);
+            bagInput.value = item ? bagNameOf(item.bag_id) : '';
+            // style.display rather than `hidden`: a class that sets display
+            // (.btn, .form-group) wins over the attribute.
+            addAnotherBtn.style.display = item ? 'none' : '';
+            deleteItemBtn.style.display = item ? '' : 'none';
+            deleteItemBtn.textContent = scope === 'day' && item && item.source === 'packing_list'
+                ? 'Remove'
+                : 'Delete';
+            showModalOverlay('item-modal-overlay');
+            if (!item) document.getElementById('item-name').focus();
+        }
+
+        function closeItemModal() {
+            hideModalOverlay('item-modal-overlay');
+            itemContext = null;
+        }
+
+        async function saveItem(payload) {
+            const { scope, item } = itemContext;
+            if (scope === 'day') {
+                const day = itemContext.day;
+                if (!item) {
+                    return requestJson(`/api/packing-list-days/${day.id}/day-items`, { method: 'POST', body: payload });
+                }
+                return requestJson(dayItemUrl(day.id, item), { method: 'PUT', body: payload });
+            }
+            const base = `/api/packing-lists/${itemContext.packingList.id}/items`;
+            return item
+                ? requestJson(`${base}/${item.id}`, { method: 'PUT', body: payload })
+                : requestJson(base, { method: 'POST', body: payload });
+        }
+
+        itemForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!itemContext) return;
+            const another = e.submitter === addAnotherBtn;
+            const payload = {
+                name: nameInput.value,
+                note: document.getElementById('item-note').value || null,
+                owner_id: ownerSelect.value ? parseInt(ownerSelect.value, 10) : null,
+                bag: bagInput.value.trim() || null,
+            };
+            let saved;
+            try {
+                saved = await saveItem(payload);
+            } catch (error) {
+                alert(error.message || 'Failed to save item');
+                return;
+            }
+            // A new bag name made a new bag.
+            if (payload.bag && !bags.some(b => b.name.toLowerCase() === payload.bag.toLowerCase())) {
+                await loadBags();
+            }
+            if (itemContext.scope === 'day') {
+                replaceDay(saved);
+                itemContext.day = saved;
+                renderDays();
+            } else {
+                // A packing list edit reaches its days too.
+                await refresh();
+                itemContext.packingList = packingListById(itemContext.packingList.id) || itemContext.packingList;
+            }
+            if (another) {
+                // Keep the owner and bag: a packing list is entered one
+                // person's (or one bag's) things at a time.
+                document.getElementById('item-name').value = '';
+                document.getElementById('item-note').value = '';
+                document.getElementById('item-name').focus();
+                document.getElementById('reorder-status').textContent = `Added ${payload.name}.`;
+            } else {
+                closeItemModal();
+            }
+        });
+
+        deleteItemBtn.addEventListener('click', async () => {
+            if (!itemContext || !itemContext.item) return;
+            const { scope, item } = itemContext;
+            try {
+                if (scope === 'day') {
+                    const day = itemContext.day;
+                    const message = item.source === 'packing_list'
+                        ? `Take ${item.name} off ${formatLongDate(day.date)}? The packing list template keeps it.`
+                        : `Delete ${item.name} from ${formatLongDate(day.date)}?`;
+                    if (!confirm(message)) return;
+                    replaceDay(await requestJson(dayItemUrl(day.id, item), { method: 'DELETE' }));
+                    closeItemModal();
+                    renderDays();
+                    return;
+                }
+                if (!confirm(`Delete ${item.name}? It comes off every day ${itemContext.packingList.name} is on.`)) return;
+                await requestJson(`/api/packing-lists/${itemContext.packingList.id}/items/${item.id}`, { method: 'DELETE' });
+            } catch (error) {
+                alert('Failed to delete item');
+                return;
+            }
+            closeItemModal();
+            await refresh();
+        });
+
+        document.getElementById('btn-cancel-item').addEventListener('click', closeItemModal);
+        document.getElementById('item-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'item-modal-overlay') closeItemModal();
+        });
+
+        // ── A packing list's row ──
+
+        const packingListsContainer = document.getElementById('packing-lists-container');
+
+        packingListsContainer.addEventListener('click', async (e) => {
+            const target = e.target.closest(
+                '[data-schedule], [data-edit-packing-list], [data-toggle-schedule], [data-add-item], [data-edit-item]'
+            );
+            if (!target) return;
+            const row = target.closest('[data-packing-list-row]');
+            const packingList = packingListById(parseInt(row.dataset.packingListRow, 10));
+            if (!packingList) return;
+
+            if (target.dataset.schedule) openScheduleModal(packingList);
+            else if (target.dataset.editPackingList) openPackingListModal(packingList);
+            else if (target.dataset.addItem) openItemModal({ scope: 'packing_list', packingList, item: null });
+            else if (target.dataset.editItem) {
+                const item = packingList.items.find(i => i.id === parseInt(target.dataset.editItem, 10));
+                if (item) openItemModal({ scope: 'packing_list', packingList, item });
+            }
+            else if (target.dataset.toggleSchedule) {
+                try {
+                    await requestJson(`/api/packing-list-schedules/${packingList.schedule.id}`,
+                        { method: 'PUT', body: { active: !packingList.schedule.active } });
+                } catch (error) {
+                    alert('Failed to update the schedule');
+                    return;
+                }
+                await refresh();
+            }
+        });
+
+        // ── Drag to reorder ──
+        //
+        // One container holds every packing list's groups, so `scope` keeps a row
+        // inside its own packing list. The group key is `<packing list id>:<section
+        // key>`, the section key being an owner's or bag's id, or `none`.
+        // Dropping in a group gives the item that group's owner or bag, in the
+        // view the page is showing.
+        function parseGroupKey(key) {
+            const [packingListId, sectionKey] = key.split(':');
+            return { packingListId: parseInt(packingListId, 10), id: keyToId(sectionKey) };
+        }
+
+        initDragReorder({
+            container: packingListsContainer,
+            scope: '[data-packing-list-row]',
+            groupSelector: '.list-group',
+            listSelector: '.list-container',
+            itemSelector: '.editable-item',
+            handleSelector: '.drag-handle',
+            canDrag: (row) => !row.matches('[data-packing-list-row]'),
+            groupKey: (group) => group.dataset.group,
+            groupLabel: (group) => groupName(parseGroupKey(group.dataset.group).id),
+            itemLabel: (row) => row.querySelector('.editable-item-title').textContent,
+            announce: (message) => {
+                document.getElementById('reorder-status').textContent = message;
+            },
+            onReorder: async (key, itemIds) => {
+                const { packingListId, id } = parseGroupKey(key);
+                try {
+                    await requestJson(`/api/packing-lists/${packingListId}/items/reorder`, {
+                        method: 'POST',
+                        body: { view, key: id, item_ids: itemIds },
+                    });
+                } catch (error) {
+                    console.error('Error reordering items:', error);
+                    alert('Failed to save the new order');
+                }
+                // Either way: on success to pick up the new owner or bag, on
+                // failure to put back what the server actually has.
+                await refresh();
+            },
+        });
+
+        // ── Manage bags ──
+        //
+        // The household's list, shared by every packing list. Bags are usually
+        // made by typing a new one on an item; this renames and removes them.
+
+        function renderBagManageList() {
+            const list = document.getElementById('bag-manage-list');
+            if (bags.length === 0) {
+                list.innerHTML = `<div class="container-empty-state">No bags yet. Items without one are under "${NO_BAG}".</div>`;
+                return;
+            }
+            list.innerHTML = bags.map(b => `
+                <div class="manage-row" data-id="${b.id}">
+                    <input type="text" value="${escapeAttr(b.name)}" aria-label="Bag name" maxlength="100">
+                    <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
+                    <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        async function afterBagChange() {
+            await refresh();
+            renderBagManageList();
+        }
+
+        document.getElementById('bag-manage-list').addEventListener('click', async (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+            const row = button.closest('.manage-row');
+            const bagId = parseInt(row.dataset.id, 10);
+            const bag = bags.find(b => b.id === bagId);
+            try {
+                if (button.dataset.action === 'rename') {
+                    const name = row.querySelector('input').value.trim();
+                    if (!name) return;
+                    await requestJson(`/api/packing-list-bags/${bagId}`, { method: 'PUT', body: { name } });
+                } else {
+                    if (!confirm(`Delete ${bag ? bag.name : 'this bag'}? What's in it moves to "${NO_BAG}" — nothing is lost.`)) return;
+                    await requestJson(`/api/packing-list-bags/${bagId}`, { method: 'DELETE' });
+                }
+            } catch (error) {
+                alert(error.status === 409 ? 'A bag with that name already exists.' : 'Failed to update the bag.');
+                return;
+            }
+            await afterBagChange();
+        });
+
+        document.getElementById('bag-add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('bag-add-name');
+            const name = input.value.trim();
+            if (!name) return;
+            try {
+                await requestJson('/api/packing-list-bags', { method: 'POST', body: { name } });
+            } catch (error) {
+                alert(error.status === 409 ? 'A bag with that name already exists.' : 'Failed to add the bag.');
+                return;
+            }
+            input.value = '';
+            await afterBagChange();
+        });
+
+        function closeBagsModal() {
+            hideModalOverlay('bags-modal-overlay');
+        }
+
+        document.getElementById('btn-manage-bags').addEventListener('click', () => {
+            renderBagManageList();
+            showModalOverlay('bags-modal-overlay');
+        });
+        document.getElementById('btn-close-bags').addEventListener('click', closeBagsModal);
+        document.getElementById('bags-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'bags-modal-overlay') closeBagsModal();
+        });
+
+        // ── Schedule ──
+        //
+        // One packing list at a time, named in the title: to schedule another,
+        // close this and use that packing list's own Schedule button. Two
+        // sections with a button each — Add to Day, and Update schedule (Remove
+        // schedule when Repeats is turned off) — and either one saves its
+        // section and closes. Pause lives on the row.
+        const repeatsBox = document.getElementById('schedule-repeats');
+        const scheduleDetails = document.getElementById('schedule-details');
+        let scheduling = null;
+
+        RecurrenceForm.init({
+            startInputId: 'schedule-start-date',
+            endInputId: 'schedule-end-date',
+            leadLabel: () => 'First day',
+        });
+
+        function updatePackHint() {
+            const hint = document.getElementById('day-pack-hint');
+            const date = document.getElementById('day-date').value;
+            if (!scheduling || !date) {
+                hint.textContent = '';
+                return;
+            }
+            const lead = scheduling.pack_days_before;
+            const packOn = addDays(date, -lead);
+            const before = lead === 1 ? 'the day before' : `${lead} days before`;
+            if (lead === 0) {
+                hint.textContent = 'Pack it the day of.';
+            } else if (packOn < todayLocal()) {
+                hint.textContent = `It packs ${before}, so pack it today.`;
+            } else {
+                hint.textContent = `Pack it ${formatLongDate(packOn)}, ${before}.`;
+            }
+        }
+
+        /* "View schedule" is offered while Repeats is on. The section's button
+         * says what it will do: Update schedule while Repeats is on, Remove
+         * schedule once Repeats has been turned off on a packing list that
+         * repeats. With no schedule either way the section's buttons, Cancel
+         * included, are not shown. */
+        function showScheduleMode() {
+            const repeats = repeatsBox.checked;
+            const schedule = scheduling && scheduling.schedule;
+            scheduleDetails.style.display = repeats ? '' : 'none';
+            document.getElementById('schedule-repeat-actions').style.display =
+                repeats || schedule ? '' : 'none';
+            document.getElementById('btn-update-schedule').textContent =
+                repeats ? 'Update schedule' : 'Remove schedule';
+            if (repeats) RecurrenceForm.refreshPreview();
+        }
+
+        function openScheduleModal(packingList) {
+            scheduling = packingList;
+            const schedule = packingList.schedule;
+            document.getElementById('schedule-modal-title').textContent = `Schedule: ${packingList.name}`;
+            document.getElementById('schedule-day-form').reset();
+            const date = document.getElementById('day-date');
+            date.min = todayLocal();
+            repeatsBox.checked = !!schedule;
+            if (schedule) {
+                RecurrenceForm.load(schedule);
+                document.getElementById('schedule-start-date').value = schedule.start_date || '';
+                document.getElementById('schedule-end-date').value = schedule.end_date || '';
+                document.getElementById('schedule-label').value = schedule.label || '';
+            } else {
+                RecurrenceForm.reset();
+                document.getElementById('schedule-start-date').value = '';
+                document.getElementById('schedule-end-date').value = '';
+                document.getElementById('schedule-label').value = '';
+            }
+            // Folded away: most visits are for one day, and a schedule that
+            // already exists is described on the row.
+            scheduleDetails.open = false;
+            updatePackHint();
+            showScheduleMode();
+            showModalOverlay('schedule-modal-overlay');
+        }
+
+        function closeScheduleModal() {
+            hideModalOverlay('schedule-modal-overlay');
+            scheduling = null;
+        }
+
+        // ── One day ──
+
+        document.getElementById('schedule-day-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                packing_list_id: scheduling.id,
+                date: document.getElementById('day-date').value,
+                label: document.getElementById('day-label').value || null,
+            };
+            let dayId;
+            try {
+                dayId = (await requestJson('/api/packing-list-days', { method: 'POST', body: payload })).id;
+            } catch (error) {
+                if (error.status === 409 && error.detail && error.detail.id) {
+                    // Already on that day: open it rather than refusing.
+                    dayId = error.detail.id;
+                } else {
+                    alert(error.message || 'Failed to add the packing list template to that day');
+                    return;
+                }
+            }
+            closeScheduleModal();
+            // A new day is the one thing to show next, so the filter comes
+            // off rather than hide it.
+            setDueNow(false);
+            await refresh();
+            revealDay(dayId);
+        });
+
+        // ── Repeating ──
+
+        repeatsBox.addEventListener('change', () => {
+            // Turning Repeats on for a packing list with no schedule is asking to
+            // set one up, so the controls open with it.
+            if (repeatsBox.checked && !(scheduling && scheduling.schedule)) scheduleDetails.open = true;
+            showScheduleMode();
+        });
+
+        document.getElementById('schedule-repeat-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const packingList = scheduling;
+            const existing = packingList.schedule;
+            try {
+                if (!repeatsBox.checked) {
+                    if (!existing) return;
+                    if (!confirm(`Stop repeating ${packingList.name}? Days it has already added stay.`)) return;
+                    await requestJson(`/api/packing-list-schedules/${existing.id}`, { method: 'DELETE' });
+                } else {
+                    const payload = {
+                        packing_list_id: packingList.id,
+                        ...RecurrenceForm.values(),
+                        start_date: document.getElementById('schedule-start-date').value || null,
+                        end_date: document.getElementById('schedule-end-date').value || null,
+                        label: document.getElementById('schedule-label').value || null,
+                    };
+                    await requestJson(
+                        existing ? `/api/packing-list-schedules/${existing.id}` : '/api/packing-list-schedules',
+                        { method: existing ? 'PUT' : 'POST', body: payload },
+                    );
+                }
+            } catch (error) {
+                // The rule is inside "View schedule"; open it so the fix is
+                // in front of whoever has to make it.
+                scheduleDetails.open = true;
+                alert(error.status === 422 && typeof error.detail === 'string'
+                    ? error.detail
+                    : 'Failed to update the schedule. Check the dates and the days it repeats on.');
+                return;
+            }
+            closeScheduleModal();
+            // Listing the days is what puts a schedule on them.
+            await refresh();
+        });
+
+        document.getElementById('day-date').addEventListener('change', updatePackHint);
+        document.querySelectorAll('[data-cancel-schedule]').forEach(button =>
+            button.addEventListener('click', closeScheduleModal));
+        document.getElementById('schedule-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'schedule-modal-overlay') closeScheduleModal();
+        });
+
+        // ── Add / Edit Packing List ──
+
+        let editingPackingList = null;
+
+        function openPackingListModal(packingList) {
+            editingPackingList = packingList;
+            document.getElementById('packing-list-form').reset();
+            document.getElementById('packing-list-modal-title').textContent = packingList ? 'Edit Packing List Template' : 'Add Packing List Template';
+            document.getElementById('btn-delete-packing-list').style.display = packingList ? '' : 'none';
+            if (packingList) {
+                document.getElementById('packing-list-name').value = packingList.name;
+                document.getElementById('packing-list-description').value = packingList.description || '';
+                document.getElementById('packing-list-pack-days').value = packingList.pack_days_before;
+            }
+            showModalOverlay('packing-list-modal-overlay');
+        }
+
+        function closePackingListModal() {
+            hideModalOverlay('packing-list-modal-overlay');
+            editingPackingList = null;
+        }
+
+        document.getElementById('packing-list-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('packing-list-name').value,
+                description: document.getElementById('packing-list-description').value || null,
+                pack_days_before: parseInt(document.getElementById('packing-list-pack-days').value, 10),
+            };
+            let saved;
+            try {
+                saved = editingPackingList
+                    ? await requestJson(`/api/packing-lists/${editingPackingList.id}`, { method: 'PUT', body: payload })
+                    : await requestJson('/api/packing-lists', { method: 'POST', body: payload });
+            } catch (error) {
+                alert(error.status === 409 ? 'A packing list template with that name already exists.' : (error.message || 'Failed to save the packing list template'));
+                return;
+            }
+            const isNew = !editingPackingList;
+            closePackingListModal();
+            // The next thing to do with a new packing list is fill it.
+            if (isNew) openPackingLists.add(saved.id);
+            await refresh();
+            if (isNew) {
+                const row = packingListsContainer.querySelector(`[data-packing-list-row="${saved.id}"]`);
+                if (row) row.scrollIntoView({ block: 'center' });
+            }
+        });
+
+        document.getElementById('btn-delete-packing-list').addEventListener('click', async () => {
+            const packingList = editingPackingList;
+            if (!packingList) return;
+            const n = packingList.day_count;
+            const onDays = n ? ` It is on ${n} day${n === 1 ? '' : 's'}, and ${n === 1 ? 'that comes' : 'those come'} off too.` : '';
+            if (!confirm(`Delete ${packingList.name}?${onDays}`)) return;
+            try {
+                await requestJson(`/api/packing-lists/${packingList.id}`, { method: 'DELETE' });
+            } catch (error) {
+                alert('Failed to delete packing list template');
+                return;
+            }
+            closePackingListModal();
+            await refresh();
+        });
+
+        document.getElementById('btn-add-packing-list').addEventListener('click', () => openPackingListModal(null));
+        document.getElementById('btn-cancel-packing-list').addEventListener('click', closePackingListModal);
+        document.getElementById('packing-list-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'packing-list-modal-overlay') closePackingListModal();
+        });
+
+        refresh();
+        // Two people packing two bags on two devices: pick up the other
+        // person's checks without a reload. Never mid-save, and never while
+        // somebody is on a card's controls, since re-rendering would take
+        // them away.
+        setInterval(() => {
+            if (pending === 0 && !document.hidden && !daysContainer.contains(document.activeElement)) loadDays();
+        }, 60000);
+    </script>
+
+    <script src="/static/modal.js?v={{ css_version }}"></script>
+{% endblock %}

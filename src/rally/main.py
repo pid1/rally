@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -9,15 +9,14 @@ from starlette.responses import Response
 
 from rally import member_colors, member_prefs
 from rally.database import get_db, init_db
-from rally.models import Checklist, ChecklistDay
 from rally.routers import (
-    checklists,
     dashboard,
     devices,
     events,
     family,
     meal_planner,
     notes,
+    packing_lists,
     preparedness,
     recurring_todos,
     settings,
@@ -73,8 +72,11 @@ app.include_router(settings.router)
 app.include_router(shopping.router)
 app.include_router(notes.router)
 app.include_router(preparedness.router)
-app.include_router(checklists.router)
-app.include_router(checklists.days_router)
+app.include_router(packing_lists.router)
+app.include_router(packing_lists.days_router)
+app.include_router(packing_lists.schedules_router)
+app.include_router(packing_lists.bags_router)
+app.include_router(packing_lists.items_router)
 
 
 @app.get("/", response_class=RedirectResponse)
@@ -146,35 +148,23 @@ def meal_planner_previous_page(request: Request):
     return templates.TemplateResponse(request, "meal_planner_previous.html")
 
 
-@app.get("/checklists", response_class=HTMLResponse)
-def checklists_page(request: Request, db: Session = Depends(get_db)):
-    """Serve the Checklists page: days coming up, and the reusable checklists.
+@app.get("/packing-lists", response_class=HTMLResponse)
+def packing_lists_page(request: Request, db: Session = Depends(get_db)):
+    """Serve the Packing Lists page: days coming up, and the packing list templates.
 
-    The family's timezone is rendered in so "Add to a Day" can default its
+    The family's timezone is rendered in so the Schedule modal can default its
     date to the family's today rather than the browser's, before any fetch.
     """
     return templates.TemplateResponse(
-        request, "checklists.html", {"local_timezone": local_timezone_name(db)}
+        request, "packing_lists.html", {"local_timezone": local_timezone_name(db)}
     )
 
 
-@app.get("/checklists/days/{day_id}", response_class=HTMLResponse)
-def checklist_day_page(request: Request, day_id: int, db: Session = Depends(get_db)):
-    """Serve one day's checklist, the copy that gets checked off."""
-    if not db.query(ChecklistDay.id).filter(ChecklistDay.id == day_id).first():
-        raise HTTPException(status_code=404, detail="Checklist day not found")
-    return templates.TemplateResponse(request, "checklist_day.html", {"day_id": day_id})
-
-
-@app.get("/checklists/{checklist_id}", response_class=HTMLResponse)
-def checklist_edit_page(request: Request, checklist_id: int, db: Session = Depends(get_db)):
-    """Serve the page for editing one checklist: its items and its groups."""
-    if not db.query(Checklist.id).filter(Checklist.id == checklist_id).first():
-        raise HTTPException(status_code=404, detail="Checklist not found")
+@app.get("/packing-lists/previous", response_class=HTMLResponse)
+def packing_lists_previous_page(request: Request, db: Session = Depends(get_db)):
+    """Serve the read-only archive of packing lists on days that have passed."""
     return templates.TemplateResponse(
-        request,
-        "checklist_edit.html",
-        {"checklist_id": checklist_id, "local_timezone": local_timezone_name(db)},
+        request, "packing_lists_previous.html", {"local_timezone": local_timezone_name(db)}
     )
 
 

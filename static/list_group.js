@@ -4,7 +4,7 @@
  *     > .list-group-header > .list-group-name + .list-group-rule + .list-group-count
  *     + .list-container > (rows, or an empty state)
  *
- * Shopping groups by store, Purchased by store, and a checklist by its own
+ * Shopping groups by store, Purchased by store, and a packing list by its own
  * groups, and each used to write this block out by hand. The header and the
  * rows are wrapped together so a group is one element: `drag_reorder.js` aims a
  * drop at the whole block, heading included, and an empty group is still a
@@ -12,7 +12,7 @@
  *
  * `rowsHtml` is markup the caller has already escaped. Everything else is text
  * and is escaped here. `name` may be omitted for a list that has no groups to
- * tell apart (a checklist nobody has grouped), which renders the rows with no
+ * tell apart (a packing list nobody has grouped), which renders the rows with no
  * header and keeps the wrapper, so the drag contract still holds.
  */
 (function () {
