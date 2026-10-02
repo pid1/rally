@@ -1400,9 +1400,31 @@ class PackingListTemplateResponse(PackingListTemplateSummary):
 
 
 class PackingListDayCreate(BaseModel):
-    packing_list_template_id: int
+    """A packing list on a day, in one of three forms:
+
+    * ``packing_list_template_id``: the template itself on that day, kept in
+      sync with it. ``pack_days_before`` is optional: left out (or ``None``)
+      the day follows the template's, a number is the day's own.
+    * ``name``: a one-off, a templateless day with nothing on it yet.
+    * ``name`` and ``copy_from_template_id``: a one-off holding a copy of
+      that template's items, with no link back.
+
+    A one-off has no template to follow, so it needs its own lead time. A
+    template id with a name or a copy, or none of the three, is a ``422`` —
+    the ``ShoppingItemCreate`` rule for ``store`` and ``store_id``.
+    """
+
+    packing_list_template_id: int | None = None
+    name: str | None = None
+    copy_from_template_id: int | None = None
     date: str  # YYYY-MM-DD
     label: str | None = None
+    pack_days_before: PackDaysBefore | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        return None if value is None else _require_name(value)
 
     @field_validator("date")
     @classmethod
@@ -1414,13 +1436,39 @@ class PackingListDayCreate(BaseModel):
     def _validate_label(cls, value: str | None) -> str | None:
         return _blank_to_none(value)
 
+    @model_validator(mode="after")
+    def _one_form(self):
+        kept_in_sync = self.packing_list_template_id is not None
+        one_off = self.name is not None or self.copy_from_template_id is not None
+        if kept_in_sync and one_off:
+            raise ValueError("Send packing_list_template_id, or a name for a one-off — not both.")
+        if not kept_in_sync and not one_off:
+            raise ValueError("Send packing_list_template_id, or a name for a one-off.")
+        if one_off and self.name is None:
+            raise ValueError("A one-off needs a name.")
+        if one_off and self.pack_days_before is None:
+            raise ValueError("A one-off needs its own lead time.")
+        return self
+
+    @property
+    def is_one_off(self) -> bool:
+        return self.packing_list_template_id is None
+
 
 class PackingListDayUpdate(BaseModel):
+    # A templateless day's own name; a ``422`` on a templated day, which is
+    # called what its template is called.
+    name: str | None = None
     date: str | None = None
     label: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     # This day's own lead time. None follows the template again (a 422 on a
     # templateless day, which has none); UNSET leaves it as it is.
     pack_days_before: PackDaysBefore | None = UNSET
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        return None if value is None else _require_name(value)
 
     @field_validator("date")
     @classmethod

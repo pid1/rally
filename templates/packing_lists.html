@@ -12,6 +12,9 @@
         <header class="page-header">
             <div class="page-header-row">
                 <h2>Packing Lists</h2>
+                <div class="page-header-actions">
+                    <button class="btn" id="btn-add-day">Add Packing List</button>
+                </div>
             </div>
             <div class="page-header-meta">
                 <a class="link-quiet" href="/packing-lists/previous">View previous packing lists</a>
@@ -64,7 +67,7 @@
                 <h3>Packing List Templates</h3>
                 <button class="btn" id="btn-add-template">Add Packing List Template</button>
             </div>
-            <p class="page-note">A packing list template is kept here and scheduled whenever you need it: on one day, or on a repeating schedule. Changes to a packing list template show up on every day it's on; changes made on a day stay on that day.</p>
+            <p class="page-note">A packing list template is kept here for the lists you pack again and again. Put one on a day with "Add Packing List", or on a repeating schedule with "Schedule". Changes to a packing list template show up on every day it's kept in sync on; changes made on a day stay on that day.</p>
             <div class="list-container" id="templates-container">
                 <div class="container-loading-state">Loading packing list templates…</div>
             </div>
@@ -75,84 +78,117 @@
         <div class="sr-only" id="reorder-status" role="status" aria-live="polite"></div>
     </div>
 
-    <!-- Schedule: one packing list, named in the title, with two independent
-         sections — a family can want both at once, Swim at Nana's every
-         Sunday and this Saturday too. Each section has its own button and
-         each button saves its section and closes, and each sits beside its own
-         Cancel. The repeat controls fold away under "View schedule", since most
-         visits here are for one day. -->
+    <!-- Add Packing List: the one way to put a packing list on a single day.
+         Blank list makes a one-off, a list of its own with no template. Picking
+         a template offers a copy (a one-off holding its items, free to change)
+         or the template itself kept in sync, as a repeating schedule puts it.
+         Repeating is the Schedule modal's. -->
+    <div class="modal-overlay" id="day-add-modal-overlay">
+        <div class="modal-content">
+            <h3>Add Packing List</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <form id="day-add-form">
+                    <div class="form-group" id="day-add-source-group">
+                        <label id="day-add-start-label">Start from</label>
+                        <div class="radio-options" role="radiogroup" aria-labelledby="day-add-start-label">
+                            <label><input type="radio" name="day-add-start" value="blank" checked> Blank list</label>
+                            <label><input type="radio" name="day-add-start" value="template"> Template</label>
+                        </div>
+                    </div>
+                    <div id="day-add-template-fields" style="display:none">
+                        <div class="form-group">
+                            <label for="day-add-source">Template</label>
+                            <select id="day-add-source"></select>
+                        </div>
+                        <div class="form-group" id="day-add-mode-group">
+                            <div class="radio-options" role="radiogroup" aria-label="How to use the template">
+                                <label><input type="radio" name="day-add-mode" value="copy" checked> Make a copy I can change</label>
+                                <label><input type="radio" name="day-add-mode" value="sync"> Keep in sync with the template</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="day-add-name">Name</label>
+                        <input type="text" id="day-add-name" placeholder="e.g. Concert" maxlength="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="day-date">Date</label>
+                        <input type="date" id="day-date" required>
+                        <small id="day-pack-hint"></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="day-label">Label (optional)</label>
+                        <input type="text" id="day-label" placeholder="e.g. Cousins are coming too" maxlength="200">
+                    </div>
+                    <div class="form-group">
+                        <label>Pack <input type="number" id="day-add-pack-days" min="0" step="1" value="0" required class="remind-days-input" aria-label="Days before to pack"> days before</label>
+                        <small>0 means the same day.</small>
+                    </div>
+                </form>
+                <div class="modal-actions">
+                    <button type="submit" form="day-add-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-day-add">Cancel</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule: one template's repeating schedule, named in the title. Putting
+         a template on a single day is Add Packing List's. The repeat controls
+         fold away under "View schedule" until they are needed. -->
     <div class="modal-overlay" id="schedule-modal-overlay">
         <div class="modal-content">
             <h3 id="schedule-modal-title">Schedule</h3>
             <div class="modal-scroll">
             <div class="modal-body">
-                <form id="schedule-day-form">
-                    <fieldset class="form-section">
-                        <legend class="form-section-title">One day</legend>
-                        <div class="form-group">
-                            <label for="day-date">Date</label>
-                            <input type="date" id="day-date" required>
-                            <small id="day-pack-hint"></small>
-                        </div>
-                        <div class="form-group">
-                            <label for="day-label">Label (optional)</label>
-                            <input type="text" id="day-label" placeholder="e.g. Cousins are coming too" maxlength="200">
-                        </div>
-                        <div class="modal-actions">
-                            <button type="submit" class="btn" id="btn-add-day">Add to Day</button>
-                            <button type="button" class="btn btn--secondary" data-cancel-schedule>Cancel</button>
-                        </div>
-                    </fieldset>
-                </form>
-
                 <form id="schedule-repeat-form">
-                    <fieldset class="form-section">
-                        <legend class="form-section-title">Repeating</legend>
-                        <div class="form-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="schedule-repeats">
-                                Repeats
-                            </label>
-                            <small>Adds itself to its days a week ahead. Changing or pausing it leaves the days it has already added alone.</small>
-                        </div>
-                        <details class="disclosure" id="schedule-details" style="display:none">
-                            <summary><span class="disclosure-more">View schedule</span><span class="disclosure-less">Hide schedule</span></summary>
-                            <div class="disclosure-body">
-                                {% with weekdays_only_title = "When checked, a day that falls on a weekend moves to the following Monday instead." %}{% include "_recurrence_fields.html" %}{% endwith %}
-                                <div class="form-group">
-                                    <label for="schedule-start-date">Starts (optional)</label>
-                                    <input type="date" id="schedule-start-date">
-                                    <small>Leave blank to start today.</small>
-                                </div>
-                                <div class="form-group">
-                                    <label for="schedule-end-date">Ends (optional)</label>
-                                    <input type="date" id="schedule-end-date">
-                                    <small>The last day it can land on. Leave blank to keep going.</small>
-                                </div>
-                                <div class="recurrence-preview" id="recurrence-preview" aria-live="polite"></div>
-                                <div class="form-group">
-                                    <label for="schedule-label">Label on each day (optional)</label>
-                                    <input type="text" id="schedule-label" placeholder="e.g. Emma" maxlength="200">
-                                    <small>Changing it relabels the days it has already added, from today on.</small>
-                                </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="schedule-repeats">
+                            Repeats
+                        </label>
+                        <small>Adds itself to its days a week ahead. Changing or pausing it leaves the days it has already added alone.</small>
+                    </div>
+                    <details class="disclosure" id="schedule-details" style="display:none">
+                        <summary><span class="disclosure-more">View schedule</span><span class="disclosure-less">Hide schedule</span></summary>
+                        <div class="disclosure-body">
+                            {% with weekdays_only_title = "When checked, a day that falls on a weekend moves to the following Monday instead." %}{% include "_recurrence_fields.html" %}{% endwith %}
+                            <div class="form-group">
+                                <label for="schedule-start-date">Starts (optional)</label>
+                                <input type="date" id="schedule-start-date">
+                                <small>Leave blank to start today.</small>
                             </div>
-                        </details>
-                        <!-- "Remove schedule" when Repeats has been turned off on a
-                             packing list that repeats. With Repeats off and no
-                             schedule there is nothing to update or remove, so
-                             the whole row, Cancel included, is not shown. -->
-                        <div class="modal-actions" id="schedule-repeat-actions">
-                            <button type="submit" class="btn" id="btn-update-schedule">Update schedule</button>
-                            <button type="button" class="btn btn--secondary" data-cancel-schedule>Cancel</button>
+                            <div class="form-group">
+                                <label for="schedule-end-date">Ends (optional)</label>
+                                <input type="date" id="schedule-end-date">
+                                <small>The last day it can land on. Leave blank to keep going.</small>
+                            </div>
+                            <div class="recurrence-preview" id="recurrence-preview" aria-live="polite"></div>
+                            <div class="form-group">
+                                <label for="schedule-label">Label on each day (optional)</label>
+                                <input type="text" id="schedule-label" placeholder="e.g. Emma" maxlength="200">
+                                <small>Changing it relabels the days it has already added, from today on.</small>
+                            </div>
                         </div>
-                    </fieldset>
+                    </details>
+                    <!-- "Remove schedule" when Repeats has been turned off on a
+                         template that repeats. With Repeats off and no schedule
+                         there is nothing to update or remove, so only Cancel
+                         shows. -->
+                    <div class="modal-actions" id="schedule-repeat-actions">
+                        <button type="submit" class="btn" id="btn-update-schedule">Update schedule</button>
+                        <button type="button" class="btn btn--secondary" data-cancel-schedule>Cancel</button>
+                    </div>
                 </form>
             </div>
             </div>
         </div>
     </div>
 
-    <!-- Add / Edit Packing List: its details. When it happens is Schedule's. -->
+    <!-- Add / Edit Packing List Template: its details. When it is packed is
+         Add Packing List's (one day) and Schedule's (repeating). -->
     <div class="modal-overlay" id="template-modal-overlay">
         <div class="modal-content">
             <h3 id="template-modal-title">Add Packing List Template</h3>
@@ -183,14 +219,20 @@
     </div>
 
     <!-- Edit Packing List: one day's packing list — its date, label and packing
-         day. The name and description are the template's, shown as plain
-         text so they cannot be mistaken for something to edit here. -->
+         day. A templated day's name and description are the template's, shown
+         as plain text so they cannot be mistaken for something to edit here. A
+         templateless day's name is its own, and editable; a description it
+         copied from a deleted template stays plain text. -->
     <div class="modal-overlay" id="day-edit-modal-overlay">
         <div class="modal-content">
             <h3>Edit Packing List</h3>
             <div class="modal-scroll">
             <div class="modal-body">
                 <form id="day-edit-form">
+                    <div class="form-group" id="day-edit-name-field" style="display:none">
+                        <label for="day-edit-name-input">Name</label>
+                        <input type="text" id="day-edit-name-input" maxlength="100">
+                    </div>
                     <div class="form-group">
                         <div class="editable-item-title" id="day-edit-name"></div>
                         <div class="editable-item-description" id="day-edit-description"></div>
@@ -360,7 +402,7 @@
             } else if (dueNowOnly) {
                 container.innerHTML = '<div class="container-empty-state">Nothing to pack today. Clear the filter to see everything coming up.</div>';
             } else {
-                container.innerHTML = '<div class="container-empty-state">Nothing coming up. Use "Schedule" on a packing list template below to put it on a day.</div>';
+                container.innerHTML = '<div class="container-empty-state">Nothing coming up. Click "Add Packing List" to put a packing list on a day.</div>';
             }
         }
 
@@ -656,7 +698,16 @@
         function openDayEditModal(day) {
             editingDay = day;
             document.getElementById('day-edit-form').reset();
-            document.getElementById('day-edit-name').textContent = day.name;
+            // A templateless day's name is its own to change; a templated
+            // day is called what its template is called.
+            const ownName = !isTemplated(day);
+            document.getElementById('day-edit-name-field').style.display = ownName ? '' : 'none';
+            const nameInput = document.getElementById('day-edit-name-input');
+            nameInput.required = ownName;
+            nameInput.value = ownName ? day.name : '';
+            const nameText = document.getElementById('day-edit-name');
+            nameText.textContent = day.name;
+            nameText.style.display = ownName ? 'none' : '';
             const description = document.getElementById('day-edit-description');
             description.textContent = day.description || '';
             description.style.display = day.description ? '' : 'none';
@@ -680,6 +731,10 @@
             const date = document.getElementById('day-edit-date').value;
             const label = document.getElementById('day-edit-label').value.trim() || null;
             const packDays = parseInt(document.getElementById('day-edit-pack-days').value, 10);
+            if (!isTemplated(day)) {
+                const name = document.getElementById('day-edit-name-input').value.trim();
+                if (name !== day.name) payload.name = name;
+            }
             if (date !== day.date) payload.date = date;
             if (label !== (day.label || null)) payload.label = label;
             if (packDays !== day.pack_days_before) payload.pack_days_before = packDays;
@@ -691,8 +746,8 @@
                 await requestJson(`/api/packing-list-days/${day.id}`, { method: 'PUT', body: payload });
             } catch (error) {
                 if (error.status === 409 && error.detail && error.detail.id) {
-                    // Already on that date: open that day instead, as Add to
-                    // Day does. Nothing was saved, so nothing moves.
+                    // Already on that date: open that day instead, as Add
+                    // Packing List does. Nothing was saved, so nothing moves.
                     closeDayEditModal();
                     await loadDays();
                     revealDay(error.detail.id);
@@ -1098,11 +1153,11 @@
 
         // ── Schedule ──
         //
-        // One template at a time, named in the title: to schedule another,
-        // close this and use that template's own Schedule button. Two
-        // sections with a button each — Add to Day, and Update schedule (Remove
-        // schedule when Repeats is turned off) — and either one saves its
-        // section and closes. Pause lives on the row.
+        // One template's repeating schedule at a time, named in the title: to
+        // schedule another, close this and use that template's own Schedule
+        // button. Update schedule saves and closes (Remove schedule once
+        // Repeats is turned off). Pause lives on the row; a single day is Add
+        // Packing List's.
         const repeatsBox = document.getElementById('schedule-repeats');
         const scheduleDetails = document.getElementById('schedule-details');
         let scheduling = null;
@@ -1113,38 +1168,18 @@
             leadLabel: () => 'First day',
         });
 
-        function updatePackHint() {
-            const hint = document.getElementById('day-pack-hint');
-            const date = document.getElementById('day-date').value;
-            if (!scheduling || !date) {
-                hint.textContent = '';
-                return;
-            }
-            const lead = scheduling.pack_days_before;
-            const packOn = addDays(date, -lead);
-            const before = lead === 1 ? 'the day before' : `${lead} days before`;
-            if (lead === 0) {
-                hint.textContent = 'Pack it the day of.';
-            } else if (packOn < todayLocal()) {
-                hint.textContent = `It packs ${before}, so pack it today.`;
-            } else {
-                hint.textContent = `Pack it ${formatLongDate(packOn)}, ${before}.`;
-            }
-        }
-
-        /* "View schedule" is offered while Repeats is on. The section's button
-         * says what it will do: Update schedule while Repeats is on, Remove
-         * schedule once Repeats has been turned off on a packing list that
-         * repeats. With no schedule either way the section's buttons, Cancel
-         * included, are not shown. */
+        /* "View schedule" is offered while Repeats is on. The button says what
+         * it will do: Update schedule while Repeats is on, Remove schedule once
+         * Repeats has been turned off on a template that repeats. With Repeats
+         * off and no schedule there is nothing to save, so only Cancel shows —
+         * it is the modal's only way out besides Esc and the backdrop. */
         function showScheduleMode() {
             const repeats = repeatsBox.checked;
             const schedule = scheduling && scheduling.schedule;
             scheduleDetails.style.display = repeats ? '' : 'none';
-            document.getElementById('schedule-repeat-actions').style.display =
-                repeats || schedule ? '' : 'none';
-            document.getElementById('btn-update-schedule').textContent =
-                repeats ? 'Update schedule' : 'Remove schedule';
+            const update = document.getElementById('btn-update-schedule');
+            update.style.display = repeats || schedule ? '' : 'none';
+            update.textContent = repeats ? 'Update schedule' : 'Remove schedule';
             if (repeats) RecurrenceForm.refreshPreview();
         }
 
@@ -1152,9 +1187,6 @@
             scheduling = template;
             const schedule = template.schedule;
             document.getElementById('schedule-modal-title').textContent = `Schedule: ${template.name}`;
-            document.getElementById('schedule-day-form').reset();
-            const date = document.getElementById('day-date');
-            date.min = todayLocal();
             repeatsBox.checked = !!schedule;
             if (schedule) {
                 RecurrenceForm.load(schedule);
@@ -1167,10 +1199,9 @@
                 document.getElementById('schedule-end-date').value = '';
                 document.getElementById('schedule-label').value = '';
             }
-            // Folded away: most visits are for one day, and a schedule that
-            // already exists is described on the row.
+            // Folded away: a schedule that already exists is described on the
+            // row, and the controls open when Repeats is turned on.
             scheduleDetails.open = false;
-            updatePackHint();
             showScheduleMode();
             showModalOverlay('schedule-modal-overlay');
         }
@@ -1179,35 +1210,6 @@
             hideModalOverlay('schedule-modal-overlay');
             scheduling = null;
         }
-
-        // ── One day ──
-
-        document.getElementById('schedule-day-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const payload = {
-                packing_list_template_id: scheduling.id,
-                date: document.getElementById('day-date').value,
-                label: document.getElementById('day-label').value || null,
-            };
-            let dayId;
-            try {
-                dayId = (await requestJson('/api/packing-list-days', { method: 'POST', body: payload })).id;
-            } catch (error) {
-                if (error.status === 409 && error.detail && error.detail.id) {
-                    // Already on that day: open it rather than refusing.
-                    dayId = error.detail.id;
-                } else {
-                    alert(error.message || 'Failed to add the packing list template to that day');
-                    return;
-                }
-            }
-            closeScheduleModal();
-            // A new day is the one thing to show next, so the filter comes
-            // off rather than hide it.
-            setDueNow(false);
-            await refresh();
-            revealDay(dayId);
-        });
 
         // ── Repeating ──
 
@@ -1254,14 +1256,161 @@
             await refresh();
         });
 
-        document.getElementById('day-date').addEventListener('change', updatePackHint);
         document.querySelectorAll('[data-cancel-schedule]').forEach(button =>
             button.addEventListener('click', closeScheduleModal));
         document.getElementById('schedule-modal-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'schedule-modal-overlay') closeScheduleModal();
         });
 
-        // ── Add / Edit Packing List ──
+        // ── Add Packing List ──
+        //
+        // The one way to put a packing list on a single day. Start from is
+        // Blank list (a one-off) or Template, which shows the templates to pick
+        // from (none chosen until somebody picks one) and a copy (a one-off
+        // holding its items, the default) or the template itself kept in sync. The name
+        // is the template's while kept in sync and shown read-only; for a copy
+        // the template fills it only until somebody types one. Picking a
+        // template fills the lead time with its own; kept in sync, leaving it
+        // there means the day follows the template.
+        const addForm = document.getElementById('day-add-form');
+        const sourceSelect = document.getElementById('day-add-source');
+        const addName = document.getElementById('day-add-name');
+        const addDate = document.getElementById('day-date');
+        const addPackDays = document.getElementById('day-add-pack-days');
+        // What somebody typed in Name, so switching templates or modes never
+        // throws it away.
+        let typedName = '';
+
+        function startsFromTemplate() {
+            return addForm.querySelector('input[name="day-add-start"]:checked').value === 'template';
+        }
+
+        function addSource() {
+            if (!startsFromTemplate()) return null;
+            const id = parseInt(sourceSelect.value, 10);
+            return Number.isNaN(id) ? null : templateById(id);
+        }
+
+        function addMode() {
+            return addForm.querySelector('input[name="day-add-mode"]:checked').value;
+        }
+
+        function updatePackHint() {
+            const hint = document.getElementById('day-pack-hint');
+            const date = addDate.value;
+            const lead = parseInt(addPackDays.value, 10);
+            if (!date || Number.isNaN(lead)) {
+                hint.textContent = '';
+                return;
+            }
+            const packOn = addDays(date, -lead);
+            const before = lead === 1 ? 'the day before' : `${lead} days before`;
+            if (lead === 0) {
+                hint.textContent = 'Pack it the day of.';
+            } else if (packOn < todayLocal()) {
+                hint.textContent = `It packs ${before}, so pack it today.`;
+            } else {
+                hint.textContent = `Pack it ${formatLongDate(packOn)}, ${before}.`;
+            }
+        }
+
+        function showAddMode() {
+            const fromTemplate = startsFromTemplate();
+            document.getElementById('day-add-template-fields').style.display = fromTemplate ? '' : 'none';
+            // Picking Template means picking one: Save refuses until then.
+            sourceSelect.required = fromTemplate;
+            const template = addSource();
+            const sync = !!template && addMode() === 'sync';
+            addName.readOnly = sync;
+            addName.required = !sync;
+            if (sync) addName.value = template.name;
+            else addName.value = typedName || (template ? template.name : '');
+            updatePackHint();
+        }
+
+        function openAddDayModal() {
+            addForm.reset();
+            typedName = '';
+            sourceSelect.innerHTML = '<option value="">Choose a template…</option>' +
+                templates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+            document.getElementById('day-add-source-group').style.display = templates.length ? '' : 'none';
+            addDate.min = todayLocal();
+            showAddMode();
+            showModalOverlay('day-add-modal-overlay');
+            addName.focus();
+        }
+
+        function closeAddDayModal() {
+            hideModalOverlay('day-add-modal-overlay');
+        }
+
+        sourceSelect.addEventListener('change', () => {
+            const template = addSource();
+            if (template) addPackDays.value = template.pack_days_before;
+            showAddMode();
+        });
+        addForm.querySelectorAll('input[name="day-add-mode"], input[name="day-add-start"]').forEach(radio =>
+            radio.addEventListener('change', showAddMode));
+        addName.addEventListener('input', () => {
+            if (!addName.readOnly) typedName = addName.value;
+        });
+        addDate.addEventListener('change', updatePackHint);
+        addPackDays.addEventListener('input', updatePackHint);
+
+        addForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const template = addSource();
+            const sync = !!template && addMode() === 'sync';
+            const lead = parseInt(addPackDays.value, 10);
+            const payload = {
+                date: addDate.value,
+                label: document.getElementById('day-label').value || null,
+            };
+            if (sync) {
+                payload.packing_list_template_id = template.id;
+                // Left at the template's own, the day follows the template.
+                if (lead !== template.pack_days_before) payload.pack_days_before = lead;
+            } else {
+                payload.name = addName.value;
+                payload.pack_days_before = lead;
+                if (template) payload.copy_from_template_id = template.id;
+            }
+            let dayId;
+            let created = true;
+            try {
+                dayId = (await requestJson('/api/packing-list-days', { method: 'POST', body: payload })).id;
+            } catch (error) {
+                if (error.status === 409 && error.detail && error.detail.id) {
+                    // The template is already on that day: open it rather
+                    // than refusing.
+                    dayId = error.detail.id;
+                    created = false;
+                } else {
+                    alert(error.message || 'Failed to add the packing list');
+                    return;
+                }
+            }
+            closeAddDayModal();
+            // A new day is the one thing to show next, so the filter comes
+            // off rather than hide it.
+            setDueNow(false);
+            await refresh();
+            revealDay(dayId);
+            // A blank list's next step is its first item. A copy or a
+            // kept-in-sync day already has items to look over.
+            if (created && !template) {
+                const day = days.find(d => d.id === dayId);
+                if (day) openItemModal({ scope: 'day', day, item: null });
+            }
+        });
+
+        document.getElementById('btn-add-day').addEventListener('click', openAddDayModal);
+        document.getElementById('btn-cancel-day-add').addEventListener('click', closeAddDayModal);
+        document.getElementById('day-add-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'day-add-modal-overlay') closeAddDayModal();
+        });
+
+        // ── Add / Edit Packing List Template ──
 
         let editingTemplate = null;
 

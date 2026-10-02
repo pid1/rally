@@ -766,12 +766,17 @@ def list_previous_days(
 
 @days_router.post("", response_model=PackingListDayResponse, status_code=201)
 def create_day(payload: PackingListDayCreate, db: Session = Depends(get_db)):
-    """Put a template on a day, starting with nothing checked.
+    """Put a packing list on a day, starting with nothing checked.
 
-    A day before today is a ``422``: nobody packs for yesterday. A template
-    already on that day is a ``409`` carrying the existing day's id, so the
-    page can open it instead — the same shape Notes uses.
+    Three forms (``PackingListDayCreate``): a template kept in sync, a blank
+    one-off, or a one-off holding a copy of a template's items. A day before
+    today is a ``422``: nobody packs for yesterday. A template already on that
+    day is a ``409`` carrying the existing day's id, so the page can open it
+    instead — the same shape Notes uses. A one-off never clashes: its name is
+    its own, and any number of them can share a date.
     """
+    if payload.is_one_off:
+        return _create_one_off(db, payload)
     template = (
         db.query(PackingListTemplate)
         .filter(PackingListTemplate.id == payload.packing_list_template_id)
@@ -783,9 +788,60 @@ def create_day(payload: PackingListDayCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=422, detail="Pick today or a later day")
     _date_clash(db, template.id, payload.date)
     day = PackingListDay(
-        packing_list_template_id=template.id, date=payload.date, label=payload.label
+        packing_list_template_id=template.id,
+        date=payload.date,
+        label=payload.label,
+        pack_days_before=payload.pack_days_before,
     )
     db.add(day)
+    db.commit()
+    db.refresh(day)
+    return _day_response(db, day)
+
+
+def _create_one_off(db: Session, payload: PackingListDayCreate) -> PackingListDayResponse:
+    """A templateless day of its own: blank, or holding a copy of a template's
+    items (``copy_from_template_id``).
+
+    A copy takes each item whole — name, note, owner and bag — in the
+    template's order, unchecked, as the day's own items. Nothing points back
+    at the template, so a later edit to it, or its deletion, leaves the copy
+    alone. Copying is not typing, so item history is untouched: the day counts
+    once its date is over (``logic.count_packed_days``), like any other.
+    """
+    source = None
+    if payload.copy_from_template_id is not None:
+        source = (
+            db.query(PackingListTemplate)
+            .filter(PackingListTemplate.id == payload.copy_from_template_id)
+            .first()
+        )
+        if not source:
+            raise HTTPException(status_code=422, detail="Unknown copy_from_template_id")
+    if payload.date < today_local_str(db):
+        raise HTTPException(status_code=422, detail="Pick today or a later day")
+    day = PackingListDay(
+        packing_list_template_id=None,
+        name=payload.name,
+        date=payload.date,
+        label=payload.label,
+        pack_days_before=payload.pack_days_before,
+    )
+    db.add(day)
+    db.flush()
+    if source is not None:
+        for position, item in enumerate(logic.ordered_template_items(db, source.id)):
+            db.add(
+                PackingListDayItem(
+                    day_id=day.id,
+                    template_item_id=None,
+                    owner_id=item.owner_id,
+                    bag_id=item.bag_id,
+                    name=item.name,
+                    note=item.note,
+                    sort_order=position,
+                )
+            )
     db.commit()
     db.refresh(day)
     return _day_response(db, day)
@@ -802,6 +858,7 @@ def update_day(day_id: int, payload: PackingListDayUpdate, db: Session = Depends
     """Move a day's packing list to another date, relabel it, or give it its own
     lead time (``pack_days_before``; ``null`` follows the template again, and
     is a ``422`` on a templateless day, which has no template to follow).
+    Rename a templateless day (``name``; a ``422`` on a templated day).
     Checks stay.
 
     A label set here is the day's own from then on: a schedule's relabel
@@ -809,6 +866,13 @@ def update_day(day_id: int, payload: PackingListDayUpdate, db: Session = Depends
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
+    if payload.name is not None:
+        if day.packing_list_template_id is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="This packing list is called what its template is called.",
+            )
+        day.name = payload.name
     if payload.date is not None and payload.date != day.date:
         if payload.date < today_local_str(db):
             raise HTTPException(status_code=422, detail="Pick today or a later day")

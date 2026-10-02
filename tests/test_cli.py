@@ -131,15 +131,20 @@ def test_seed_shows_every_preparedness_state(cli_db):
     assert sorted(loc.sort_order for loc in cli_db.query(PrepLocation)) == [1, 2, 3]
 
 
-def test_seed_gives_the_backpack_a_school_day_schedule(cli_db):
-    """The demo shows a recurring packing list, and seeding twice leaves one schedule."""
+def test_seed_repeats_the_backpack_and_the_work_bag_on_weekdays(cli_db):
+    """The demo shows two templates repeating on the same school days — one a
+    custom weekly rule, one Daily with weekends skipped — so a weekday box holds
+    two templated lists. Seeding twice leaves two schedules, not four."""
     cli.seed()
     cli.seed()
-    schedules = cli_db.query(PackingListTemplateSchedule).all()
-    assert len(schedules) == 1
-    backpack = cli_db.get(PackingListTemplate, schedules[0].packing_list_template_id)
-    assert backpack.name == "School backpack"
-    assert schedules[0].custom_rule["weekdays"] == [0, 1, 2, 3, 4]
+    schedules = {
+        cli_db.get(PackingListTemplate, s.packing_list_template_id).name: s
+        for s in cli_db.query(PackingListTemplateSchedule)
+    }
+    assert sorted(schedules) == ["Dad's work bag", "School backpack"]
+    assert schedules["School backpack"].custom_rule["weekdays"] == [0, 1, 2, 3, 4]
+    work_bag = schedules["Dad's work bag"]
+    assert (work_bag.recurrence_type, work_bag.custom_rule) == ("daily", {"weekdays_only": True})
 
 
 def test_seed_gives_the_archive_shared_days_and_an_unfinished_list(cli_db):
@@ -164,6 +169,20 @@ def test_seed_gives_the_archive_shared_days_and_an_unfinished_list(cli_db):
         return items - checks
 
     assert any(unchecked(day) > 0 for day in past)
+
+
+def test_seed_shows_a_one_off_beside_a_templates_day(cli_db):
+    """Coming Up should show both kinds: a one-off has no template behind it."""
+    cli.seed()
+    today = today_utc().isoformat()
+    one_offs = (
+        cli_db.query(PackingListDay)
+        .filter(PackingListDay.packing_list_template_id.is_(None), PackingListDay.date >= today)
+        .all()
+    )
+    assert [(d.name, d.pack_days_before) for d in one_offs] == [("Fall concert", 1)]
+    same_day = cli_db.query(PackingListDay).filter_by(date=one_offs[0].date).count()
+    assert same_day >= 2
 
 
 def test_seed_is_idempotent(cli_db):
