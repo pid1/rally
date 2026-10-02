@@ -367,7 +367,8 @@ def test_edit_packing_list_changes_one_days_date_label_and_lead_time(
         assert page.locator("#day-edit-description").inner_text() == "Lake trip"
         assert (
             page.locator(
-                "#day-edit-modal-overlay input:not([type=date]):not([type=number])"
+                # The name field is a templateless day's only, so it is hidden here.
+                "#day-edit-modal-overlay input:not([type=date]):not([type=number]):visible"
             ).count()
             == 1
         )  # the label only
@@ -858,59 +859,247 @@ def test_the_modal_is_for_one_packing_list_named_in_its_title(browser, live_serv
         context.close()
 
 
-def test_scheduling_a_day_it_is_already_on_opens_that_day(browser, live_server, packing_list):
-    existing = packing_list["days"][0]
+def open_add_day(page):
+    page.click("#btn-add-day")
+    page.wait_for_selector("#day-add-modal-overlay .modal-content", state="visible")
+
+
+def save_add_day(page):
+    page.click("#day-add-modal-overlay button[type=submit]")
+    page.wait_for_selector("#day-add-modal-overlay", state="hidden")
+
+
+def delete_days_named(base: str, name: str) -> None:
+    for day in api(base, "GET", "/api/packing-list-days"):
+        if day["name"] == name and day["packing_list_template_id"] is None:
+            api(base, "DELETE", f"/api/packing-list-days/{day['id']}")
+
+
+def test_the_schedule_modal_only_repeats(browser, live_server, packing_list):
+    """A single day is Add Packing List's (#254). With nothing repeating and
+    Repeats off there is nothing to save, so Cancel is the only button."""
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         open_schedule(page, packing_list["id"])
-        # Blank, so nothing lands on a day nobody picked.
-        assert page.input_value("#day-date") == ""
-        page.fill("#day-date", existing["date"])
-        press_and_close(page, "btn-add-day")
-        page.wait_for_function(
-            f"""document.querySelector('[data-day-card="{existing["id"]}"] details')?.open"""
-        )
+        modal = page.locator("#schedule-modal-overlay")
+        assert modal.locator("#day-date").count() == 0
+        assert modal.locator("legend").count() == 0
+        assert not page.locator("#schedule-details").is_visible()
+        assert not page.locator("#btn-update-schedule").is_visible()
+        assert page.locator("[data-cancel-schedule]:visible").count() == 1
+        page.click("[data-cancel-schedule]")
+        page.wait_for_selector("#schedule-modal-overlay", state="hidden")
     finally:
         context.close()
 
 
-def test_add_day_puts_it_under_coming_up_with_its_label(browser, live_server, packing_list):
+def test_add_packing_list_sits_where_add_meal_does(browser, live_server):
+    def place(page, button):
+        return page.evaluate(
+            """(id) => {
+                const button = document.getElementById(id);
+                const row = button.closest('.page-header-row');
+                const heading = row.querySelector('h2').getBoundingClientRect();
+                const box = button.getBoundingClientRect();
+                return { inActions: !!button.closest('.page-header-actions'),
+                         right: Math.round(row.getBoundingClientRect().right - box.right),
+                         middle: Math.round((box.top + box.height / 2) - (heading.top + heading.height / 2)) };
+            }""",
+            button,
+        )
+
+    context, page = open_page(browser, f"{live_server}/meal-planner")
+    try:
+        meal = place(page, "btn-add-meal")
+        page.goto(f"{live_server}/packing-lists", wait_until="networkidle")
+        packing = place(page, "btn-add-day")
+    finally:
+        context.close()
+    assert packing == meal
+    assert packing["inActions"]
+
+
+def test_kept_in_sync_on_a_day_it_is_already_on_opens_that_day(browser, live_server, packing_list):
+    existing = packing_list["days"][0]
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_add_day(page)
+        # Blank, so nothing lands on a day nobody picked.
+        assert page.input_value("#day-date") == ""
+        page.check('input[name="day-add-start"][value="template"]')
+        page.select_option("#day-add-source", label="Browser test trip")
+        page.check('input[name="day-add-mode"][value="sync"]')
+        page.fill("#day-date", existing["date"])
+        save_add_day(page)
+        page.wait_for_function(
+            f"""document.querySelector('[data-day-card="{existing["id"]}"] details')?.open"""
+        )
+        assert not page.locator("#item-modal-overlay").is_visible()
+    finally:
+        context.close()
+    same_day = [
+        d
+        for d in api(live_server, "GET", "/api/packing-list-days")
+        if d["packing_list_template_id"] == packing_list["id"] and d["date"] == existing["date"]
+    ]
+    assert len(same_day) == 1
+
+
+def test_a_template_kept_in_sync_lands_in_coming_up_with_its_label(
+    browser, live_server, packing_list
+):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         # With the packing filter on, a new day thirty days out would be
         # hidden; adding one turns the filter off so it shows.
         chip = page.locator("#day-filters .filter-chip").first
         chip.click()
-        open_schedule(page, packing_list["id"])
+        open_add_day(page)
+        page.check('input[name="day-add-start"][value="template"]')
+        page.select_option("#day-add-source", label="Browser test trip")
+        page.check('input[name="day-add-mode"][value="sync"]')
         page.fill("#day-date", in_days(30))
         page.fill("#day-label", "Long weekend")
-        press_and_close(page, "btn-add-day")
+        save_add_day(page)
         # The modal closes before the list is refetched, so wait for the card
         # rather than reading the list the moment the modal hides.
         row = page.locator("#days-container [data-day-card]", has_text="Long weekend")
         row.wait_for()
         assert row.count() == 1
         assert "0 of 4 packed" in row.text_content()
+        title = row.locator(":scope > .editable-item-content .editable-item-title")
+        assert " ".join(title.inner_text().split()) == "Browser test trip — Long weekend ⧉"
         assert "active" not in chip.get_attribute("class")
+        # It already has items, so Add Item does not open.
+        assert not page.locator("#item-modal-overlay").is_visible()
     finally:
         context.close()
 
 
-def test_each_section_saves_only_when_it_has_something_to_save(browser, live_server, packing_list):
+def test_a_blank_list_opens_add_item_and_a_copy_does_not(browser, live_server, packing_list):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
-        open_schedule(page, packing_list["id"])
-        # Nothing repeats and Repeats is off: there is no schedule to update or
-        # remove, so that section shows no buttons at all — not even Cancel.
-        assert not page.locator("#schedule-details").is_visible()
-        assert not page.locator("#btn-update-schedule").is_visible()
-        assert page.locator("[data-cancel-schedule]:visible").count() == 1
-        # A day needs a date; the form refuses rather than closing.
-        page.click("#btn-add-day")
+        open_add_day(page)
+        # Name and Date are required: an empty form does not close.
+        page.click("#day-add-modal-overlay button[type=submit]")
         page.wait_for_timeout(300)
-        assert page.locator("#schedule-modal-overlay").is_visible()
+        assert page.locator("#day-add-modal-overlay").is_visible()
+        page.fill("#day-add-name", "Browser test concert")
+        page.fill("#day-date", in_days(31))
+        save_add_day(page)
+        page.wait_for_selector("#item-modal-overlay", state="visible")
+        assert (
+            page.locator("#item-scope-note")
+            .inner_text()
+            .startswith('For "Browser test concert" on ')
+        )
+        page.click("#btn-cancel-item")
+
+        open_add_day(page)
+        page.check('input[name="day-add-start"][value="template"]')
+        page.select_option("#day-add-source", label="Browser test trip")
+        page.fill("#day-add-name", "Browser test copy")
+        page.fill("#day-date", in_days(31))
+        save_add_day(page)
+        copy = page.locator("#days-container [data-day-card]", has_text="Browser test copy")
+        copy.wait_for()
+        page.wait_for_timeout(300)
+        assert not page.locator("#item-modal-overlay").is_visible()
+        title = copy.locator(":scope > .editable-item-content .editable-item-title")
+        assert " ".join(title.inner_text().split()) == "Browser test copy"
+        assert "0 of 4 packed" in copy.text_content()
     finally:
         context.close()
+        delete_days_named(live_server, "Browser test concert")
+        delete_days_named(live_server, "Browser test copy")
+
+
+def test_picking_a_template_fills_the_form(browser, live_server, packing_list):
+    api(
+        live_server,
+        "PUT",
+        f"/api/packing-list-templates/{packing_list['id']}",
+        {"pack_days_before": 2},
+    )
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_add_day(page)
+        # Blank list is the default; the template fields wait for Template.
+        assert page.is_checked('input[name="day-add-start"][value="blank"]')
+        fields = page.locator("#day-add-template-fields")
+        assert not fields.is_visible()
+
+        page.check('input[name="day-add-start"][value="template"]')
+        # The templates are listed below, none chosen yet, and Save refuses
+        # until one is.
+        assert fields.is_visible()
+        assert page.input_value("#day-add-source") == ""
+        page.fill("#day-add-name", "Anything")
+        page.fill("#day-date", in_days(33))
+        page.click("#day-add-modal-overlay button[type=submit]")
+        page.wait_for_timeout(300)
+        assert page.locator("#day-add-modal-overlay").is_visible()
+        page.fill("#day-add-name", "")
+
+        page.select_option("#day-add-source", label="Browser test trip")
+        # A copy is the default, named after the template until somebody
+        # types a name, with the template's lead time.
+        assert page.is_checked('input[name="day-add-mode"][value="copy"]')
+        assert page.input_value("#day-add-name") == "Browser test trip"
+        assert page.input_value("#day-add-pack-days") == "2"
+
+        page.fill("#day-add-name", "Trip, my way")
+        page.check('input[name="day-add-mode"][value="sync"]')
+        # Kept in sync, it is called what the template is called.
+        assert page.input_value("#day-add-name") == "Browser test trip"
+        assert page.evaluate("document.getElementById('day-add-name').readOnly")
+        page.check('input[name="day-add-mode"][value="copy"]')
+        assert page.input_value("#day-add-name") == "Trip, my way"
+
+        page.check('input[name="day-add-start"][value="blank"]')
+        assert not fields.is_visible()
+        assert page.input_value("#day-add-name") == "Trip, my way"
+    finally:
+        context.close()
+
+
+def test_start_from_is_hidden_with_no_templates(browser, live_server):
+    context = browser.new_context(viewport=DESKTOP)
+    page = context.new_page()
+    page.route(
+        "**/api/packing-list-templates",
+        lambda route: route.fulfill(status=200, content_type="application/json", body="[]"),
+    )
+    try:
+        page.goto(f"{live_server}/packing-lists", wait_until="networkidle")
+        open_add_day(page)
+        assert not page.locator("#day-add-source-group").is_visible()
+        assert page.locator("#day-add-name").is_visible()
+    finally:
+        context.close()
+
+
+def test_a_one_off_is_renamed_from_edit(browser, live_server):
+    day = api(
+        live_server,
+        "POST",
+        "/api/packing-list-days",
+        {"name": "Browser test one-off", "date": in_days(32), "pack_days_before": 0},
+    )
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        card(page, day["id"]).locator("[data-edit-day]").click()
+        page.wait_for_selector("#day-edit-modal-overlay", state="visible")
+        assert not page.locator("#day-edit-name").is_visible()
+        page.fill("#day-edit-name-input", "Browser test one-off, renamed")
+        page.click("#day-edit-modal-overlay button[type=submit]")
+        page.wait_for_selector("#day-edit-modal-overlay", state="hidden")
+    finally:
+        context.close()
+    assert api(live_server, "GET", f"/api/packing-list-days/{day['id']}")["name"] == (
+        "Browser test one-off, renamed"
+    )
+    api(live_server, "DELETE", f"/api/packing-list-days/{day['id']}")
 
 
 def test_view_schedule_is_folded_until_it_is_needed(browser, live_server, packing_list):
@@ -944,16 +1133,9 @@ def test_view_schedule_is_folded_until_it_is_needed(browser, live_server, packin
         context.close()
 
 
-def test_one_day_and_a_repeating_schedule_side_by_side(browser, live_server, packing_list):
-    """Swim at Nana's every Sunday, and this Saturday too: one save each."""
+def test_a_repeating_schedule_is_set_up_from_its_row(browser, live_server, packing_list):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
-        open_schedule(page, packing_list["id"])
-        page.fill("#day-date", in_days(40))
-        page.fill("#day-label", "Cousins visiting")
-        press_and_close(page, "btn-add-day")
-        page.locator("#days-container [data-day-card]", has_text="Cousins visiting").wait_for()
-
         open_schedule(page, packing_list["id"])
         page.check("#schedule-repeats")
         page.select_option("#recurring-type", "daily")

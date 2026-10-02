@@ -84,7 +84,7 @@ CI runs `pytest`, `ruff check .` and `ruff format --check .`, plus the visual su
 
 ## Sample data
 
-`seed` populates a whole family: four members with their own calendars and events, tasks including recurring templates, a shopping list with purchase history, meal plans past and future, four packing list templates whose items have owners and bags (with item history for autocomplete), put on upcoming days and on past days that share a date or were left half packed, plus a school-day schedule for the backpack, and a preparedness inventory spanning overdue, due-soon and scheduled stock.
+`seed` populates a whole family: four members with their own calendars and events, tasks including recurring templates, a shopping list with purchase history, meal plans past and future, four packing list templates whose items have owners and bags (with item history for autocomplete), put on upcoming days and on past days that share a date or were left half packed, a one-off concert with no template beside the swim, plus weekday schedules for the backpack and Dad's work bag, and a preparedness inventory spanning overdue, due-soon and scheduled stock.
 
 It seeds no external calendar feeds. A seeded feed URL cannot resolve, so it would only ever render an error banner.
 

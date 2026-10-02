@@ -1211,3 +1211,15 @@ def test_summary_reads_a_day_with_its_own_changes(client, db_session):
     assert "Red homework folder" in text
     assert "Field trip form" in text
     assert "0 of 2 packed" in text
+
+
+def test_a_template_kept_in_sync_follows_its_lead_time_unless_given_one(client):
+    template = _packing_list(client, pack_days_before=2)
+    follows = _day(client, template["id"])
+    own = _day(client, template["id"], "2026-10-10", pack_days_before=0)
+    assert (follows["pack_days_before"], own["pack_days_before"]) == (2, 0)
+
+    client.put(f"/api/packing-list-templates/{template['id']}", json={"pack_days_before": 3})
+
+    assert client.get(f"/api/packing-list-days/{follows['id']}").json()["pack_days_before"] == 3
+    assert client.get(f"/api/packing-list-days/{own['id']}").json()["pack_days_before"] == 0

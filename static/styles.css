@@ -1350,27 +1350,6 @@ html.modal-open {
     flex-basis: 100%;
 }
 
-/* A titled part of a form, when one modal asks two separate questions — the
-   Schedule modal's one day and repeating sections. A <fieldset>, so the title
-   is announced with the fields it covers; drawn like a list group's heading,
-   with a hairline above to set it off from the part before. */
-.form-section {
-    border: 0;
-    border-top: 1px solid var(--rule);
-    margin: var(--space-5) 0 0;
-    padding: var(--space-4) 0 0;
-    min-width: 0;
-}
-
-.form-section-title {
-    padding: 0 var(--space-2) 0 0;
-    font-family: var(--font-display);
-    font-size: var(--text-base);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wider);
-}
-
 /* A word beside an item's name saying how it differs from the list it came
    from — "(added)", "(changed)" on a day's packing list. Small, muted capitals,
    so it reads as a note about the item rather than part of its name. */

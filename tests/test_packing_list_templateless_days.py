@@ -325,3 +325,150 @@ def test_the_summary_lists_it_under_its_own_name(client, db_session, templateles
     text = logic.summary_text(db_session, date(2026, 10, 1))
     assert text.startswith('- "Swim at Nana\'s" for Saturday, October 3, packed the day before')
     assert "Goggles" in text and "Snacks" in text
+
+
+# --- One-offs (#254): a templateless day made on purpose ---------------------------
+
+
+def _one_off(client, name="Fall concert", day=SATURDAY, **extra):
+    body = {"name": name, "date": day, "pack_days_before": 1, **extra}
+    return client.post("/api/packing-list-days", json=body)
+
+
+def test_a_blank_one_off_is_a_list_of_its_own(client):
+    response = _one_off(client, label="Front row")
+
+    assert response.status_code == 201
+    day = response.json()
+    assert (day["packing_list_template_id"], day["name"], day["label"]) == (
+        None,
+        "Fall concert",
+        "Front row",
+    )
+    assert (day["description"], day["pack_days_before"], day["pack_date"]) == (
+        None,
+        1,
+        "2026-10-02",
+    )
+    assert (day["items"], day["schedule_id"], day["changed_count"]) == ([], None, 0)
+    added = client.post(f"/api/packing-list-days/{day['id']}/day-items", json={"name": "Tickets"})
+    assert [i["name"] for i in added.json()["items"]] == ["Tickets"]
+
+
+def test_a_copy_takes_the_templates_items_and_nothing_else(client, db_session, nana):
+    history = sorted(
+        (r.name, r.times_added, r.owner_id, r.bag_id, r.last_added_at)
+        for r in db_session.query(PackingListItemHistory)
+    )
+    day = _one_off(
+        client, "Theme park", copy_from_template_id=nana["template"]["id"], pack_days_before=0
+    ).json()
+
+    assert [
+        (i["name"], i["owner_id"], i["bag_id"], i["checked"], i["source"]) for i in day["items"]
+    ] == [
+        ("Goggles", nana["emma"].id, nana["goggles"]["bag_id"], False, "day"),
+        ("Towel", nana["emma"].id, nana["towel"]["bag_id"], False, "day"),
+        ("Snacks", None, None, False, "day"),
+    ]
+    # Its own name, lead time and no description: only items are copied.
+    assert (day["name"], day["pack_days_before"], day["description"]) == ("Theme park", 0, None)
+    # Copying is not typing: history is untouched.
+    db_session.expire_all()
+    assert (
+        sorted(
+            (r.name, r.times_added, r.owner_id, r.bag_id, r.last_added_at)
+            for r in db_session.query(PackingListItemHistory)
+        )
+        == history
+    )
+
+
+def test_a_copy_has_no_link_back(client, nana):
+    template_id = nana["template"]["id"]
+    day = _one_off(client, "Theme park", copy_from_template_id=template_id).json()
+    client.post(f"/api/packing-list-templates/{template_id}/items", json={"name": "Floatie"})
+    client.put(
+        f"/api/packing-list-templates/{template_id}/items/{nana['towel']['id']}",
+        json={"name": "Beach towel"},
+    )
+    _delete_template(client, template_id)
+
+    kept = client.get(f"/api/packing-list-days/{day['id']}").json()
+    assert [i["name"] for i in kept["items"]] == ["Goggles", "Towel", "Snacks"]
+
+
+def test_a_copy_of_a_forgotten_name_does_not_revive_it(client, db_session, nana):
+    suggestion = client.get("/api/packing-list-items/suggestions?q=snacks").json()[0]
+    client.delete(f"/api/packing-list-items/suggestions/{suggestion['id']}")
+    _one_off(client, "Theme park", copy_from_template_id=nana["template"]["id"])
+
+    assert {r.name for r in db_session.query(PackingListItemHistory)} == {"Goggles", "Towel"}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"date": SATURDAY, "pack_days_before": 0},  # none of the three
+        {"packing_list_template_id": 1, "name": "X", "date": SATURDAY, "pack_days_before": 0},
+        {"packing_list_template_id": 1, "copy_from_template_id": 1, "date": SATURDAY},
+        {
+            "copy_from_template_id": 1,
+            "date": SATURDAY,
+            "pack_days_before": 0,
+        },  # a copy needs a name
+        {"name": "X", "date": SATURDAY},  # a one-off needs its own lead time
+        {"name": "  ", "date": SATURDAY, "pack_days_before": 0},
+        {"name": "X", "date": SATURDAY, "pack_days_before": -1},
+        {"name": "X", "date": "2026-09-30", "pack_days_before": 0},  # yesterday
+        {"name": "X", "date": SATURDAY, "pack_days_before": 0, "copy_from_template_id": 999},
+    ],
+)
+def test_bad_bodies_are_422(client, nana, body):
+    response = client.post("/api/packing-list-days", json=body)
+    assert response.status_code == 422, response.text
+
+
+def test_names_are_free(client, nana):
+    assert _one_off(client, "Swim at Nana's").status_code == 201
+    assert _one_off(client, "Swim at Nana's").status_code == 201
+    assert _one_off(client, "Swim at Nana's", day=LATER).status_code == 201
+    # And the template still goes on that day as itself.
+    assert _day(client, nana["template"]["id"])["name"] == "Swim at Nana's"
+
+
+def test_a_one_off_is_renamed_and_a_templated_day_is_not(client, nana):
+    one_off = _one_off(client).json()
+    renamed = client.put(
+        f"/api/packing-list-days/{one_off['id']}", json={"name": "  Fall concert with Grandpa "}
+    )
+    assert renamed.json()["name"] == "Fall concert with Grandpa"
+    assert (
+        client.put(f"/api/packing-list-days/{one_off['id']}", json={"name": " "}).status_code == 422
+    )
+
+    templated = _day(client, nana["template"]["id"])
+    response = client.put(f"/api/packing-list-days/{templated['id']}", json={"name": "Other"})
+    assert response.status_code == 422
+    assert (
+        client.get(f"/api/packing-list-days/{templated['id']}").json()["name"] == "Swim at Nana's"
+    )
+
+
+def test_a_converted_day_can_be_renamed_too(client, templateless):
+    response = client.put(f"/api/packing-list-days/{templateless['id']}", json={"name": "Pool day"})
+    assert response.json()["name"] == "Pool day"
+    # Its copied description stays as it was.
+    assert response.json()["description"] == "Saturdays at Nana's pool"
+
+
+def test_a_one_off_is_counted_once_its_date_is_over(client, db_session, nana, frozen_now):
+    _one_off(client, "Theme park", copy_from_template_id=nana["template"]["id"])
+    client.get("/api/packing-list-days")  # sets the counting marker to yesterday
+
+    frozen_now(datetime(2026, 10, 4, 15, 0, tzinfo=UTC))  # Sunday: Saturday is over
+    client.get("/api/packing-list-days")
+
+    db_session.expire_all()
+    counts = {r.name_key: r.times_added for r in db_session.query(PackingListItemHistory)}
+    assert counts == {"goggles": 1, "towel": 1, "snacks": 1}

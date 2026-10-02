@@ -776,6 +776,32 @@ def seed():
             ),
         ]
 
+        # A one-off on the swim's Saturday: a list with no template behind it,
+        # so the demo shows one beside a template's day (which carries ⧉).
+        concert = PackingListDay(
+            packing_list_template_id=None,
+            name="Fall concert",
+            date=in_days(saturday),
+            label="Lawn seats",
+            pack_days_before=1,
+        )
+        db.add(concert)
+        db.flush()
+        for position, (owner_name, item_name) in enumerate(
+            (("Mom", "Tickets"), (None, "Ear plugs"), ("Dad", "Phone charger"), (None, "Ponchos"))
+        ):
+            owner = members_by_name[owner_name].id if owner_name else None
+            db.add(
+                PackingListDayItem(
+                    day_id=concert.id,
+                    owner_id=owner,
+                    name=item_name,
+                    sort_order=position,
+                )
+            )
+            packing_lists_logic.record_item_history(db, item_name, owner, None)
+        packing_list_days.append(concert)
+
         # The backpack goes every school day, so it is a schedule rather than
         # days added by hand. Its days appear the first time the Packing Lists
         # page is loaded, a week ahead.
@@ -784,6 +810,17 @@ def seed():
                 packing_list_template_id=seeded_packing_lists["School backpack"].id,
                 recurrence_type="custom",
                 custom_rule={"freq": "weekly", "interval": 1, "weekdays": [0, 1, 2, 3, 4]},
+            )
+        )
+        # Dad's work bag repeats every weekday too, as Daily with weekends
+        # skipped rather than a custom weekly rule, so a school day shows two
+        # templated lists sharing one day box, and the demo shows both ways of
+        # saying "weekdays".
+        db.add(
+            PackingListTemplateSchedule(
+                packing_list_template_id=seeded_packing_lists["Dad's work bag"].id,
+                recurrence_type="daily",
+                custom_rule={"weekdays_only": True},
             )
         )
 
@@ -803,7 +840,7 @@ def seed():
         print(f"   - {len(prep_items)} preparedness items across 3 locations")
         print(
             f"   - {len(seeded_packing_lists)} packing lists with {len(packing_list_items)} items,"
-            f" on {len(packing_list_days)} days, plus a school-day schedule"
+            f" on {len(packing_list_days)} days (one a one-off), plus two weekday schedules"
         )
 
     except Exception as e:

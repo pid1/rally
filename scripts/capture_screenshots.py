@@ -34,6 +34,7 @@ import time
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -444,6 +445,22 @@ def _open_schedule(page):
     page.wait_for_timeout(300)
 
 
+def _open_add_packing_list(page):
+    """Add Packing List starting from a copy of Beach day, renamed and dated."""
+    _wait_for_packing_lists(page)
+    page.click("#btn-add-day")
+    page.wait_for_selector("#day-add-modal-overlay .modal-content", state="visible")
+    page.check('input[name="day-add-start"][value="template"]')
+    page.select_option("#day-add-source", label="Beach day")
+    page.fill("#day-add-name", "Theme park")
+    page.fill("#day-date", (date.today() + timedelta(days=9)).isoformat())
+    page.fill("#day-label", "Cousins are coming too")
+    page.fill("#day-add-pack-days", "1")
+    page.locator("#day-add-pack-days").dispatch_event("input")
+    page.locator("#day-add-pack-days").blur()
+    page.wait_for_timeout(300)
+
+
 def _packing_lists_settings_section(page):
     page.locator("#packing-lists-form").scroll_into_view_if_needed()
     page.wait_for_timeout(300)
@@ -597,6 +614,16 @@ SHOTS: tuple[Shot, ...] = (
         scale=1,
         element="#schedule-modal-overlay .modal-content",
         setup=_open_schedule,
+    ),
+    Shot(
+        "packing-list-add",
+        "/packing-lists",
+        # A modal is capped at 90vh and scrolls, so the viewport has to fit
+        # the whole form or the crop ends mid-field.
+        height=1400,
+        scale=1,
+        element="#day-add-modal-overlay .modal-content",
+        setup=_open_add_packing_list,
     ),
     Shot(
         "packing-lists-settings",
