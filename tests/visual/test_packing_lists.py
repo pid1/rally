@@ -25,7 +25,8 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -45,10 +46,19 @@ def api(base: str, method: str, path: str, payload: dict | None = None):
     return json.loads(body) if body else None
 
 
+# `rally.cli.seed()` sets this, and the server decides what "today" is in it.
+# The tests have to agree, or Today, Tomorrow and Due now land on the wrong day
+# for the hours each evening when UTC has already moved on.
+SEEDED_TZ = ZoneInfo("America/Chicago")
+
+
+def today() -> date:
+    """Today in the timezone the server is configured with, not the runner's."""
+    return datetime.now(SEEDED_TZ).date()
+
+
 def in_days(n: int) -> str:
-    # The seed and the server both run in UTC unless a timezone is set, and
-    # these dates only need to be safely in the future.
-    return (date.today() + timedelta(days=n)).isoformat()
+    return (today() + timedelta(days=n)).isoformat()
 
 
 BAG = "Browser test bag"
@@ -313,7 +323,7 @@ def test_a_day_before_packing_list_names_its_packing_day(browser, live_server):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         pack = card(page, day["id"]).locator(".editable-item-meta").first.inner_text()
-        expected = (date.today() + timedelta(days=20)).strftime("%A")
+        expected = (today() + timedelta(days=20)).strftime("%A")
         assert pack == f"Pack {expected}"
     finally:
         context.close()
@@ -356,7 +366,7 @@ def test_edit_packing_list_changes_one_days_date_label_and_lead_time(
 
         edited = card(page, first["id"])
         edited.locator(".editable-item-title", has_text="Cousins visiting").wait_for()
-        pack = date.today() + timedelta(days=19)
+        pack = today() + timedelta(days=19)
         assert edited.locator(".editable-item-meta").first.inner_text() == (
             f"Pack {pack.strftime('%A')}, {pack.strftime('%b')} {pack.day}"
         )
