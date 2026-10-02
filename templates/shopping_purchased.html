@@ -49,6 +49,7 @@
         </div>
     </div>
 
+    <script src="/static/list_group.js?v={{ css_version }}"></script>
     <script src="/static/archive_list.js?v={{ css_version }}"></script>
     <script>
         // ── State ──
@@ -165,25 +166,16 @@
                 return groupLabel(a).localeCompare(groupLabel(b));
             });
 
-            // Same group markup as /shopping, which needs the wrapper so a drag
-            // can be aimed at a whole group. Kept identical here so the two
-            // views of one list do not drift into two shapes.
+            // Same group markup as /shopping (`listGroupHtml`), so the two
+            // views of one list cannot drift into two shapes.
             return keys.map(key => {
                 const groupItems = groups.get(key);
-                const countLabel = `${groupItems.length} item${groupItems.length === 1 ? '' : 's'}`;
-                const rows = groupItems.length === 0
-                    ? '<div class="container-empty-state">Nothing here right now.</div>'
-                    : groupItems.map(renderItemRow).join('');
-                return `
-                    <section class="shopping-group" data-group="${escapeHtml(key)}">
-                        <div class="shopping-group-header">
-                            <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
-                            <span class="shopping-group-rule"></span>
-                            <span class="shopping-group-count">${countLabel}</span>
-                        </div>
-                        <div class="list-container">${rows}</div>
-                    </section>
-                `;
+                return listGroupHtml({
+                    key,
+                    name: groupLabel(key),
+                    countLabel: `${groupItems.length} item${groupItems.length === 1 ? '' : 's'}`,
+                    rowsHtml: groupItems.map(renderItemRow).join(''),
+                });
             }).join('');
         }
 

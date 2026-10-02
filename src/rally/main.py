@@ -1,13 +1,14 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 from starlette.responses import Response
 
 from rally import member_colors, member_prefs
-from rally.database import init_db
+from rally.database import get_db, init_db
 from rally.routers import (
     dashboard,
     devices,
@@ -15,6 +16,7 @@ from rally.routers import (
     family,
     meal_planner,
     notes,
+    packing_lists,
     preparedness,
     recurring_todos,
     settings,
@@ -22,6 +24,7 @@ from rally.routers import (
     todos,
 )
 from rally.templating import templates
+from rally.utils.settings import local_timezone_name
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -69,6 +72,11 @@ app.include_router(settings.router)
 app.include_router(shopping.router)
 app.include_router(notes.router)
 app.include_router(preparedness.router)
+app.include_router(packing_lists.router)
+app.include_router(packing_lists.days_router)
+app.include_router(packing_lists.schedules_router)
+app.include_router(packing_lists.bags_router)
+app.include_router(packing_lists.items_router)
 
 
 @app.get("/", response_class=RedirectResponse)
@@ -138,6 +146,26 @@ def meal_planner_page(request: Request):
 def meal_planner_previous_page(request: Request):
     """Serve the page of meals from days that have passed, with their reviews."""
     return templates.TemplateResponse(request, "meal_planner_previous.html")
+
+
+@app.get("/packing-lists", response_class=HTMLResponse)
+def packing_lists_page(request: Request, db: Session = Depends(get_db)):
+    """Serve the Packing Lists page: days coming up, and the packing list templates.
+
+    The family's timezone is rendered in so the Schedule modal can default its
+    date to the family's today rather than the browser's, before any fetch.
+    """
+    return templates.TemplateResponse(
+        request, "packing_lists.html", {"local_timezone": local_timezone_name(db)}
+    )
+
+
+@app.get("/packing-lists/previous", response_class=HTMLResponse)
+def packing_lists_previous_page(request: Request, db: Session = Depends(get_db)):
+    """Serve the read-only archive of packing lists on days that have passed."""
+    return templates.TemplateResponse(
+        request, "packing_lists_previous.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/preparedness", response_class=HTMLResponse)

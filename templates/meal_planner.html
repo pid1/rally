@@ -162,7 +162,7 @@
             });
 
             container.innerHTML = days.map(day => `
-                <section class="meal-day">
+                <section class="day-box">
                     ${day.meals.map(renderMeal).join('')}
                     <div class="date-label">${escapeHtml(formatDate(day.date))}</div>
                 </section>
@@ -187,7 +187,7 @@
             const mealType = plan.meal_type || 'Dinner';
 
             return `
-                <div class="meal-day-meal" data-id="${plan.id}">
+                <div class="day-box-entry" data-id="${plan.id}">
                     <div class="editable-item-content">
                         <div class="editable-item-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
                         ${metaHtml}

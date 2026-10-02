@@ -24,6 +24,7 @@ SIDEBAR_ORDER = [
     ("/calendar", "Calendar"),
     ("/notes", "Notes"),
     ("/meal-planner", "Meal Planner"),
+    ("/packing-lists", "Packing Lists"),
     ("/preparedness", "Preparedness"),
     ("/settings", "Settings"),
 ]
@@ -37,8 +38,10 @@ PAGES = {
     "/calendar": ("Calendar", "/calendar"),
     "/notes": ("Notes", "/notes"),
     "/notes/previous": ("Previous Notes", "/notes"),
+    "/packing-lists/previous": ("Previous Packing Lists", "/packing-lists"),
     "/meal-planner": ("Meal Planner", "/meal-planner"),
     "/meal-planner/previous": ("Previous Meals", "/meal-planner"),
+    "/packing-lists": ("Packing Lists", "/packing-lists"),
     "/preparedness": ("Preparedness", "/preparedness"),
     "/go-list": ("Go List", "/preparedness"),
     "/settings": ("Settings", "/settings"),
@@ -64,8 +67,9 @@ def _links(sidebar: str) -> list[tuple[str, str, bool]]:
 
 @pytest.mark.parametrize("path", ALL_PATHS)
 def test_every_page_carries_the_sidebar_in_order(client, path):
-    """Eight links, the order they had across the row and the dropdown, with
-    Settings moved up from the footer to the end."""
+    """Every page link in the order they had across the row and the dropdown,
+    with Packing Lists after Meal Planner and Settings moved up from the footer
+    to the end."""
     html = client.get(path).text
     links = _links(_sidebar(html))
     assert [(href, label) for href, label, _ in links] == SIDEBAR_ORDER, path
@@ -100,6 +104,17 @@ def test_every_page_has_one_menu_button_and_loads_the_sidebar_script(client, pat
 def test_each_page_marks_itself_or_its_parent(client, path, expected):
     current = [href for href, _, cur in _links(_sidebar(client.get(path).text)) if cur]
     assert current == ([expected] if expected else []), path
+
+
+def test_the_retired_packing_list_pages_are_gone(client):
+    """A packing list is edited, and a day checked off, in place on /packing-lists:
+    both pages that used to hold them were retired rather than redirected."""
+    packing_list = client.post("/api/packing-lists", json={"name": "Beach day"}).json()
+    day = client.post(
+        "/api/packing-list-days", json={"packing_list_id": packing_list["id"], "date": "2999-01-01"}
+    ).json()
+    assert client.get(f"/packing-lists/{packing_list['id']}").status_code == 404
+    assert client.get(f"/packing-lists/days/{day['id']}").status_code == 404
 
 
 def test_the_dashboard_marks_itself(client):

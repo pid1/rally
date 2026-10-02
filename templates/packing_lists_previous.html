@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% set nav_active = "packing_lists" %}
+{% block title %}Previous Packing Lists{% endblock %}
+{% block subtitle %}Previous Packing Lists{% endblock %}
+{% block head %}
+<script src="/static/phone_links.js?v={{ css_version }}"></script>
+{% endblock %}
+
+{% block content %}
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Packing Lists</h2>
+            </div>
+            <div class="page-header-meta">
+                <a class="link-quiet" href="/packing-lists">Back to current packing lists</a>
+            </div>
+        </header>
+
+        <!-- The View chips are the Packing Lists page's: a way to look, not a
+             filter, so Clear Search, the only reset, leaves them alone. -->
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="view-label">View</span>
+                <div class="filter-chips" id="view-chips" role="group" aria-labelledby="view-label">
+                    <button type="button" class="filter-chip active" data-view="owner" aria-pressed="true">By owner</button>
+                    <button type="button" class="filter-chip" data-view="bag" aria-pressed="false">By bag</button>
+                </div>
+            </div>
+            <div class="toolbar-search">
+                <label class="toolbar-label" for="search-input">Search</label>
+                <div class="toolbar-search-controls">
+                    <input type="text" id="search-input" class="search-input"
+                           placeholder="Search packing lists" autocomplete="off">
+                    <button type="button" class="btn btn--secondary" id="search-btn" disabled>Search</button>
+                    <button type="button" class="btn btn--quiet" id="search-clear">Clear Search</button>
+                </div>
+            </div>
+            <div class="search-results-count" id="search-results-count" hidden></div>
+        </div>
+
+        <div class="list-container" id="list-container">
+            <div class="container-loading-state">Loading previous packing lists...</div>
+        </div>
+
+        <div class="load-more-container" id="load-more-container" style="display:none;">
+            <button type="button" class="btn btn--secondary" id="btn-load-more">Load more</button>
+        </div>
+    </div>
+
+    <script src="/static/archive_list.js?v={{ css_version }}"></script>
+    <script src="/static/list_group.js?v={{ css_version }}"></script>
+    <script src="/static/packing_lists.js?v={{ css_version }}"></script>
+    <script>
+        const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIMEZONE }).format(new Date());
+        // Which cards are open, so Load more puts them back the way they were.
+        const openDays = new Set();
+        // Who and which bags, for grouping; By owner on every visit.
+        let members = [];
+        let bags = [];
+        let view = 'owner';
+
+        document.getElementById('list-container').addEventListener('toggle', (e) => {
+            const details = e.target.closest('details[data-day]');
+            if (!details) return;
+            const id = parseInt(details.dataset.day, 10);
+            if (details.open) openDays.add(id); else openDays.delete(id);
+        }, true);
+
+        const archive = new ArchiveList({
+            endpoint: '/api/packing-list-days/previous',
+            container: 'list-container',
+            noun: ['packing list', 'packing lists'],
+            loadingText: 'Loading previous packing lists...',
+            errorText: 'Could not load previous packing lists. Please try again.',
+            emptyMessage: () => archive.searchTerm
+                ? 'No packing lists match your search.'
+                : 'No previous packing lists.',
+            // Read-only: the same card as Coming Up, with the boxes showing
+            // what was packed and nothing that can change it.
+            // Grouped into day boxes, newest day first, as the API sorts them.
+            render: (days) => PackingLists.dayBoxesHtml(days, {
+                today, readOnly: true, isOpen: day => openDays.has(day.id),
+                lens: { view, members, bags },
+            }),
+        });
+
+        document.getElementById('view-chips').addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-view]');
+            if (!chip || chip.dataset.view === view) return;
+            view = chip.dataset.view;
+            document.querySelectorAll('#view-chips [data-view]').forEach(c => {
+                const on = c.dataset.view === view;
+                c.classList.toggle('active', on);
+                c.setAttribute('aria-pressed', String(on));
+            });
+            // Regroup what is loaded; nothing is fetched. An empty or
+            // no-match list keeps the message it already shows.
+            if (archive.items.length === 0) return;
+            document.getElementById('list-container').innerHTML =
+                PackingLists.dayBoxesHtml(archive.items, {
+                    today, readOnly: true, isOpen: day => openDays.has(day.id),
+                    lens: { view, members, bags },
+                });
+        });
+
+        (async function () {
+            [members, bags] = await Promise.all([
+                PackingLists.requestJson('/api/family'),
+                PackingLists.requestJson('/api/packing-list-bags'),
+            ]);
+            archive.reload();
+        })();
+    </script>
+{% endblock %}

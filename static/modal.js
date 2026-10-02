@@ -55,10 +55,20 @@
      * the first field's label above the fold, which reads as a form that
      * starts mid-way through itself. Every modal opens at the top now.
      */
+    /* Lock the page behind an open modal, and release it only once the last
+     * one has closed — a modal opened from another (Manage stores over Add
+     * Item) must not unlock the page when the inner one closes. */
+    function syncPageLock() {
+        const open = Array.from(document.querySelectorAll('.modal-overlay'))
+            .some((overlay) => overlay.style.display === 'flex');
+        document.documentElement.classList.toggle('modal-open', open);
+    }
+
     function showModalOverlay(overlayId) {
         const overlay = document.getElementById(overlayId);
         if (!overlay) return;
         overlay.style.display = 'flex';
+        syncPageLock();
         const scroll = overlay.querySelector('.modal-scroll');
         if (scroll) {
             wire(scroll);
@@ -71,6 +81,7 @@
     function hideModalOverlay(overlayId) {
         const overlay = document.getElementById(overlayId);
         if (overlay) overlay.style.display = 'none';
+        syncPageLock();
     }
 
     window.showModalOverlay = showModalOverlay;

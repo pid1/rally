@@ -24,7 +24,7 @@ You can run the same demo instance yourself in about a minute: see [docs/develop
 
 At 4 AM Rally gathers the day's events, the forecast, the tasks that are due and tonight's dinner, then asks the AI model of your choosing to write the family a short plan in plain language. The page is served from a cache, so the kitchen display never sits waiting on an API.
 
-You can fold in more if you want it: your open shopping list, anything overdue in your emergency stock, tonight's games for the teams you follow, a STEM idea for the kids. Each one is a toggle in Settings.
+You can fold in more if you want it: your open shopping list, the packing lists you need to pack this week, anything overdue in your emergency stock, tonight's games for the teams you follow, a STEM idea for the kids. Each one is a toggle in Settings.
 
 ### A calendar the whole family shares
 
@@ -53,6 +53,14 @@ Some things aren't a task, an event or a meal — they're a heads-up. *Soccer pr
 Notes take a little formatting — **bold**, *italic* and lists — and the dashboard reads them live, so a note added at breakfast is there on the next refresh rather than tomorrow. Past days move to a searchable archive and stop being editable.
 
 ![The Rally notes page: one note per day, with the coming week planned out](docs/screenshots/readme-notes.png)
+
+### Packing lists for the things you pack again and again
+
+Swim at Nana's, a beach day, the school backpacks, Dad's work bag: keep each packing list once as a template and put it on a day whenever you need it. Every item can belong to someone and go in a bag, so you can read any list by who's packing what or by what goes in each bag, and Rally remembers what you've packed before so items fill themselves in. Checking things off for Saturday never touches next week's list, and anything you add to the template shows up on every day it's on. Need something extra just this once, or skipping the swimsuit this time? Change that day's list and the template stays as it was. A list you pack on a routine, like the school backpack every weekday, can repeat on its own schedule, and past days stay in a read-only archive.
+
+The morning briefing reminds you on the packing day (as many days ahead as each list needs), names who still has what to pack and which bag it goes in, and points out what might need restocking or be hard to find at the last minute, like a nearly empty bottle of sunscreen.
+
+![The Swim at Nana's packing list in Saturday's day box, opened with View more, grouped by owner with each item's bag, and partly packed](docs/screenshots/readme-packing-lists.png)
 
 ### Emergency stock
 

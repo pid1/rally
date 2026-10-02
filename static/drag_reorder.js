@@ -1,8 +1,8 @@
 /* Drag-to-reorder for grouped lists.
  *
- * Markup contract, matching what /shopping renders:
+ * Markup contract, matching what `list_group.js` writes (Shopping, a packing list):
  *
- *   [container] > .shopping-group > .list-container > .editable-item[data-id]
+ *   [container] > .list-group > .list-container > .editable-item[data-id]
  *
  * and a handle inside each row that participates. Dropping a row on another
  * group's list moves it there, so "reorder" and "change group" are one gesture.
@@ -21,6 +21,11 @@
  * The handle is a real <button>, so the same move is available from the
  * keyboard: focus it and press the arrow keys. Moving between groups by
  * keyboard is the Edit form's Store field, which already does it.
+ *
+ * `scope` (optional) is a selector for the boundary a row may not be dragged
+ * out of: on the Packing Lists page every packing list's groups live in one
+ * container, and a row dropped into another packing list would be a move the
+ * API refuses.
  */
 (function () {
     'use strict';
@@ -50,6 +55,7 @@
             itemLabel,
             onReorder,
             announce,
+            scope,
         } = config;
 
         let drag = null;
@@ -76,7 +82,9 @@
 
         function listOf(element) {
             const group = element.closest(groupSelector);
-            return group && container.contains(group) ? group.querySelector(listSelector) : null;
+            if (!group || !container.contains(group)) return null;
+            if (scope && drag && group.closest(scope) !== drag.item.closest(scope)) return null;
+            return group.querySelector(listSelector);
         }
 
         /* The first child a dragged row must stay above: the completed block

@@ -868,3 +868,250 @@ class CalendarCache(Base):
     retry_after: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class PackingList(Base):
+    """A reusable packing list: Swim at Nana's, Beach day, School backpack.
+
+    This is the master. It is never checked off itself — a ``PackingListDay``
+    puts it on a date, and checking happens there. ``pack_days_before`` says
+    how many days ahead that day's copy should be packed (0 is the day itself),
+    which is what the daily summary keys its reminder on. A day can set its own
+    (``PackingListDay.pack_days_before``); this is the default.
+
+    ``name`` is unique case-insensitively, like store and location names, so
+    two templates can never read the same.
+    """
+
+    __tablename__ = "packing_lists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pack_days_before: Mapped[int] = mapped_column(Integer, default=0)  # 0 is the day itself
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_packing_lists_name_nocase", text("name COLLATE NOCASE"), unique=True),
+        CheckConstraint("pack_days_before >= 0", name="ck_packing_list_pack_days_before"),
+    )
+
+
+class PackingListBag(Base):
+    """A bag things are packed into: Emma's backpack, Pool bag, Car.
+
+    One household list, shared by every packing list, like ``ShoppingStore``.
+    Items name their bag in free text and a new name joins this list, so it
+    grows as it is used; the Manage bags modal renames and removes. An item in
+    no bag has ``bag_id IS NULL`` and reads as "No bag". Names are unique
+    case-insensitively, so typing "pool bag" lands in "Pool bag".
+    """
+
+    __tablename__ = "packing_list_bags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_packing_list_bags_name_nocase", text("name COLLATE NOCASE"), unique=True),
+    )
+
+
+class PackingListItem(Base):
+    """One thing to pack, on the packing list template.
+
+    Items live on the template only. A day's copy never duplicates them — it
+    records which of them are checked (``PackingListDayCheck``) and its own
+    changes (``PackingListDayItem``) — so an edit here reaches every day the
+    packing list is on, with nothing to sync.
+
+    ``owner_id`` (a family member; NULL is "Everyone") and ``bag_id`` (NULL is
+    "No bag") are the two ways the page groups a packing list: who owns what, and
+    what goes in each bag. ``sort_order`` is one order for the whole packing list;
+    each view reads it within its groups. It is compared, never counted on to
+    be contiguous, the ``ShoppingItem.sort_order`` contract, and a new item
+    goes to the bottom: a packing list is entered top to bottom.
+    """
+
+    __tablename__ = "packing_list_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    packing_list_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_lists.id
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to family_members.id
+    bag_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to packing_list_bags.id
+    name: Mapped[str] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class PackingListItemHistory(Base):
+    """Every item name ever put on a packing list, for autocomplete.
+
+    The packing list counterpart of ``ShoppingItemHistory``: permanent,
+    deduplicated on ``name_key`` (trimmed and casefolded), with the casing it
+    was last typed in, the owner and bag it last had, and a use counter that
+    ranks suggestions. Items on packing lists stay independent of it — renaming
+    one changes nothing here, and forgetting a suggestion changes no packing list.
+    """
+
+    __tablename__ = "packing_list_item_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    name_key: Mapped[str] = mapped_column(String(200))
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bag_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    times_added: Mapped[int] = mapped_column(Integer, default=1)
+    last_added_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (Index("ix_packing_list_item_history_name_key", "name_key", unique=True),)
+
+
+class PackingListDay(Base):
+    """A packing list put on a date: "Swim at Nana's" on Saturday.
+
+    This is the copy the family checks off, but it holds no copy of the
+    template's items — only its checks and its own changes
+    (``PackingListDayItem``). ``(packing_list_id, date)`` is unique, because the same
+    list twice on one day would be two copies of one bag.
+
+    ``date`` is ``String(10)`` YYYY-MM-DD like ``Todo.due_date``: a day on a
+    wall calendar, never an instant.
+    """
+
+    __tablename__ = "packing_list_days"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    packing_list_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_lists.id
+    date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
+    label: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    schedule_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True
+    )  # FK to packing_list_schedules.id; NULL for a day added by hand
+    pack_days_before: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # This day's own lead time; NULL follows the packing list's
+    # Set once somebody edits this day's label: a schedule's relabel skips it.
+    label_edited: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index("ix_packing_list_days_packing_list_date", "packing_list_id", "date", unique=True),
+    )
+
+
+class PackingListDayItem(Base):
+    """One day's own change to its packing list: the overlay a day keeps on top.
+
+    A day still follows its packing list — an item added to the packing list shows up
+    on every day — and this table holds what is true of one day only:
+
+    * ``item_id`` set: a packing list item as it reads *on this day*. ``name``,
+      ``note``, ``owner_id`` and ``bag_id`` are the day's full values, copied
+      when it was first edited here, so a later edit to the template no longer
+      reaches this one item on this one day. ``removed`` takes it off this day
+      without touching the template. Its check still lives in
+      ``PackingListDayCheck``, like any packing list item.
+    * ``item_id`` NULL: an item only this day has, after the template's items
+      in its own ``sort_order``, with its own owner and bag, and its own
+      ``checked``, since ``PackingListDayCheck`` names template items only.
+
+    Unique per ``(day_id, item_id)`` where ``item_id`` is set: one reading of a
+    packing list item per day.
+    """
+
+    __tablename__ = "packing_list_day_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_days.id
+    item_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True
+    )  # FK to packing_list_items.id; NULL for an item only this day has
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bag_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    name: Mapped[str] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)  # Day-only items
+    removed: Mapped[bool] = mapped_column(default=False)  # Packing list items only
+    checked: Mapped[bool] = mapped_column(default=False)  # Day-only items only
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_packing_list_day_items_day_item",
+            "day_id",
+            "item_id",
+            unique=True,
+            sqlite_where=text("item_id IS NOT NULL"),
+        ),
+    )
+
+
+class PackingListSchedule(Base):
+    """A packing list put on days by a repeating rule: "School backpack" every weekday.
+
+    The recurrence columns are named exactly as on ``RecurringTodo``
+    (``recurrence_type``, ``recurrence_day``, ``custom_rule``, ``start_date``,
+    ``last_generated_date``) because ``rally.recurrence`` reads them by name:
+    a schedule is handed to the same date functions a recurring task is, so
+    there is one place that knows what "the first Sunday" means.
+
+    A schedule creates ordinary ``PackingListDay`` rows ahead of time (see
+    ``rally.packing_lists.process_schedules``) and has no hold over them after
+    that. ``last_generated_date`` is the high-water mark: a date at or before
+    it is never generated again, which is what keeps a day somebody removed
+    from coming back. Pausing, ending or editing a schedule therefore leaves
+    the days it already made exactly where they are — except its ``label``,
+    which names those days, so a new one relabels its days from today on.
+    """
+
+    __tablename__ = "packing_list_schedules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # One schedule per packing list: a packing list either repeats or it does not.
+    packing_list_id: Mapped[int] = mapped_column(
+        Integer, index=True, unique=True
+    )  # FK to packing_lists.id
+    recurrence_type: Mapped[str] = mapped_column(String(20))  # daily, weekly, monthly, custom
+    recurrence_day: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 0-6 (Monday first) for weekly, 1-31 for monthly
+    custom_rule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    start_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # YYYY-MM-DD: the first day it may land on; NULL means "from today"
+    end_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # YYYY-MM-DD: the last day it may land on, inclusive; NULL means "no end"
+    label: Mapped[str | None] = mapped_column(String(200), nullable=True)  # Copied onto each day
+    last_generated_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+
+class PackingListDayCheck(Base):
+    """An item checked off on one day. The row's existence *is* the check.
+
+    Keyed on ``(day_id, item_id)``, which is the whole reason checking off on
+    Saturday cannot touch the master or any other day: there is no column on
+    either for it to write. Unchecking deletes the row.
+    """
+
+    __tablename__ = "packing_list_day_checks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_days.id
+    item_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_items.id
+    checked_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (
+        Index("ix_packing_list_day_checks_day_item", "day_id", "item_id", unique=True),
+    )

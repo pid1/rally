@@ -111,7 +111,7 @@ def test_opens_from_the_right_and_closes_on_escape(open_page, viewport):
 
 def test_a_tap_outside_closes_it_and_reaches_nothing(open_page):
     page = open_page("/todo", "mobile")
-    checkbox = page.locator(".todo-checkbox input[type=checkbox]").first
+    checkbox = page.locator(".item-checkbox input[type=checkbox]").first
     checkbox.scroll_into_view_if_needed()
     before = checkbox.is_checked()
     box = checkbox.bounding_box()

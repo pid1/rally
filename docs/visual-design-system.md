@@ -185,7 +185,7 @@ display adds on top of a set that already works without it.
 
 The one substantive color change: `--ink-subtle` (#767676) replaced `--light-gray` (#999999) everywhere it carried text, clearing WCAG AA at 4.54:1. #999 no longer exists.
 
-Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated uppercase sizes collapsed to three related ones (C6): `.shopping-group-name` at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
+Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated uppercase sizes collapsed to three related ones (C6): `.list-group-name` at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
 
 ### 2. Layout primitives
 
@@ -202,6 +202,16 @@ Everything focusable shows a ring: one `:focus-visible` rule in the base layer, 
 `.phone-link` and `.inline-link` are the components that deliberately stay inline and under 44px: one wraps a phone number, the other a URL, found inside a line of text somebody else wrote. Each takes its size, color and italics from that line and adds only an underline. A 44px target would break the sentence around it, which is the case WCAG 2.5.8 exempts.
 
 `.rich-text` is the structure for block content that arrives as markup (paragraphs, emphasis, lists): the spacing between blocks and nothing else, with size and color inherited from wherever it sits. A Daily Note card and an event's Notes row both use it.
+
+Several components are named for what they are rather than for the page that introduced them, and the findings above use their earlier names. `.item-checkbox` (formerly `.todo-checkbox`) is the full-size hit area around a row's checkbox, on Tasks, Shopping and a day's packing list. `.list-group` and its `-header`, `-name`, `-rule` and `-count` parts (formerly `.shopping-group`) are a titled group of rows, on Shopping, Purchased and both packing list pages; `static/list_group.js` writes the markup so no page builds it by hand. `.manage-row` (formerly `.store-manage-row`) is one editable row in a "Manage …" modal: stores, locations and packing list bags. `.recurring-icon` (formerly `.todo-recurring-icon`) heads a recurring task template's row; inline, after a name, the ↻ is `.recurring-indicator`, which marks a task made from a template, a packing list template on a schedule, and a day a schedule added. `.template-item` (formerly `.recurring-template`) is the dashed outline that says a row is a template rather than a thing to do, on Recurring Tasks and Packing List Templates.
+
+`.day-box` (formerly `.meal-day`) is one day's plans read like a menu: each plan is a `.day-box-entry` (formerly `.meal-day-meal`) stacked inside it, and the date is stated once, as the box's `.date-label` footer. The Meal Planner's meals and the Packing Lists page's packing lists. `.day-box--divided` adds an inset hairline between entries; only Packing Lists uses it so far, and the Meal Planner could take it later. `.item-mark` is a muted note on a row about where it came from, `(added)` or `(changed)` on a day's packing list, and `.is-read-only` is a row that cannot be acted on: an archived day's items, grayed whether packed or not.
+
+`.disclosure` is part of a row kept folded away until asked for: a native `<details>` whose summary reads like `.link-quiet` at a full target height, with no underline, and `.disclosure-more` / `.disclosure-less` as the words it swaps when it opens. A packing list's day entry and its template row each hold their items in one. The repeat controls shared by Recurring Tasks and packing list schedules are a partial, `templates/_recurrence_fields.html`, driven by `static/recurrence_form.js`.
+
+`.form-section` splits a modal into halves that save separately, each titled by a `.form-section-title` and ending in its own `.modal-actions`: the packing list Schedule modal's *One day* and *Repeating*. A text field's suggestion menu is `.autocomplete-wrap > input + .autocomplete-menu`, written by `attachAutocomplete()` in `static/autocomplete.js`; a suggestion's muted second part is `.autocomplete-detail` (formerly `.autocomplete-store`). It serves the shopping list's item names and a packing list item's name and bag.
+
+An open modal locks the page behind it. `static/modal.js` sets `html.modal-open` while any overlay is shown, which stops the page scrolling under a wheel or a finger in the modal, and reserves the scrollbar's gutter so the page does not shift sideways when the scrollbar goes. Overlays are shown and hidden with `showModalOverlay()` / `hideModalOverlay()` so the lock is always released.
 
 ### 4. The toolbar
 

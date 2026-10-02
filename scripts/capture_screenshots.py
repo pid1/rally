@@ -167,6 +167,27 @@ REVIEW = json.dumps({
 # run_review expects (raw, model) back from the call it is given.
 prep_review.run_review(db, llm=lambda *a, **k: (REVIEW, "demo-model"))
 
+# The seed puts no day's own changes on any packing list, so the coming beach
+# day gets two: a frisbee for that day only, and the umbrella's note changed
+# for it alone. That is what marks a row "(added)" or "(changed)" and puts
+# "2 items changed" beside the entry's Edit.
+from rally.models import PackingList, PackingListDay, PackingListDayItem, PackingListItem
+beach = db.query(PackingList).filter(PackingList.name == "Beach day").one()
+beach_day = (
+    db.query(PackingListDay).filter(PackingListDay.packing_list_id == beach.id)
+    .order_by(PackingListDay.date.desc()).first()
+)
+umbrella = db.query(PackingListItem).filter(
+    PackingListItem.packing_list_id == beach.id, PackingListItem.name == "Umbrella"
+).one()
+db.add(PackingListDayItem(
+    day_id=beach_day.id, item_id=umbrella.id, name=umbrella.name,
+    note="The big striped one: it's going to be sunny", owner_id=umbrella.owner_id,
+    bag_id=umbrella.bag_id,
+))
+db.add(PackingListDayItem(day_id=beach_day.id, name="Frisbee", owner_id=None, bag_id=None))
+db.commit()
+
 # The seed only ever buys things today, and today's purchases stay on the list
 # until midnight, so /shopping/purchased would otherwise be empty. A few days
 # of earlier shopping, across both stores and the catch-all, gives it groups.
@@ -302,7 +323,7 @@ def _open_event_detail(page):
 
 def _wait_for_list(page):
     """Archive pages fill their list after load; wait for the rows."""
-    page.wait_for_selector("#list-container .history-card, #groups-container .shopping-group")
+    page.wait_for_selector("#list-container .history-card, #groups-container .list-group")
     page.wait_for_timeout(300)
 
 
@@ -327,6 +348,107 @@ def _open_review(page):
     page.locator("#review-details").scroll_into_view_if_needed()
 
 
+def _park_pointer(page):
+    """Move the pointer off the content: a click leaves it resting on a row,
+    and the row's hover shade would end up in the shot."""
+    page.mouse.move(0, 0)
+    page.wait_for_timeout(300)
+
+
+def _wait_for_packing_lists(page):
+    """The Packing Lists page fills its day boxes and template rows after load."""
+    page.wait_for_selector("#days-container [data-day-card]")
+    page.wait_for_selector("#packing-lists-container [data-packing-list-row]")
+    page.wait_for_timeout(300)
+
+
+# The seed's coming swim: owners and bags, a few things already packed.
+SWIM_CARD = '[data-day-card]:has-text("Cousins are coming too")'
+# The day box holding it, which is what a reader sees as one day.
+SWIM_BOX = f".day-box:has({SWIM_CARD})"
+# The coming beach day, which the screenshot seed gives changes of its own.
+BEACH_CARD = '[data-day-card]:has-text("Beach day")'
+BEACH_BOX = f".day-box:has({BEACH_CARD})"
+
+
+def _open_card(card_selector):
+    """A day's packing list is under "View more" in its entry; open it."""
+
+    def go(page):
+        _wait_for_packing_lists(page)
+        card = page.locator(card_selector).first
+        card.locator(":scope > details > summary").click()
+        card.locator(".list-group").first.wait_for()
+        card.scroll_into_view_if_needed()
+        _park_pointer(page)
+
+    return go
+
+
+def _open_swim_by_bag(page):
+    """The same day, grouped by bag: owners move to the muted line."""
+    _open_card(SWIM_CARD)(page)
+    page.click('#view-chips [data-view="bag"]')
+    page.locator(SWIM_CARD).locator(".list-group").first.wait_for()
+    _park_pointer(page)
+
+
+def _template_row(page, name):
+    return page.locator("#packing-lists-container [data-packing-list-row]", has_text=name).first
+
+
+def _open_template(page):
+    """Swim at Nana's template row, opened to its items."""
+    _wait_for_packing_lists(page)
+    row = _template_row(page, "Swim at Nana's")
+    row.locator(":scope > details > summary").click()
+    row.locator(".list-group").first.wait_for()
+    row.scroll_into_view_if_needed()
+    _park_pointer(page)
+
+
+def _open_day_edit(page):
+    """Edit on the swim's entry: one day's date, label and lead time."""
+    _wait_for_packing_lists(page)
+    page.locator(SWIM_CARD).first.locator("[data-edit-day]").click()
+    page.wait_for_selector("#day-edit-modal-overlay .modal-content", state="visible")
+    page.wait_for_timeout(300)
+
+
+def _open_add_item_suggesting(page):
+    """Add Item on the swim template, with "Gog" typed so a suggestion shows."""
+    _open_template(page)
+    _template_row(page, "Swim at Nana's").locator("[data-add-item]").click()
+    page.wait_for_selector("#item-modal-overlay .modal-content", state="visible")
+    page.locator("#item-name").press_sequentially("Gog")
+    page.wait_for_selector("#item-suggestions .autocomplete-option")
+    page.wait_for_timeout(300)
+
+
+def _open_manage_bags(page):
+    _wait_for_packing_lists(page)
+    page.click("#btn-manage-bags")
+    page.wait_for_selector("#bags-modal-overlay .modal-content", state="visible")
+    page.wait_for_timeout(300)
+
+
+def _open_schedule(page):
+    """Schedule on the school backpack, with its weekday rule unfolded."""
+    _wait_for_packing_lists(page)
+    _template_row(page, "School backpack").locator("[data-schedule]").click()
+    page.wait_for_selector("#schedule-modal-overlay .modal-content", state="visible")
+    details = page.locator("#schedule-details")
+    if not details.evaluate("d => d.open"):
+        details.locator(":scope > summary").click()
+    page.wait_for_selector("#schedule-modal-overlay .recurrence-preview-lead")
+    page.wait_for_timeout(300)
+
+
+def _packing_lists_settings_section(page):
+    page.locator("#packing-lists-form").scroll_into_view_if_needed()
+    page.wait_for_timeout(300)
+
+
 SHOTS: tuple[Shot, ...] = (
     # README heroes — retina, whole page.
     Shot("readme-dashboard", "/dashboard"),
@@ -335,6 +457,7 @@ SHOTS: tuple[Shot, ...] = (
     Shot("readme-shopping", "/shopping"),
     Shot("readme-notes", "/notes"),
     Shot("readme-preparedness", "/preparedness"),
+    Shot("readme-packing-lists", "/packing-lists", element=SWIM_BOX, setup=_open_card(SWIM_CARD)),
     Shot("readme-mobile", "/calendar", width=390, height=844, full_page=False),
     # Calendar reference shots — 1x, matching the inline docs.
     Shot("calendar-month", "/calendar", scale=1, setup=_calendar("calendar", "month")),
@@ -393,6 +516,96 @@ SHOTS: tuple[Shot, ...] = (
         setup=_wait_for_list,
     ),
     Shot("shopping-purchased", "/shopping/purchased", width=1440, scale=1, setup=_wait_for_list),
+    # Packing Lists: the page; a day's entry open on a desk and a phone, by
+    # owner and by bag, and with changes of its own; a template opened to its
+    # items; the archive; and the modals and the Settings toggle cropped to
+    # themselves.
+    Shot("packing-lists", "/packing-lists", width=1440, scale=1, setup=_wait_for_packing_lists),
+    Shot(
+        "packing-list-day",
+        "/packing-lists",
+        width=1440,
+        scale=1,
+        element=SWIM_BOX,
+        setup=_open_card(SWIM_CARD),
+    ),
+    Shot(
+        "packing-list-day-mobile",
+        "/packing-lists",
+        width=390,
+        height=844,
+        scale=1,
+        full_page=False,
+        setup=_open_card(SWIM_CARD),
+    ),
+    Shot(
+        "packing-list-by-bag",
+        "/packing-lists",
+        width=1440,
+        scale=1,
+        element=SWIM_BOX,
+        setup=_open_swim_by_bag,
+    ),
+    Shot(
+        "packing-list-day-changed",
+        "/packing-lists",
+        width=1440,
+        scale=1,
+        element=BEACH_BOX,
+        setup=_open_card(BEACH_CARD),
+    ),
+    Shot(
+        "packing-list-template",
+        "/packing-lists",
+        width=1440,
+        scale=1,
+        element='#packing-lists-container [data-packing-list-row]:has-text("Swim at Nana\'s")',
+        setup=_open_template,
+    ),
+    Shot(
+        "packing-lists-previous",
+        "/packing-lists/previous",
+        width=1440,
+        scale=1,
+        setup=lambda page: page.wait_for_selector("#list-container [data-day-card]"),
+    ),
+    Shot(
+        "packing-list-day-edit",
+        "/packing-lists",
+        scale=1,
+        element="#day-edit-modal-overlay .modal-content",
+        setup=_open_day_edit,
+    ),
+    Shot(
+        "packing-list-add-item",
+        "/packing-lists",
+        scale=1,
+        element="#item-modal-overlay .modal-content",
+        setup=_open_add_item_suggesting,
+    ),
+    Shot(
+        "packing-list-manage-bags",
+        "/packing-lists",
+        scale=1,
+        element="#bags-modal-overlay .modal-content",
+        setup=_open_manage_bags,
+    ),
+    Shot(
+        "packing-list-schedule",
+        "/packing-lists",
+        height=1800,
+        scale=1,
+        element="#schedule-modal-overlay .modal-content",
+        setup=_open_schedule,
+    ),
+    Shot(
+        "packing-lists-settings",
+        "/settings",
+        width=1440,
+        scale=1,
+        element="#packing-lists-form",
+        setup=_packing_lists_settings_section,
+    ),
     # Preparedness reference shots.
     Shot("preparedness-inventory", "/preparedness", width=1440, scale=1),
     Shot("preparedness-go-list", "/go-list", width=1440, scale=1),

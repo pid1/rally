@@ -17,10 +17,13 @@ MEASURE_JS = r"""
     };
   };
   // A closed sidebar keeps its box, parked off-canvas; `visibility` is what
-  // takes it off the page, so it counts as not visible here too.
+  // takes it off the page, so it counts as not visible here too. The inside
+  // of a closed <details> ("View more") keeps a box as well, behind
+  // `content-visibility`, which only `checkVisibility()` reports.
   const visible = (el) => {
     const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'
+      && (!el.checkVisibility || el.checkVisibility());
   };
 
   const root = getComputedStyle(document.documentElement);
@@ -121,7 +124,7 @@ MEASURE_JS = r"""
     // help-text link cannot be 44px tall without wrecking the sentence.
     if (getComputedStyle(el).display === 'inline') continue;
     let hit = el;
-    const wrapper = el.closest('label, .todo-checkbox');
+    const wrapper = el.closest('label, .item-checkbox');
     if (wrapper && visible(wrapper)) hit = wrapper;
     const r = hit.getBoundingClientRect();
     out.targets.push({

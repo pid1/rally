@@ -89,7 +89,7 @@
             <div class="modal-body">
                 <form id="store-add-form" class="form-group">
                     <label>Add a store</label>
-                    <div class="store-manage-row">
+                    <div class="manage-row">
                         <input type="text" id="store-add-name" placeholder="Store name" required>
                         <button type="submit" class="btn btn--sm">Add</button>
                     </div>
@@ -103,7 +103,9 @@
         </div>
     </div>
 
+    <script src="/static/list_group.js?v={{ css_version }}"></script>
     <script src="/static/drag_reorder.js?v={{ css_version }}"></script>
+    <script src="/static/autocomplete.js?v={{ css_version }}"></script>
     <script>
         // ── State ──
         let items = [];
@@ -300,20 +302,12 @@
             container.innerHTML = keys.map(key => {
                 const groupItems = [...groups.get(key)].sort(compareItems);
                 const openCount = groupItems.filter(i => !i.completed).length;
-                const countLabel = `${openCount} item${openCount === 1 ? '' : 's'}`;
-                const rows = groupItems.length === 0
-                    ? '<div class="container-empty-state">Nothing here right now.</div>'
-                    : groupItems.map(renderItemRow).join('');
-                return `
-                    <section class="shopping-group" data-group="${escapeAttr(key)}">
-                        <div class="shopping-group-header">
-                            <span class="shopping-group-name">${escapeHtml(groupLabel(key))}</span>
-                            <span class="shopping-group-rule"></span>
-                            <span class="shopping-group-count">${countLabel}</span>
-                        </div>
-                        <div class="list-container">${rows}</div>
-                    </section>
-                `;
+                return listGroupHtml({
+                    key,
+                    name: groupLabel(key),
+                    countLabel: `${openCount} item${openCount === 1 ? '' : 's'}`,
+                    rowsHtml: groupItems.map(renderItemRow).join(''),
+                });
             }).join('');
         }
 
@@ -336,7 +330,7 @@
                 : '';
             return `
                 <div class="editable-item ${item.completed ? 'completed' : ''}" data-id="${item.id}">
-                    <div class="todo-checkbox">
+                    <div class="item-checkbox">
                         <input type="checkbox" ${item.completed ? 'checked' : ''}
                                aria-label="Mark ${escapeAttr(item.name)} as purchased"
                                onchange="toggleComplete(${item.id}, this.checked)">
@@ -376,156 +370,34 @@
 
         // ── Autocomplete ──
         //
-        // Queried server-side (the history corpus is permanent and grows with the
-        // family's vocabulary), so this needs the two classic per-keystroke
-        // guards: a debounce, and a sequence number that drops replies which
-        // arrive after a newer one has already been applied.
-        let suggestions = [];
-        let activeSuggestion = -1;
-        let suggestionSeq = 0;
-        let suggestionTimer = null;
-
-        function closeSuggestions() {
-            suggestions = [];
-            activeSuggestion = -1;
-            suggestionMenu.classList.remove('open');
-            suggestionMenu.innerHTML = '';
-            nameInput.setAttribute('aria-expanded', 'false');
-        }
-
-        function scheduleSuggestions() {
-            clearTimeout(suggestionTimer);
-            suggestionTimer = setTimeout(fetchSuggestions, 150);
-        }
-
-        async function fetchSuggestions() {
-            const query = nameInput.value.trim();
-            if (!query) {
-                closeSuggestions();
-                return;
-            }
-            const seq = ++suggestionSeq;
-            try {
+        // Queried server-side: the history corpus is permanent and grows with
+        // the family's vocabulary. The menu itself is static/autocomplete.js.
+        // Wired only in add mode: editing an existing item is a correction,
+        // not a lookup, and a dropdown covering the fields you are trying to
+        // fix is noise.
+        const nameAutocomplete = attachAutocomplete({
+            input: nameInput,
+            menu: suggestionMenu,
+            scrollBox: modalBody,
+            enabled: () => !editingItemId,
+            source: async (query) => {
                 const response = await fetch(`/api/shopping/suggestions?q=${encodeURIComponent(query)}`);
-                if (!response.ok) return;
-                const data = await response.json();
-                if (seq !== suggestionSeq) return;   // a newer keystroke already answered
-                suggestions = data;
-                activeSuggestion = -1;
-                renderSuggestions();
-            } catch (error) {
-                console.error('Error fetching suggestions:', error);
-            }
-        }
-
-        function renderSuggestions() {
-            if (suggestions.length === 0) {
-                closeSuggestions();
-                return;
-            }
-            // .modal-body is a scroll box, so the menu cannot spill outside it the
-            // way it spilled down the page. Scrolling the name field near the top
-            // gives the (height-capped) menu room to open below it.
-            modalBody.scrollTop = 0;
-            suggestionMenu.innerHTML = suggestions.map((s, index) => {
-                const store = s.store_id ? storeName(s.store_id) : null;
-                return `
-                    <div class="autocomplete-option ${index === activeSuggestion ? 'active' : ''}"
-                         role="option" aria-selected="${index === activeSuggestion}" data-index="${index}">
-                        <span class="autocomplete-name">${escapeHtml(s.name)}</span>
-                        ${store ? `<span class="autocomplete-store">${escapeHtml(store)}</span>` : ''}
-                        <button type="button" class="autocomplete-dismiss" data-dismiss="${s.id}"
-                                aria-label="Forget ${escapeAttr(s.name)}">×</button>
-                    </div>
-                `;
-            }).join('');
-            suggestionMenu.classList.add('open');
-            nameInput.setAttribute('aria-expanded', 'true');
-        }
-
-        function highlightSuggestion(index) {
-            activeSuggestion = index;
-            suggestionMenu.querySelectorAll('.autocomplete-option').forEach((el, i) => {
-                el.classList.toggle('active', i === index);
-                el.setAttribute('aria-selected', String(i === index));
-            });
-            const active = suggestionMenu.querySelector('.autocomplete-option.active');
-            if (active) active.scrollIntoView({ block: 'nearest' });
-        }
-
-        function acceptSuggestion(index) {
-            const suggestion = suggestions[index];
-            if (!suggestion) return;
-            nameInput.value = suggestion.name;
-            // Store affinity only fills a blank: an explicit choice — including one
-            // inherited from an active single-store filter — always wins, so
-            // autocomplete can never silently move an item to another store.
-            if (storeSelect.value === '' && suggestion.store_id != null
-                && storeSelect.querySelector(`option[value="${suggestion.store_id}"]`)) {
-                storeSelect.value = String(suggestion.store_id);
-            }
-            // The note is deliberately not restored: notes are trip-specific, and
-            // a silently attached stale one is worse than retyping.
-            closeSuggestions();
-            nameInput.focus();
-        }
-
-        async function forgetSuggestion(historyId) {
-            try {
-                await fetch(`/api/shopping/suggestions/${historyId}`, { method: 'DELETE' });
-                suggestions = suggestions.filter(s => s.id !== historyId);
-                activeSuggestion = -1;
-                renderSuggestions();
-            } catch (error) {
-                console.error('Error removing suggestion:', error);
-            }
-        }
-
-        // Autocomplete is wired only in add mode: editing an existing item is a
-        // correction, not a lookup, and a dropdown covering the fields you are
-        // trying to fix is noise.
-        nameInput.addEventListener('input', () => {
-            if (editingItemId) return;
-            scheduleSuggestions();
-        });
-
-        nameInput.addEventListener('keydown', (e) => {
-            const open = suggestionMenu.classList.contains('open');
-            if (e.key === 'ArrowDown' && open) {
-                e.preventDefault();
-                highlightSuggestion((activeSuggestion + 1) % suggestions.length);
-            } else if (e.key === 'ArrowUp' && open) {
-                e.preventDefault();
-                highlightSuggestion((activeSuggestion - 1 + suggestions.length) % suggestions.length);
-            } else if (e.key === 'Enter') {
-                // Enter with nothing highlighted submits what was typed, verbatim —
-                // autocomplete must never block adding a genuinely new item.
-                if (open && activeSuggestion >= 0) {
-                    e.preventDefault();
-                    acceptSuggestion(activeSuggestion);
+                return response.ok ? response.json() : [];
+            },
+            label: (s) => ({ name: s.name, detail: s.store_id ? storeName(s.store_id) : null }),
+            onAccept: (suggestion) => {
+                // Store affinity only fills a blank: an explicit choice always
+                // wins, so autocomplete can never silently move an item to
+                // another store. The note is deliberately not restored: notes
+                // are trip-specific, and a stale one is worse than retyping.
+                if (storeSelect.value === '' && suggestion.store_id != null
+                    && storeSelect.querySelector(`option[value="${suggestion.store_id}"]`)) {
+                    storeSelect.value = String(suggestion.store_id);
                 }
-            } else if (e.key === 'Escape') {
-                closeSuggestions();
-            }
-        });
-
-        nameInput.addEventListener('blur', () => {
-            // Delayed so a click on an option lands before the menu closes.
-            setTimeout(closeSuggestions, 150);
-        });
-
-        suggestionMenu.addEventListener('mousedown', (e) => e.preventDefault());
-
-        suggestionMenu.addEventListener('click', (e) => {
-            const dismiss = e.target.closest('.autocomplete-dismiss');
-            if (dismiss) {
-                e.preventDefault();
-                e.stopPropagation();
-                forgetSuggestion(parseInt(dismiss.dataset.dismiss, 10));
-                return;
-            }
-            const option = e.target.closest('.autocomplete-option');
-            if (option) acceptSuggestion(parseInt(option.dataset.index, 10));
+            },
+            onForget: async (suggestion) => {
+                await fetch(`/api/shopping/suggestions/${suggestion.id}`, { method: 'DELETE' });
+            },
         });
 
         // ── Item actions ──
@@ -550,7 +422,7 @@
             document.getElementById('item-form').reset();
             storeSelect.value = '';
             document.getElementById('btn-delete-item').style.display = 'none';
-            closeSuggestions();
+            nameAutocomplete.close();
             showModalOverlay('item-modal-overlay');
             nameInput.focus();
         }
@@ -564,13 +436,13 @@
             document.getElementById('item-note').value = item.note || '';
             storeSelect.value = item.store_id ? String(item.store_id) : '';
             document.getElementById('btn-delete-item').style.display = '';
-            closeSuggestions();
+            nameAutocomplete.close();
             showModalOverlay('item-modal-overlay');
         }
 
         function closeItemModal() {
             hideModalOverlay('item-modal-overlay');
-            closeSuggestions();
+            nameAutocomplete.close();
             editingItemId = null;
         }
 
@@ -625,7 +497,7 @@
                 return;
             }
             list.innerHTML = stores.map(s => `
-                <div class="store-manage-row" data-id="${s.id}">
+                <div class="manage-row" data-id="${s.id}">
                     <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
                     <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
                     <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
@@ -636,7 +508,7 @@
         document.getElementById('store-manage-list').addEventListener('click', async (e) => {
             const button = e.target.closest('button[data-action]');
             if (!button) return;
-            const row = button.closest('.store-manage-row');
+            const row = button.closest('.manage-row');
             const storeId = parseInt(row.dataset.id, 10);
 
             if (button.dataset.action === 'rename') {
@@ -722,7 +594,7 @@
         // a store id as a string, or ANYWHERE for the catch-all.
         const dragging = initDragReorder({
             container: document.getElementById('groups-container'),
-            groupSelector: '.shopping-group',
+            groupSelector: '.list-group',
             listSelector: '.list-container',
             itemSelector: '.editable-item',
             handleSelector: '.drag-handle',

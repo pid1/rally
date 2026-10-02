@@ -139,6 +139,7 @@ Each of these is a toggle in Settings:
 | Toggle | Default | Effect |
 |---|---|---|
 | Shopping list in summary | Off | Folds your open shopping list into the morning briefing |
+| Packing Lists in summary | On | Reminds you to pack a packing list on its packing day, and flags unpacked items that may run low or be hard to get, for packing lists on a day in the next week |
 | Overdue stock in summary | On | Mentions preparedness items past their refresh date |
 | STEM concept of the day | Off | Adds one age-appropriate STEM idea, never repeating a topic within 60 days |
 | Sports watchlist | Off | Tonight's games and notable events for teams you follow |

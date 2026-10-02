@@ -170,9 +170,9 @@ def test_edit_mode_does_not_offer_save_and_add_another(browser, live_server):
         page.click("#btn-cancel")
 
         # The planner groups meals into one box per day, so a meal row is
-        # `.meal-day-meal` rather than the shared `.editable-item`.
-        page.wait_for_selector(".meal-day-meal button:has-text('Edit')")
-        page.click(".meal-day-meal button:has-text('Edit') >> nth=0")
+        # `.day-box-entry` rather than the shared `.editable-item`.
+        page.wait_for_selector(".day-box-entry button:has-text('Edit')")
+        page.click(".day-box-entry button:has-text('Edit') >> nth=0")
         page.wait_for_function(
             "() => document.getElementById('modal-title').textContent === 'Edit Meal Plan'"
         )
@@ -253,4 +253,17 @@ def test_the_third_button_fits_the_action_row(browser, live_server, viewport):
             assert state["addAnother"]["h"] >= 44
     finally:
         page.close()
+        context.close()
+
+
+def test_meal_day_boxes_have_no_hairline_between_meals(browser, live_server):
+    """The hairline between entries is the Packing Lists page's (`.day-box--divided`)
+    for now; the Meal Planner's day boxes are left as they were."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    try:
+        page.goto(f"{live_server}/meal-planner", wait_until="networkidle")
+        page.wait_for_selector(".day-box")
+        assert page.locator(".day-box--divided").count() == 0
+    finally:
         context.close()

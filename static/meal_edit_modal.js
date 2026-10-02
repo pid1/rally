@@ -139,7 +139,8 @@
         }
 
         close() {
-            this.overlay.style.display = 'none';
+            // Through the chassis, so the page behind is unlocked as well.
+            hideModalOverlay(this.overlay.id);
             this.editingId = null;
             this.editingPlan = null;
         }

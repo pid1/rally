@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 
+from rally import packing_lists as packing_lists_logic
 from rally.calendars import series_end_date
 from rally.calendars.inputs import resolve_event_times
 from rally.database import SessionLocal, init_db
@@ -13,6 +14,14 @@ from rally.models import (
     FamilyMember,
     MealPlan,
     Note,
+    PackingList,
+    PackingListBag,
+    PackingListDay,
+    PackingListDayCheck,
+    PackingListDayItem,
+    PackingListItem,
+    PackingListItemHistory,
+    PackingListSchedule,
     PrepItem,
     PrepLocation,
     RecurringTodo,
@@ -34,6 +43,17 @@ def seed():
         # Clear existing data
         db.query(MealPlan).delete()
         db.query(Note).delete()
+        for model in (
+            PackingListDayCheck,
+            PackingListDayItem,
+            PackingListDay,
+            PackingListSchedule,
+            PackingListItem,
+            PackingListItemHistory,
+            PackingListBag,
+            PackingList,
+        ):
+            db.query(model).delete()
         db.query(EventAttendee).delete()
         db.query(Event).delete()
         db.query(Calendar).delete()
@@ -614,6 +634,155 @@ def seed():
         for note in notes:
             db.add(note)
 
+        # Packing Lists: reusable packing lists, put on days. Each item names its
+        # owner (or None for Everyone) and its bag (or None for No bag), so
+        # both views — who owns what, what goes in each bag — have something
+        # to show: Swim at Nana's splits by child into one pool bag; the
+        # backpacks are one bag per child; the beach day is the family's.
+        # The first day added is the coming Saturday's swim.
+        packing_list_specs = [
+            (
+                "Swim at Nana's",
+                "Saturdays at Nana's pool, a couple of times a month.",
+                1,
+                [
+                    ("Emma", "Pool bag", "Swimsuit", None),
+                    ("Emma", "Pool bag", "Goggles", "The blue pair. The green ones leak."),
+                    ("Emma", "Pool bag", "Towel", None),
+                    ("Emma", None, "Hair ties", None),
+                    ("Jake", "Pool bag", "Swimsuit", None),
+                    ("Jake", "Pool bag", "Rash guard", None),
+                    ("Jake", "Pool bag", "Towel", None),
+                    ("Jake", "Car", "Water wings", None),
+                    (None, "Pool bag", "Sunscreen", "SPF 50. The bottle is nearly empty."),
+                    (None, "Car", "Snacks for the drive", None),
+                    (None, "Car", "Water bottles", None),
+                    (None, "Pool bag", "Change of clothes", "One for each kid"),
+                    (None, "Pool bag", "Wet bag for suits", None),
+                ],
+            ),
+            (
+                "School backpack",
+                None,
+                1,
+                [
+                    ("Emma", "Emma's backpack", "Homework folder", None),
+                    ("Emma", "Emma's backpack", "Library book", "Due back Friday"),
+                    ("Emma", "Emma's backpack", "PE shoes", None),
+                    ("Jake", "Jake's backpack", "Lunchbox", None),
+                    ("Jake", "Jake's backpack", "Take-home folder", None),
+                    ("Jake", None, "Jacket", None),
+                ],
+            ),
+            (
+                "Beach day",
+                "Lake beach with the kids.",
+                0,
+                [
+                    (None, "Beach tote", "Beach towels", None),
+                    (None, "Beach tote", "Sunscreen", None),
+                    ("Dad", None, "Umbrella", None),
+                    (None, "Beach tote", "Sand toys", None),
+                    ("Mom", "Cooler", "Cooler with lunch", "Ice packs are in the garage freezer"),
+                ],
+            ),
+            (
+                "Dad's work bag",
+                None,
+                0,
+                [
+                    ("Dad", "Work bag", "Laptop and charger", None),
+                    ("Dad", "Work bag", "Badge", None),
+                    ("Dad", "Work bag", "Headphones", None),
+                ],
+            ),
+        ]
+        members_by_name = {m.name: m for m in (mom, dad, emma, jake)}
+        bags: dict[str, PackingListBag] = {}
+        packing_list_items: dict[tuple[str, str, str | None], PackingListItem] = {}
+        seeded_packing_lists: dict[str, PackingList] = {}
+        for name, description, timing, entries in packing_list_specs:
+            packing_list = PackingList(name=name, description=description, pack_days_before=timing)
+            db.add(packing_list)
+            db.flush()
+            seeded_packing_lists[name] = packing_list
+            for position, (owner_name, bag_name, item_name, item_note) in enumerate(entries):
+                if bag_name and bag_name not in bags:
+                    bags[bag_name] = PackingListBag(name=bag_name)
+                    db.add(bags[bag_name])
+                    db.flush()
+                owner = members_by_name[owner_name].id if owner_name else None
+                bag = bags[bag_name].id if bag_name else None
+                item = PackingListItem(
+                    packing_list_id=packing_list.id,
+                    owner_id=owner,
+                    bag_id=bag,
+                    name=item_name,
+                    note=item_note,
+                    sort_order=position,
+                )
+                db.add(item)
+                db.flush()
+                packing_lists_logic.record_item_history(db, item_name, owner, bag)
+                db.flush()
+                packing_list_items[(name, item_name, owner_name)] = item
+        db.flush()
+
+        # The coming Saturday — a week out when today already is one, so the
+        # swim is always upcoming with a packing day before it.
+        saturday = (5 - today_date.weekday()) % 7 or 7
+
+        def put_on_day(name, offset, label=None, checked=()):
+            day = PackingListDay(
+                packing_list_id=seeded_packing_lists[name].id, date=in_days(offset), label=label
+            )
+            db.add(day)
+            db.flush()
+            for item_name, owner_name in checked:
+                item = packing_list_items[(name, item_name, owner_name)]
+                db.add(PackingListDayCheck(day_id=day.id, item_id=item.id))
+            return day
+
+        nana_items = [(i, o) for o, _, i, _ in packing_list_specs[0][3]]
+        work_bag_items = [(i, o) for o, _, i, _ in packing_list_specs[3][3]]
+        packing_list_days = [
+            put_on_day(
+                "Swim at Nana's",
+                saturday,
+                label="Cousins are coming too",
+                checked=[("Swimsuit", "Emma"), ("Goggles", "Emma"), ("Towel", "Emma")],
+            ),
+            put_on_day("Beach day", 6),
+            put_on_day("Swim at Nana's", saturday - 14, checked=nana_items),
+            put_on_day("Swim at Nana's", saturday - 28, checked=nana_items),
+            # The archive needs days with more than one packing list and a list
+            # that was not finished: a beach trip the same day as a swim, left
+            # half packed; the work bag beside the older swim; and the work bag
+            # alone on a weekday, missing the headphones.
+            put_on_day(
+                "Beach day",
+                saturday - 14,
+                checked=[("Beach towels", None), ("Sunscreen", None)],
+            ),
+            put_on_day("Dad's work bag", saturday - 28, checked=work_bag_items),
+            put_on_day(
+                "Dad's work bag",
+                saturday - 10,
+                checked=[("Laptop and charger", "Dad"), ("Badge", "Dad")],
+            ),
+        ]
+
+        # The backpack goes every school day, so it is a schedule rather than
+        # days added by hand. Its days appear the first time the Packing Lists
+        # page is loaded, a week ahead.
+        db.add(
+            PackingListSchedule(
+                packing_list_id=seeded_packing_lists["School backpack"].id,
+                recurrence_type="custom",
+                custom_rule={"freq": "weekly", "interval": 1, "weekdays": [0, 1, 2, 3, 4]},
+            )
+        )
+
         db.commit()
         print("✅ Database seeded with sample data")
         print(f"   - 1 dashboard snapshot for {today}")
@@ -628,6 +797,10 @@ def seed():
         print(f"   - {len(meal_plans)} upcoming meal plans")
         print(f"   - {len(past_meals)} past meal plans")
         print(f"   - {len(prep_items)} preparedness items across 3 locations")
+        print(
+            f"   - {len(seeded_packing_lists)} packing lists with {len(packing_list_items)} items,"
+            f" on {len(packing_list_days)} days, plus a school-day schedule"
+        )
 
     except Exception as e:
         db.rollback()

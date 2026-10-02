@@ -44,6 +44,8 @@ PAGES = {
     "notes-previous": "/notes/previous",
     "meal-planner": "/meal-planner",
     "meal-planner-previous": "/meal-planner/previous",
+    "packing_lists": "/packing-lists",
+    "packing-lists-previous": "/packing-lists/previous",
     "preparedness": "/preparedness",
     "go-list": "/go-list",
     "settings": "/settings",
