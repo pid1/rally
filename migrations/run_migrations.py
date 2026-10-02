@@ -75,6 +75,9 @@ def run_migrations():
         )
         from migrate_033_add_notes import migrate as migrate_033_add_notes
         from migrate_034_add_packing_lists import migrate as migrate_034_add_packing_lists
+        from migrate_035_packing_list_templates import (
+            migrate as migrate_035_packing_list_templates,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -130,6 +133,7 @@ def run_migrations():
         ("032_add_event_override_calendar", migrate_032_add_event_override_calendar),
         ("033_add_notes", migrate_033_add_notes),
         ("034_add_packing_lists", migrate_034_add_packing_lists),
+        ("035_packing_list_templates", migrate_035_packing_list_templates),
     ]
 
     print("=" * 60)

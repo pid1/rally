@@ -129,7 +129,7 @@
             : escapeHtml(note);
     }
 
-    /* What makes a day's item differ from its packing list, if anything: read
+    /* What makes a day's item differ from its template, if anything: read
      * beside its name, in parentheses. */
     function dayItemMark(item) {
         if (item.source === 'day') return 'added';
@@ -137,17 +137,35 @@
         return '';
     }
 
+    /* Whether a day has a template behind it. A templateless day — its
+     * template was deleted — has only its own items, and nothing to differ
+     * from, so it carries no marks and no "changed" note. */
+    function isTemplated(day) {
+        return day.packing_list_template_id != null;
+    }
+
+    /* A day row's id for drag_reorder.js: a template item and one of the
+     * day's own come from different tables, so the id carries its source. */
+    function dayRowId(row) {
+        return `${row.dataset.source}:${row.dataset.id}`;
+    }
+
     function dayItemRowHtml(day, item, readOnly, lens) {
         const other = otherDimension(item, lens);
-        const mark = dayItemMark(item);
+        const mark = isTemplated(day) ? dayItemMark(item) : '';
         const markHtml = mark ? ` <span class="item-mark">(${mark})</span>` : '';
         const edit = readOnly ? '' : `
                 <div class="editable-item-actions">
                     <button type="button" class="btn btn--sm" data-edit-day-item="${item.id}"
                             data-source="${item.source}" data-day="${day.id}">Edit</button>
+                    <button type="button" class="btn drag-handle"
+                            aria-label="Reorder ${escapeAttr(item.name)}"
+                            title="Drag to reorder, or onto another owner or bag to move it there. Arrow keys work too.">
+                        <span aria-hidden="true">⠿</span>
+                    </button>
                 </div>`;
         return `
-            <div class="editable-item ${item.checked ? 'completed' : ''} ${readOnly ? 'is-read-only' : ''}" data-id="${item.id}">
+            <div class="editable-item ${item.checked ? 'completed' : ''} ${readOnly ? 'is-read-only' : ''}" data-id="${item.id}" data-source="${item.source}">
                 <label class="item-checkbox">
                     <input type="checkbox" ${item.checked ? 'checked' : ''} ${readOnly ? 'disabled' : ''}
                            data-day="${day.id}" data-item="${item.id}" data-source="${item.source}"
@@ -177,13 +195,21 @@
         // read. Packed items inside are still muted there, row by row.
         const done = !readOnly && day.total > 0 && day.checked === day.total;
         const label = day.label ? ` <span class="assignee-label">— ${escapeHtml(day.label)}</span>` : '';
-        const repeats = day.schedule_id
-            ? ' <span class="recurring-indicator" title="Added by a recurring schedule">↻</span>'
+        // ⧉ says the list comes from a template, so editing it there reaches
+        // this day too; ↻ that a schedule put it here. A templateless day
+        // carries neither.
+        const fromTemplate = isTemplated(day)
+            ? ' <span class="title-indicator" title="From a packing list template">⧉</span>'
             : '';
+        const repeats = day.schedule_id
+            ? ' <span class="title-indicator" title="Added by a recurring schedule">↻</span>'
+            : '';
+        // Group keys carry the day's id: every day's groups share one drag
+        // container, and a drop has to know whose group it landed in.
         const items = day.items.length === 0
             ? '<div class="container-empty-state">Nothing on this day yet.</div>'
             : viewSections(day.items, lens).map(section => listGroupHtml({
-                key: section.key,
+                key: `${day.id}:${section.key}`,
                 name: section.name,
                 countLabel: sectionCountLabel(section),
                 rowsHtml: section.items.map(item => dayItemRowHtml(day, item, readOnly, lens)).join(''),
@@ -193,9 +219,10 @@
                 <button type="button" class="btn btn--sm btn--secondary" data-check-all-day="${day.id}">Check All</button>
                 <button type="button" class="btn btn--sm btn--secondary" data-reset-day="${day.id}">Uncheck All</button>
                 <button type="button" class="btn btn--sm btn--secondary" data-add-day-item="${day.id}">Add Item</button>
-                <button type="button" class="btn btn--sm btn--quiet" data-remove-day="${day.id}">Remove from day</button>
+                <button type="button" class="btn btn--sm btn--quiet" data-remove-day="${day.id}">${isTemplated(day) ? 'Remove from day' : 'Delete'}</button>
             </div>`;
         // How far this day has drifted from its template, beside its Edit.
+        // A templateless day's count is always 0, so it never shows.
         const changes = day.changed_count
             ? `<span class="editable-item-description day-changes">${day.changed_count} item${day.changed_count === 1 ? '' : 's'} changed</span>`
             : '';
@@ -207,7 +234,7 @@
         return `
             <div class="day-box-entry ${done ? 'completed' : ''}" data-day-card="${day.id}">
                 <div class="editable-item-content">
-                    <div class="editable-item-title">${escapeHtml(day.packing_list_name)}${label}${repeats}</div>
+                    <div class="editable-item-title">${escapeHtml(day.name)}${label}${fromTemplate}${repeats}</div>
                     <div class="editable-item-meta">${escapeHtml(packLine(day))}</div>
                     <div class="editable-item-meta packing-list-progress" data-progress role="status" aria-live="polite">${escapeHtml(progressLabel(day.checked, day.total))}</div>
                 </div>${edit}
@@ -255,7 +282,7 @@
         card.classList.toggle('completed', done);
         card.querySelector('[data-progress]').textContent = progressLabel(day.checked, day.total);
         viewSections(day.items, lens).forEach(section => {
-            const count = card.querySelector(`.list-group[data-group="${section.key}"] .list-group-count`);
+            const count = card.querySelector(`.list-group[data-group="${day.id}:${section.key}"] .list-group-count`);
             if (count) count.textContent = sectionCountLabel(section);
         });
     }
@@ -295,6 +322,8 @@
         otherDimension,
         keyToId,
         noteHtml,
+        isTemplated,
+        dayRowId,
         dayBoxesHtml,
         updateDayCardCounts,
         requestJson,

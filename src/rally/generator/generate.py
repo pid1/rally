@@ -680,7 +680,8 @@ class SummaryGenerator:
         they can be tested without a generator. "Today" is the family's local
         date, the same day the briefing is written for. Schedules are processed
         first, so a scheduled day nobody has opened the Packing Lists page for
-        still makes the briefing.
+        still makes the briefing, and the days that are over are counted into
+        item history (``count_packed_days``).
         """
         db = SessionLocal()
         try:
@@ -688,6 +689,9 @@ class SummaryGenerator:
 
             today = now_utc().astimezone(self.local_tz).date()
             packing_lists.process_schedules(db, today)
+            # The 4 AM run is the one that happens even when nobody opens the
+            # page, so it counts yesterday's lists into item history too.
+            packing_lists.count_packed_days(db, today)
             return packing_lists.summary_text(db, today)
         finally:
             db.close()

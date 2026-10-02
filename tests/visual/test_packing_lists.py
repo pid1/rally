@@ -46,6 +46,18 @@ def api(base: str, method: str, path: str, payload: dict | None = None):
     return json.loads(body) if body else None
 
 
+def delete_template(base: str, template_id: int) -> None:
+    """Delete a template the test made, and its days first.
+
+    Deleting a template keeps its days, each made templateless (#252), so a
+    test that only deleted the template would leave days behind in Coming Up
+    for every test after it on the session-scoped server."""
+    for day in api(base, "GET", "/api/packing-list-days"):
+        if day["packing_list_template_id"] == template_id:
+            api(base, "DELETE", f"/api/packing-list-days/{day['id']}")
+    api(base, "DELETE", f"/api/packing-list-templates/{template_id}")
+
+
 # `rally.cli.seed()` sets this, and the server decides what "today" is in it.
 # The tests have to agree, or Today, Tomorrow and Due now land on the wrong day
 # for the hours each evening when UTC has already moved on.
@@ -70,13 +82,13 @@ def packing_list(live_server):
     one by nobody), two of them in a bag of their own. Deleted, with its days
     and its bag, afterwards."""
     members = {m["name"]: m["id"] for m in api(live_server, "GET", "/api/family")}
-    created = api(live_server, "POST", "/api/packing-lists", {"name": "Browser test trip"})
+    created = api(live_server, "POST", "/api/packing-list-templates", {"name": "Browser test trip"})
     cid = created["id"]
     items = {
         name: api(
             live_server,
             "POST",
-            f"/api/packing-lists/{cid}/items",
+            f"/api/packing-list-templates/{cid}/items",
             {"name": name, "owner_id": owner, "bag": bag},
         )
         for name, owner, bag in (
@@ -91,7 +103,7 @@ def packing_list(live_server):
             live_server,
             "POST",
             "/api/packing-list-days",
-            {"packing_list_id": cid, "date": in_days(n)},
+            {"packing_list_template_id": cid, "date": in_days(n)},
         )
         for n in (20, 27)
     ]
@@ -104,12 +116,14 @@ def packing_list(live_server):
             "days": days,
         }
     finally:
-        for path in (
-            f"/api/packing-lists/{cid}",
-            f"/api/packing-list-bags/{items['Goggles']['bag_id']}",
+        for cleanup in (
+            lambda: delete_template(live_server, cid),
+            lambda: api(
+                live_server, "DELETE", f"/api/packing-list-bags/{items['Goggles']['bag_id']}"
+            ),
         ):
             try:
-                api(live_server, "DELETE", path)
+                cleanup()
             except urllib.error.HTTPError:
                 pass
 
@@ -172,12 +186,12 @@ def test_a_day_card_starts_collapsed(browser, live_server, packing_list):
 
 def test_a_days_packing_lists_share_one_box_dated_once(browser, live_server, packing_list):
     first, _ = packing_list["days"]
-    other = api(live_server, "POST", "/api/packing-lists", {"name": "Browser test other"})
+    other = api(live_server, "POST", "/api/packing-list-templates", {"name": "Browser test other"})
     api(
         live_server,
         "POST",
         "/api/packing-list-days",
-        {"packing_list_id": other["id"], "date": first["date"]},
+        {"packing_list_template_id": other["id"], "date": first["date"]},
     )
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
@@ -186,9 +200,10 @@ def test_a_days_packing_lists_share_one_box_dated_once(browser, live_server, pac
         names = box.locator(
             ":scope > [data-day-card] > .editable-item-content > .editable-item-title"
         )
+        # Both come from a template, so both carry ⧉.
         assert sorted(" ".join(t.split()) for t in names.all_inner_texts()) == [
-            "Browser test other",
-            "Browser test trip",
+            "Browser test other ⧉",
+            "Browser test trip ⧉",
         ]
         # The date is the box's, stated once as its footer; each packing list
         # says when to pack it instead.
@@ -226,7 +241,7 @@ def test_a_days_packing_lists_share_one_box_dated_once(browser, live_server, pac
         )
     finally:
         context.close()
-        api(live_server, "DELETE", f"/api/packing-lists/{other['id']}")
+        delete_template(live_server, other["id"])
 
 
 def test_today_and_tomorrow_are_named_in_the_day_box(browser, live_server, packing_list):
@@ -235,7 +250,7 @@ def test_today_and_tomorrow_are_named_in_the_day_box(browser, live_server, packi
             live_server,
             "POST",
             "/api/packing-list-days",
-            {"packing_list_id": packing_list["id"], "date": d},
+            {"packing_list_template_id": packing_list["id"], "date": d},
         )
         for d in (in_days(0), in_days(1), in_days(2))
     ]
@@ -256,31 +271,31 @@ def test_due_now_shows_what_has_reached_its_packing_day(browser, live_server):
     early = api(
         live_server,
         "POST",
-        "/api/packing-lists",
+        "/api/packing-list-templates",
         {"name": "Browser test early", "pack_days_before": 2},
     )
-    late = api(live_server, "POST", "/api/packing-lists", {"name": "Browser test late"})
+    late = api(live_server, "POST", "/api/packing-list-templates", {"name": "Browser test late"})
     ids = {
         # Packing day was yesterday, day is tomorrow: still to pack.
         "due": api(
             live_server,
             "POST",
             "/api/packing-list-days",
-            {"packing_list_id": early["id"], "date": in_days(1)},
+            {"packing_list_template_id": early["id"], "date": in_days(1)},
         )["id"],
         # Packing day is in two days: not yet.
         "not_yet": api(
             live_server,
             "POST",
             "/api/packing-list-days",
-            {"packing_list_id": early["id"], "date": in_days(4)},
+            {"packing_list_template_id": early["id"], "date": in_days(4)},
         )["id"],
         # Packed the day of, and the day is today.
         "today": api(
             live_server,
             "POST",
             "/api/packing-list-days",
-            {"packing_list_id": late["id"], "date": in_days(0)},
+            {"packing_list_template_id": late["id"], "date": in_days(0)},
         )["id"],
     }
     api(live_server, "POST", f"/api/packing-list-days/{ids['today']}/check-all")
@@ -303,22 +318,22 @@ def test_due_now_shows_what_has_reached_its_packing_day(browser, live_server):
         assert card(page, ids["not_yet"]).count() == 1
     finally:
         context.close()
-        api(live_server, "DELETE", f"/api/packing-lists/{early['id']}")
-        api(live_server, "DELETE", f"/api/packing-lists/{late['id']}")
+        delete_template(live_server, early["id"])
+        delete_template(live_server, late["id"])
 
 
 def test_a_day_before_packing_list_names_its_packing_day(browser, live_server):
     packing_list = api(
         live_server,
         "POST",
-        "/api/packing-lists",
+        "/api/packing-list-templates",
         {"name": "Browser test early", "pack_days_before": 1},
     )
     day = api(
         live_server,
         "POST",
         "/api/packing-list-days",
-        {"packing_list_id": packing_list["id"], "date": in_days(21)},
+        {"packing_list_template_id": packing_list["id"], "date": in_days(21)},
     )
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
@@ -327,7 +342,7 @@ def test_a_day_before_packing_list_names_its_packing_day(browser, live_server):
         assert pack == f"Pack {expected}"
     finally:
         context.close()
-        api(live_server, "DELETE", f"/api/packing-lists/{packing_list['id']}")
+        delete_template(live_server, packing_list["id"])
 
 
 def test_edit_packing_list_changes_one_days_date_label_and_lead_time(
@@ -335,7 +350,10 @@ def test_edit_packing_list_changes_one_days_date_label_and_lead_time(
 ):
     first, second = packing_list["days"]
     api(
-        live_server, "PUT", f"/api/packing-lists/{packing_list['id']}", {"description": "Lake trip"}
+        live_server,
+        "PUT",
+        f"/api/packing-list-templates/{packing_list['id']}",
+        {"description": "Lake trip"},
     )
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
@@ -405,10 +423,10 @@ def test_moving_a_day_onto_a_date_it_is_on_opens_that_day(browser, live_server, 
 def test_the_template_sets_its_lead_time_as_a_number(browser, live_server, packing_list):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
-        packing_list_row(page, packing_list["id"]).locator("[data-edit-packing-list]").click()
-        page.fill("#packing-list-pack-days", "2")
-        page.click("#packing-list-form ~ .modal-actions button[type=submit]")
-        page.wait_for_selector("#packing-list-modal-overlay", state="hidden")
+        packing_list_row(page, packing_list["id"]).locator("[data-edit-template]").click()
+        page.fill("#template-pack-days", "2")
+        page.click("#template-form ~ .modal-actions button[type=submit]")
+        page.wait_for_selector("#template-modal-overlay", state="hidden")
         row = packing_list_row(page, packing_list["id"])
         row.locator(".editable-item-meta", has_text="Pack 2 days before").wait_for()
     finally:
@@ -426,7 +444,10 @@ def test_a_tick_is_saved_and_counted_and_touches_nothing_else(browser, live_serv
                 .textContent === '1 of 4 packed'"""
         )
         emma = packing_list["members"]["Emma"]
-        emma_count = target.locator(f'.list-group[data-group="{emma}"] .list-group-count')
+        # A day's group keys carry the day's id: every day shares one drag container.
+        emma_count = target.locator(
+            f'.list-group[data-group="{first["id"]}:{emma}"] .list-group-count'
+        )
         assert emma_count.text_content() == "1 of 2 packed"
         # Focus stays on the box that was ticked: only the counts re-render.
         assert page.evaluate("document.activeElement.getAttribute('aria-label')") == (
@@ -439,7 +460,7 @@ def test_a_tick_is_saved_and_counted_and_touches_nothing_else(browser, live_serv
         context.close()
 
     assert api(live_server, "GET", f"/api/packing-list-days/{second['id']}")["checked"] == 0
-    master = api(live_server, "GET", f"/api/packing-lists/{packing_list['id']}")
+    master = api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")
     assert all("checked" not in item for item in master["items"])
 
 
@@ -490,7 +511,7 @@ def test_uncheck_all_and_remove_live_in_the_card(browser, live_server, packing_l
     api(
         live_server,
         "PUT",
-        f"/api/packing-list-days/{first['id']}/items/{item['id']}",
+        f"/api/packing-list-days/{first['id']}/template-items/{item['id']}",
         {"checked": True},
     )
     context, page = open_page(browser, f"{live_server}/packing-lists")
@@ -511,13 +532,13 @@ def test_uncheck_all_and_remove_live_in_the_card(browser, live_server, packing_l
         context.close()
 
 
-def packing_list_row(page, packing_list_id):
-    return page.locator(f'[data-packing-list-row="{packing_list_id}"]')
+def packing_list_row(page, packing_list_template_id):
+    return page.locator(f'[data-template-row="{packing_list_template_id}"]')
 
 
-def open_row(page, packing_list_id):
+def open_row(page, packing_list_template_id):
     """Expand a packing list's row: its items are under its own "View more"."""
-    target = packing_list_row(page, packing_list_id)
+    target = packing_list_row(page, packing_list_template_id)
     target.locator(":scope > details > summary").click()
     target.locator(".disclosure-body").wait_for()
     return target
@@ -616,8 +637,8 @@ def test_the_view_switch_groups_every_packing_list_by_owner_or_by_bag(
 
 
 def test_a_packing_list_with_one_group_still_heads_it(browser, live_server):
-    lone = api(live_server, "POST", "/api/packing-lists", {"name": "Browser test lone"})
-    api(live_server, "POST", f"/api/packing-lists/{lone['id']}/items", {"name": "Bucket"})
+    lone = api(live_server, "POST", "/api/packing-list-templates", {"name": "Browser test lone"})
+    api(live_server, "POST", f"/api/packing-list-templates/{lone['id']}/items", {"name": "Bucket"})
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         assert list(sections(open_row(page, lone["id"]))) == ["Everyone"]
@@ -627,7 +648,7 @@ def test_a_packing_list_with_one_group_still_heads_it(browser, live_server):
         assert page.locator(".page-header-meta #btn-manage-bags").count() == 1
     finally:
         context.close()
-        api(live_server, "DELETE", f"/api/packing-lists/{lone['id']}")
+        delete_template(live_server, lone["id"])
 
 
 def test_a_bag_typed_on_an_item_joins_the_list_and_manage_bags_renames_it(
@@ -704,15 +725,17 @@ def test_dragging_an_item_onto_another_owner_reassigns_it(browser, live_server, 
 
     snacks = next(
         i
-        for i in api(live_server, "GET", f"/api/packing-lists/{packing_list['id']}")["items"]
+        for i in api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")[
+            "items"
+        ]
         if i["name"] == "Snacks"
     )
     assert snacks["owner_id"] == packing_list["members"]["Dad"]
 
 
 def test_a_drag_cannot_leave_its_packing_list(browser, live_server, packing_list):
-    other = api(live_server, "POST", "/api/packing-lists", {"name": "Browser test other"})
-    api(live_server, "POST", f"/api/packing-lists/{other['id']}/items", {"name": "Bucket"})
+    other = api(live_server, "POST", "/api/packing-list-templates", {"name": "Browser test other"})
+    api(live_server, "POST", f"/api/packing-list-templates/{other['id']}/items", {"name": "Bucket"})
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         target = open_row(page, packing_list["id"])
@@ -729,19 +752,19 @@ def test_a_drag_cannot_leave_its_packing_list(browser, live_server, packing_list
         assert sections(packing_list_row(page, other["id"])) == {"Everyone": ["Bucket"]}
     finally:
         context.close()
-        api(live_server, "DELETE", f"/api/packing-lists/{other['id']}")
+        delete_template(live_server, other["id"])
 
 
 def test_the_edit_form_is_details_only(browser, live_server, packing_list):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
-        packing_list_row(page, packing_list["id"]).locator("[data-edit-packing-list]").click()
-        page.wait_for_selector("#packing-list-modal-overlay .modal-content", state="visible")
-        assert page.locator("#packing-list-modal-overlay input[type=checkbox]").count() == 0
-        assert page.locator("#btn-delete-packing-list").is_visible()
-        page.click("#btn-cancel-packing-list")
-        page.click("#btn-add-packing-list")
-        assert not page.locator("#btn-delete-packing-list").is_visible()
+        packing_list_row(page, packing_list["id"]).locator("[data-edit-template]").click()
+        page.wait_for_selector("#template-modal-overlay .modal-content", state="visible")
+        assert page.locator("#template-modal-overlay input[type=checkbox]").count() == 0
+        assert page.locator("#btn-delete-template").is_visible()
+        page.click("#btn-cancel-template")
+        page.click("#btn-add-template")
+        assert not page.locator("#btn-delete-template").is_visible()
     finally:
         context.close()
 
@@ -773,7 +796,7 @@ def test_an_item_edited_on_a_day_stays_on_that_day(browser, live_server, packing
 
     other = api(live_server, "GET", f"/api/packing-list-days/{second['id']}")
     assert "Goggles" in [i["name"] for i in other["items"]]
-    master = api(live_server, "GET", f"/api/packing-lists/{packing_list['id']}")
+    master = api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")
     assert "Goggles" in [i["name"] for i in master["items"]]
 
 
@@ -805,15 +828,15 @@ def test_an_item_added_to_a_day_is_marked_and_one_can_be_removed(
     finally:
         context.close()
 
-    master = api(live_server, "GET", f"/api/packing-lists/{packing_list['id']}")
+    master = api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")
     assert [i["name"] for i in master["items"]] == ["Goggles", "Towel", "Keys", "Snacks"]
 
 
 # --- Schedule --------------------------------------------------------------------------------
 
 
-def open_schedule(page, packing_list_id):
-    packing_list_row(page, packing_list_id).locator("[data-schedule]").click()
+def open_schedule(page, packing_list_template_id):
+    packing_list_row(page, packing_list_template_id).locator("[data-schedule]").click()
     page.wait_for_selector("#schedule-modal-overlay .modal-content", state="visible")
 
 
@@ -958,7 +981,9 @@ def test_one_day_and_a_repeating_schedule_side_by_side(browser, live_server, pac
     finally:
         context.close()
 
-    schedule = api(live_server, "GET", f"/api/packing-lists/{packing_list['id']}")["schedule"]
+    schedule = api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")[
+        "schedule"
+    ]
     assert (schedule["recurrence_type"], schedule["label"]) == ("daily", "Camp")
 
 
@@ -966,9 +991,9 @@ def test_a_scheduled_days_label_reads_before_the_recurring_mark(browser, live_se
     schedule = api(
         live_server,
         "POST",
-        "/api/packing-list-schedules",
+        "/api/packing-list-template-schedules",
         {
-            "packing_list_id": packing_list["id"],
+            "packing_list_template_id": packing_list["id"],
             "recurrence_type": "daily",
             "start_date": in_days(1),
             "end_date": in_days(1),
@@ -978,12 +1003,14 @@ def test_a_scheduled_days_label_reads_before_the_recurring_mark(browser, live_se
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         scheduled = page.locator("#days-container [data-day-card]", has_text="Browser test trip")
-        scheduled = scheduled.filter(has=page.locator(".recurring-indicator")).first
+        scheduled = scheduled.filter(
+            has=page.locator('.title-indicator[title="Added by a recurring schedule"]')
+        ).first
         title = " ".join(scheduled.locator(".editable-item-title").first.inner_text().split())
-        assert title == "Browser test trip — Emma ↻"
+        assert title == "Browser test trip — Emma ⧉ ↻"
     finally:
         context.close()
-        api(live_server, "DELETE", f"/api/packing-list-schedules/{schedule['id']}")
+        api(live_server, "DELETE", f"/api/packing-list-template-schedules/{schedule['id']}")
 
 
 def test_weekdays_and_weekend_days_read_as_one_phrase(browser, live_server):
@@ -1078,7 +1105,9 @@ def test_daily_can_skip_weekends(browser, live_server, packing_list):
     finally:
         context.close()
 
-    schedule = api(live_server, "GET", f"/api/packing-lists/{packing_list['id']}")["schedule"]
+    schedule = api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")[
+        "schedule"
+    ]
     assert (schedule["recurrence_type"], schedule["custom_rule"]) == (
         "daily",
         {"weekdays_only": True},
@@ -1090,9 +1119,9 @@ def _repeat_later(live_server, packing_list):
     api(
         live_server,
         "POST",
-        "/api/packing-list-schedules",
+        "/api/packing-list-template-schedules",
         {
-            "packing_list_id": packing_list["id"],
+            "packing_list_template_id": packing_list["id"],
             "recurrence_type": "daily",
             "start_date": in_days(60),
         },
@@ -1131,13 +1160,16 @@ def test_unchecking_repeats_turns_the_button_into_remove_schedule(
         press_and_close(page, "btn-update-schedule")
         page.wait_for_function(
             f"""!document.querySelector(
-                '[data-packing-list-row="{packing_list["id"]}"] .recurring-indicator')"""
+                '[data-template-row="{packing_list["id"]}"] .title-indicator')"""
         )
         assert any(m.startswith("Stop repeating Browser test trip?") for m in dialogs)
     finally:
         context.close()
 
-    assert api(live_server, "GET", f"/api/packing-lists/{packing_list['id']}")["schedule"] is None
+    assert (
+        api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")["schedule"]
+        is None
+    )
 
 
 def test_the_archive_shows_what_was_packed_and_cannot_change_it(browser, live_server):
@@ -1174,5 +1206,121 @@ def test_the_archive_shows_what_was_packed_and_cannot_change_it(browser, live_se
         page.fill("#search-input", "no such packing list")
         page.click("#search-btn")
         page.get_by_text("No packing lists match your search.").wait_for()
+    finally:
+        context.close()
+
+
+# --- #252: templateless days, a day's own order, the bag menu --------------------------
+
+
+def test_a_deleted_templates_day_stays_and_says_it_has_no_template(browser, live_server):
+    gone = api(live_server, "POST", "/api/packing-list-templates", {"name": "Browser test gone"})
+    api(live_server, "POST", f"/api/packing-list-templates/{gone['id']}/items", {"name": "Tickets"})
+    day = api(
+        live_server,
+        "POST",
+        "/api/packing-list-days",
+        {"packing_list_template_id": gone["id"], "date": in_days(21)},
+    )
+    dialogs: list[str] = []
+    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    try:
+        title = card(page, day["id"]).locator(
+            ":scope > .editable-item-content .editable-item-title"
+        )
+        assert " ".join(title.inner_text().split()) == "Browser test gone ⧉"
+
+        packing_list_row(page, gone["id"]).locator("[data-edit-template]").click()
+        with page.expect_response("**/api/packing-list-templates/*"):
+            page.click("#btn-delete-template")
+        page.wait_for_load_state("networkidle")
+        assert dialogs[-1] == (
+            "Delete Browser test gone? The day it's on keeps its packing list as it is now."
+        )
+
+        # Still in Coming Up, as it was, with no template mark, no item marks,
+        # and Delete in place of Remove from day.
+        kept = open_card(page, day["id"])
+        assert " ".join(title.inner_text().split()) == "Browser test gone"
+        assert kept.locator(".item-mark").count() == 0
+        assert kept.locator("[data-remove-day]").inner_text() == "Delete"
+        kept.locator("[data-add-day-item]").click()
+        note = page.locator("#item-scope-note").inner_text()
+        assert note.startswith('For "Browser test gone" on ') and "template" not in note
+        page.click("#btn-cancel-item")
+
+        with page.expect_response(f"**/api/packing-list-days/{day['id']}"):
+            kept.locator("[data-remove-day]").click()
+        assert dialogs[-1] == "Delete Browser test gone? Its items go with it."
+        card(page, day["id"]).wait_for(state="detached")
+    finally:
+        context.close()
+
+
+def test_a_days_items_reorder_for_that_day_only(browser, live_server, packing_list):
+    first, second = packing_list["days"]
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_card(page, first["id"])
+        # Within a group, by keyboard: order only, nothing marked changed.
+        with page.expect_response("**/items/reorder"):
+            item_row(target, "Towel").locator(".drag-handle").press("ArrowUp")
+        page.wait_for_function(
+            """document.activeElement.closest('.editable-item')
+                ?.querySelector('.editable-item-title').textContent.trim() === 'Towel'"""
+        )
+        assert sections(card(page, first["id"]))["Emma"] == ["Towel", "Goggles"]
+        assert card(page, first["id"]).locator(".item-mark").count() == 0
+
+        # Into another group, by pointer: Dad's on this day, and marked so.
+        grip = item_row(card(page, first["id"]), "Snacks").locator(".drag-handle")
+        group = card(page, first["id"]).locator('.list-group:has(.list-group-name:text-is("Dad"))')
+        drag(page, grip, group.bounding_box())
+        with page.expect_response("**/items/reorder"):
+            page.mouse.up()
+        page.wait_for_load_state("networkidle")
+        assert "Snacks (changed)" in sections(card(page, first["id"]))["Dad"]
+    finally:
+        context.close()
+
+    # The template and the other day keep their own order and owners.
+    template = api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")
+    assert [i["name"] for i in template["items"]] == ["Goggles", "Towel", "Keys", "Snacks"]
+    other = api(live_server, "GET", f"/api/packing-list-days/{second['id']}")
+    assert [i["name"] for i in other["items"]] == ["Goggles", "Towel", "Keys", "Snacks"]
+    assert next(i for i in other["items"] if i["name"] == "Snacks")["owner_id"] is None
+
+
+def test_the_bag_menu_stays_in_view_while_typing_on_a_phone(browser, live_server, packing_list):
+    """The Bag field is low in its modal. Its suggestions used to send the
+    modal back to the top on every keystroke, leaving the field at the bottom
+    edge and its menu out of sight."""
+    context, page = open_page(
+        browser, f"{live_server}/packing-lists", viewport={"width": 375, "height": 667}
+    )
+    try:
+        target = open_row(page, packing_list["id"])
+        target.locator("[data-add-item]").click()
+        page.wait_for_selector("#item-modal-overlay", state="visible")
+        page.evaluate(
+            """() => {
+                const body = document.querySelector('#item-modal-overlay .modal-body');
+                body.scrollTop = body.scrollHeight;
+            }"""
+        )
+        page.focus("#item-bag")
+        page.keyboard.type("Browser")
+        page.wait_for_selector("#bag-suggestions.open")
+        geometry = page.evaluate(
+            """() => {
+                const body = document.querySelector('#item-modal-overlay .modal-body').getBoundingClientRect();
+                const field = document.getElementById('item-bag').getBoundingClientRect();
+                const menu = document.getElementById('bag-suggestions').getBoundingClientRect();
+                return { bodyTop: body.top, bodyBottom: body.bottom, fieldTop: field.top,
+                         menuBottom: menu.bottom };
+            }"""
+        )
+        assert geometry["fieldTop"] >= geometry["bodyTop"] - 0.5
+        assert geometry["menuBottom"] <= geometry["bodyBottom"] + 0.5
     finally:
         context.close()

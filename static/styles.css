@@ -1800,7 +1800,10 @@ html.modal-open {
     color: var(--ink-muted);
 }
 
-.recurring-indicator {
+/* A small muted glyph after a name, saying where the row comes from, with
+   the words in its title: ↻ a recurring task or a schedule's day, ⧉ a day
+   whose packing list comes from a template. Formerly `.recurring-indicator`. */
+.title-indicator {
     font-size: var(--text-sm);
     color: var(--ink-subtle);
     margin-left: var(--space-1);

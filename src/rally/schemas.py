@@ -1206,7 +1206,7 @@ def _blank_to_none(value: str | None) -> str | None:
     return value or None
 
 
-class PackingListCreate(BaseModel):
+class PackingListTemplateCreate(BaseModel):
     name: str
     description: str | None = None
     pack_days_before: PackDaysBefore = 0
@@ -1222,7 +1222,7 @@ class PackingListCreate(BaseModel):
         return _blank_to_none(value)
 
 
-class PackingListUpdate(BaseModel):
+class PackingListTemplateUpdate(BaseModel):
     name: str | None = None
     description: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     pack_days_before: PackDaysBefore | None = None
@@ -1318,7 +1318,7 @@ class PackingListItemUpdate(BaseModel):
         return self
 
 
-class PackingListItemResponse(BaseModel):
+class PackingListTemplateItemResponse(BaseModel):
     id: int
     owner_id: int | None = None
     bag_id: int | None = None
@@ -1329,8 +1329,8 @@ class PackingListItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class PackingListReorder(BaseModel):
-    """One group of a packing list, in one view, as it should now read.
+class PackingListTemplateReorder(BaseModel):
+    """One group of a template, in one view, as it should now read.
 
     ``view`` says what the groups are — owners or bags — and ``key`` which one
     the items were dropped in (``None`` is Everyone, or No bag). Every listed
@@ -1344,8 +1344,32 @@ class PackingListReorder(BaseModel):
     item_ids: list[int]
 
 
+class PackingListDayItemRef(BaseModel):
+    """One item on a day: a template item (``template``) or one the day has
+    of its own (``day``). The two kinds come from different tables, so an id
+    alone does not say which."""
+
+    source: Literal["template", "day"]
+    id: int
+
+
+class PackingListDayReorder(BaseModel):
+    """One group of a day's packing list, in one view, as it should now read.
+
+    ``PackingListTemplateReorder`` for a day: every listed item takes the
+    group's owner or bag, on this day only, and the items are dealt back into
+    the places they held between them. Duplicates keep their first mention.
+    """
+
+    view: Literal["owner", "bag"]
+    key: int | None = None
+    items: list[PackingListDayItemRef]
+
+
 class PackingListSuggestion(BaseModel):
-    """An item name from history, with the owner and bag it last had."""
+    """An item name from history, with the owner and bag it last had.
+
+    ``times_added`` is how many past days it was on a packing list."""
 
     id: int
     name: str
@@ -1355,28 +1379,28 @@ class PackingListSuggestion(BaseModel):
     times_added: int
 
 
-class PackingListSummary(BaseModel):
-    """A row on the Packing Lists page."""
+class PackingListTemplateSummary(BaseModel):
+    """A template's row on the Packing Lists page."""
 
     id: int
     name: str
     description: str | None = None
     pack_days_before: int
     item_count: int
-    day_count: int  # Every day it is on, past included — what deleting it would remove
+    day_count: int  # Every day it is on, past included — what a delete would convert
     upcoming_days: int  # Days from today on
 
 
-class PackingListResponse(PackingListSummary):
-    """A packing list with its items, in order, and the schedule it repeats on
+class PackingListTemplateResponse(PackingListTemplateSummary):
+    """A template with its items, in order, and the schedule it repeats on
     (``None`` when it does not)."""
 
-    items: list[PackingListItemResponse]
-    schedule: PackingListScheduleResponse | None = None
+    items: list[PackingListTemplateItemResponse]
+    schedule: PackingListTemplateScheduleResponse | None = None
 
 
 class PackingListDayCreate(BaseModel):
-    packing_list_id: int
+    packing_list_template_id: int
     date: str  # YYYY-MM-DD
     label: str | None = None
 
@@ -1394,8 +1418,8 @@ class PackingListDayCreate(BaseModel):
 class PackingListDayUpdate(BaseModel):
     date: str | None = None
     label: str | None = UNSET  # None means "clear"; UNSET means "not provided"
-    # This day's own lead time. None follows the packing list template again;
-    # UNSET leaves it as it is.
+    # This day's own lead time. None follows the template again (a 422 on a
+    # templateless day, which has none); UNSET leaves it as it is.
     pack_days_before: PackDaysBefore | None = UNSET
 
     @field_validator("date")
@@ -1410,34 +1434,41 @@ class PackingListDayUpdate(BaseModel):
 
 
 class PackingListDaySummary(BaseModel):
-    """A day's packing list as a row: what it is, when, and how far along."""
+    """A day's packing list as a row: what it is, when, and how far along.
+
+    ``name`` and ``description`` are the template's on a templated day and
+    the day's own on a templateless one (``packing_list_template_id`` is
+    ``None``), so a page reads one pair of fields either way.
+    """
 
     id: int
-    packing_list_id: int
-    packing_list_name: str
+    packing_list_template_id: int | None = None
+    name: str
+    description: str | None = None
     date: str
     label: str | None = None
-    packing_list_description: str | None = None
     pack_days_before: int  # In effect for this day: its own, or the template's
     pack_date: str  # The day it should be packed: the date itself, or that many days before
     schedule_id: int | None = None  # The schedule that put it there; None when added by hand
     total: int
     checked: int
     # Items this day differs from its template on: edited, removed or added.
+    # Always 0 on a templateless day, which has no template to differ from.
     changed_count: int = 0
 
 
 class PackingListDayItemResponse(BaseModel):
     """One item as it reads on one day, after the day's own changes.
 
-    ``source`` says which endpoint edits it: ``packing_list`` is a packing list item
-    (``/items/{id}``, ``id`` is the packing list item's), ``day`` is an item only
-    this day has (``/day-items/{id}``). ``changed`` marks a packing list item this
-    day has edited, which a later edit to the packing list no longer reaches.
+    ``source`` says which endpoint edits it: ``template`` is a template item
+    (``/template-items/{id}``, ``id`` is the template item's), ``day`` is an
+    item only this day has (``/day-items/{id}``). ``changed`` marks a template
+    item this day has edited, which a later edit to the template no longer
+    reaches.
     """
 
     id: int
-    source: Literal["packing_list", "day"]
+    source: Literal["template", "day"]
     owner_id: int | None = None
     bag_id: int | None = None
     name: str
@@ -1500,8 +1531,8 @@ def check_date_range(start_date: str | None, end_date: str | None):
         raise ValueError("The end date can't be before the start date.")
 
 
-class PackingListScheduleCreate(BaseModel):
-    packing_list_id: int
+class PackingListTemplateScheduleCreate(BaseModel):
+    packing_list_template_id: int
     recurrence_type: RecurrenceType
     recurrence_day: int | None = None  # 0-6 (Monday first) for weekly, 1-31 for monthly
     custom_rule: dict | None = None
@@ -1526,10 +1557,10 @@ class PackingListScheduleCreate(BaseModel):
         return self
 
 
-class PackingListScheduleUpdate(BaseModel):
+class PackingListTemplateScheduleUpdate(BaseModel):
     """A partial edit. The rule is re-checked against the merged schedule."""
 
-    packing_list_id: int | None = None
+    packing_list_template_id: int | None = None
     recurrence_type: RecurrenceType | None = None
     recurrence_day: int | None = UNSET  # None means "clear"; UNSET means "not provided"
     custom_rule: dict | None = UNSET
@@ -1551,10 +1582,10 @@ class PackingListScheduleUpdate(BaseModel):
         return _blank_to_none(value)
 
 
-class PackingListScheduleResponse(BaseModel):
+class PackingListTemplateScheduleResponse(BaseModel):
     id: int
-    packing_list_id: int
-    packing_list_name: str
+    packing_list_template_id: int
+    template_name: str
     recurrence_type: str
     recurrence_day: int | None = None
     custom_rule: dict | None = None
@@ -1565,5 +1596,5 @@ class PackingListScheduleResponse(BaseModel):
     last_generated_date: str | None = None
 
 
-# PackingListResponse names the schedule before it is defined.
-PackingListResponse.model_rebuild()
+# PackingListTemplateResponse names the schedule before it is defined.
+PackingListTemplateResponse.model_rebuild()

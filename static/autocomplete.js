@@ -19,7 +19,7 @@
  *       onAccept: (suggestion) => void,             // after the field is filled
  *       onForget: async (suggestion) => void,       // omit for no ×
  *       enabled: () => bool,                        // e.g. add mode only
- *       scrollBox,                                  // a .modal-body to scroll to the top
+ *       scrollBox,                                  // the .modal-body the menu is shown inside
  *   })
  *
  * Enter with nothing highlighted is left alone, so it submits what was typed:
@@ -58,10 +58,6 @@
                 close();
                 return;
             }
-            // A modal body is a scroll box, so the menu cannot spill outside it;
-            // scrolling the field near the top gives the (height-capped) menu
-            // room to open below it.
-            if (scrollBox && input.offsetTop < scrollBox.clientHeight) scrollBox.scrollTop = 0;
             menu.innerHTML = suggestions.map((suggestion, index) => {
                 const { name, detail } = label(suggestion);
                 return `
@@ -76,6 +72,25 @@
             }).join('');
             menu.classList.add('open');
             input.setAttribute('aria-expanded', 'true');
+            revealMenu();
+        }
+
+        /* A modal body is a scroll box, so the menu cannot spill outside it:
+         * whatever part of it is below the box's bottom edge is out of sight.
+         * Scroll just far enough to bring the whole (height-capped) menu into
+         * view, and never so far that the field being typed in goes above the
+         * top. When the menu already fits, nothing moves.
+         *
+         * This replaced scrolling to the top on every keystroke, which suited
+         * a field at the top of its form and threw any field lower down (a
+         * packing list item's Bag) to the bottom edge, its menu out of sight. */
+        function revealMenu() {
+            if (!scrollBox) return;
+            const box = scrollBox.getBoundingClientRect();
+            const hidden = menu.getBoundingClientRect().bottom - box.bottom;
+            if (hidden <= 0) return;
+            const room = input.getBoundingClientRect().top - box.top;
+            scrollBox.scrollTop += Math.min(hidden, Math.max(0, room));
         }
 
         async function lookup() {

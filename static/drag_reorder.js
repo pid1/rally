@@ -26,6 +26,11 @@
  * out of: on the Packing Lists page every packing list's groups live in one
  * container, and a row dropped into another packing list would be a move the
  * API refuses.
+ *
+ * `itemId(row)` (optional) is a row's id as `onReorder` receives it. It
+ * defaults to `Number(row.dataset.id)`. A packing list day mixes template
+ * items with the day's own, whose ids come from different tables, so its rows
+ * pass a string that carries the source as well (`template:12`, `day:4`).
  */
 (function () {
     'use strict';
@@ -57,12 +62,16 @@
             announce,
             scope,
         } = config;
+        const itemId = config.itemId || ((row) => Number(row.dataset.id));
 
         let drag = null;
         // Set only by the keyboard path: a commit re-renders the list, which
         // destroys the button the user is standing on. Nothing to restore after
-        // a pointer drag, where focus was never the thing being moved.
+        // a pointer drag, where focus was never the thing being moved. The row
+        // is found again by its group as well as its id: the same id can be in
+        // several groups of one container (one template item on two days).
         let refocusId = null;
+        let refocusGroup = null;
         // Held across a keyboard commit. Key repeat fires far faster than the
         // round trip, and two overlapping commits each read the DOM at their own
         // moment — the second would save an order computed before the first
@@ -77,7 +86,7 @@
         }
 
         function orderOf(list) {
-            return draggableRows(list).map((row) => Number(row.dataset.id));
+            return draggableRows(list).map(itemId);
         }
 
         function listOf(element) {
@@ -243,7 +252,7 @@
 
             await onReorder(key, ids);
             if (announce) {
-                const position = ids.indexOf(Number(movedItem.dataset.id)) + 1;
+                const position = ids.indexOf(itemId(movedItem)) + 1;
                 announce(
                     itemLabel(movedItem) +
                         ', ' +
@@ -351,7 +360,8 @@
                 list.insertBefore(item, peers[target].nextSibling);
             }
 
-            refocusId = item.dataset.id;
+            refocusId = itemId(item);
+            refocusGroup = originKey;
             committing = true;
             try {
                 await commit(list, item, originKey, originOrder);
@@ -365,11 +375,17 @@
          * on no longer exists. Put focus on its replacement, or arrowing twice
          * in a row is impossible. */
         function refocus() {
-            if (!refocusId) return;
-            const selector =
-                itemSelector + '[data-id="' + refocusId + '"] ' + handleSelector;
+            if (refocusId === null) return;
+            const id = refocusId;
+            const key = refocusGroup;
             refocusId = null;
-            const handle = container.querySelector(selector);
+            refocusGroup = null;
+            const group = Array.from(container.querySelectorAll(groupSelector)).find(
+                (candidate) => groupKey(candidate) === key
+            );
+            const list = group && group.querySelector(listSelector);
+            const row = list && draggableRows(list).find((candidate) => itemId(candidate) === id);
+            const handle = row && row.querySelector(handleSelector);
             if (handle) handle.focus();
         }
 

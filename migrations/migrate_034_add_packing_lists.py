@@ -183,6 +183,14 @@ def migrate():
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         existing = {row[0] for row in cursor.fetchall()}
 
+        # Migration 035 renamed these tables and their columns. Running on
+        # regardless would recreate the old tables empty beside the renamed
+        # ones, and then fail on an index over a column that no longer exists,
+        # which would stop the container from starting.
+        if "packing_list_templates" in existing:
+            print("✓ Migration: packing list tables already moved on by migration 035 (idempotent)")
+            return True
+
         created = []
         for name, ddl in TABLES.items():
             if name not in existing:

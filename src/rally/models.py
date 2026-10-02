@@ -870,7 +870,7 @@ class CalendarCache(Base):
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
 
-class PackingList(Base):
+class PackingListTemplate(Base):
     """A reusable packing list: Swim at Nana's, Beach day, School backpack.
 
     This is the master. It is never checked off itself — a ``PackingListDay``
@@ -883,7 +883,7 @@ class PackingList(Base):
     two templates can never read the same.
     """
 
-    __tablename__ = "packing_lists"
+    __tablename__ = "packing_list_templates"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
@@ -893,7 +893,9 @@ class PackingList(Base):
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
     __table_args__ = (
-        Index("ix_packing_lists_name_nocase", text("name COLLATE NOCASE"), unique=True),
+        Index("ix_packing_list_templates_name_nocase", text("name COLLATE NOCASE"), unique=True),
+        # Named in migration 034, before the table was renamed; a renamed table
+        # keeps its constraints, and renaming this one would mean a rebuild.
         CheckConstraint("pack_days_before >= 0", name="ck_packing_list_pack_days_before"),
     )
 
@@ -901,11 +903,11 @@ class PackingList(Base):
 class PackingListBag(Base):
     """A bag things are packed into: Emma's backpack, Pool bag, Car.
 
-    One household list, shared by every packing list, like ``ShoppingStore``.
-    Items name their bag in free text and a new name joins this list, so it
-    grows as it is used; the Manage bags modal renames and removes. An item in
-    no bag has ``bag_id IS NULL`` and reads as "No bag". Names are unique
-    case-insensitively, so typing "pool bag" lands in "Pool bag".
+    One household list, shared by every template and every day, like
+    ``ShoppingStore``. Items name their bag in free text and a new name joins
+    this list, so it grows as it is used; the Manage bags modal renames and
+    removes. An item in no bag has ``bag_id IS NULL`` and reads as "No bag".
+    Names are unique case-insensitively, so typing "pool bag" lands in "Pool bag".
     """
 
     __tablename__ = "packing_list_bags"
@@ -920,26 +922,28 @@ class PackingListBag(Base):
     )
 
 
-class PackingListItem(Base):
-    """One thing to pack, on the packing list template.
+class PackingListTemplateItem(Base):
+    """One thing to pack, on a packing list template.
 
     Items live on the template only. A day's copy never duplicates them — it
     records which of them are checked (``PackingListDayCheck``) and its own
     changes (``PackingListDayItem``) — so an edit here reaches every day the
-    packing list is on, with nothing to sync.
+    template is on, with nothing to sync.
 
     ``owner_id`` (a family member; NULL is "Everyone") and ``bag_id`` (NULL is
-    "No bag") are the two ways the page groups a packing list: who owns what, and
-    what goes in each bag. ``sort_order`` is one order for the whole packing list;
-    each view reads it within its groups. It is compared, never counted on to
-    be contiguous, the ``ShoppingItem.sort_order`` contract, and a new item
-    goes to the bottom: a packing list is entered top to bottom.
+    "No bag") are the two ways the page groups a packing list: who owns what,
+    and what goes in each bag. ``sort_order`` is one order for the whole
+    template; each view reads it within its groups. It is compared, never
+    counted on to be contiguous, the ``ShoppingItem.sort_order`` contract, and
+    a new item goes to the bottom: a packing list is entered top to bottom.
     """
 
-    __tablename__ = "packing_list_items"
+    __tablename__ = "packing_list_template_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    packing_list_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_lists.id
+    packing_list_template_id: Mapped[int] = mapped_column(
+        Integer, index=True
+    )  # FK to packing_list_templates.id
     owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to family_members.id
     bag_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to packing_list_bags.id
     name: Mapped[str] = mapped_column(String(200))
@@ -950,13 +954,18 @@ class PackingListItem(Base):
 
 
 class PackingListItemHistory(Base):
-    """Every item name ever put on a packing list, for autocomplete.
+    """Every item name somebody has typed onto a packing list, for autocomplete.
 
-    The packing list counterpart of ``ShoppingItemHistory``: permanent,
-    deduplicated on ``name_key`` (trimmed and casefolded), with the casing it
-    was last typed in, the owner and bag it last had, and a use counter that
-    ranks suggestions. Items on packing lists stay independent of it — renaming
-    one changes nothing here, and forgetting a suggestion changes no packing list.
+    The packing list counterpart of ``ShoppingItemHistory``, deduplicated on
+    ``name_key`` (trimmed and casefolded), with the casing it was last typed
+    in and the owner and bag it last had. Typing a name (adding an item, or
+    renaming one) creates its row; nothing else does, so a suggestion somebody
+    forgot stays forgotten until somebody types it again.
+
+    ``times_added`` is how many past days the name was on a packing list —
+    what was packed, not what was typed. ``rally.packing_lists.count_packed_days``
+    adds to it once a day is over, so a list taken off a day before then was
+    never counted and has nothing to undo. A newly typed name starts at 0.
     """
 
     __tablename__ = "packing_list_item_history"
@@ -966,19 +975,31 @@ class PackingListItemHistory(Base):
     name_key: Mapped[str] = mapped_column(String(200))
     owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     bag_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    times_added: Mapped[int] = mapped_column(Integer, default=1)
-    last_added_at: Mapped[datetime] = mapped_column(default=now_utc)
+    times_added: Mapped[int] = mapped_column(Integer, default=0)  # Past days it was on a list
+    last_added_at: Mapped[datetime] = mapped_column(default=now_utc)  # Last typed
 
     __table_args__ = (Index("ix_packing_list_item_history_name_key", "name_key", unique=True),)
 
 
 class PackingListDay(Base):
-    """A packing list put on a date: "Swim at Nana's" on Saturday.
+    """A packing list on a date: "Swim at Nana's" on Saturday.
 
-    This is the copy the family checks off, but it holds no copy of the
-    template's items — only its checks and its own changes
-    (``PackingListDayItem``). ``(packing_list_id, date)`` is unique, because the same
-    list twice on one day would be two copies of one bag.
+    Usually a template put on a day. That day holds no copy of the template's
+    items — only its checks and its own changes (``PackingListDayItem``) — and
+    ``(packing_list_template_id, date)`` is unique, because the same template
+    twice on one day would be two copies of one bag.
+
+    A **templateless** day has ``packing_list_template_id IS NULL``: its
+    template was deleted (its items were copied onto it first, see
+    ``rally.packing_lists.delete_template``). It carries its own ``name``,
+    ``description`` and ``pack_days_before``, and every item on it is one of
+    its own. SQLite treats NULLs as distinct in a unique index, so any number
+    of templateless days can share a date.
+
+    ``item_order`` is the day's hand-arranged order, a list of
+    ``"template:<id>"`` / ``"day:<id>"`` keys; NULL is the default order (the
+    template's, then the day's own). Nothing enforces its contents, so
+    ``rally.packing_lists.resolve_day`` reads it leniently.
 
     ``date`` is ``String(10)`` YYYY-MM-DD like ``Todo.due_date``: a day on a
     wall calendar, never an instant.
@@ -987,75 +1008,86 @@ class PackingListDay(Base):
     __tablename__ = "packing_list_days"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    packing_list_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_lists.id
+    packing_list_template_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True
+    )  # FK to packing_list_templates.id; NULL for a templateless day
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Templateless only
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)  # Templateless only
     date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
     label: Mapped[str | None] = mapped_column(String(200), nullable=True)
     schedule_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True, index=True
-    )  # FK to packing_list_schedules.id; NULL for a day added by hand
+    )  # FK to packing_list_template_schedules.id; NULL for a day added by hand
     pack_days_before: Mapped[int | None] = mapped_column(
         Integer, nullable=True
-    )  # This day's own lead time; NULL follows the packing list's
+    )  # This day's own lead time; NULL follows the template's. Required when templateless
     # Set once somebody edits this day's label: a schedule's relabel skips it.
     label_edited: Mapped[bool] = mapped_column(default=False)
+    item_order: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
     __table_args__ = (
-        Index("ix_packing_list_days_packing_list_date", "packing_list_id", "date", unique=True),
+        Index(
+            "ix_packing_list_days_packing_list_template_date",
+            "packing_list_template_id",
+            "date",
+            unique=True,
+        ),
     )
 
 
 class PackingListDayItem(Base):
     """One day's own change to its packing list: the overlay a day keeps on top.
 
-    A day still follows its packing list — an item added to the packing list shows up
+    A day still follows its template — an item added to the template shows up
     on every day — and this table holds what is true of one day only:
 
-    * ``item_id`` set: a packing list item as it reads *on this day*. ``name``,
-      ``note``, ``owner_id`` and ``bag_id`` are the day's full values, copied
-      when it was first edited here, so a later edit to the template no longer
-      reaches this one item on this one day. ``removed`` takes it off this day
-      without touching the template. Its check still lives in
-      ``PackingListDayCheck``, like any packing list item.
-    * ``item_id`` NULL: an item only this day has, after the template's items
-      in its own ``sort_order``, with its own owner and bag, and its own
-      ``checked``, since ``PackingListDayCheck`` names template items only.
+    * ``template_item_id`` set: a template item as it reads *on this day*.
+      ``name``, ``note``, ``owner_id`` and ``bag_id`` are the day's full
+      values, copied when it was first edited here, so a later edit to the
+      template no longer reaches this one item on this one day. ``removed``
+      takes it off this day without touching the template. Its check still
+      lives in ``PackingListDayCheck``, like any template item.
+    * ``template_item_id`` NULL: an item only this day has, after the
+      template's items in its own ``sort_order``, with its own owner and bag,
+      and its own ``checked``, since ``PackingListDayCheck`` names template
+      items only. Every item on a templateless day is one of these.
 
-    Unique per ``(day_id, item_id)`` where ``item_id`` is set: one reading of a
-    packing list item per day.
+    Unique per ``(day_id, template_item_id)`` where ``template_item_id`` is
+    set: one reading of a template item per day.
     """
 
     __tablename__ = "packing_list_day_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_days.id
-    item_id: Mapped[int | None] = mapped_column(
+    template_item_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True, index=True
-    )  # FK to packing_list_items.id; NULL for an item only this day has
+    )  # FK to packing_list_template_items.id; NULL for an item only this day has
     owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     bag_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     name: Mapped[str] = mapped_column(String(200))
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)  # Day-only items
-    removed: Mapped[bool] = mapped_column(default=False)  # Packing list items only
+    removed: Mapped[bool] = mapped_column(default=False)  # Template items only
     checked: Mapped[bool] = mapped_column(default=False)  # Day-only items only
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
     __table_args__ = (
         Index(
-            "ix_packing_list_day_items_day_item",
+            "ix_packing_list_day_items_day_template_item",
             "day_id",
-            "item_id",
+            "template_item_id",
             unique=True,
-            sqlite_where=text("item_id IS NOT NULL"),
+            sqlite_where=text("template_item_id IS NOT NULL"),
         ),
     )
 
 
-class PackingListSchedule(Base):
-    """A packing list put on days by a repeating rule: "School backpack" every weekday.
+class PackingListTemplateSchedule(Base):
+    """A template put on days by a repeating rule: "School backpack" every weekday.
 
     The recurrence columns are named exactly as on ``RecurringTodo``
     (``recurrence_type``, ``recurrence_day``, ``custom_rule``, ``start_date``,
@@ -1072,13 +1104,13 @@ class PackingListSchedule(Base):
     which names those days, so a new one relabels its days from today on.
     """
 
-    __tablename__ = "packing_list_schedules"
+    __tablename__ = "packing_list_template_schedules"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # One schedule per packing list: a packing list either repeats or it does not.
-    packing_list_id: Mapped[int] = mapped_column(
+    # One schedule per template: a template either repeats or it does not.
+    packing_list_template_id: Mapped[int] = mapped_column(
         Integer, index=True, unique=True
-    )  # FK to packing_lists.id
+    )  # FK to packing_list_templates.id
     recurrence_type: Mapped[str] = mapped_column(String(20))  # daily, weekly, monthly, custom
     recurrence_day: Mapped[int | None] = mapped_column(
         Integer, nullable=True
@@ -1098,20 +1130,27 @@ class PackingListSchedule(Base):
 
 
 class PackingListDayCheck(Base):
-    """An item checked off on one day. The row's existence *is* the check.
+    """A template item checked off on one day. The row's existence *is* the check.
 
-    Keyed on ``(day_id, item_id)``, which is the whole reason checking off on
-    Saturday cannot touch the master or any other day: there is no column on
-    either for it to write. Unchecking deletes the row.
+    Keyed on ``(day_id, template_item_id)``, which is the whole reason checking
+    off on Saturday cannot touch the template or any other day: there is no
+    column on either for it to write. Unchecking deletes the row.
     """
 
     __tablename__ = "packing_list_day_checks"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_days.id
-    item_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_items.id
+    template_item_id: Mapped[int] = mapped_column(
+        Integer, index=True
+    )  # FK to packing_list_template_items.id
     checked_at: Mapped[datetime] = mapped_column(default=now_utc)
 
     __table_args__ = (
-        Index("ix_packing_list_day_checks_day_item", "day_id", "item_id", unique=True),
+        Index(
+            "ix_packing_list_day_checks_day_template_item",
+            "day_id",
+            "template_item_id",
+            unique=True,
+        ),
     )

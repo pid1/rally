@@ -171,17 +171,17 @@ prep_review.run_review(db, llm=lambda *a, **k: (REVIEW, "demo-model"))
 # day gets two: a frisbee for that day only, and the umbrella's note changed
 # for it alone. That is what marks a row "(added)" or "(changed)" and puts
 # "2 items changed" beside the entry's Edit.
-from rally.models import PackingList, PackingListDay, PackingListDayItem, PackingListItem
-beach = db.query(PackingList).filter(PackingList.name == "Beach day").one()
+from rally.models import PackingListTemplate, PackingListDay, PackingListDayItem, PackingListTemplateItem
+beach = db.query(PackingListTemplate).filter(PackingListTemplate.name == "Beach day").one()
 beach_day = (
-    db.query(PackingListDay).filter(PackingListDay.packing_list_id == beach.id)
+    db.query(PackingListDay).filter(PackingListDay.packing_list_template_id == beach.id)
     .order_by(PackingListDay.date.desc()).first()
 )
-umbrella = db.query(PackingListItem).filter(
-    PackingListItem.packing_list_id == beach.id, PackingListItem.name == "Umbrella"
+umbrella = db.query(PackingListTemplateItem).filter(
+    PackingListTemplateItem.packing_list_template_id == beach.id, PackingListTemplateItem.name == "Umbrella"
 ).one()
 db.add(PackingListDayItem(
-    day_id=beach_day.id, item_id=umbrella.id, name=umbrella.name,
+    day_id=beach_day.id, template_item_id=umbrella.id, name=umbrella.name,
     note="The big striped one: it's going to be sunny", owner_id=umbrella.owner_id,
     bag_id=umbrella.bag_id,
 ))
@@ -358,7 +358,7 @@ def _park_pointer(page):
 def _wait_for_packing_lists(page):
     """The Packing Lists page fills its day boxes and template rows after load."""
     page.wait_for_selector("#days-container [data-day-card]")
-    page.wait_for_selector("#packing-lists-container [data-packing-list-row]")
+    page.wait_for_selector("#templates-container [data-template-row]")
     page.wait_for_timeout(300)
 
 
@@ -394,7 +394,7 @@ def _open_swim_by_bag(page):
 
 
 def _template_row(page, name):
-    return page.locator("#packing-lists-container [data-packing-list-row]", has_text=name).first
+    return page.locator("#templates-container [data-template-row]", has_text=name).first
 
 
 def _open_template(page):
@@ -559,7 +559,7 @@ SHOTS: tuple[Shot, ...] = (
         "/packing-lists",
         width=1440,
         scale=1,
-        element='#packing-lists-container [data-packing-list-row]:has-text("Swim at Nana\'s")',
+        element='#templates-container [data-template-row]:has-text("Swim at Nana\'s")',
         setup=_open_template,
     ),
     Shot(
