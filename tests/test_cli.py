@@ -14,11 +14,11 @@ from rally.models import (
     EventAttendee,
     FamilyMember,
     MealPlan,
-    PackingList,
     PackingListDay,
     PackingListDayCheck,
-    PackingListItem,
-    PackingListSchedule,
+    PackingListTemplate,
+    PackingListTemplateItem,
+    PackingListTemplateSchedule,
     PrepItem,
     PrepLocation,
     RecurringTodo,
@@ -135,9 +135,9 @@ def test_seed_gives_the_backpack_a_school_day_schedule(cli_db):
     """The demo shows a recurring packing list, and seeding twice leaves one schedule."""
     cli.seed()
     cli.seed()
-    schedules = cli_db.query(PackingListSchedule).all()
+    schedules = cli_db.query(PackingListTemplateSchedule).all()
     assert len(schedules) == 1
-    backpack = cli_db.get(PackingList, schedules[0].packing_list_id)
+    backpack = cli_db.get(PackingListTemplate, schedules[0].packing_list_template_id)
     assert backpack.name == "School backpack"
     assert schedules[0].custom_rule["weekdays"] == [0, 1, 2, 3, 4]
 
@@ -155,7 +155,11 @@ def test_seed_gives_the_archive_shared_days_and_an_unfinished_list(cli_db):
     assert sum(1 for n in per_date.values() if n > 1) >= 2
 
     def unchecked(day):
-        items = cli_db.query(PackingListItem).filter_by(packing_list_id=day.packing_list_id).count()
+        items = (
+            cli_db.query(PackingListTemplateItem)
+            .filter_by(packing_list_template_id=day.packing_list_template_id)
+            .count()
+        )
         checks = cli_db.query(PackingListDayCheck).filter_by(day_id=day.id).count()
         return items - checks
 

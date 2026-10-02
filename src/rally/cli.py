@@ -14,14 +14,14 @@ from rally.models import (
     FamilyMember,
     MealPlan,
     Note,
-    PackingList,
     PackingListBag,
     PackingListDay,
     PackingListDayCheck,
     PackingListDayItem,
-    PackingListItem,
     PackingListItemHistory,
-    PackingListSchedule,
+    PackingListTemplate,
+    PackingListTemplateItem,
+    PackingListTemplateSchedule,
     PrepItem,
     PrepLocation,
     RecurringTodo,
@@ -47,11 +47,11 @@ def seed():
             PackingListDayCheck,
             PackingListDayItem,
             PackingListDay,
-            PackingListSchedule,
-            PackingListItem,
+            PackingListTemplateSchedule,
+            PackingListTemplateItem,
             PackingListItemHistory,
             PackingListBag,
-            PackingList,
+            PackingListTemplate,
         ):
             db.query(model).delete()
         db.query(EventAttendee).delete()
@@ -699,10 +699,12 @@ def seed():
         ]
         members_by_name = {m.name: m for m in (mom, dad, emma, jake)}
         bags: dict[str, PackingListBag] = {}
-        packing_list_items: dict[tuple[str, str, str | None], PackingListItem] = {}
-        seeded_packing_lists: dict[str, PackingList] = {}
+        packing_list_items: dict[tuple[str, str, str | None], PackingListTemplateItem] = {}
+        seeded_packing_lists: dict[str, PackingListTemplate] = {}
         for name, description, timing, entries in packing_list_specs:
-            packing_list = PackingList(name=name, description=description, pack_days_before=timing)
+            packing_list = PackingListTemplate(
+                name=name, description=description, pack_days_before=timing
+            )
             db.add(packing_list)
             db.flush()
             seeded_packing_lists[name] = packing_list
@@ -713,8 +715,8 @@ def seed():
                     db.flush()
                 owner = members_by_name[owner_name].id if owner_name else None
                 bag = bags[bag_name].id if bag_name else None
-                item = PackingListItem(
-                    packing_list_id=packing_list.id,
+                item = PackingListTemplateItem(
+                    packing_list_template_id=packing_list.id,
                     owner_id=owner,
                     bag_id=bag,
                     name=item_name,
@@ -734,13 +736,15 @@ def seed():
 
         def put_on_day(name, offset, label=None, checked=()):
             day = PackingListDay(
-                packing_list_id=seeded_packing_lists[name].id, date=in_days(offset), label=label
+                packing_list_template_id=seeded_packing_lists[name].id,
+                date=in_days(offset),
+                label=label,
             )
             db.add(day)
             db.flush()
             for item_name, owner_name in checked:
                 item = packing_list_items[(name, item_name, owner_name)]
-                db.add(PackingListDayCheck(day_id=day.id, item_id=item.id))
+                db.add(PackingListDayCheck(day_id=day.id, template_item_id=item.id))
             return day
 
         nana_items = [(i, o) for o, _, i, _ in packing_list_specs[0][3]]
@@ -776,8 +780,8 @@ def seed():
         # days added by hand. Its days appear the first time the Packing Lists
         # page is loaded, a week ahead.
         db.add(
-            PackingListSchedule(
-                packing_list_id=seeded_packing_lists["School backpack"].id,
+            PackingListTemplateSchedule(
+                packing_list_template_id=seeded_packing_lists["School backpack"].id,
                 recurrence_type="custom",
                 custom_rule={"freq": "weekly", "interval": 1, "weekdays": [0, 1, 2, 3, 4]},
             )

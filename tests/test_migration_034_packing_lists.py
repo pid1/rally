@@ -1,8 +1,10 @@
-"""Migration 034 creates the packing list tables, and agrees with the models.
+"""Migration 034 creates the packing list tables.
 
-It runs on every container start, so it has to be a no-op the second time, and
-it has to leave a database the ORM can use: a table the migration shaped
-differently from ``models.py`` would only fail once somebody wrote to it.
+It runs on every container start, so it has to be a no-op the second time —
+and a no-op after migration 035 has renamed what it made, or it would create
+the old tables again beside the new ones. Whether the result agrees with
+``models.py`` is ``test_migration_035_packing_list_templates``: after 035 the
+two only agree together.
 """
 
 import importlib.util
@@ -10,19 +12,6 @@ import pathlib
 import sqlite3
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
-from rally.models import (
-    PackingList,
-    PackingListBag,
-    PackingListDay,
-    PackingListDayCheck,
-    PackingListDayItem,
-    PackingListItem,
-    PackingListItemHistory,
-    PackingListSchedule,
-)
 
 TABLES = {
     "packing_lists",
@@ -73,42 +62,23 @@ def test_a_missing_database_is_not_an_error(tmp_path, monkeypatch):
     assert _load_migration().migrate() is True
 
 
-def test_the_orm_can_use_what_it_made(db_path):
+def test_after_035_it_changes_nothing(db_path):
+    """034 runs before 035 on every start. Once 035 has renamed the tables, 034
+    must not make the old ones again, nor fail on an index over a renamed
+    column — a failed migration stops the container."""
     _load_migration().migrate()
-    engine = create_engine(f"sqlite:///{db_path}")
-    with Session(engine) as session:
-        packing_list = PackingList(name="Beach day", pack_days_before=1)
-        bag = PackingListBag(name="Pool bag")
-        session.add_all([packing_list, bag])
-        session.flush()
-        item = PackingListItem(
-            packing_list_id=packing_list.id, owner_id=1, bag_id=bag.id, name="Towel"
-        )
-        schedule = PackingListSchedule(
-            packing_list_id=packing_list.id,
-            recurrence_type="custom",
-            custom_rule={"freq": "weekly", "interval": 1, "weekdays": [5]},
-        )
-        session.add_all([item, schedule])
-        session.flush()
-        day = PackingListDay(
-            packing_list_id=packing_list.id,
-            date="2026-10-03",
-            schedule_id=schedule.id,
-            pack_days_before=2,
-        )
-        session.add(day)
-        session.flush()
-        session.add_all(
-            [
-                PackingListDayCheck(day_id=day.id, item_id=item.id),
-                PackingListDayItem(day_id=day.id, name="Sun hat", owner_id=2, bag_id=bag.id),
-                PackingListItemHistory(name="Towel", name_key="towel", bag_id=bag.id),
-            ]
-        )
-        session.commit()
-        assert session.query(PackingListSchedule).one().active is True
-    engine.dispose()
+    path = pathlib.Path(__file__).resolve().parents[1] / "migrations"
+    spec = importlib.util.spec_from_file_location(
+        "migrate_035", path / "migrate_035_packing_list_templates.py"
+    )
+    migration_035 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration_035)
+    assert migration_035.migrate() is True
+    before = _tables(db_path)
+
+    assert _load_migration().migrate() is True
+    assert _tables(db_path) == before
+    assert not {"packing_lists", "packing_list_items", "packing_list_schedules"} & before
 
 
 @pytest.mark.parametrize(

@@ -62,10 +62,10 @@
         <section class="stack">
             <div class="page-header-row">
                 <h3>Packing List Templates</h3>
-                <button class="btn" id="btn-add-packing-list">Add Packing List Template</button>
+                <button class="btn" id="btn-add-template">Add Packing List Template</button>
             </div>
             <p class="page-note">A packing list template is kept here and scheduled whenever you need it: on one day, or on a repeating schedule. Changes to a packing list template show up on every day it's on; changes made on a day stay on that day.</p>
-            <div class="list-container" id="packing-lists-container">
+            <div class="list-container" id="templates-container">
                 <div class="container-loading-state">Loading packing list templates…</div>
             </div>
         </section>
@@ -153,29 +153,29 @@
     </div>
 
     <!-- Add / Edit Packing List: its details. When it happens is Schedule's. -->
-    <div class="modal-overlay" id="packing-list-modal-overlay">
+    <div class="modal-overlay" id="template-modal-overlay">
         <div class="modal-content">
-            <h3 id="packing-list-modal-title">Add Packing List Template</h3>
+            <h3 id="template-modal-title">Add Packing List Template</h3>
             <div class="modal-scroll">
             <div class="modal-body">
-                <form id="packing-list-form">
+                <form id="template-form">
                     <div class="form-group">
-                        <label for="packing-list-name">Name</label>
-                        <input type="text" id="packing-list-name" placeholder="e.g. Beach day" maxlength="100" required>
+                        <label for="template-name">Name</label>
+                        <input type="text" id="template-name" placeholder="e.g. Beach day" maxlength="100" required>
                     </div>
                     <div class="form-group">
-                        <label for="packing-list-description">Description (optional)</label>
-                        <textarea id="packing-list-description" rows="2" placeholder="When you use it, anything to remember"></textarea>
+                        <label for="template-description">Description (optional)</label>
+                        <textarea id="template-description" rows="2" placeholder="When you use it, anything to remember"></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Pack <input type="number" id="packing-list-pack-days" min="0" step="1" value="0" required class="remind-days-input" aria-label="Days before to pack"> days before</label>
+                        <label>Pack <input type="number" id="template-pack-days" min="0" step="1" value="0" required class="remind-days-input" aria-label="Days before to pack"> days before</label>
                         <small>0 means the same day.</small>
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="packing-list-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-packing-list">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-packing-list" style="display:none">Delete</button>
+                    <button type="submit" form="template-form" class="btn">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-cancel-template">Cancel</button>
+                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-template" style="display:none">Delete</button>
                 </div>
             </div>
             </div>
@@ -296,13 +296,13 @@
     <script src="/static/packing_lists.js?v={{ css_version }}"></script>
     <script>
         const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, formatLongDate, addDays, weekdayOf, itemCount,
-            packDaysLabel, viewSections, otherDimension, keyToId, noteHtml,
+            packDaysLabel, viewSections, otherDimension, keyToId, noteHtml, isTemplated, dayRowId,
             dayBoxesHtml, updateDayCardCounts, requestJson } = PackingLists;
         const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
         const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
         let days = [];
-        let packingLists = [];
+        let templates = [];
         // The family in Rally's order, the household's bags A to Z, and how
         // the page groups every packing list: by owner (the default on every
         // visit) or by bag.
@@ -315,7 +315,7 @@
         }
         // Which cards and rows are open, so a refetch puts them back.
         const openDays = new Set();
-        const openPackingLists = new Set();
+        const openTemplates = new Set();
         // Held while a check is in flight, so a refetch cannot paint over a
         // box somebody has just ticked with the state from before it.
         let pending = 0;
@@ -329,8 +329,8 @@
             return `${MONTHS_SHORT[m - 1]} ${d}, ${y}`;
         }
 
-        function packingListById(id) {
-            return packingLists.find(c => c.id === id);
+        function templateById(id) {
+            return templates.find(c => c.id === id);
         }
 
         function groupName(id) {
@@ -386,7 +386,7 @@
                 chip.setAttribute('aria-pressed', String(on));
             });
             renderDays();
-            renderPackingLists();
+            renderTemplates();
         }
 
         document.getElementById('view-chips').addEventListener('click', (e) => {
@@ -422,11 +422,11 @@
             `;
         }
 
-        function renderPackingListItems(c) {
+        function renderTemplateItems(c) {
             if (c.items.length === 0) {
                 return '<div class="container-empty-state">Nothing on this packing list template yet.</div>';
             }
-            // Section keys carry the packing list's id: every packing list's groups
+            // Section keys carry the template's id: every template's groups
             // share one drag container, and the reorder has to know whose
             // group a row was dropped in.
             return viewSections(c.items, lens()).map(section => listGroupHtml({
@@ -437,10 +437,10 @@
             })).join('');
         }
 
-        function renderPackingListRow(c) {
+        function renderTemplateRow(c) {
             const s = c.schedule;
             const ended = s && s.end_date && s.end_date < todayLocal();
-            const repeats = s ? ' <span class="recurring-indicator" title="Repeats on a schedule">↻</span>' : '';
+            const repeats = s ? ' <span class="title-indicator" title="Repeats on a schedule">↻</span>' : '';
             const status = s && !s.active
                 ? '<span class="recurring-paused">Paused</span>'
                 : (ended ? '<span class="recurring-paused">Ended</span>' : '');
@@ -449,7 +449,7 @@
                 ? `<button type="button" class="btn btn--sm btn--secondary" data-toggle-schedule="${c.id}">${s.active ? 'Pause' : 'Resume'}</button>`
                 : '';
             return `
-                <div class="editable-item template-item" data-packing-list-row="${c.id}">
+                <div class="editable-item template-item" data-template-row="${c.id}">
                     <div class="editable-item-content">
                         <div class="editable-item-title">${escapeHtml(c.name)}${s && s.label ? ` <span class="assignee-label">— ${escapeHtml(s.label)}</span>` : ''}${repeats}${status}</div>
                         ${c.description ? `<div class="editable-item-description">${escapeHtml(c.description)}</div>` : ''}
@@ -459,12 +459,12 @@
                     <div class="editable-item-actions">
                         <button type="button" class="btn btn--sm btn--secondary" data-schedule="${c.id}">Schedule</button>
                         ${pause}
-                        <button type="button" class="btn btn--sm" data-edit-packing-list="${c.id}">Edit</button>
+                        <button type="button" class="btn btn--sm" data-edit-template="${c.id}">Edit</button>
                     </div>
-                    <details class="disclosure" data-packing-list="${c.id}"${openPackingLists.has(c.id) ? ' open' : ''}>
+                    <details class="disclosure" data-template="${c.id}"${openTemplates.has(c.id) ? ' open' : ''}>
                         <summary><span class="disclosure-more">View more</span><span class="disclosure-less">View less</span></summary>
                         <div class="disclosure-body">
-                            ${renderPackingListItems(c)}
+                            ${renderTemplateItems(c)}
                             <div class="editable-item-actions packing-list-day-actions">
                                 <button type="button" class="btn btn--sm btn--secondary" data-add-item="${c.id}">Add Item</button>
                             </div>
@@ -474,10 +474,10 @@
             `;
         }
 
-        function renderPackingLists() {
-            const container = document.getElementById('packing-lists-container');
-            container.innerHTML = packingLists.length
-                ? packingLists.map(renderPackingListRow).join('')
+        function renderTemplates() {
+            const container = document.getElementById('templates-container');
+            container.innerHTML = templates.length
+                ? templates.map(renderTemplateRow).join('')
                 : '<div class="container-empty-state">No packing list templates yet. Click "Add Packing List Template" to make one you can reuse.</div>';
         }
 
@@ -486,9 +486,9 @@
             renderDays();
         }
 
-        async function loadPackingLists() {
-            packingLists = await requestJson('/api/packing-lists');
-            renderPackingLists();
+        async function loadTemplates() {
+            templates = await requestJson('/api/packing-list-templates');
+            renderTemplates();
         }
 
         async function loadMembers() {
@@ -505,7 +505,7 @@
                 await Promise.all([loadMembers(), loadBags()]);
                 // Days next: listing them is what puts a schedule's days on.
                 await loadDays();
-                await loadPackingLists();
+                await loadTemplates();
             } catch (error) {
                 console.error('Error loading packing lists:', error);
                 document.getElementById('days-container').innerHTML =
@@ -518,9 +518,9 @@
         document.addEventListener('toggle', (e) => {
             const details = e.target;
             if (!(details instanceof HTMLDetailsElement)) return;
-            const set = details.dataset.day ? openDays : (details.dataset.packingList ? openPackingLists : null);
+            const set = details.dataset.day ? openDays : (details.dataset.template ? openTemplates : null);
             if (!set) return;
-            const id = parseInt(details.dataset.day || details.dataset.packingList, 10);
+            const id = parseInt(details.dataset.day || details.dataset.template, 10);
             if (details.open) set.add(id); else set.delete(id);
         }, true);
 
@@ -535,7 +535,7 @@
         function dayItemUrl(dayId, item) {
             return item.source === 'day'
                 ? `/api/packing-list-days/${dayId}/day-items/${item.id}`
-                : `/api/packing-list-days/${dayId}/items/${item.id}`;
+                : `/api/packing-list-days/${dayId}/template-items/${item.id}`;
         }
 
         daysContainer.addEventListener('change', async (e) => {
@@ -592,7 +592,7 @@
             if (checkAll) {
                 const day = days.find(d => d.id === parseInt(checkAll.dataset.checkAllDay, 10));
                 if (!day || day.total === 0 || day.checked === day.total) return;
-                if (!confirm(`Check everything on ${day.packing_list_name} for ${formatLongDate(day.date)}?`)) return;
+                if (!confirm(`Check everything on ${day.name} for ${formatLongDate(day.date)}?`)) return;
                 try {
                     replaceDay(await requestJson(`/api/packing-list-days/${day.id}/check-all`, { method: 'POST' }));
                 } catch (error) {
@@ -610,7 +610,7 @@
 
             if (reset) {
                 if (day.checked === 0) return;
-                if (!confirm(`Uncheck everything on ${day.packing_list_name} for ${formatLongDate(day.date)}?`)) return;
+                if (!confirm(`Uncheck everything on ${day.name} for ${formatLongDate(day.date)}?`)) return;
                 try {
                     replaceDay(await requestJson(`/api/packing-list-days/${day.id}/reset`, { method: 'POST' }));
                 } catch (error) {
@@ -621,7 +621,12 @@
                 return;
             }
 
-            if (!confirm(`Take ${day.packing_list_name} off ${formatLongDate(day.date)}? The packing list template itself stays.`)) return;
+            // A templated day comes off its day and the template stays. A day
+            // with no template is the only copy, so it is deleted outright.
+            const question = isTemplated(day)
+                ? `Take ${day.name} off ${formatLongDate(day.date)}? The packing list template itself stays.`
+                : `Delete ${day.name}? Its items go with it.`;
+            if (!confirm(question)) return;
             try {
                 await requestJson(`/api/packing-list-days/${day.id}`, { method: 'DELETE' });
             } catch (error) {
@@ -651,10 +656,10 @@
         function openDayEditModal(day) {
             editingDay = day;
             document.getElementById('day-edit-form').reset();
-            document.getElementById('day-edit-name').textContent = day.packing_list_name;
+            document.getElementById('day-edit-name').textContent = day.name;
             const description = document.getElementById('day-edit-description');
-            description.textContent = day.packing_list_description || '';
-            description.style.display = day.packing_list_description ? '' : 'none';
+            description.textContent = day.description || '';
+            description.style.display = day.description ? '' : 'none';
             const date = document.getElementById('day-edit-date');
             date.min = todayLocal();
             date.value = day.date;
@@ -709,7 +714,7 @@
         // ── Add / Edit Item ──
         //
         // `itemContext` says what the modal is editing:
-        //   { scope: 'packing list', packing list, item | null }  — every day it is on
+        //   { scope: 'template', template, item | null }  — every day it is on
         //   { scope: 'day', day, item | null }              — that day only
         let itemContext = null;
         const itemForm = document.getElementById('item-form');
@@ -774,9 +779,17 @@
             nameAutocomplete.close();
             bagAutocomplete.close();
             document.getElementById('item-modal-title').textContent = item ? 'Edit Item' : 'Add Item';
-            document.getElementById('item-scope-note').textContent = scope === 'day'
-                ? `For "${context.day.packing_list_name}" on ${formatLongDate(context.day.date)} only. The packing list template stays as it is.`
-                : `Changes show up on every day ${context.packingList.name} is on, except where a day has changed this item.`;
+            // On a day with no template there is no template to reassure
+            // anybody about, so the note just says which list this is.
+            let scopeNote;
+            if (scope !== 'day') {
+                scopeNote = `Changes show up on every day ${context.template.name} is on, except where a day has changed this item.`;
+            } else if (isTemplated(context.day)) {
+                scopeNote = `For "${context.day.name}" on ${formatLongDate(context.day.date)} only. The packing list template stays as it is.`;
+            } else {
+                scopeNote = `For "${context.day.name}" on ${formatLongDate(context.day.date)}.`;
+            }
+            document.getElementById('item-scope-note').textContent = scopeNote;
             document.getElementById('item-name').value = item ? item.name : '';
             document.getElementById('item-note').value = item ? (item.note || '') : '';
             fillOwnerSelect(item ? item.owner_id : null);
@@ -785,7 +798,7 @@
             // (.btn, .form-group) wins over the attribute.
             addAnotherBtn.style.display = item ? 'none' : '';
             deleteItemBtn.style.display = item ? '' : 'none';
-            deleteItemBtn.textContent = scope === 'day' && item && item.source === 'packing_list'
+            deleteItemBtn.textContent = scope === 'day' && item && item.source === 'template'
                 ? 'Remove'
                 : 'Delete';
             showModalOverlay('item-modal-overlay');
@@ -806,7 +819,7 @@
                 }
                 return requestJson(dayItemUrl(day.id, item), { method: 'PUT', body: payload });
             }
-            const base = `/api/packing-lists/${itemContext.packingList.id}/items`;
+            const base = `/api/packing-list-templates/${itemContext.template.id}/items`;
             return item
                 ? requestJson(`${base}/${item.id}`, { method: 'PUT', body: payload })
                 : requestJson(base, { method: 'POST', body: payload });
@@ -838,9 +851,9 @@
                 itemContext.day = saved;
                 renderDays();
             } else {
-                // A packing list edit reaches its days too.
+                // A template edit reaches its days too.
                 await refresh();
-                itemContext.packingList = packingListById(itemContext.packingList.id) || itemContext.packingList;
+                itemContext.template = templateById(itemContext.template.id) || itemContext.template;
             }
             if (another) {
                 // Keep the owner and bag: a packing list is entered one
@@ -860,7 +873,7 @@
             try {
                 if (scope === 'day') {
                     const day = itemContext.day;
-                    const message = item.source === 'packing_list'
+                    const message = item.source === 'template'
                         ? `Take ${item.name} off ${formatLongDate(day.date)}? The packing list template keeps it.`
                         : `Delete ${item.name} from ${formatLongDate(day.date)}?`;
                     if (!confirm(message)) return;
@@ -869,8 +882,8 @@
                     renderDays();
                     return;
                 }
-                if (!confirm(`Delete ${item.name}? It comes off every day ${itemContext.packingList.name} is on.`)) return;
-                await requestJson(`/api/packing-lists/${itemContext.packingList.id}/items/${item.id}`, { method: 'DELETE' });
+                if (!confirm(`Delete ${item.name}? It comes off every day ${itemContext.template.name} is on.`)) return;
+                await requestJson(`/api/packing-list-templates/${itemContext.template.id}/items/${item.id}`, { method: 'DELETE' });
             } catch (error) {
                 alert('Failed to delete item');
                 return;
@@ -884,30 +897,30 @@
             if (e.target.id === 'item-modal-overlay') closeItemModal();
         });
 
-        // ── A packing list's row ──
+        // ── A template's row ──
 
-        const packingListsContainer = document.getElementById('packing-lists-container');
+        const templatesContainer = document.getElementById('templates-container');
 
-        packingListsContainer.addEventListener('click', async (e) => {
+        templatesContainer.addEventListener('click', async (e) => {
             const target = e.target.closest(
-                '[data-schedule], [data-edit-packing-list], [data-toggle-schedule], [data-add-item], [data-edit-item]'
+                '[data-schedule], [data-edit-template], [data-toggle-schedule], [data-add-item], [data-edit-item]'
             );
             if (!target) return;
-            const row = target.closest('[data-packing-list-row]');
-            const packingList = packingListById(parseInt(row.dataset.packingListRow, 10));
-            if (!packingList) return;
+            const row = target.closest('[data-template-row]');
+            const template = templateById(parseInt(row.dataset.templateRow, 10));
+            if (!template) return;
 
-            if (target.dataset.schedule) openScheduleModal(packingList);
-            else if (target.dataset.editPackingList) openPackingListModal(packingList);
-            else if (target.dataset.addItem) openItemModal({ scope: 'packing_list', packingList, item: null });
+            if (target.dataset.schedule) openScheduleModal(template);
+            else if (target.dataset.editTemplate) openTemplateModal(template);
+            else if (target.dataset.addItem) openItemModal({ scope: 'template', template, item: null });
             else if (target.dataset.editItem) {
-                const item = packingList.items.find(i => i.id === parseInt(target.dataset.editItem, 10));
-                if (item) openItemModal({ scope: 'packing_list', packingList, item });
+                const item = template.items.find(i => i.id === parseInt(target.dataset.editItem, 10));
+                if (item) openItemModal({ scope: 'template', template, item });
             }
             else if (target.dataset.toggleSchedule) {
                 try {
-                    await requestJson(`/api/packing-list-schedules/${packingList.schedule.id}`,
-                        { method: 'PUT', body: { active: !packingList.schedule.active } });
+                    await requestJson(`/api/packing-list-template-schedules/${template.schedule.id}`,
+                        { method: 'PUT', body: { active: !template.schedule.active } });
                 } catch (error) {
                     alert('Failed to update the schedule');
                     return;
@@ -918,24 +931,24 @@
 
         // ── Drag to reorder ──
         //
-        // One container holds every packing list's groups, so `scope` keeps a row
-        // inside its own packing list. The group key is `<packing list id>:<section
+        // One container holds every template's groups, so `scope` keeps a row
+        // inside its own template. The group key is `<template id>:<section
         // key>`, the section key being an owner's or bag's id, or `none`.
         // Dropping in a group gives the item that group's owner or bag, in the
         // view the page is showing.
         function parseGroupKey(key) {
-            const [packingListId, sectionKey] = key.split(':');
-            return { packingListId: parseInt(packingListId, 10), id: keyToId(sectionKey) };
+            const [templateId, sectionKey] = key.split(':');
+            return { templateId: parseInt(templateId, 10), id: keyToId(sectionKey) };
         }
 
-        initDragReorder({
-            container: packingListsContainer,
-            scope: '[data-packing-list-row]',
+        const templateDrag = initDragReorder({
+            container: templatesContainer,
+            scope: '[data-template-row]',
             groupSelector: '.list-group',
             listSelector: '.list-container',
             itemSelector: '.editable-item',
             handleSelector: '.drag-handle',
-            canDrag: (row) => !row.matches('[data-packing-list-row]'),
+            canDrag: (row) => !row.matches('[data-template-row]'),
             groupKey: (group) => group.dataset.group,
             groupLabel: (group) => groupName(parseGroupKey(group.dataset.group).id),
             itemLabel: (row) => row.querySelector('.editable-item-title').textContent,
@@ -943,9 +956,9 @@
                 document.getElementById('reorder-status').textContent = message;
             },
             onReorder: async (key, itemIds) => {
-                const { packingListId, id } = parseGroupKey(key);
+                const { templateId, id } = parseGroupKey(key);
                 try {
-                    await requestJson(`/api/packing-lists/${packingListId}/items/reorder`, {
+                    await requestJson(`/api/packing-list-templates/${templateId}/items/reorder`, {
                         method: 'POST',
                         body: { view, key: id, item_ids: itemIds },
                     });
@@ -956,6 +969,55 @@
                 // Either way: on success to pick up the new owner or bag, on
                 // failure to put back what the server actually has.
                 await refresh();
+            },
+        });
+
+        // A day's items reorder the same way, for that day only. Every day's
+        // groups share #days-container, so `scope` keeps a row inside its own
+        // day's entry, and the group key is `<day id>:<section key>`. Rows say
+        // whether they are a template item or one of the day's own (`dayRowId`).
+        function parseDayGroupKey(key) {
+            const [dayId, sectionKey] = key.split(':');
+            return { dayId: parseInt(dayId, 10), id: keyToId(sectionKey) };
+        }
+
+        const dayDrag = initDragReorder({
+            container: daysContainer,
+            scope: '[data-day-card]',
+            groupSelector: '.list-group',
+            listSelector: '.list-container',
+            itemSelector: '.editable-item',
+            handleSelector: '.drag-handle',
+            canDrag: (row) => !row.classList.contains('is-read-only'),
+            itemId: dayRowId,
+            groupKey: (group) => group.dataset.group,
+            groupLabel: (group) => groupName(parseDayGroupKey(group.dataset.group).id),
+            itemLabel: (row) => row.querySelector('.editable-item-title').firstChild.textContent.trim(),
+            announce: (message) => {
+                document.getElementById('reorder-status').textContent = message;
+            },
+            onReorder: async (key, rowIds) => {
+                const { dayId, id } = parseDayGroupKey(key);
+                const items = rowIds.map(rowId => {
+                    const [source, itemId] = rowId.split(':');
+                    return { source, id: parseInt(itemId, 10) };
+                });
+                pending += 1;
+                try {
+                    replaceDay(await requestJson(`/api/packing-list-days/${dayId}/items/reorder`, {
+                        method: 'POST',
+                        body: { view, key: id, items },
+                    }));
+                } catch (error) {
+                    console.error('Error reordering items:', error);
+                    alert('Failed to save the new order');
+                    // Put back what the server actually has.
+                    await loadDays();
+                    return;
+                } finally {
+                    pending -= 1;
+                }
+                renderDays();
             },
         });
 
@@ -1036,8 +1098,8 @@
 
         // ── Schedule ──
         //
-        // One packing list at a time, named in the title: to schedule another,
-        // close this and use that packing list's own Schedule button. Two
+        // One template at a time, named in the title: to schedule another,
+        // close this and use that template's own Schedule button. Two
         // sections with a button each — Add to Day, and Update schedule (Remove
         // schedule when Repeats is turned off) — and either one saves its
         // section and closes. Pause lives on the row.
@@ -1086,10 +1148,10 @@
             if (repeats) RecurrenceForm.refreshPreview();
         }
 
-        function openScheduleModal(packingList) {
-            scheduling = packingList;
-            const schedule = packingList.schedule;
-            document.getElementById('schedule-modal-title').textContent = `Schedule: ${packingList.name}`;
+        function openScheduleModal(template) {
+            scheduling = template;
+            const schedule = template.schedule;
+            document.getElementById('schedule-modal-title').textContent = `Schedule: ${template.name}`;
             document.getElementById('schedule-day-form').reset();
             const date = document.getElementById('day-date');
             date.min = todayLocal();
@@ -1123,7 +1185,7 @@
         document.getElementById('schedule-day-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const payload = {
-                packing_list_id: scheduling.id,
+                packing_list_template_id: scheduling.id,
                 date: document.getElementById('day-date').value,
                 label: document.getElementById('day-label').value || null,
             };
@@ -1158,23 +1220,23 @@
 
         document.getElementById('schedule-repeat-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const packingList = scheduling;
-            const existing = packingList.schedule;
+            const template = scheduling;
+            const existing = template.schedule;
             try {
                 if (!repeatsBox.checked) {
                     if (!existing) return;
-                    if (!confirm(`Stop repeating ${packingList.name}? Days it has already added stay.`)) return;
-                    await requestJson(`/api/packing-list-schedules/${existing.id}`, { method: 'DELETE' });
+                    if (!confirm(`Stop repeating ${template.name}? Days it has already added stay.`)) return;
+                    await requestJson(`/api/packing-list-template-schedules/${existing.id}`, { method: 'DELETE' });
                 } else {
                     const payload = {
-                        packing_list_id: packingList.id,
+                        packing_list_template_id: template.id,
                         ...RecurrenceForm.values(),
                         start_date: document.getElementById('schedule-start-date').value || null,
                         end_date: document.getElementById('schedule-end-date').value || null,
                         label: document.getElementById('schedule-label').value || null,
                     };
                     await requestJson(
-                        existing ? `/api/packing-list-schedules/${existing.id}` : '/api/packing-list-schedules',
+                        existing ? `/api/packing-list-template-schedules/${existing.id}` : '/api/packing-list-template-schedules',
                         { method: existing ? 'PUT' : 'POST', body: payload },
                     );
                 }
@@ -1201,82 +1263,89 @@
 
         // ── Add / Edit Packing List ──
 
-        let editingPackingList = null;
+        let editingTemplate = null;
 
-        function openPackingListModal(packingList) {
-            editingPackingList = packingList;
-            document.getElementById('packing-list-form').reset();
-            document.getElementById('packing-list-modal-title').textContent = packingList ? 'Edit Packing List Template' : 'Add Packing List Template';
-            document.getElementById('btn-delete-packing-list').style.display = packingList ? '' : 'none';
-            if (packingList) {
-                document.getElementById('packing-list-name').value = packingList.name;
-                document.getElementById('packing-list-description').value = packingList.description || '';
-                document.getElementById('packing-list-pack-days').value = packingList.pack_days_before;
+        function openTemplateModal(template) {
+            editingTemplate = template;
+            document.getElementById('template-form').reset();
+            document.getElementById('template-modal-title').textContent = template ? 'Edit Packing List Template' : 'Add Packing List Template';
+            document.getElementById('btn-delete-template').style.display = template ? '' : 'none';
+            if (template) {
+                document.getElementById('template-name').value = template.name;
+                document.getElementById('template-description').value = template.description || '';
+                document.getElementById('template-pack-days').value = template.pack_days_before;
             }
-            showModalOverlay('packing-list-modal-overlay');
+            showModalOverlay('template-modal-overlay');
         }
 
-        function closePackingListModal() {
-            hideModalOverlay('packing-list-modal-overlay');
-            editingPackingList = null;
+        function closeTemplateModal() {
+            hideModalOverlay('template-modal-overlay');
+            editingTemplate = null;
         }
 
-        document.getElementById('packing-list-form').addEventListener('submit', async (e) => {
+        document.getElementById('template-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const payload = {
-                name: document.getElementById('packing-list-name').value,
-                description: document.getElementById('packing-list-description').value || null,
-                pack_days_before: parseInt(document.getElementById('packing-list-pack-days').value, 10),
+                name: document.getElementById('template-name').value,
+                description: document.getElementById('template-description').value || null,
+                pack_days_before: parseInt(document.getElementById('template-pack-days').value, 10),
             };
             let saved;
             try {
-                saved = editingPackingList
-                    ? await requestJson(`/api/packing-lists/${editingPackingList.id}`, { method: 'PUT', body: payload })
-                    : await requestJson('/api/packing-lists', { method: 'POST', body: payload });
+                saved = editingTemplate
+                    ? await requestJson(`/api/packing-list-templates/${editingTemplate.id}`, { method: 'PUT', body: payload })
+                    : await requestJson('/api/packing-list-templates', { method: 'POST', body: payload });
             } catch (error) {
                 alert(error.status === 409 ? 'A packing list template with that name already exists.' : (error.message || 'Failed to save the packing list template'));
                 return;
             }
-            const isNew = !editingPackingList;
-            closePackingListModal();
-            // The next thing to do with a new packing list is fill it.
-            if (isNew) openPackingLists.add(saved.id);
+            const isNew = !editingTemplate;
+            closeTemplateModal();
+            // The next thing to do with a new template is fill it.
+            if (isNew) openTemplates.add(saved.id);
             await refresh();
             if (isNew) {
-                const row = packingListsContainer.querySelector(`[data-packing-list-row="${saved.id}"]`);
+                const row = templatesContainer.querySelector(`[data-template-row="${saved.id}"]`);
                 if (row) row.scrollIntoView({ block: 'center' });
             }
         });
 
-        document.getElementById('btn-delete-packing-list').addEventListener('click', async () => {
-            const packingList = editingPackingList;
-            if (!packingList) return;
-            const n = packingList.day_count;
-            const onDays = n ? ` It is on ${n} day${n === 1 ? '' : 's'}, and ${n === 1 ? 'that comes' : 'those come'} off too.` : '';
-            if (!confirm(`Delete ${packingList.name}?${onDays}`)) return;
+        document.getElementById('btn-delete-template').addEventListener('click', async () => {
+            const template = editingTemplate;
+            if (!template) return;
+            // Its days are kept: each becomes a list of its own, as it reads now.
+            const n = template.day_count;
+            const onDays = n
+                ? ` The ${n === 1 ? 'day' : `${n} days`} it's on ${n === 1 ? 'keeps its' : 'keep their'} packing ${n === 1 ? 'list' : 'lists'} as ${n === 1 ? 'it is' : 'they are'} now.`
+                : '';
+            if (!confirm(`Delete ${template.name}?${onDays}`)) return;
             try {
-                await requestJson(`/api/packing-lists/${packingList.id}`, { method: 'DELETE' });
+                await requestJson(`/api/packing-list-templates/${template.id}`, { method: 'DELETE' });
             } catch (error) {
                 alert('Failed to delete packing list template');
                 return;
             }
-            closePackingListModal();
+            closeTemplateModal();
             await refresh();
         });
 
-        document.getElementById('btn-add-packing-list').addEventListener('click', () => openPackingListModal(null));
-        document.getElementById('btn-cancel-packing-list').addEventListener('click', closePackingListModal);
-        document.getElementById('packing-list-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'packing-list-modal-overlay') closePackingListModal();
+        document.getElementById('btn-add-template').addEventListener('click', () => openTemplateModal(null));
+        document.getElementById('btn-cancel-template').addEventListener('click', closeTemplateModal);
+        document.getElementById('template-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'template-modal-overlay') closeTemplateModal();
         });
 
         refresh();
         // Two people packing two bags on two devices: pick up the other
-        // person's checks without a reload. Never mid-save, and never while
-        // somebody is on a card's controls, since re-rendering would take
-        // them away.
+        // person's checks without a reload. Never mid-save, never mid-drag
+        // (re-rendering would delete the row out of the user's hand), and
+        // never while somebody is on a card's controls, since re-rendering
+        // would take them away.
         setInterval(() => {
-            if (pending === 0 && !document.hidden && !daysContainer.contains(document.activeElement)) loadDays();
+            if (pending > 0 || document.hidden) return;
+            if ((dayDrag && dayDrag.isDragging()) || (templateDrag && templateDrag.isDragging())) return;
+            if (daysContainer.contains(document.activeElement)) return;
+            loadDays();
         }, 60000);
     </script>
 

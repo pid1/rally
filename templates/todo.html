@@ -328,7 +328,7 @@
                     const assigneeHtml = member
                         ? `<span class="assignee-label">— ${escapeHtml(member.name)}</span>`
                         : '';
-                    const recurringIcon = todo.recurring_todo_id ? '<span class="recurring-indicator">↻</span>' : '';
+                    const recurringIcon = todo.recurring_todo_id ? '<span class="title-indicator">↻</span>' : '';
                     return `
                         <div class="editable-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
                             <div class="item-checkbox">

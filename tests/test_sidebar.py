@@ -109,9 +109,10 @@ def test_each_page_marks_itself_or_its_parent(client, path, expected):
 def test_the_retired_packing_list_pages_are_gone(client):
     """A packing list is edited, and a day checked off, in place on /packing-lists:
     both pages that used to hold them were retired rather than redirected."""
-    packing_list = client.post("/api/packing-lists", json={"name": "Beach day"}).json()
+    packing_list = client.post("/api/packing-list-templates", json={"name": "Beach day"}).json()
     day = client.post(
-        "/api/packing-list-days", json={"packing_list_id": packing_list["id"], "date": "2999-01-01"}
+        "/api/packing-list-days",
+        json={"packing_list_template_id": packing_list["id"], "date": "2999-01-01"},
     ).json()
     assert client.get(f"/packing-lists/{packing_list['id']}").status_code == 404
     assert client.get(f"/packing-lists/days/{day['id']}").status_code == 404
