@@ -1288,6 +1288,17 @@ html.modal-open {
     white-space: nowrap;
 }
 
+/* A group that folds: `listGroupHtml({ collapsible: true })` writes it as a
+   <details> whose summary is the header, so the whole row — name, rule and
+   count — is the toggle, a full target tall, with the `.disclosure` caret
+   before the name. The count stays in the header, so a folded group still
+   says how far along it is. A packing list's groups. */
+.list-group--collapsible > summary {
+    min-height: var(--target-min);
+    cursor: pointer;
+    list-style: none;
+}
+
 /* A part of a row kept folded away until asked for: "View more" on a
    packing list's card. A native <details>, so it opens from the keyboard and is
    announced as expandable without any script. The summary is quiet muted text
@@ -1308,17 +1319,21 @@ html.modal-open {
     color: var(--ink);
 }
 
-/* The UA marker would be a second, differently drawn caret. */
-.disclosure > summary::-webkit-details-marker {
+/* The UA marker would be a second, differently drawn caret. A collapsible
+   group (below) draws the same caret, so a packing list folds one way. */
+.disclosure > summary::-webkit-details-marker,
+.list-group--collapsible > summary::-webkit-details-marker {
     display: none;
 }
 
-.disclosure > summary::before {
+.disclosure > summary::before,
+.list-group--collapsible > summary::before {
     content: '▸';
     display: inline-block;
 }
 
-.disclosure[open] > summary::before {
+.disclosure[open] > summary::before,
+.list-group--collapsible[open] > summary::before {
     content: '▾';
 }
 

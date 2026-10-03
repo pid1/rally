@@ -158,11 +158,28 @@ def card(page, day_id):
     return page.locator(f'[data-day-card="{day_id}"]')
 
 
-def open_card(page, day_id):
-    """Expand a day's card: its items are under a collapsed "View more"."""
+def disclosure(root):
+    """A day's card or a template's row has its own "View more": the summary
+    of its own disclosure, not of one of the groups folded inside it."""
+    return root.locator(":scope > .disclosure > summary")
+
+
+def open_groups(root):
+    """Unfold every group in a card or row, the way somebody packing opens
+    one owner or bag at a time, so a test about the rows can reach them."""
+    folded = root.locator(".list-group--collapsible:not([open]) > summary")
+    while folded.count():
+        folded.first.click()
+
+
+def open_card(page, day_id, groups=True):
+    """Expand a day's card: its items are under a collapsed "View more", each
+    group folded under its own header. `groups=False` leaves them folded."""
     target = card(page, day_id)
-    target.locator("summary").click()
+    disclosure(target).click()
     target.locator(".disclosure-body").wait_for()
+    if groups:
+        open_groups(target)
     return target
 
 
@@ -173,13 +190,13 @@ def test_a_day_card_starts_collapsed(browser, live_server, packing_list):
         target = card(page, first["id"])
         assert target.locator(".packing-list-progress").text_content() == "0 of 4 packed"
         assert not target.get_by_label("Packed Goggles").is_visible()
-        assert target.locator("summary").inner_text().strip() == "View more"
+        assert disclosure(target).inner_text().strip() == "View more"
         # There is no separate page to open any more.
         assert target.get_by_role("link", name="Open").count() == 0
 
         open_card(page, first["id"])
         assert target.get_by_label("Packed Goggles").is_visible()
-        assert target.locator("summary").inner_text().strip() == "View less"
+        assert disclosure(target).inner_text().strip() == "View less"
     finally:
         context.close()
 
@@ -537,11 +554,14 @@ def packing_list_row(page, packing_list_template_id):
     return page.locator(f'[data-template-row="{packing_list_template_id}"]')
 
 
-def open_row(page, packing_list_template_id):
-    """Expand a packing list's row: its items are under its own "View more"."""
+def open_row(page, packing_list_template_id, groups=True):
+    """Expand a packing list's row: its items are under its own "View more",
+    each group folded under its own header. `groups=False` leaves them folded."""
     target = packing_list_row(page, packing_list_template_id)
-    target.locator(":scope > details > summary").click()
+    disclosure(target).click()
     target.locator(".disclosure-body").wait_for()
+    if groups:
+        open_groups(target)
     return target
 
 
@@ -623,6 +643,10 @@ def test_the_view_switch_groups_every_packing_list_by_owner_or_by_bag(
         assert page.get_attribute('#view-chips [data-view="bag"]', "aria-pressed") == "true"
         row = packing_list_row(page, packing_list["id"])
         assert sections(row) == {BAG: ["Goggles", "Towel"], "No bag": ["Keys", "Snacks"]}
+        # The row stays open; its new groups start folded (#256).
+        assert row.locator(":scope > .disclosure").evaluate("d => d.open")
+        assert row.locator(".list-group--collapsible[open]").count() == 0
+        open_groups(row)
         assert item_row(row, "Keys").locator(".editable-item-description").inner_text() == "Dad"
         # Nothing reads blank: an item with no owner says so.
         snacks = item_row(row, "Snacks").locator(".editable-item-description")
@@ -1364,7 +1388,8 @@ def test_the_archive_shows_what_was_packed_and_cannot_change_it(browser, live_se
         # beach trip, so it is found by name rather than by position.
         first = page.locator("[data-day-card]", has_text="Swim at Nana's").first
         first.wait_for()
-        first.locator("summary").click()
+        disclosure(first).click()
+        open_groups(first)
         boxes = first.locator("input[type=checkbox]")
         assert boxes.count() == 13
         assert all(boxes.nth(i).is_checked() and boxes.nth(i).is_disabled() for i in range(13))
@@ -1380,7 +1405,8 @@ def test_the_archive_shows_what_was_packed_and_cannot_change_it(browser, live_se
         # An unpacked item there is grayed the same way: nothing on a past
         # day can be checked off, packed or not.
         beach = page.locator("[data-day-card]", has_text="Beach day").first
-        beach.locator("summary").click()
+        disclosure(beach).click()
+        open_groups(beach)
         unpacked = beach.locator(".list-group .editable-item:not(.completed)").first
         assert unpacked.evaluate("el => getComputedStyle(el).opacity") == "0.6"
         assert unpacked.locator("input[type=checkbox]").is_disabled()
@@ -1504,5 +1530,147 @@ def test_the_bag_menu_stays_in_view_while_typing_on_a_phone(browser, live_server
         )
         assert geometry["fieldTop"] >= geometry["bodyTop"] - 0.5
         assert geometry["menuBottom"] <= geometry["bodyBottom"] + 0.5
+    finally:
+        context.close()
+
+
+# --- Folding a packing list's groups (#256) -------------------------------------------
+
+
+def group(root, name):
+    return root.locator(f'.list-group:has(.list-group-name:text-is("{name}"))')
+
+
+def open_groups_named(root) -> list[str]:
+    return root.evaluate(
+        """(root) => [...root.querySelectorAll('.list-group--collapsible[open] .list-group-name')]
+            .map(n => n.textContent.trim())"""
+    )
+
+
+def test_groups_start_folded_and_stay_as_left_while_on_the_page(browser, live_server, packing_list):
+    day = packing_list["days"][0]
+    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=[])
+    try:
+        target = open_card(page, day["id"], groups=False)
+        # Every group folded, each still saying how far along it is.
+        assert open_groups_named(target) == []
+        assert not target.get_by_label("Packed Goggles").is_visible()
+        assert group(target, "Emma").locator(".list-group-count").inner_text() == "0 of 2 packed"
+
+        # The whole header opens one group, and only that one.
+        group(target, "Emma").locator(".list-group-rule").click()
+        assert open_groups_named(card(page, day["id"])) == ["Emma"]
+        # `toggle` is dispatched as a task of its own: wait for it to be kept.
+        page.wait_for_function("openDayGroups.size === 1")
+        assert target.get_by_label("Packed Goggles").is_visible()
+
+        # Folding the packing list away and back leaves its groups as they were.
+        disclosure(target).click()
+        disclosure(target).click()
+        assert open_groups_named(card(page, day["id"])) == ["Emma"]
+
+        # So do the minute's refetch and a whole-list action.
+        page.evaluate("loadDays()")
+        page.wait_for_load_state("networkidle")
+        assert open_groups_named(card(page, day["id"])) == ["Emma"]
+        with page.expect_response("**/check-all"):
+            card(page, day["id"]).locator("[data-check-all-day]").click()
+        page.wait_for_load_state("networkidle")
+        assert open_groups_named(card(page, day["id"])) == ["Emma"]
+
+        # An item added to a folded group leaves it folded; the count says so.
+        card(page, day["id"]).locator("[data-add-day-item]").click()
+        page.fill("#item-name", "Wallet")
+        page.select_option("#item-owner", str(packing_list["members"]["Dad"]))
+        save_item(page)
+        dad = group(card(page, day["id"]), "Dad")
+        assert dad.locator(".list-group-count").inner_text() == "1 of 2 packed"
+        assert open_groups_named(card(page, day["id"])) == ["Emma"]
+    finally:
+        context.close()
+
+
+def test_switching_view_folds_every_group_and_leaves_lists_open(browser, live_server, packing_list):
+    day = packing_list["days"][0]
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_card(page, day["id"])
+        open_row(page, packing_list["id"])
+        page.click('#view-chips [data-view="bag"]')
+        for root in (card(page, day["id"]), packing_list_row(page, packing_list["id"])):
+            assert root.locator(":scope > .disclosure").evaluate("d => d.open")
+            assert open_groups_named(root) == []
+        # And back again: still folded, not what was open before the switch.
+        page.click('#view-chips [data-view="owner"]')
+        assert open_groups_named(card(page, day["id"])) == []
+    finally:
+        context.close()
+
+
+def test_a_row_dropped_on_a_folded_group_goes_to_its_end(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_row(page, packing_list["id"], groups=False)
+        group(target, "Everyone").locator("summary").click()
+        grip = item_row(target, "Snacks").locator(".drag-handle")
+        drag(page, grip, group(target, "Dad").locator("summary").bounding_box())
+        with page.expect_response("**/items/reorder"):
+            page.mouse.up()
+        page.wait_for_load_state("networkidle")
+
+        row = packing_list_row(page, packing_list["id"])
+        # Everyone, now empty, is gone once the row is redrawn from the server.
+        group(row, "Everyone").wait_for(state="detached")
+        assert sections(row)["Dad"] == ["Keys", "Snacks"]
+        # Dad stays folded.
+        assert open_groups_named(row) == []
+        assert group(row, "Dad").locator(".list-group-count").inner_text() == "2 items"
+    finally:
+        context.close()
+
+
+def test_a_group_header_is_a_full_target_with_a_focus_ring_on_a_phone(
+    browser, live_server, packing_list
+):
+    day = packing_list["days"][0]
+    context, page = open_page(browser, f"{live_server}/packing-lists", PHONE)
+    try:
+        target = open_card(page, day["id"], groups=False)
+        header = target.locator(".list-group--collapsible > summary").first
+        header.scroll_into_view_if_needed()
+        assert header.bounding_box()["height"] >= 44
+        # From the packing list's own summary, Tab lands on its first group.
+        disclosure(target).focus()
+        page.keyboard.press("Tab")
+        assert header.evaluate("el => el === document.activeElement")
+        assert header.evaluate("el => getComputedStyle(el).outlineStyle") != "none"
+        page.keyboard.press("Enter")
+        assert target.locator(".list-group--collapsible[open]").count() == 1
+    finally:
+        context.close()
+
+
+def test_the_archive_folds_groups_and_view_refolds_them(browser, live_server):
+    context, page = open_page(browser, f"{live_server}/packing-lists/previous")
+    try:
+        first = page.locator("[data-day-card]", has_text="Swim at Nana's").first
+        first.wait_for()
+        disclosure(first).click()
+        assert open_groups_named(first) == []
+        first.locator(".list-group--collapsible > summary").first.click()
+        opened = open_groups_named(first)
+        assert len(opened) == 1
+        # Load more and search redraw every loaded day; the group stays open.
+        # (`toggle` is dispatched as a task of its own, so wait for it.)
+        page.wait_for_function("openDayGroups.size === 1")
+        page.evaluate("archive.render()")
+        first = page.locator("[data-day-card]", has_text="Swim at Nana's").first
+        assert open_groups_named(first) == opened
+
+        page.click('#view-chips [data-view="bag"]')
+        first = page.locator("[data-day-card]", has_text="Swim at Nana's").first
+        assert first.locator(":scope > .disclosure").evaluate("d => d.open")
+        assert open_groups_named(first) == []
     finally:
         context.close()

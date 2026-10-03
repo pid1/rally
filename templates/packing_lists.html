@@ -358,6 +358,13 @@
         // Which cards and rows are open, so a refetch puts them back.
         const openDays = new Set();
         const openTemplates = new Set();
+        // Which groups inside them are open, by group key (`<id>:<section
+        // key>`). One set per container: a day and a template can share an
+        // id. A group not in its set is folded, so every packing list first
+        // opens with its groups folded, and folding a whole packing list away
+        // leaves its groups as they were. Switching View empties both.
+        const openDayGroups = new Set();
+        const openTemplateGroups = new Set();
         // Held while a check is in flight, so a refetch cannot paint over a
         // box somebody has just ticked with the state from before it.
         let pending = 0;
@@ -398,7 +405,12 @@
             const container = document.getElementById('days-container');
             const shown = visibleDays(today);
             if (shown.length) {
-                container.innerHTML = dayBoxesHtml(shown, { today, isOpen: day => openDays.has(day.id), lens: lens() });
+                container.innerHTML = dayBoxesHtml(shown, {
+                    today,
+                    isOpen: day => openDays.has(day.id),
+                    isGroupOpen: key => openDayGroups.has(key),
+                    lens: lens(),
+                });
             } else if (dueNowOnly) {
                 container.innerHTML = '<div class="container-empty-state">Nothing to pack today. Clear the filter to see everything coming up.</div>';
             } else {
@@ -419,9 +431,12 @@
         document.getElementById('filter-clear').addEventListener('click', () => setDueNow(false));
 
         // View: one chip always chosen. Switching regroups everything already
-        // loaded; nothing is fetched.
+        // loaded; nothing is fetched. Every group starts folded again, as on
+        // a fresh visit; packing lists that are open stay open.
         function setView(next) {
             view = next;
+            openDayGroups.clear();
+            openTemplateGroups.clear();
             document.querySelectorAll('#view-chips [data-view]').forEach(chip => {
                 const on = chip.dataset.view === next;
                 chip.classList.toggle('active', on);
@@ -471,12 +486,17 @@
             // Section keys carry the template's id: every template's groups
             // share one drag container, and the reorder has to know whose
             // group a row was dropped in.
-            return viewSections(c.items, lens()).map(section => listGroupHtml({
-                key: `${c.id}:${section.key}`,
-                name: section.name,
-                countLabel: section.name ? itemCount(section.items.length) : null,
-                rowsHtml: section.items.map(renderItemRow).join(''),
-            })).join('');
+            return viewSections(c.items, lens()).map(section => {
+                const key = `${c.id}:${section.key}`;
+                return listGroupHtml({
+                    key,
+                    name: section.name,
+                    countLabel: section.name ? itemCount(section.items.length) : null,
+                    rowsHtml: section.items.map(renderItemRow).join(''),
+                    collapsible: true,
+                    open: openTemplateGroups.has(key),
+                });
+            }).join('');
         }
 
         function renderTemplateRow(c) {
@@ -555,11 +575,16 @@
             }
         }
 
-        // Remember open disclosures. `toggle` does not bubble, so it is caught
-        // on the way down.
+        // Remember open disclosures and groups. `toggle` does not bubble, so
+        // it is caught on the way down.
         document.addEventListener('toggle', (e) => {
             const details = e.target;
             if (!(details instanceof HTMLDetailsElement)) return;
+            if (details.classList.contains('list-group--collapsible')) {
+                const groups = details.closest('#days-container') ? openDayGroups : openTemplateGroups;
+                if (details.open) groups.add(details.dataset.group); else groups.delete(details.dataset.group);
+                return;
+            }
             const set = details.dataset.day ? openDays : (details.dataset.template ? openTemplates : null);
             if (!set) return;
             const id = parseInt(details.dataset.day || details.dataset.template, 10);
