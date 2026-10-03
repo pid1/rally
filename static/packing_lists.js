@@ -188,8 +188,12 @@
      * and a row that jumps to the bottom loses people's place. `readOnly` is
      * the archive: the boxes still say what was packed, but cannot change,
      * and the day's controls are left out.
+     *
+     * Each group folds on its own, so one person or one bag can be packed at
+     * a time. `isGroupOpen(key)` says which groups the page has open; a group
+     * it has not heard of is folded, which is how every list first opens.
      */
-    function dayCardHtml(day, { readOnly = false, open = false, lens } = {}) {
+    function dayCardHtml(day, { readOnly = false, open = false, isGroupOpen = () => false, lens } = {}) {
         // A fully packed day dims, to say it is done — except in the archive,
         // where every day is past and dimming them all only makes them hard to
         // read. Packed items inside are still muted there, row by row.
@@ -208,12 +212,17 @@
         // container, and a drop has to know whose group it landed in.
         const items = day.items.length === 0
             ? '<div class="container-empty-state">Nothing on this day yet.</div>'
-            : viewSections(day.items, lens).map(section => listGroupHtml({
-                key: `${day.id}:${section.key}`,
-                name: section.name,
-                countLabel: sectionCountLabel(section),
-                rowsHtml: section.items.map(item => dayItemRowHtml(day, item, readOnly, lens)).join(''),
-            })).join('');
+            : viewSections(day.items, lens).map(section => {
+                const key = `${day.id}:${section.key}`;
+                return listGroupHtml({
+                    key,
+                    name: section.name,
+                    countLabel: sectionCountLabel(section),
+                    rowsHtml: section.items.map(item => dayItemRowHtml(day, item, readOnly, lens)).join(''),
+                    collapsible: true,
+                    open: isGroupOpen(key),
+                });
+            }).join('');
         const actions = readOnly ? '' : `
             <div class="editable-item-actions packing-list-day-actions">
                 <button type="button" class="btn btn--sm btn--secondary" data-check-all-day="${day.id}">Check All</button>
@@ -259,8 +268,9 @@
      * footer, and a hairline between packing lists (`--divided`) so an opened
      * one does not run into the next. `days` arrive in date order (both
      * listings are sorted by date), so a box closes when the date changes.
-     * `isOpen(day)` says which entries were open before a re-render. */
-    function dayBoxesHtml(days, { today, readOnly = false, isOpen = () => false, lens } = {}) {
+     * `isOpen(day)` says which entries were open before a re-render, and
+     * `isGroupOpen(key)` which of their groups. */
+    function dayBoxesHtml(days, { today, readOnly = false, isOpen = () => false, isGroupOpen = () => false, lens } = {}) {
         const boxes = [];
         days.forEach(day => {
             const last = boxes[boxes.length - 1];
@@ -269,7 +279,7 @@
         });
         return boxes.map(box => `
             <section class="day-box day-box--divided" data-day-box="${box.date}">
-                ${box.days.map(day => dayCardHtml(day, { readOnly, open: isOpen(day), lens })).join('')}
+                ${box.days.map(day => dayCardHtml(day, { readOnly, open: isOpen(day), isGroupOpen, lens })).join('')}
                 <div class="date-label">${escapeHtml(boxDateLabel(box.date, today))}</div>
             </section>
         `).join('');

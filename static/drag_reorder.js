@@ -22,6 +22,10 @@
  * keyboard: focus it and press the arrow keys. Moving between groups by
  * keyboard is the Edit form's Store field, which already does it.
  *
+ * A group may be a <details> (`listGroupHtml({ collapsible: true })`). Folded,
+ * it is still a drop target by its header, and a row dropped there goes to the
+ * end of it.
+ *
  * `scope` (optional) is a selector for the boundary a row may not be dragged
  * out of: on the Packing Lists page every packing list's groups live in one
  * container, and a row dropped into another packing list would be a move the
@@ -177,8 +181,12 @@
             const list = listOf(under);
             if (!list) return;
 
+            // A folded group (a closed <details>) draws none of its rows, so
+            // there is nothing to measure: a row dropped on its header goes
+            // to the end of it, and the group stays folded.
+            const folded = list.closest(groupSelector).matches('details:not([open])');
             let before = null;
-            for (const sibling of draggableRows(list)) {
+            for (const sibling of folded ? [] : draggableRows(list)) {
                 if (sibling === drag.item) continue;
                 const rect = sibling.getBoundingClientRect();
                 if (drag.pointerY < rect.top + rect.height / 2) {

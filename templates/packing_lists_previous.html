@@ -54,14 +54,24 @@
     <script>
         const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIMEZONE }).format(new Date());
-        // Which cards are open, so Load more puts them back the way they were.
+        // Which cards are open, so Load more puts them back the way they were,
+        // and which groups inside them, by group key. A group not in the set
+        // is folded; switching View empties it.
         const openDays = new Set();
+        const openDayGroups = new Set();
         // Who and which bags, for grouping; By owner on every visit.
         let members = [];
         let bags = [];
         let view = 'owner';
 
         document.getElementById('list-container').addEventListener('toggle', (e) => {
+            // A group's toggle is its own: `closest()` would otherwise walk up
+            // from it to the packing list it sits in.
+            if (e.target.matches('.list-group--collapsible')) {
+                const key = e.target.dataset.group;
+                if (e.target.open) openDayGroups.add(key); else openDayGroups.delete(key);
+                return;
+            }
             const details = e.target.closest('details[data-day]');
             if (!details) return;
             const id = parseInt(details.dataset.day, 10);
@@ -82,6 +92,7 @@
             // Grouped into day boxes, newest day first, as the API sorts them.
             render: (days) => PackingLists.dayBoxesHtml(days, {
                 today, readOnly: true, isOpen: day => openDays.has(day.id),
+                isGroupOpen: key => openDayGroups.has(key),
                 lens: { view, members, bags },
             }),
         });
@@ -90,6 +101,8 @@
             const chip = e.target.closest('[data-view]');
             if (!chip || chip.dataset.view === view) return;
             view = chip.dataset.view;
+            // Every group starts folded again, as on a fresh visit.
+            openDayGroups.clear();
             document.querySelectorAll('#view-chips [data-view]').forEach(c => {
                 const on = c.dataset.view === view;
                 c.classList.toggle('active', on);
@@ -101,6 +114,7 @@
             document.getElementById('list-container').innerHTML =
                 PackingLists.dayBoxesHtml(archive.items, {
                     today, readOnly: true, isOpen: day => openDays.has(day.id),
+                    isGroupOpen: key => openDayGroups.has(key),
                     lens: { view, members, bags },
                 });
         });
