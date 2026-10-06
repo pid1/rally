@@ -1674,3 +1674,277 @@ def test_the_archive_folds_groups_and_view_refolds_them(browser, live_server):
         assert open_groups_named(first) == []
     finally:
         context.close()
+
+
+# --- Entering items from the keyboard (#258) -------------------------------------------------
+
+
+def test_notes_is_the_last_field_of_the_item_form(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        labels = page.locator("#item-form .form-group > label").all_inner_texts()
+        assert labels == ["Item", "Owner", "Bag (optional)", "Notes (optional)"]
+    finally:
+        context.close()
+
+
+def test_enter_in_the_name_is_save_and_add_another(browser, live_server, packing_list):
+    emma = str(packing_list["members"]["Emma"])
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        page.select_option("#item-owner", emma)
+        page.fill("#item-bag", BAG)
+        page.fill("#item-note", "The blue one")
+        page.fill("#item-name", "Swim cap")
+        with page.expect_response("**/items"):
+            page.press("#item-name", "Enter")
+        page.wait_for_function("document.querySelector('#item-name').value === ''")
+
+        # Still open, owner and bag kept, notes cleared, back in the name.
+        assert page.locator("#item-modal-overlay").is_visible()
+        assert page.input_value("#item-owner") == emma
+        assert page.input_value("#item-bag") == BAG
+        assert page.input_value("#item-note") == ""
+        assert page.evaluate("document.activeElement.id") == "item-name"
+        names = [
+            i["name"]
+            for i in api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")[
+                "items"
+            ]
+        ]
+        assert "Swim cap" in names
+    finally:
+        context.close()
+
+
+def test_enter_on_a_blank_name_says_so_and_saves_nothing(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        requests = []
+        page.on("request", lambda r: r.method == "POST" and requests.append(r.url))
+        page.fill("#item-name", "   ")
+        page.press("#item-name", "Enter")
+
+        assert page.locator("#item-modal-overlay").is_visible()
+        assert page.evaluate("document.querySelector('#item-name').validationMessage") == (
+            "A name can't be empty."
+        )
+        assert requests == []
+        # Typing clears it, so the form can be sent again.
+        page.fill("#item-name", "Sunscreen")
+        assert page.evaluate("document.querySelector('#item-name').validity.valid")
+    finally:
+        context.close()
+
+
+def test_enter_while_editing_an_item_saves_and_closes(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_row(page, packing_list["id"])
+        item_row(target, "Towel").locator("[data-edit-item]").click()
+        page.fill("#item-name", "Beach towel")
+        page.press("#item-name", "Enter")
+        page.wait_for_selector("#item-modal-overlay", state="hidden")
+        names = [
+            i["name"]
+            for i in api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")[
+                "items"
+            ]
+        ]
+        assert "Beach towel" in names
+    finally:
+        context.close()
+
+
+# --- The Items filter (#258) -----------------------------------------------------------------
+
+
+def chip(page, value):
+    return page.locator(f'#packed-filters [data-packed="{value}"]')
+
+
+def test_the_items_filter_narrows_coming_up_and_leaves_folding_alone(
+    browser, live_server, packing_list
+):
+    first, second = packing_list["days"]
+    api(
+        live_server,
+        "PUT",
+        f"/api/packing-list-days/{first['id']}/template-items/{packing_list['items']['Goggles']['id']}",
+        {"checked": True},
+    )
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_card(page, first["id"], groups=False)
+        group(target, "Emma").locator("summary").click()
+        page.wait_for_function("openDayGroups.size === 1")
+
+        chip(page, "false").click()
+        assert chip(page, "false").get_attribute("aria-pressed") == "true"
+        target = card(page, first["id"])
+        assert sections(target) == {"Dad": ["Keys"], "Emma": ["Towel"], "Everyone": ["Snacks"]}
+        # Folding as it was, counts the whole list's.
+        assert open_groups_named(target) == ["Emma"]
+        assert group(target, "Emma").locator(".list-group-count").inner_text() == "1 of 2 packed"
+        assert target.locator(".packing-list-progress").inner_text() == "1 of 4 packed"
+
+        # Packed: the day with nothing packed drops out.
+        chip(page, "true").click()
+        assert chip(page, "false").get_attribute("aria-pressed") == "false"
+        assert sections(card(page, first["id"])) == {"Emma": ["Goggles"]}
+        assert card(page, second["id"]).count() == 0
+
+        # Clicking the chip that is on turns it off; everything is back as left.
+        chip(page, "true").click()
+        target = card(page, first["id"])
+        assert sections(target)["Emma"] == ["Goggles", "Towel"]
+        assert open_groups_named(target) == ["Emma"]
+        assert card(page, second["id"]).count() == 1
+
+        # It combines with Due now, and Clear Filters turns both off.
+        chip(page, "false").click()
+        page.click('#day-filters [data-filter="due-now"]')
+        assert card(page, first["id"]).count() == 0  # packs in 20 days
+        page.click("#filter-clear")
+        assert chip(page, "false").get_attribute("aria-pressed") == "false"
+        assert page.locator("#day-filters .filter-chip.active").count() == 0
+        assert card(page, first["id"]).count() == 1
+    finally:
+        context.close()
+
+
+def test_a_row_leaves_as_it_is_ticked_and_focus_moves_on(browser, live_server, packing_list):
+    first = packing_list["days"][0]
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_card(page, first["id"], groups=False)
+        assert list(sections(target)) == ["Dad", "Emma", "Everyone"]
+        group(target, "Emma").locator("summary").click()
+        group(target, "Everyone").locator("summary").click()
+        chip(page, "false").click()
+        target = card(page, first["id"])
+
+        def tick(name):
+            with page.expect_response("**/template-items/**"):
+                target.get_by_label(f"Packed {name}").click()
+
+        def focused():
+            return page.evaluate(
+                """() => { const el = document.activeElement;
+                    return el.getAttribute('aria-label')
+                        || el.closest('.list-group')?.querySelector('.list-group-name').textContent
+                        || (el.closest('details[data-day]') ? 'View more' : el.tagName); }"""
+            )
+
+        # The next row in its group.
+        tick("Goggles")
+        assert item_row(target, "Goggles").count() == 0
+        assert focused() == "Packed Towel"
+        # Its group goes with it: the next open group.
+        tick("Towel")
+        assert group(target, "Emma").count() == 0
+        assert focused() == "Packed Snacks"
+        # No open group left: the header of the group still drawn, folded.
+        tick("Snacks")
+        assert focused() == "Dad"
+        assert not group(target, "Dad").evaluate("g => g.open")
+        page.keyboard.press("Enter")
+        # The whole list goes: the next packing list's View more.
+        tick("Keys")
+        assert card(page, first["id"]).count() == 0
+        assert focused() == "View more"
+        # Counts went to the server: everything on the day is packed.
+        assert api(live_server, "GET", f"/api/packing-list-days/{first['id']}")["checked"] == 4
+    finally:
+        context.close()
+
+
+def test_under_packed_an_unticked_row_leaves(browser, live_server, packing_list):
+    first = packing_list["days"][0]
+    for name in ("Goggles", "Towel"):
+        api(
+            live_server,
+            "PUT",
+            f"/api/packing-list-days/{first['id']}/template-items/{packing_list['items'][name]['id']}",
+            {"checked": True},
+        )
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        chip(page, "true").click()
+        target = open_card(page, first["id"])
+        with page.expect_response("**/template-items/**"):
+            target.get_by_label("Packed Goggles").click()
+        assert sections(target) == {"Emma": ["Towel"]}
+        page.wait_for_function(
+            f"""document.querySelector('[data-day-card="{first["id"]}"] .packing-list-progress')
+                .textContent === '1 of 4 packed'"""
+        )
+    finally:
+        context.close()
+
+
+def test_enter_in_the_bag_is_save_and_add_another(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        page.fill("#item-name", "Swim cap")
+        # A highlighted bag suggestion is accepted, and nothing is saved yet.
+        requests = []
+        page.on("request", lambda r: r.method == "POST" and requests.append(r.url))
+        page.fill("#item-bag", BAG[:6])
+        page.wait_for_selector("#bag-suggestions.open")
+        page.press("#item-bag", "ArrowDown")
+        page.press("#item-bag", "Enter")
+        assert page.input_value("#item-bag") == BAG
+        assert requests == []
+
+        with page.expect_response("**/items"):
+            page.press("#item-bag", "Enter")
+        page.wait_for_function("document.querySelector('#item-name').value === ''")
+        assert page.locator("#item-modal-overlay").is_visible()
+        assert page.input_value("#item-bag") == BAG
+        assert page.evaluate("document.activeElement.id") == "item-name"
+    finally:
+        context.close()
+
+
+def test_enter_in_the_bag_on_a_blank_name_sends_you_to_the_name(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        requests = []
+        page.on("request", lambda r: r.method == "POST" and requests.append(r.url))
+        page.fill("#item-name", "  ")
+        page.fill("#item-bag", "Car")
+        page.press("#item-bag", "Enter")
+        assert page.evaluate("document.activeElement.id") == "item-name"
+        assert page.evaluate("document.querySelector('#item-name').validationMessage") == (
+            "A name can't be empty."
+        )
+        assert requests == []
+    finally:
+        context.close()
+
+
+def test_enter_in_the_bag_while_editing_saves_and_closes(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_row(page, packing_list["id"])
+        item_row(target, "Keys").locator("[data-edit-item]").click()
+        page.fill("#item-bag", BAG)
+        page.press("#item-bag", "Escape")  # close the suggestion menu, not the modal
+        page.press("#item-bag", "Enter")
+        page.wait_for_selector("#item-modal-overlay", state="hidden")
+        keys = next(
+            i
+            for i in api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")[
+                "items"
+            ]
+            if i["name"] == "Keys"
+        )
+        assert keys["bag_id"] == packing_list["bag_id"]
+    finally:
+        context.close()
