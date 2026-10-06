@@ -102,9 +102,11 @@ def test_save_is_blocked_until_a_calendar_is_chosen(calendar_page):
     assert state["blocking"] == "event-calendar"
 
 
-def test_the_scope_buttons_are_blocked_too(calendar_page):
-    """They call saveEvent() from a click handler and never submit the form, so
-    native validation never runs for them — the check has to be in saveEvent."""
+def test_a_series_asks_for_no_scope_until_a_calendar_is_chosen(calendar_page):
+    """Save on a series opens the scope modal only once the form is valid, so
+    nobody picks which events a change reaches and is then sent back to fix a
+    field. `required` stops it first; `eventFormReady()` is the second guard,
+    for anything that skips native validation."""
     page, _members, calendars = calendar_page
     title = f"Soccer practice {uuid4().hex[:8]}"
 
@@ -139,11 +141,26 @@ def test_the_scope_buttons_are_blocked_too(calendar_page):
                     o => o.event_id === eventId && o.start_date === occurrenceDate
                 );
                 if (!occurrence) throw new Error('no occurrence to edit');
+                const scopeOpen = () =>
+                    document.getElementById('event-scope-modal-overlay').style.display === 'flex';
                 await openEditEventModal(occurrence);
-                document.getElementById('event-calendar').value = '';
-                document.querySelector('[data-scope="following"]').click();
+                const select = document.getElementById('event-calendar');
+                select.value = '';
+
+                document.getElementById('btn-save-event').click();
+                await new Promise(r => setTimeout(r, 200));
+                const nativeBlocked = { scopeOpen: scopeOpen(), alerts: alerts.length };
+
+                select.required = false;
+                document.getElementById('btn-save-event').click();
+                await new Promise(r => setTimeout(r, 200));
+                const guardBlocked = { scopeOpen: scopeOpen(), alerts: [...alerts] };
+
+                // Confirming anyway must not reach the network either.
+                document.querySelector('input[name="event-scope"][value="following"]').click();
+                document.getElementById('btn-scope-confirm').click();
                 await new Promise(r => setTimeout(r, 400));
-                return { alerts, sent };
+                return { nativeBlocked, guardBlocked, sent };
             } finally {
                 window.alert = realAlert;
                 window.fetch = realFetch;
@@ -157,8 +174,12 @@ def test_the_scope_buttons_are_blocked_too(calendar_page):
         },
     )
 
-    assert result["alerts"], "the scope path saved without a calendar"
-    assert "calendar" in result["alerts"][0].lower()
+    # `required` stops the submit before any script runs: no modal, no alert.
+    assert result["nativeBlocked"] == {"scopeOpen": False, "alerts": 0}
+    # With `required` out of the way, the script's own check still stops it.
+    assert result["guardBlocked"]["scopeOpen"] is False
+    assert result["guardBlocked"]["alerts"], "the scope modal opened without a calendar"
+    assert "calendar" in result["guardBlocked"]["alerts"][0].lower()
     assert result["sent"] == [], f"a save reached the network anyway: {result['sent']}"
 
 

@@ -94,7 +94,9 @@ def _open_and_save(page, event_id, occurrence_date, *, mutate="", scope="all"):
                 const repeat = document.getElementById('event-repeat');
                 const shown = { value: repeat.value, label: repeat.selectedOptions[0].textContent };
                 if (mutate) new Function(mutate)();
-                document.querySelector(`[data-scope="${scope}"]`).click();
+                document.getElementById('btn-save-event').click();
+                document.querySelector(`input[name="event-scope"][value="${scope}"]`).click();
+                document.getElementById('btn-scope-confirm').click();
                 await new Promise(r => setTimeout(r, 600));
                 return { shown, sent };
             } finally {
