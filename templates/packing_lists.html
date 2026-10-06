@@ -46,6 +46,15 @@
                     <button type="button" class="filter-chip" data-filter="due-now">Due now</button>
                 </div>
             </div>
+            <!-- Items: only what is left to pack, or only what is packed. At
+                 most one chip is on; clicking it again turns it off. -->
+            <div class="toolbar-group">
+                <span class="toolbar-label" id="items-label">Items</span>
+                <div class="filter-chips" id="packed-filters" role="group" aria-labelledby="items-label">
+                    <button type="button" class="filter-chip" data-packed="false" aria-pressed="false">Not packed</button>
+                    <button type="button" class="filter-chip" data-packed="true" aria-pressed="false">Packed</button>
+                </div>
+            </div>
             <div class="toolbar-reset">
                 <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
             </div>
@@ -279,10 +288,6 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="item-note">Notes (optional)</label>
-                        <textarea id="item-note" rows="2" placeholder="Which one, how many, where it's kept"></textarea>
-                    </div>
-                    <div class="form-group">
                         <label for="item-owner">Owner</label>
                         <select id="item-owner"></select>
                     </div>
@@ -295,6 +300,12 @@
                             <div class="autocomplete-menu" id="bag-suggestions" role="listbox"></div>
                         </div>
                         <small>A new name is added to your bags.</small>
+                    </div>
+                    <!-- Last: the field used least, kept out of the way of the
+                         owner and bag that Save & Add Another carries forward. -->
+                    <div class="form-group">
+                        <label for="item-note">Notes (optional)</label>
+                        <textarea id="item-note" rows="2" placeholder="Which one, how many, where it's kept"></textarea>
                     </div>
                     <div class="modal-actions">
                         <button type="submit" class="btn">Save</button>
@@ -395,9 +406,21 @@
         // already holds only today on, so the packing day is the whole test.
         // Client-side, over what is loaded; not remembered across visits.
         let dueNowOnly = false;
+        // Items: `false` shows only what is not packed, `true` only what is,
+        // `null` everything. A packing list with nothing to show is hidden,
+        // and both filters must pass. Folding is left alone: a group that
+        // drops out comes back open or folded as it was. Counts still read
+        // the whole list. Client-side, and not remembered either.
+        let packedFilter = null;
+
+        function showItem(item) {
+            return packedFilter === null || item.checked === packedFilter;
+        }
 
         function visibleDays(today) {
-            return dueNowOnly ? days.filter(day => day.pack_date <= today) : days;
+            return days.filter(day =>
+                (!dueNowOnly || day.pack_date <= today)
+                && (packedFilter === null || day.items.some(showItem)));
         }
 
         function renderDays() {
@@ -409,8 +432,11 @@
                     today,
                     isOpen: day => openDays.has(day.id),
                     isGroupOpen: key => openDayGroups.has(key),
+                    showItem,
                     lens: lens(),
                 });
+            } else if (packedFilter !== null) {
+                container.innerHTML = '<div class="container-empty-state">Nothing matches this filter. Clear the filter to see everything coming up.</div>';
             } else if (dueNowOnly) {
                 container.innerHTML = '<div class="container-empty-state">Nothing to pack today. Clear the filter to see everything coming up.</div>';
             } else {
@@ -424,11 +450,35 @@
             renderDays();
         }
 
+        function setPackedFilter(value) {
+            packedFilter = value;
+            document.querySelectorAll('#packed-filters [data-packed]').forEach(chip => {
+                const on = value !== null && chip.dataset.packed === String(value);
+                chip.classList.toggle('active', on);
+                chip.setAttribute('aria-pressed', String(on));
+            });
+            renderDays();
+        }
+
+        // Every filter off: Clear Filters, and a new packing list that must
+        // not be hidden by them.
+        function clearFilters() {
+            dueNowOnly = false;
+            document.querySelector('#day-filters [data-filter="due-now"]').classList.remove('active');
+            setPackedFilter(null);
+        }
+
         document.getElementById('day-filters').addEventListener('click', (e) => {
             const chip = e.target.closest('.filter-chip');
             if (chip) setDueNow(!dueNowOnly);
         });
-        document.getElementById('filter-clear').addEventListener('click', () => setDueNow(false));
+        document.getElementById('packed-filters').addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-packed]');
+            if (!chip) return;
+            const value = chip.dataset.packed === 'true';
+            setPackedFilter(packedFilter === value ? null : value);
+        });
+        document.getElementById('filter-clear').addEventListener('click', clearFilters);
 
         // View: one chip always chosen. Switching regroups everything already
         // loaded; nothing is fetched. Every group starts folded again, as on
@@ -599,6 +649,60 @@
             days = days.map(d => (d.id === updated.id ? updated : d));
         }
 
+        function firstCheckbox(group) {
+            return group.querySelector('.editable-item input[type="checkbox"]');
+        }
+
+        /* Where focus goes when `row` leaves under the Items filter, so packing
+         * from the keyboard carries on: the next row in its group (or the one
+         * before); then, if the group goes with it, the next open group of the
+         * same packing list (or the one before); then the header of the next
+         * group still drawn, folded or not (or the one before), which one
+         * Enter opens; and if the whole packing list goes, the next one's
+         * View more. */
+        function focusAfterRemoving(row) {
+            const group = row.closest('.list-group');
+            const card = row.closest('[data-day-card]');
+            const rows = [...group.querySelectorAll('.editable-item')];
+            const at = rows.indexOf(row);
+            const sibling = rows[at + 1] || rows[at - 1];
+            if (sibling) return sibling.querySelector('input[type="checkbox"]');
+
+            const groups = [...card.querySelectorAll('.list-group')];
+            const g = groups.indexOf(group);
+            const after = groups.slice(g + 1);
+            const before = groups.slice(0, g).reverse();
+            const open = [...after, ...before].find(other => other.open && firstCheckbox(other));
+            if (open) return firstCheckbox(open);
+            const drawn = after[0] || before[0];
+            if (drawn) return drawn.querySelector('summary');
+
+            const cards = [...daysContainer.querySelectorAll('[data-day-card]')];
+            const c = cards.indexOf(card);
+            const next = cards[c + 1] || cards[c - 1];
+            return next ? next.querySelector('details[data-day] > summary') : null;
+        }
+
+        /* Take a row out under the Items filter without re-rendering, so
+         * everything else stays exactly where it is, and its group, packing
+         * list and day box with it when nothing is left in them. Detaching a
+         * <details> fires no toggle, so the group's folding is remembered. */
+        function removeFilteredRow(row) {
+            const target = focusAfterRemoving(row);
+            const group = row.closest('.list-group');
+            const card = row.closest('[data-day-card]');
+            const box = card.closest('.day-box');
+            row.remove();
+            if (!group.querySelector('.editable-item')) group.remove();
+            if (!card.querySelector('.list-group')) card.remove();
+            if (!box.querySelector('[data-day-card]')) box.remove();
+            if (!daysContainer.querySelector('[data-day-card]')) {
+                renderDays();
+                return;
+            }
+            if (target) target.focus();
+        }
+
         function dayItemUrl(dayId, item) {
             return item.source === 'day'
                 ? `/api/packing-list-days/${dayId}/day-items/${item.id}`
@@ -610,7 +714,15 @@
             if (!box) return;
             const dayId = parseInt(box.dataset.day, 10);
             const item = { id: parseInt(box.dataset.item, 10), source: box.dataset.source };
-            box.closest('.editable-item').classList.toggle('completed', box.checked);
+            const row = box.closest('.editable-item');
+            row.classList.toggle('completed', box.checked);
+            // Recorded at once, so a render before the save answers draws
+            // the row as it now is; a failed save reloads the truth.
+            const day = days.find(d => d.id === dayId);
+            const held = day && day.items.find(i => i.id === item.id && i.source === item.source);
+            if (held) held.checked = box.checked;
+            // Under the Items filter a row that no longer matches leaves now.
+            if (packedFilter !== null && box.checked !== packedFilter) removeFilteredRow(row);
             pending += 1;
             let updated;
             try {
@@ -852,10 +964,36 @@
             label: (b) => ({ name: b.name }),
         });
 
+        // Enter in the name or the bag is how a list is entered from the
+        // keyboard: in add mode it is Save & Add Another, not the form's first
+        // button (Save), which would close the modal after every item.
+        // Registered after both autocompletes, so Enter on a highlighted
+        // suggestion has already been taken (`defaultPrevented`) and only
+        // accepts it. A name of only spaces passes `required`, so it is
+        // refused here with the server's own words, on the name, rather than
+        // coming back as an alert.
+        function enterSavesItem(e) {
+            if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing || !itemContext) return;
+            if (!nameInput.value.trim()) {
+                e.preventDefault();
+                nameInput.setCustomValidity("A name can't be empty.");
+                nameInput.focus();
+                nameInput.reportValidity();
+                return;
+            }
+            if (itemContext.item) return; // Edit: Enter is Save, as the browser has it
+            e.preventDefault();
+            itemForm.requestSubmit(addAnotherBtn);
+        }
+        nameInput.addEventListener('keydown', enterSavesItem);
+        bagInput.addEventListener('keydown', enterSavesItem);
+        nameInput.addEventListener('input', () => nameInput.setCustomValidity(''));
+
         function openItemModal(context) {
             itemContext = context;
             const { scope, item } = context;
             itemForm.reset();
+            nameInput.setCustomValidity('');
             nameAutocomplete.close();
             bagAutocomplete.close();
             document.getElementById('item-modal-title').textContent = item ? 'Edit Item' : 'Add Item';
@@ -1416,9 +1554,9 @@
                 }
             }
             closeAddDayModal();
-            // A new day is the one thing to show next, so the filter comes
+            // A new day is the one thing to show next, so the filters come
             // off rather than hide it.
-            setDueNow(false);
+            clearFilters();
             await refresh();
             revealDay(dayId);
             // A blank list's next step is its first item. A copy or a

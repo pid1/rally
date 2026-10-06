@@ -192,8 +192,12 @@
      * Each group folds on its own, so one person or one bag can be packed at
      * a time. `isGroupOpen(key)` says which groups the page has open; a group
      * it has not heard of is folded, which is how every list first opens.
+     *
+     * `showItem(item)` narrows the rows drawn (the Coming Up's Items filter);
+     * a group with no row left is not drawn. Counts are still the whole
+     * group's, so progress reads the same with rows hidden.
      */
-    function dayCardHtml(day, { readOnly = false, open = false, isGroupOpen = () => false, lens } = {}) {
+    function dayCardHtml(day, { readOnly = false, open = false, isGroupOpen = () => false, showItem = () => true, lens } = {}) {
         // A fully packed day dims, to say it is done — except in the archive,
         // where every day is past and dimming them all only makes them hard to
         // read. Packed items inside are still muted there, row by row.
@@ -213,12 +217,14 @@
         const items = day.items.length === 0
             ? '<div class="container-empty-state">Nothing on this day yet.</div>'
             : viewSections(day.items, lens).map(section => {
+                const shown = section.items.filter(showItem);
+                if (shown.length === 0) return '';
                 const key = `${day.id}:${section.key}`;
                 return listGroupHtml({
                     key,
                     name: section.name,
                     countLabel: sectionCountLabel(section),
-                    rowsHtml: section.items.map(item => dayItemRowHtml(day, item, readOnly, lens)).join(''),
+                    rowsHtml: shown.map(item => dayItemRowHtml(day, item, readOnly, lens)).join(''),
                     collapsible: true,
                     open: isGroupOpen(key),
                 });
@@ -269,8 +275,8 @@
      * one does not run into the next. `days` arrive in date order (both
      * listings are sorted by date), so a box closes when the date changes.
      * `isOpen(day)` says which entries were open before a re-render, and
-     * `isGroupOpen(key)` which of their groups. */
-    function dayBoxesHtml(days, { today, readOnly = false, isOpen = () => false, isGroupOpen = () => false, lens } = {}) {
+     * `isGroupOpen(key)` which of their groups; `showItem` is `dayCardHtml`'s. */
+    function dayBoxesHtml(days, { today, readOnly = false, isOpen = () => false, isGroupOpen = () => false, showItem, lens } = {}) {
         const boxes = [];
         days.forEach(day => {
             const last = boxes[boxes.length - 1];
@@ -279,7 +285,7 @@
         });
         return boxes.map(box => `
             <section class="day-box day-box--divided" data-day-box="${box.date}">
-                ${box.days.map(day => dayCardHtml(day, { readOnly, open: isOpen(day), isGroupOpen, lens })).join('')}
+                ${box.days.map(day => dayCardHtml(day, { readOnly, open: isOpen(day), isGroupOpen, showItem, lens })).join('')}
                 <div class="date-label">${escapeHtml(boxDateLabel(box.date, today))}</div>
             </section>
         `).join('');
