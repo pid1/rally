@@ -98,25 +98,7 @@
             <div class="modal-scroll">
             <div class="modal-body">
                 <form id="day-add-form">
-                    <div class="form-group" id="day-add-source-group">
-                        <label id="day-add-start-label">Start from</label>
-                        <div class="radio-options" role="radiogroup" aria-labelledby="day-add-start-label">
-                            <label><input type="radio" name="day-add-start" value="blank" checked> Blank list</label>
-                            <label><input type="radio" name="day-add-start" value="template"> Template</label>
-                        </div>
-                    </div>
-                    <div id="day-add-template-fields" style="display:none">
-                        <div class="form-group">
-                            <label for="day-add-source">Template</label>
-                            <select id="day-add-source"></select>
-                        </div>
-                        <div class="form-group" id="day-add-mode-group">
-                            <div class="radio-options" role="radiogroup" aria-label="How to use the template">
-                                <label><input type="radio" name="day-add-mode" value="copy" checked> Make a copy I can change</label>
-                                <label><input type="radio" name="day-add-mode" value="sync"> Keep in sync with the template</label>
-                            </div>
-                        </div>
-                    </div>
+                    {% with start_from_prefix = "day-add", sync_options = true %}{% include "_start_from_fields.html" %}{% endwith %}
                     <div class="form-group">
                         <label for="day-add-name">Name</label>
                         <input type="text" id="day-add-name" placeholder="e.g. Concert" maxlength="100" required>
@@ -204,6 +186,10 @@
             <div class="modal-scroll">
             <div class="modal-body">
                 <form id="template-form">
+                    <!-- Add mode only: a copy happens when a template is made. -->
+                    <div id="template-start-from">
+                        {% with start_from_prefix = "template" %}{% include "_start_from_fields.html" %}{% endwith %}
+                    </div>
                     <div class="form-group">
                         <label for="template-name">Name</label>
                         <input type="text" id="template-name" placeholder="e.g. Beach day" maxlength="100" required>
@@ -391,6 +377,13 @@
 
         function templateById(id) {
             return templates.find(c => c.id === id);
+        }
+
+        // The select behind "Start from … Template": a prompt, then every
+        // template A to Z. Add Packing List and Add Packing List Template both fill one.
+        function templateOptionsHtml() {
+            return '<option value="">Choose a template…</option>' +
+                templates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
         }
 
         function groupName(id) {
@@ -1494,8 +1487,7 @@
         function openAddDayModal() {
             addForm.reset();
             typedName = '';
-            sourceSelect.innerHTML = '<option value="">Choose a template…</option>' +
-                templates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+            sourceSelect.innerHTML = templateOptionsHtml();
             document.getElementById('day-add-source-group').style.display = templates.length ? '' : 'none';
             addDate.min = todayLocal();
             showAddMode();
@@ -1576,10 +1568,33 @@
         // ── Add / Edit Packing List Template ──
 
         let editingTemplate = null;
+        const templateForm = document.getElementById('template-form');
+        const templateSource = document.getElementById('template-source');
+
+        // Start from: Blank list, or a copy of a template's items. Picking one
+        // fills nothing in: the name, description and lead time are this
+        // template's own. Only a new template offers it, and only when there is
+        // a template to copy.
+        function copiesATemplate() {
+            return templateForm.querySelector('input[name="template-start"]:checked').value === 'template';
+        }
+
+        function showTemplateStart() {
+            const fromTemplate = copiesATemplate();
+            document.getElementById('template-template-fields').style.display = fromTemplate ? '' : 'none';
+            // Picking Template means picking one: Save refuses until then.
+            templateSource.required = fromTemplate;
+        }
+
+        templateForm.querySelectorAll('input[name="template-start"]').forEach(radio =>
+            radio.addEventListener('change', showTemplateStart));
 
         function openTemplateModal(template) {
             editingTemplate = template;
-            document.getElementById('template-form').reset();
+            templateForm.reset();
+            templateSource.innerHTML = templateOptionsHtml();
+            document.getElementById('template-start-from').style.display = !template && templates.length ? '' : 'none';
+            showTemplateStart();
             document.getElementById('template-modal-title').textContent = template ? 'Edit Packing List Template' : 'Add Packing List Template';
             document.getElementById('btn-delete-template').style.display = template ? '' : 'none';
             if (template) {
@@ -1602,6 +1617,9 @@
                 description: document.getElementById('template-description').value || null,
                 pack_days_before: parseInt(document.getElementById('template-pack-days').value, 10),
             };
+            // Only a new template can start from a copy, and its Start from is
+            // hidden when it is edited.
+            if (!editingTemplate && copiesATemplate()) payload.copy_from_template_id = parseInt(templateSource.value, 10);
             let saved;
             try {
                 saved = editingTemplate

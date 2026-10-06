@@ -1,0 +1,35 @@
+{#- Start from: Blank list, or Template with the template to start from. Shared
+    by Add Packing List (a day) and Add Packing List Template, which both offer
+    to begin from a copy of a template's items.
+
+    Set start_from_prefix: it names the ids and the radio group
+    (`<prefix>-source-group`, `<prefix>-start`, `<prefix>-template-fields`,
+    `<prefix>-source`), because the two modals share a page.
+
+    Set sync_options to add the choice only a day has, under the select: a
+    copy to change, or the template itself kept in sync. A template has no
+    such choice; copying is all it can do.
+
+    The select is empty here. The page fills it from its templates each time
+    the modal opens, and shows the group only when there are any. -#}
+<div class="form-group" id="{{ start_from_prefix }}-source-group">
+    <label id="{{ start_from_prefix }}-start-label">Start from</label>
+    <div class="radio-options" role="radiogroup" aria-labelledby="{{ start_from_prefix }}-start-label">
+        <label><input type="radio" name="{{ start_from_prefix }}-start" value="blank" checked> Blank list</label>
+        <label><input type="radio" name="{{ start_from_prefix }}-start" value="template"> Template</label>
+    </div>
+</div>
+<div id="{{ start_from_prefix }}-template-fields" style="display:none">
+    <div class="form-group">
+        <label for="{{ start_from_prefix }}-source">Template</label>
+        <select id="{{ start_from_prefix }}-source"></select>
+    </div>
+{%- if sync_options %}
+    <div class="form-group" id="{{ start_from_prefix }}-mode-group">
+        <div class="radio-options" role="radiogroup" aria-label="How to use the template">
+            <label><input type="radio" name="{{ start_from_prefix }}-mode" value="copy" checked> Make a copy I can change</label>
+            <label><input type="radio" name="{{ start_from_prefix }}-mode" value="sync"> Keep in sync with the template</label>
+        </div>
+    </div>
+{%- endif %}
+</div>
