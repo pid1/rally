@@ -243,30 +243,6 @@
                     </div>
                 </form>
 
-                <div id="event-scope-group" style="display:none;">
-                    <div class="form-group">
-                        <label id="event-scope-label">This event repeats. Apply the change to:</label>
-                        <div class="event-scope-prompt" role="group" aria-labelledby="event-scope-label">
-                            <button type="button" class="btn btn--sm" id="btn-scope-this" data-scope="this">This occurrence</button>
-                            <button type="button" class="btn btn--sm" id="btn-scope-following" data-scope="following">This and following</button>
-                            <button type="button" class="btn btn--sm" id="btn-scope-all" data-scope="all">All events</button>
-                        </div>
-                        <small id="event-scope-help"></small>
-                    </div>
-                </div>
-
-                <div id="event-delete-scope-group" style="display:none;">
-                    <div class="form-group">
-                        <label id="event-delete-scope-label">This event repeats. Delete:</label>
-                        <div class="event-scope-prompt" role="group" aria-labelledby="event-delete-scope-label">
-                            <button type="button" class="btn btn--sm" id="btn-delete-scope-this" data-delete-scope="this">This occurrence</button>
-                            <button type="button" class="btn btn--sm" id="btn-delete-scope-following" data-delete-scope="following">This and following</button>
-                            <button type="button" class="btn btn--sm" id="btn-delete-scope-all" data-delete-scope="all">All events</button>
-                        </div>
-                        <small id="event-delete-scope-help"></small>
-                    </div>
-                </div>
-
                 <div class="modal-actions" id="event-modal-actions">
                     <button type="submit" form="event-form" class="btn" id="btn-save-event">Save</button>
                     <button type="button" class="btn btn--secondary" id="btn-cancel-event">Cancel</button>
@@ -289,6 +265,33 @@
                     <button type="button" class="btn" id="btn-notify-attendees" style="display:none;">Notify attendees</button>
                     <button type="button" class="btn btn--secondary" id="btn-detail-edit" style="display:none;">Edit</button>
                     <button type="button" class="btn btn--secondary" id="btn-close-detail">Close</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Which events a save or delete on a series reaches. Asked after Save or
+         Delete, over the edit modal, so the edit modal's buttons say what they
+         do. Later in the document than the edit modal, which is what draws it
+         on top: every overlay shares one z-index. -->
+    <div class="modal-overlay" id="event-scope-modal-overlay">
+        <div class="modal-content modal-content--narrow">
+            <h3 id="event-scope-modal-title">Save repeating event</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label id="event-scope-modal-label">Apply to:</label>
+                    <div class="radio-options" role="radiogroup" aria-labelledby="event-scope-modal-label">
+                        <label><input type="radio" name="event-scope" value="this"> This occurrence</label>
+                        <label><input type="radio" name="event-scope" value="following"> This and following</label>
+                        <label><input type="radio" name="event-scope" value="all"> All events</label>
+                    </div>
+                    <small id="event-scope-modal-help"></small>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn" id="btn-scope-confirm" disabled>Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-scope-cancel">Cancel</button>
                 </div>
             </div>
             </div>
@@ -324,6 +327,7 @@
         let anchor = startOfMonth(new Date());
         let editingEvent = null;      // Full event record while the modal is open
         let editingOccurrence = null; // The occurrence that was clicked
+        let scopeAction = 'save';     // What the scope modal confirms: 'save' or 'delete'
         let detailOccurrence = null;
         // The date the now tick last saw, so it can notice midnight passing.
         let tickDate = todayIso();
@@ -1212,25 +1216,46 @@
             return `${isoDate(date)}T${hours}:${minutes}`;
         }
 
-        function hideDeleteScopePrompt() {
-            document.getElementById('event-delete-scope-group').style.display = 'none';
+        /* A series asks which events a save or delete reaches only after Save
+           or Delete is pressed, so the edit modal's buttons always say what
+           they do. Nothing is chosen in advance and the confirm button waits
+           for a choice: a preselected scope is how the wrong one gets picked,
+           and there is no undo behind a delete. */
+        function openScopeModal(action) {
+            scopeAction = action;
+            const deleting = action === 'delete';
+            document.getElementById('event-scope-modal-title').textContent =
+                deleting ? 'Delete repeating event' : 'Save repeating event';
+            const confirmButton = document.getElementById('btn-scope-confirm');
+            confirmButton.textContent = deleting ? 'Delete' : 'Save';
+            confirmButton.disabled = true;
+            document.querySelectorAll('input[name="event-scope"]').forEach(input => {
+                input.checked = false;
+            });
+
+            let help = '';
+            if (deleting) {
+                const occurrenceDate = document.getElementById('event-occurrence-date').value;
+                help = occurrenceDate
+                    ? `"This occurrence" and "This and following" are measured from ${occurrenceDate}. Deleting cannot be undone.`
+                    : 'Deleting cannot be undone.';
+            } else {
+                const moved = editingEvent.overrides.filter(o => !o.cancelled).length;
+                if (moved) help = `${moved} occurrence(s) have their own changes. "All events" keeps them.`;
+            }
+            document.getElementById('event-scope-modal-help').textContent = help;
+            showModalOverlay('event-scope-modal-overlay');
         }
 
-        /* Two visible three-button rows — one that saves, one that deletes —
-           is how somebody deletes a series they meant to edit. While the
-           delete prompt is up it is the only scope prompt on screen; Cancel
-           is the way back out. */
-        function showDeleteScopePrompt() {
-            const occurrenceDate = document.getElementById('event-occurrence-date').value;
-            document.getElementById('event-delete-scope-help').textContent = occurrenceDate
-                ? `"This occurrence" and "This and following" are measured from ${occurrenceDate}. Deleting cannot be undone.`
-                : 'Deleting cannot be undone.';
-            document.getElementById('event-scope-group').style.display = 'none';
-            const group = document.getElementById('event-delete-scope-group');
-            group.style.display = '';
-            // The prompt opens below the fold of a long form, where clicking
-            // Delete looks like it did nothing at all.
-            group.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        /* The scope modal closes before the request goes out: on success the
+           edit modal closes behind it, and on failure the edit modal is left
+           open with the edits still in it, to fix and try again. */
+        function confirmScope() {
+            const chosen = document.querySelector('input[name="event-scope"]:checked');
+            if (!chosen) return;
+            hideModalOverlay('event-scope-modal-overlay');
+            if (scopeAction === 'delete') deleteEvent(chosen.value);
+            else saveEvent(chosen.value);
         }
 
         /* Add Event opens on the day you are looking at. Reading Saturday the
@@ -1282,9 +1307,6 @@
             applyRuleToForm(null, day);
 
             document.getElementById('btn-delete-event').style.display = 'none';
-            document.getElementById('event-scope-group').style.display = 'none';
-            document.getElementById('btn-save-event').style.display = '';
-            hideDeleteScopePrompt();
             rememberStartValues();
             toggleAllDayFields();
             // Nothing to leave alone when adding: the API needs a start.
@@ -1343,19 +1365,6 @@
                 String(occurrence.calendar_id || editingEvent.calendar_id || '');
 
             document.getElementById('btn-delete-event').style.display = '';
-            const recurring = Boolean(editingEvent.rrule);
-            document.getElementById('event-scope-group').style.display = recurring ? '' : 'none';
-            /* The scope buttons stand in for Save on a series, but Cancel and
-               Delete still have to be reachable — hide the one button, not the
-               row that carries all three. */
-            document.getElementById('btn-save-event').style.display = recurring ? 'none' : '';
-            hideDeleteScopePrompt();
-            if (recurring) {
-                const moved = editingEvent.overrides.filter(o => !o.cancelled).length;
-                document.getElementById('event-scope-help').textContent = moved
-                    ? `${moved} occurrence(s) have their own changes. "All events" keeps them.`
-                    : '';
-            }
 
             toggleAllDayFields();
             // After the fields are populated and all-day has settled, so an
@@ -1796,20 +1805,24 @@
             };
         }
 
-        async function saveEvent(scope) {
-            const payload = formPayload();
-            if (!payload.title) return;
-            if (!payload.start) { alert('A start date is required'); return; }
-            /* The Save button submits the form, so `required` covers it — but
-               the scope buttons call this straight from a click handler and
-               never submit, so native validation never runs for a series. The
-               check has to live here too or "This and future" would file the
-               tail on the default calendar. */
+        /* Run before the scope modal opens, so nobody picks which events a
+           change reaches and is then sent back to fix a field. The Save button
+           submits the form, so `required` has already run by the time this
+           does; these are the checks `required` cannot make. */
+        function eventFormReady(payload) {
+            if (!payload.title) return false;
+            if (!payload.start) { alert('A start date is required'); return false; }
             if (!payload.calendar_id && nativeCalendars.length) {
                 alert('Pick whose calendar this goes on');
                 document.getElementById('event-calendar').focus();
-                return;
+                return false;
             }
+            return true;
+        }
+
+        async function saveEvent(scope) {
+            const payload = formPayload();
+            if (!eventFormReady(payload)) return;
 
             /* An edit that did not touch the times says nothing about them, so
                the request carries no `start`/`end` and the API's "leave alone"
@@ -1859,9 +1872,8 @@
         }
 
         function closeEventModal() {
+            hideModalOverlay('event-scope-modal-overlay');
             hideModalOverlay('event-modal-overlay');
-            document.getElementById('btn-save-event').style.display = '';
-            hideDeleteScopePrompt();
             editingEvent = null;
             editingOccurrence = null;
         }
@@ -2159,33 +2171,37 @@
         document.getElementById('event-start-time').addEventListener('change', refreshRecurrencePreview);
         document.getElementById('event-start-date').addEventListener('change', refreshRecurrencePreview);
 
+        // Save always submits, so `required` runs for a series too. A series
+        // then asks which events the change reaches; anything else just saves.
         document.getElementById('event-form').addEventListener('submit', (event) => {
             event.preventDefault();
+            if (editingEvent && editingEvent.rrule) {
+                if (eventFormReady(formPayload())) openScopeModal('save');
+                return;
+            }
             saveEvent('all');
         });
 
         document.getElementById('event-calendar').addEventListener('change', checkCalendarOwner);
 
-        // Three buttons rather than a select: a destructive-by-default select
-        // is how the wrong scope gets picked.
-        document.querySelectorAll('#event-scope-group [data-scope]').forEach(button => {
-            button.addEventListener('click', () => saveEvent(button.dataset.scope));
-        });
-
-        // A series is deleted by the same three-button prompt that saves one.
-        // Typing a scope into a window.prompt() is how the wrong one gets
-        // picked, and there is no undo behind this.
         document.getElementById('btn-delete-event').addEventListener('click', () => {
             if (!editingEvent) return;
             if (editingEvent.rrule) {
-                showDeleteScopePrompt();
+                openScopeModal('delete');
                 return;
             }
             if (confirm('Delete this event?')) deleteEvent('all');
         });
 
-        document.querySelectorAll('#event-delete-scope-group [data-delete-scope]').forEach(button => {
-            button.addEventListener('click', () => deleteEvent(button.dataset.deleteScope));
+        document.querySelectorAll('input[name="event-scope"]').forEach(input => {
+            input.addEventListener('change', () => {
+                document.getElementById('btn-scope-confirm').disabled = false;
+            });
+        });
+        document.getElementById('btn-scope-confirm').addEventListener('click', confirmScope);
+        // Back to the edit modal, edits and all: only the scope modal closes.
+        document.getElementById('btn-scope-cancel').addEventListener('click', () => {
+            hideModalOverlay('event-scope-modal-overlay');
         });
 
         document.getElementById('btn-prev').addEventListener('click', () => shift(-1));
