@@ -1223,3 +1223,181 @@ def test_a_template_kept_in_sync_follows_its_lead_time_unless_given_one(client):
 
     assert client.get(f"/api/packing-list-days/{follows['id']}").json()["pack_days_before"] == 3
     assert client.get(f"/api/packing-list-days/{own['id']}").json()["pack_days_before"] == 0
+
+
+# --- Starting a template from a copy of another (#260) -------------------------------
+
+
+@pytest.fixture
+def nana(client, make_member):
+    """A template with three items, an owner and a bag, a description and a lead time."""
+    emma = make_member(name="Emma")
+    template = _packing_list(client, description="Saturdays at Nana's pool", pack_days_before=1)
+    goggles = _item(client, template["id"], "Goggles", owner_id=emma.id, bag="Pool bag")
+    towel = _item(client, template["id"], "Towel", note="The big one", owner_id=emma.id)
+    snacks = _item(client, template["id"], "Snacks")
+    return {
+        "template": template,
+        "emma": emma,
+        "goggles": goggles,
+        "towel": towel,
+        "snacks": snacks,
+    }
+
+
+def _copy(client, source_id, name="Sleepover at Nana's", **extra):
+    return client.post(
+        "/api/packing-list-templates",
+        json={"name": name, "copy_from_template_id": source_id, **extra},
+    )
+
+
+def _read_items(payload):
+    return [(i["name"], i["note"], i["owner_id"], i["bag_id"]) for i in payload["items"]]
+
+
+def test_a_copy_takes_the_items_whole_and_in_order(client, nana):
+    response = _copy(client, nana["template"]["id"])
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert copy["id"] != nana["template"]["id"]
+    assert copy["item_count"] == 3
+    assert _read_items(copy) == _read_items(
+        client.get(f"/api/packing-list-templates/{nana['template']['id']}").json()
+    )
+    assert [i["sort_order"] for i in copy["items"]] == [0, 1, 2]
+    # New rows, not the source's.
+    assert not {i["id"] for i in copy["items"]} & {
+        i["id"]
+        for i in client.get(f"/api/packing-list-templates/{nana['template']['id']}").json()["items"]
+    }
+
+
+def test_a_copy_takes_only_the_items(client, nana):
+    template_id = nana["template"]["id"]
+    client.post(
+        "/api/packing-list-template-schedules",
+        json={"packing_list_template_id": template_id, "recurrence_type": "daily"},
+    )
+
+    copy = _copy(client, template_id).json()
+
+    # The body's own name, an empty description and the default lead time.
+    assert (copy["name"], copy["description"], copy["pack_days_before"]) == (
+        "Sleepover at Nana's",
+        None,
+        0,
+    )
+    assert copy["schedule"] is None
+    assert copy["day_count"] == 0
+
+
+def test_a_copy_uses_the_description_and_lead_time_it_is_sent(client, nana):
+    copy = _copy(client, nana["template"]["id"], description="Overnight", pack_days_before=2).json()
+
+    assert (copy["description"], copy["pack_days_before"]) == ("Overnight", 2)
+
+
+def test_the_source_is_left_alone(client, nana):
+    template_id = nana["template"]["id"]
+    before = client.get(f"/api/packing-list-templates/{template_id}").json()
+
+    _copy(client, template_id)
+
+    assert client.get(f"/api/packing-list-templates/{template_id}").json() == before
+
+
+def test_a_copy_has_no_link_back(client, nana):
+    template_id = nana["template"]["id"]
+    copy = _copy(client, template_id).json()
+
+    client.post(f"/api/packing-list-templates/{template_id}/items", json={"name": "Floatie"})
+    client.put(
+        f"/api/packing-list-templates/{template_id}/items/{nana['towel']['id']}",
+        json={"name": "Beach towel"},
+    )
+    client.put(
+        f"/api/packing-list-templates/{copy['id']}/items/{copy['items'][2]['id']}",
+        json={"note": "For the drive"},
+    )
+    assert (
+        client.get(f"/api/packing-list-templates/{template_id}").json()["items"][2]["note"] is None
+    )
+
+    client.delete(f"/api/packing-list-templates/{template_id}")
+
+    kept = client.get(f"/api/packing-list-templates/{copy['id']}").json()
+    assert _names(kept) == ["Goggles", "Towel", "Snacks"]
+
+
+def test_a_copy_shares_the_household_bags(client, db_session, nana):
+    bags = db_session.query(PackingListBag).count()
+    copy = _copy(client, nana["template"]["id"]).json()
+
+    assert db_session.query(PackingListBag).count() == bags
+    assert copy["items"][0]["bag_id"] == nana["goggles"]["bag_id"]
+
+
+def test_a_copy_does_not_touch_item_history(client, db_session, nana):
+    def history():
+        return sorted(
+            (r.name, r.times_added, r.owner_id, r.bag_id, r.last_added_at)
+            for r in db_session.query(PackingListItemHistory)
+        )
+
+    suggestion = client.get("/api/packing-list-items/suggestions?q=snacks").json()[0]
+    client.delete(f"/api/packing-list-items/suggestions/{suggestion['id']}")
+    db_session.expire_all()
+    before = history()
+
+    _copy(client, nana["template"]["id"])
+
+    db_session.expire_all()
+    assert history() == before
+    assert "Snacks" not in {name for name, *_ in history()}
+
+
+def test_a_copy_of_an_empty_template_is_an_empty_template(client):
+    source = _packing_list(client)
+
+    response = _copy(client, source["id"])
+
+    assert response.status_code == 201
+    assert response.json()["items"] == []
+
+
+def test_a_copy_puts_itself_on_no_day(client, nana):
+    _day(client, nana["template"]["id"])
+
+    copy = _copy(client, nana["template"]["id"]).json()
+
+    assert (copy["day_count"], copy["upcoming_days"]) == (0, 0)
+    assert [d["packing_list_template_id"] for d in client.get("/api/packing-list-days").json()] == [
+        nana["template"]["id"]
+    ]
+
+
+def test_an_unknown_source_is_422_and_creates_nothing(client, nana):
+    response = _copy(client, 999)
+
+    assert response.status_code == 422
+    assert [t["name"] for t in client.get("/api/packing-list-templates").json()] == [
+        "Swim at Nana's"
+    ]
+
+
+def test_a_taken_name_is_409_and_copies_nothing(client, db_session, nana):
+    items = db_session.query(PackingListTemplateItem).count()
+
+    response = _copy(client, nana["template"]["id"], name="  swim at nana's ")
+
+    assert response.status_code == 409
+    assert db_session.query(PackingListTemplateItem).count() == items
+
+
+def test_a_template_without_a_source_is_made_as_before(client, nana):
+    response = client.post("/api/packing-list-templates", json={"name": "Beach day"})
+
+    assert response.status_code == 201
+    assert response.json()["items"] == []

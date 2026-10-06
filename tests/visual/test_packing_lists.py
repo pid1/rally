@@ -1948,3 +1948,157 @@ def test_enter_in_the_bag_while_editing_saves_and_closes(browser, live_server, p
         assert keys["bag_id"] == packing_list["bag_id"]
     finally:
         context.close()
+
+
+# --- Starting a template from a copy of another (#260) --------------------------------
+
+
+def open_add_template(page):
+    page.click("#btn-add-template")
+    page.wait_for_selector("#template-modal-overlay .modal-content", state="visible")
+
+
+def delete_templates_named(base: str, name: str) -> None:
+    for template in api(base, "GET", "/api/packing-list-templates"):
+        if template["name"] == name:
+            delete_template(base, template["id"])
+
+
+def test_a_new_template_can_start_from_a_copy_of_another(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    requests = []
+    page.on(
+        "request",
+        lambda r: (
+            requests.append(r.post_data_json)
+            if r.method == "POST" and r.url.endswith("/api/packing-list-templates")
+            else None
+        ),
+    )
+    try:
+        open_add_template(page)
+        # Blank list is the default and shows no template to pick.
+        assert page.is_checked('input[name="template-start"][value="blank"]')
+        assert not page.locator("#template-template-fields").is_visible()
+        # A template has no copy/sync choice: that is a day's.
+        assert page.locator("#template-mode-group").count() == 0
+
+        page.check('input[name="template-start"][value="template"]')
+        assert page.locator("#template-template-fields").is_visible()
+        assert page.input_value("#template-source") == ""
+        # Picking Template means picking one: Save refuses until then.
+        page.fill("#template-name", "Browser test sleepover")
+        page.click("#template-modal-overlay button[type=submit]")
+        page.wait_for_timeout(300)
+        assert page.locator("#template-modal-overlay").is_visible()
+
+        page.select_option("#template-source", label="Browser test trip")
+        # Nothing is filled in: the name, description and lead time are its own.
+        assert page.input_value("#template-name") == "Browser test sleepover"
+        assert page.input_value("#template-description") == ""
+        assert page.input_value("#template-pack-days") == "0"
+        page.click("#template-modal-overlay button[type=submit]")
+        page.wait_for_selector("#template-modal-overlay", state="hidden")
+
+        assert requests[-1]["copy_from_template_id"] == packing_list["id"]
+        row = page.locator("[data-template-row]", has_text="Browser test sleepover")
+        row.wait_for()
+        # Opens like any new template, and its items came with it.
+        assert row.locator(".disclosure").evaluate("el => el.open")
+        assert "4 items" in row.locator(".editable-item-meta").inner_text()
+        open_groups(row)
+        for name in ("Goggles", "Towel", "Keys", "Snacks"):
+            assert item_row(row, name).count() == 1
+    finally:
+        context.close()
+        delete_templates_named(live_server, "Browser test sleepover")
+
+
+def test_a_blank_template_sends_no_source(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    requests = []
+    page.on(
+        "request",
+        lambda r: (
+            requests.append(r.post_data_json)
+            if r.method == "POST" and r.url.endswith("/api/packing-list-templates")
+            else None
+        ),
+    )
+    try:
+        open_add_template(page)
+        page.fill("#template-name", "Browser test blank")
+        page.click("#template-modal-overlay button[type=submit]")
+        page.wait_for_selector("#template-modal-overlay", state="hidden")
+        assert "copy_from_template_id" not in requests[-1]
+        row = page.locator("[data-template-row]", has_text="Browser test blank")
+        row.wait_for()
+        assert "0 items" in row.locator(".editable-item-meta").inner_text()
+    finally:
+        context.close()
+        delete_templates_named(live_server, "Browser test blank")
+
+
+def test_start_from_is_for_a_new_template_and_reopens_blank(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_add_template(page)
+        page.check('input[name="template-start"][value="template"]')
+        page.select_option("#template-source", label="Browser test trip")
+        page.click("#btn-cancel-template")
+        page.wait_for_selector("#template-modal-overlay", state="hidden")
+
+        # Each opening starts from Blank list again.
+        open_add_template(page)
+        assert page.is_checked('input[name="template-start"][value="blank"]')
+        assert not page.locator("#template-template-fields").is_visible()
+        page.click("#btn-cancel-template")
+        page.wait_for_selector("#template-modal-overlay", state="hidden")
+
+        # Editing one has nothing to start from, and does not need a source.
+        packing_list_row(page, packing_list["id"]).locator("[data-edit-template]").click()
+        page.wait_for_selector("#template-modal-overlay .modal-content", state="visible")
+        assert not page.locator("#template-start-from").is_visible()
+        page.fill("#template-description", "Edited")
+        page.click("#template-modal-overlay button[type=submit]")
+        page.wait_for_selector("#template-modal-overlay", state="hidden")
+        assert (
+            api(live_server, "GET", f"/api/packing-list-templates/{packing_list['id']}")[
+                "description"
+            ]
+            == "Edited"
+        )
+    finally:
+        context.close()
+
+
+def test_template_start_from_is_hidden_with_no_templates(browser, live_server):
+    context = browser.new_context(viewport=DESKTOP)
+    page = context.new_page()
+    page.route(
+        "**/api/packing-list-templates",
+        lambda route: route.fulfill(status=200, content_type="application/json", body="[]"),
+    )
+    try:
+        page.goto(f"{live_server}/packing-lists", wait_until="networkidle")
+        open_add_template(page)
+        assert not page.locator("#template-source-group").is_visible()
+        assert page.locator("#template-name").is_visible()
+    finally:
+        context.close()
+
+
+def test_a_taken_name_is_refused_and_the_modal_stays(browser, live_server, packing_list):
+    dialogs = []
+    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    try:
+        open_add_template(page)
+        page.check('input[name="template-start"][value="template"]')
+        page.select_option("#template-source", label="Browser test trip")
+        page.fill("#template-name", "Browser test trip")
+        page.click("#template-modal-overlay button[type=submit]")
+        page.wait_for_timeout(500)
+        assert dialogs == ["A packing list template with that name already exists."]
+        assert page.locator("#template-modal-overlay").is_visible()
+    finally:
+        context.close()

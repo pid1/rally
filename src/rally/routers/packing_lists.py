@@ -367,17 +367,49 @@ def list_templates(db: Session = Depends(get_db)):
 
 @templates_router.post("", response_model=PackingListTemplateResponse, status_code=201)
 def create_template(payload: PackingListTemplateCreate, db: Session = Depends(get_db)):
-    """Create a template. ``409`` when the name is taken, ignoring case."""
+    """Create a template. ``409`` when the name is taken, ignoring case.
+
+    ``copy_from_template_id`` starts it with a copy of that template's items,
+    each taken whole — name, note, owner and bag — in the source's order. Only
+    the items come over: the name, description and lead time are the body's
+    own, and nothing links the copy back to its source, so a later edit or
+    deletion on either leaves the other alone. Copying is not typing, so item
+    history is untouched, as it is for a day's copy (``_create_one_off``). An
+    unknown source is a ``422``; the name check runs first, so neither failure
+    leaves anything behind.
+    """
     if _name_taken(db, payload.name):
         raise HTTPException(
             status_code=409, detail="A packing list template with that name already exists"
         )
+    source = None
+    if payload.copy_from_template_id is not None:
+        source = (
+            db.query(PackingListTemplate)
+            .filter(PackingListTemplate.id == payload.copy_from_template_id)
+            .first()
+        )
+        if not source:
+            raise HTTPException(status_code=422, detail="Unknown copy_from_template_id")
     template = PackingListTemplate(
         name=payload.name,
         description=payload.description,
         pack_days_before=payload.pack_days_before,
     )
     db.add(template)
+    db.flush()
+    if source is not None:
+        for position, item in enumerate(logic.ordered_template_items(db, source.id)):
+            db.add(
+                PackingListTemplateItem(
+                    packing_list_template_id=template.id,
+                    owner_id=item.owner_id,
+                    bag_id=item.bag_id,
+                    name=item.name,
+                    note=item.note,
+                    sort_order=position,
+                )
+            )
     db.commit()
     db.refresh(template)
     return _template_response(db, template)

@@ -1207,9 +1207,15 @@ def _blank_to_none(value: str | None) -> str | None:
 
 
 class PackingListTemplateCreate(BaseModel):
+    """A new template. ``copy_from_template_id`` starts it with a copy of that
+    template's items (name, note, owner, bag, in order) and nothing else: the
+    name, description and lead time are this body's own. Copying happens only
+    here, at creation."""
+
     name: str
     description: str | None = None
     pack_days_before: PackDaysBefore = 0
+    copy_from_template_id: int | None = None
 
     @field_validator("name")
     @classmethod
