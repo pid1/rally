@@ -7,12 +7,20 @@
  * in Rally's order and the household's bags A to Z. The item order is the
  * server's (`rally.packing_lists.ordered_items`) and arrives sorted; `viewSections`
  * only cuts it into groups, so no two views can disagree about it.
+ *
+ * A packing list also carries its bags (`day.bags`, `template.bags`): every
+ * bag something on it is in, and every bag those go in, as that list reads
+ * them, outermost first. By owner, each person's group opens with their bags
+ * (`.list-group-lead`); on a day each has a "grabbed" checkbox. By bag, the
+ * groups follow that order and name the bag each goes in.
  */
 (function () {
     'use strict';
 
     const EVERYONE = 'Everyone';
     const NO_BAG = 'No bag';
+    // After a bag's name, saying it is a bag to grab rather than an item.
+    const BAG_GLYPH = '▣';
     // The key of the group for no owner, or no bag.
     const NONE_KEY = 'none';
     const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -65,6 +73,18 @@
         return `${checked} of ${total} packed`;
     }
 
+    function bagCount(n) {
+        return `${n} bag${n === 1 ? '' : 's'}`;
+    }
+
+    /* A day's second progress line: "1 of 3 bags grabbed", "All 3 bags
+     * grabbed" — and "1 of 1 bag grabbed" for a lone bag, since "All 1 bag"
+     * does not read. */
+    function bagsProgressLabel(checked, total) {
+        if (checked === total && total > 1) return `All ${bagCount(total)} grabbed`;
+        return `${checked} of ${bagCount(total)} grabbed`;
+    }
+
     /* A packing list template's lead time, on its row. */
     function packDaysLabel(daysBefore) {
         if (daysBefore === 0) return 'Pack the day of';
@@ -72,34 +92,98 @@
         return `Pack ${daysBefore} days before`;
     }
 
+    /* The household's bags in the order a list reads them: the list's own
+     * bags first (outermost first, then the bags inside each), then any other
+     * bag A to Z. Each named for the bag it goes in on that list. */
+    function bagGroupsInListOrder(lens, listBags) {
+        const known = new Set(lens.bags.map(b => b.id));
+        const listed = listBags.filter(b => known.has(b.id)).map(b => ({
+            id: b.id,
+            name: b.parent_bag_id != null && known.has(b.parent_bag_id)
+                ? `${bagLabel(b.id, lens)} · in ${bagLabel(b.parent_bag_id, lens)}`
+                : bagLabel(b.id, lens),
+        }));
+        const seen = new Set(listed.map(b => b.id));
+        return [...listed, ...lens.bags.filter(b => !seen.has(b.id))
+            .map(b => ({ id: b.id, name: bagLabel(b.id, lens) }))];
+    }
+
+    /* What a bag is called on the page. A bag is unique by its name and its
+     * owner, so two can share a name — Emma's Backpack and Jake's — and then,
+     * and only then, the name carries the (household) owner: "Backpack
+     * (Emma)". `bags` are the household's, `members` the family. */
+    function bagLabelIn(id, bags, members) {
+        const bag = bags.find(b => b.id === id);
+        if (!bag) return '';
+        const key = bag.name.toLowerCase();
+        if (!bags.some(other => other.id !== id && other.name.toLowerCase() === key)) return bag.name;
+        const owner = members.find(m => m.id === bag.owner_id);
+        return `${bag.name} (${owner ? owner.name : EVERYONE})`;
+    }
+
+    function bagLabel(id, lens) {
+        return bagLabelIn(id, lens.bags, lens.members);
+    }
+
     /* Cut a packing list's items into the groups of the lens's view: owners in
-     * the family's order then Everyone, or bags A to Z then No bag. Only
-     * groups with something in them are kept, and every group is headed, even
-     * when it is the only one. An owner or bag that no longer exists reads as
-     * none. */
-    function viewSections(items, lens) {
+     * the family's order then Everyone, or bags then No bag. Only groups with
+     * something in them are kept, and every group is headed, even when it is
+     * the only one. An owner or bag that no longer exists reads as none.
+     *
+     * `listBags` are the list's bags. By owner, each group also carries the
+     * bags that person owns (`section.bags`), and a person who owns a bag but
+     * nothing in it still has a group. By bag, the groups follow the list's
+     * nesting, a bag before the bags inside it. */
+    function viewSections(items, lens, listBags = []) {
         const byOwner = lens.view !== 'bag';
-        const named = (byOwner ? lens.members : lens.bags)
-            .map(entry => ({ key: String(entry.id), id: entry.id, name: entry.name, items: [] }));
-        const none = { key: NONE_KEY, id: null, name: byOwner ? EVERYONE : NO_BAG, items: [] };
+        const entries = byOwner ? lens.members : bagGroupsInListOrder(lens, listBags);
+        const named = entries
+            .map(entry => ({ key: String(entry.id), id: entry.id, name: entry.name, items: [], bags: [] }));
+        const none = { key: NONE_KEY, id: null, name: byOwner ? EVERYONE : NO_BAG, items: [], bags: [] };
         const byId = new Map(named.map(section => [section.id, section]));
         items.forEach(item => {
             const id = byOwner ? item.owner_id : item.bag_id;
             (byId.get(id) || none).items.push(item);
         });
-        return [...named, none].filter(section => section.items.length > 0);
+        if (byOwner) {
+            listBags.forEach(bag => (byId.get(bag.owner_id) || none).bags.push(bag));
+        }
+        return [...named, none].filter(section => section.items.length > 0 || section.bags.length > 0);
     }
 
     /* The other half of an item, under its name: its bag when grouped by
      * owner, its owner when grouped by bag — "No bag" or "Everyone" when it
      * has none, so every item reads the same way. */
-    function otherDimension(item, lens) {
+    function otherDimension(item, lens, listBags = []) {
         const byOwner = lens.view !== 'bag';
         const list = byOwner ? lens.bags : lens.members;
         const id = byOwner ? item.bag_id : item.owner_id;
         const found = list.find(entry => entry.id === id);
-        if (found) return found.name;
-        return byOwner ? NO_BAG : EVERYONE;
+        if (!found) return byOwner ? NO_BAG : EVERYONE;
+        if (!byOwner) return found.name;
+        return bagFromGroup(found.id, groupOwnerOf(item.owner_id, lens), lens, listBags);
+    }
+
+    /* Whose group a row is drawn in, By owner: its owner's, or Everyone's
+     * when it has none or that member is gone. */
+    function groupOwnerOf(ownerId, lens) {
+        return lens.members.some(m => m.id === ownerId) ? ownerId : null;
+    }
+
+    /* A bag named from inside somebody's group, By owner: an item's bag, or
+     * the bag a bag goes in. When that bag is the group's person's own, its
+     * name is enough. When somebody else carries it — as this list reads it,
+     * since that is who grabs it — the name says who: "Suitcase (Dad)" under
+     * Emma, so Emma can see her toiletries bag is going in a bag she will not
+     * be grabbing. That also tells apart two bags of one name. */
+    function bagFromGroup(bagId, groupOwnerId, lens, listBags) {
+        const bag = lens.bags.find(b => b.id === bagId);
+        if (!bag) return '';
+        const onList = listBags.find(b => b.id === bagId);
+        const ownerId = groupOwnerOf(onList ? onList.owner_id : bag.owner_id, lens);
+        if (ownerId === groupOwnerId) return bag.name;
+        const owner = lens.members.find(m => m.id === ownerId);
+        return `${bag.name} (${owner ? owner.name : EVERYONE})`;
     }
 
     function keyToId(key) {
@@ -116,10 +200,65 @@
         return `Pack ${weekdayOf(day.pack_date)}, ${MONTHS[pack.getMonth()].slice(0, 3)} ${pack.getDate()}`;
     }
 
+    /* A day's group header: "2 of 5 packed · 1 of 2 bags", either half
+     * alone when the group has only items or only bags. */
     function sectionCountLabel(section) {
-        return section.name
-            ? progressLabel(section.items.filter(i => i.checked).length, section.items.length)
-            : null;
+        if (!section.name) return null;
+        const parts = [];
+        if (section.items.length) {
+            parts.push(progressLabel(section.items.filter(i => i.checked).length, section.items.length));
+        }
+        if (section.bags.length) {
+            parts.push(`${section.bags.filter(b => b.checked).length} of ${bagCount(section.bags.length)}`);
+        }
+        return parts.join(' · ');
+    }
+
+    /* A template's group header: "5 items · 2 bags". */
+    function templateSectionCountLabel(section) {
+        if (!section.name) return null;
+        const parts = [];
+        if (section.items.length) parts.push(itemCount(section.items.length));
+        if (section.bags.length) parts.push(bagCount(section.bags.length));
+        return parts.join(' · ');
+    }
+
+    /* One bag at the head of its owner's group. ▣ says it is a bag, not an
+     * item; under it, the bag it goes in on this list. `day` gives it a
+     * "grabbed" checkbox; a template's has none. Bags do not drag and have no
+     * Edit: Change bags is where a list reads one differently. */
+    function bagRowHtml(bag, { listBags, lens, day = null, readOnly = false }) {
+        const parent = bag.parent_bag_id != null ? listBags.find(b => b.id === bag.parent_bag_id) : null;
+        // The row sits in its owner's group (as this list reads it), so the
+        // owner a shared name would carry is already the heading above it.
+        // Only a list that gave the bag to somebody else still needs it:
+        // Emma's Backpack under Jake reads "Backpack (Emma)".
+        const household = lens.bags.find(b => b.id === bag.id);
+        const name = household && household.owner_id === bag.owner_id
+            ? bag.name
+            : bagLabel(bag.id, lens) || bag.name;
+        const box = day ? `
+                <label class="item-checkbox">
+                    <input type="checkbox" ${bag.checked ? 'checked' : ''} ${readOnly ? 'disabled' : ''}
+                           data-day="${day.id}" data-bag="${bag.id}"
+                           aria-label="Grabbed ${escapeAttr(name)}">
+                </label>` : '';
+        return `
+            <div class="editable-item ${day && bag.checked ? 'completed' : ''} ${readOnly ? 'is-read-only' : ''}" data-bag-row="${bag.id}">${box}
+                <div class="editable-item-content">
+                    <div class="editable-item-title">${escapeHtml(name)} <span class="title-indicator" title="A bag to grab">${BAG_GLYPH}</span></div>
+                    ${parent ? `<div class="editable-item-description">in ${escapeHtml(bagFromGroup(parent.id, groupOwnerOf(bag.owner_id, lens), lens, listBags) || parent.name)}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    /* The quiet button that opens Change bags, in the actions under a packing
+     * list's items: beside Remove from day on a day's entry, after Add Item
+     * on a template's row. Only when the list has bags. */
+    function changeBagsHtml(attribute, id, listBags) {
+        if (!listBags.length) return '';
+        return `<button type="button" class="btn btn--sm btn--quiet" ${attribute}="${id}">Change bags</button>`;
     }
 
     // Notes are linked for phone numbers where the page loads phone_links.js.
@@ -151,7 +290,7 @@
     }
 
     function dayItemRowHtml(day, item, readOnly, lens) {
-        const other = otherDimension(item, lens);
+        const other = otherDimension(item, lens, day.bags || []);
         const mark = isTemplated(day) ? dayItemMark(item) : '';
         const markHtml = mark ? ` <span class="item-mark">(${mark})</span>` : '';
         const edit = readOnly ? '' : `
@@ -172,8 +311,10 @@
                            aria-label="Packed ${escapeAttr(item.name)}">
                 </label>
                 <div class="editable-item-content">
-                    <div class="editable-item-title">${escapeHtml(item.name)}${markHtml}</div>
-                    ${other ? `<div class="editable-item-description">${escapeHtml(other)}</div>` : ''}
+                    <div class="editable-item-title-line">
+                        <div class="editable-item-title">${escapeHtml(item.name)}${markHtml}</div>
+                        ${other ? `<span class="editable-item-description editable-item-aside">${escapeHtml(other)}</span>` : ''}
+                    </div>
                     ${item.note ? `<div class="editable-item-description">${noteHtml(item.note)}</div>` : ''}
                 </div>${edit}
             </div>
@@ -193,15 +334,18 @@
      * a time. `isGroupOpen(key)` says which groups the page has open; a group
      * it has not heard of is folded, which is how every list first opens.
      *
-     * `showItem(item)` narrows the rows drawn (the Coming Up's Items filter);
+     * `showItem(item)` narrows the rows drawn (the Coming Up's Items filter),
+     * bags by whether they were grabbed as items by whether they were packed;
      * a group with no row left is not drawn. Counts are still the whole
      * group's, so progress reads the same with rows hidden.
      */
     function dayCardHtml(day, { readOnly = false, open = false, isGroupOpen = () => false, showItem = () => true, lens } = {}) {
-        // A fully packed day dims, to say it is done — except in the archive,
-        // where every day is past and dimming them all only makes them hard to
-        // read. Packed items inside are still muted there, row by row.
-        const done = !readOnly && day.total > 0 && day.checked === day.total;
+        const listBags = day.bags || [];
+        // A day is done when every item is packed and every bag grabbed. It
+        // dims to say so — except in the archive, where every day is past and
+        // dimming them all only makes them hard to read. Packed items inside
+        // are still muted there, row by row.
+        const done = !readOnly && isDone(day);
         const label = day.label ? ` <span class="assignee-label">— ${escapeHtml(day.label)}</span>` : '';
         // ⧉ says the list comes from a template, so editing it there reaches
         // this day too; ↻ that a schedule put it here. A templateless day
@@ -216,14 +360,16 @@
         // container, and a drop has to know whose group it landed in.
         const items = day.items.length === 0
             ? '<div class="container-empty-state">Nothing on this day yet.</div>'
-            : viewSections(day.items, lens).map(section => {
+            : viewSections(day.items, lens, listBags).map(section => {
                 const shown = section.items.filter(showItem);
-                if (shown.length === 0) return '';
+                const shownBags = section.bags.filter(showItem);
+                if (shown.length === 0 && shownBags.length === 0) return '';
                 const key = `${day.id}:${section.key}`;
                 return listGroupHtml({
                     key,
                     name: section.name,
                     countLabel: sectionCountLabel(section),
+                    leadHtml: shownBags.map(bag => bagRowHtml(bag, { listBags, lens, day, readOnly })).join(''),
                     rowsHtml: shown.map(item => dayItemRowHtml(day, item, readOnly, lens)).join(''),
                     collapsible: true,
                     open: isGroupOpen(key),
@@ -234,6 +380,7 @@
                 <button type="button" class="btn btn--sm btn--secondary" data-check-all-day="${day.id}">Check All</button>
                 <button type="button" class="btn btn--sm btn--secondary" data-reset-day="${day.id}">Uncheck All</button>
                 <button type="button" class="btn btn--sm btn--secondary" data-add-day-item="${day.id}">Add Item</button>
+                ${changeBagsHtml('data-change-day-bags', day.id, listBags)}
                 <button type="button" class="btn btn--sm btn--quiet" data-remove-day="${day.id}">${isTemplated(day) ? 'Remove from day' : 'Delete'}</button>
             </div>`;
         // How far this day has drifted from its template, beside its Edit.
@@ -251,7 +398,10 @@
                 <div class="editable-item-content">
                     <div class="editable-item-title">${escapeHtml(day.name)}${label}${fromTemplate}${repeats}</div>
                     <div class="editable-item-meta">${escapeHtml(packLine(day))}</div>
-                    <div class="editable-item-meta packing-list-progress" data-progress role="status" aria-live="polite">${escapeHtml(progressLabel(day.checked, day.total))}</div>
+                    <div class="packing-list-progress-line">
+                        <span class="editable-item-meta packing-list-progress" data-progress role="status" aria-live="polite">${escapeHtml(progressLabel(day.checked, day.total))}</span>
+                        <span class="editable-item-meta packing-list-bag-progress" data-bag-progress role="status" aria-live="polite"${day.bags_total ? '' : ' hidden'}>${escapeHtml(bagsProgressLabel(day.bags_checked || 0, day.bags_total || 0))}</span>
+                    </div>
                 </div>${edit}
                 <details class="disclosure" data-day="${day.id}"${open ? ' open' : ''}>
                     <summary><span class="disclosure-more">View more</span><span class="disclosure-less">View less</span></summary>
@@ -291,13 +441,21 @@
         `).join('');
     }
 
+    /* Every item packed and every bag grabbed. */
+    function isDone(day) {
+        return day.total > 0 && day.checked === day.total
+            && (day.bags_checked || 0) === (day.bags_total || 0);
+    }
+
     /* Bring a card's counts up to date without re-rendering its rows, which
      * would take focus off the box that was just ticked. */
     function updateDayCardCounts(card, day, lens) {
-        const done = day.total > 0 && day.checked === day.total;
-        card.classList.toggle('completed', done);
+        card.classList.toggle('completed', isDone(day));
         card.querySelector('[data-progress]').textContent = progressLabel(day.checked, day.total);
-        viewSections(day.items, lens).forEach(section => {
+        const bagLine = card.querySelector('[data-bag-progress]');
+        bagLine.hidden = !day.bags_total;
+        bagLine.textContent = bagsProgressLabel(day.bags_checked || 0, day.bags_total || 0);
+        viewSections(day.items, lens, day.bags || []).forEach(section => {
             const count = card.querySelector(`.list-group[data-group="${day.id}:${section.key}"] .list-group-count`);
             if (count) count.textContent = sectionCountLabel(section);
         });
@@ -335,6 +493,10 @@
         itemCount,
         packDaysLabel,
         viewSections,
+        templateSectionCountLabel,
+        bagRowHtml,
+        bagLabelIn,
+        changeBagsHtml,
         otherDimension,
         keyToId,
         noteHtml,

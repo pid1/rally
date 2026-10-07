@@ -1,11 +1,15 @@
 """Migration 035 renames the template tables, lets a day exist without one,
-and recounts item history — and, after 034, agrees with the models.
+and recounts item history — and, after 034 and with 036, agrees with the models.
 
 It runs on every container start, so it has to be a no-op the second time,
 and it has to leave a database the ORM can use: a table shaped differently
 from ``models.py`` would only fail once somebody wrote to it. The data a
 family already has must come through untouched, except the counts
 autocomplete ranks by, which are recounted under their new meaning.
+
+Migration 036 adds bag owners and nesting on top, so the two tests that
+compare against ``models.py`` run it too (``_migrate_to_models``): after 036
+the migrations and the models only agree together.
 """
 
 import importlib.util
@@ -107,6 +111,12 @@ def db_path(tmp_path, monkeypatch):
 
 def _migrate():
     return _load("migrate_035_packing_list_templates").migrate()
+
+
+def _migrate_to_models():
+    """035, then every later migration the models already reflect."""
+    assert _migrate() is True
+    assert _load("migrate_036_add_bag_owners_and_nesting").migrate() is True
 
 
 def _tables(path):
@@ -217,9 +227,9 @@ def test_a_missing_database_is_not_an_error(tmp_path, monkeypatch):
 
 
 def test_agrees_with_the_models(db_path, tmp_path):
-    """Every packing list index the models create exists after 034 + 035,
-    under the same name, over the same columns, and no other is left."""
-    _migrate()
+    """Every packing list index the models create exists after 034 + 035
+    (+ 036), under the same name, over the same columns, and no other is left."""
+    _migrate_to_models()
     fresh = tmp_path / "fresh.db"
     engine = create_engine(f"sqlite:///{fresh}")
     Base.metadata.create_all(engine)
@@ -234,7 +244,7 @@ def test_agrees_with_the_models(db_path, tmp_path):
 
 
 def test_the_orm_can_use_what_it_made(db_path):
-    _migrate()
+    _migrate_to_models()
     engine = create_engine(f"sqlite:///{db_path}")
     with Session(engine) as session:
         template = PackingListTemplate(name="Beach day", pack_days_before=1)

@@ -1019,8 +1019,15 @@ label.weekday-label,
    2px outline): the 4px on the right cleared it, the 0 on the left cut the
    ring's left edge off entirely, so a focused field looked bracketed rather
    than outlined. The inline padding buys the ring its room on both sides; the
-   matching negative margin gives that room back to the layout, so every field
-   keeps the exact width and position it had. */
+   matching negative margin gives that room back to the layout on the left, so
+   every field keeps its position there.
+
+   The right side needs more than a ring's width. An overlay scrollbar — what
+   macOS and Chromium draw by default — takes no layout space and is painted
+   on top of the box's right edge, so with 4px there it sat over every control
+   flush with that edge (Manage Bags' Edit buttons, a full-width field). The
+   end padding is wide enough to clear it. A classic scrollbar takes its own
+   space, so there it only adds a little air. */
 /* The page holds still behind an open modal: `modal.js` sets this class while
    any overlay is showing. `scrollbar-gutter` keeps the scrollbar's space, so
    on a system with a classic scrollbar the page does not jump sideways when it
@@ -1037,7 +1044,7 @@ html.modal-open {
     overscroll-behavior: contain;
     flex: 1;
     min-height: 0;
-    padding-inline: var(--space-1);
+    padding-inline: var(--space-1) var(--space-3);
     margin-inline-start: calc(-1 * var(--space-1));
 }
 
@@ -1149,6 +1156,52 @@ html.modal-open {
     margin-bottom: var(--space-1);
     font-style: italic;
     overflow-wrap: break-word;
+}
+
+/* A row's title with a short detail beside it rather than under it, to keep
+   the row one line shorter: "Goggles · Pool bag" on a packing list. The title
+   stays its own element, so it still reads as the name alone; the detail is
+   an `.editable-item-aside` and keeps whatever styling it carries (a
+   description's muted italic). On a narrow row the detail wraps under the
+   title instead of squeezing it — on a phone a packing list row's text
+   column is under 100px, so it usually does there.
+
+   The separator sits in the detail's own leading padding. The line starts
+   that padding's width to the left of the column and is clipped back to the
+   column (`clip-path`), with the title stepped back in to meet it. So beside
+   a title the dot shows in the gap, and when the detail wraps to the start of
+   a line the dot falls in the clipped strip: a wrapped detail never starts
+   with "·", and the title keeps the column's full width for itself. */
+.editable-item-title-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    margin-inline-start: calc(-1 * var(--space-5));
+    clip-path: inset(0 0 0 var(--space-5));
+    margin-bottom: var(--space-1);
+}
+
+.editable-item-title-line > .editable-item-title,
+.editable-item-title-line > .editable-item-description {
+    margin-bottom: 0;
+}
+
+.editable-item-title-line > .editable-item-title {
+    margin-inline-start: var(--space-5);
+}
+
+.editable-item-aside {
+    padding-inline-start: var(--space-5);
+}
+
+/* Set upright: an italic dot leans. */
+.editable-item-aside::before {
+    content: "·";
+    display: inline-block;
+    width: var(--space-5);
+    margin-inline-start: calc(-1 * var(--space-5));
+    text-align: center;
+    font-style: normal;
 }
 
 /* A row's facts, beneath its title: when, how many, how far along. Not
@@ -1267,17 +1320,25 @@ html.modal-open {
     margin-top: 0;
 }
 
+/* A name wraps rather than widening its header: a long one ("TOILETRIES BAG ·
+   IN SUITCASE") on a phone would otherwise set a minimum width for the whole
+   list and push every count past the edge. `min-width: 0` lets the flex item
+   shrink below its one-line width so the wrap can happen. */
 .list-group-name {
     font-family: var(--font-display);
     font-size: var(--text-base);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: var(--tracking-wider);
-    white-space: nowrap;
+    min-width: 0;
+    overflow-wrap: break-word;
 }
 
+/* Never squeezed out: a name long enough to wrap wraps sooner instead, so
+   every header keeps its hairline between the name and the count. */
 .list-group-rule {
     flex: 1;
+    min-width: var(--space-6);
     border-bottom: 1px solid var(--rule);
 }
 
@@ -1286,6 +1347,17 @@ html.modal-open {
     letter-spacing: var(--tracking-wide);
     color: var(--ink-subtle);
     white-space: nowrap;
+}
+
+/* Rows that head a group without being part of its order: a person's bags
+   above their items on a packing list. Written by `listGroupHtml({ leadHtml })`
+   outside the .list-container so the drag never sees them. Spaced as the
+   list's own rows are, and as far from the first of them. */
+.list-group-lead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
 }
 
 /* A group that folds: `listGroupHtml({ collapsible: true })` writes it as a
@@ -1297,6 +1369,20 @@ html.modal-open {
     min-height: var(--target-min);
     cursor: pointer;
     list-style: none;
+}
+
+/* Folded groups stack close: a header's usual margins are there to set an
+   open group's rows apart from the next heading, and a folded group has no
+   rows. So a folded group drops the space under its header, and one that
+   follows another folded group sits a small gap below it rather than a
+   section's worth. A group after an open one, and an open group itself, keep
+   the full spacing. Every header stays a full target tall. */
+.list-group--collapsible:not([open]) > .list-group-header {
+    margin-bottom: 0;
+}
+
+.list-group--collapsible:not([open]) + .list-group--collapsible:not([open]) > .list-group-header {
+    margin-top: var(--space-2);
 }
 
 /* A part of a row kept folded away until asked for: "View more" on a
@@ -1538,6 +1624,33 @@ html.modal-open {
     color: var(--ink);
     font-family: var(--font-body);
     font-size: var(--text-base);
+}
+
+/* A row's text when it is read rather than edited in place: its name, and a
+   muted line under it. */
+.manage-row-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* A row unfolded to edit more than its name — a bag's owner and the bag it
+   goes in — stacked as form fields, with its actions under them. Manage Bags
+   opens one row at a time in place; Change bags shows every bag this way. */
+.manage-row--editing {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+}
+
+.manage-row--editing .form-group {
+    margin: 0;
+}
+
+.manage-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
 }
 
 /* ---- Per-person behavioral defaults ---- */
@@ -2463,8 +2576,10 @@ body.is-dragging {
 /* ---- Packing Lists ---- */
 /* "3 of 14 packed": the answer to "are we done?", so it reads at body size in
    the ink color rather than as a muted caption. On a row it is the last meta
-   line, and keeps the meta size. */
-.packing-list-progress {
+   line, and keeps the meta size. "1 of 3 bags grabbed" under it is the same
+   answer about bags, and reads the same way. */
+.packing-list-progress,
+.packing-list-bag-progress {
     /* Bottom only: the space above comes from `.stack`, like every block. */
     margin-bottom: 0;
     font-size: var(--text-base);
@@ -2472,8 +2587,47 @@ body.is-dragging {
     color: var(--ink);
 }
 
-.editable-item-meta.packing-list-progress {
+.editable-item-meta.packing-list-progress,
+.editable-item-meta.packing-list-bag-progress {
     font-size: var(--text-sm);
+}
+
+/* An entry's two counts share one line, items then bags, to keep the entry
+   short: "3 of 13 packed · 1 of 2 bags grabbed". Each is its own status, so
+   a tick announces only the count it changed. On a narrow screen the bag
+   count wraps under the items' rather than squeezing it. */
+/* The separator belongs to the bag count, so it goes when that count is
+   hidden (a day with no bags). It sits in the count's own leading padding,
+   and the line is shifted left by that width and clipped back to the column,
+   so when the bag count wraps under the items' on a phone its dot falls in
+   the clipped strip: the same arrangement as `.editable-item-title-line`. */
+.packing-list-progress-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    margin-top: var(--space-1);
+    margin-inline-start: calc(-1 * var(--space-5));
+    clip-path: inset(0 0 0 var(--space-5));
+}
+
+.packing-list-progress-line > .editable-item-meta {
+    margin-top: 0;
+}
+
+.packing-list-progress-line > .packing-list-progress {
+    margin-inline-start: var(--space-5);
+}
+
+.packing-list-bag-progress {
+    padding-inline-start: var(--space-5);
+}
+
+.packing-list-bag-progress::before {
+    content: "·";
+    display: inline-block;
+    width: var(--space-5);
+    margin-inline-start: calc(-1 * var(--space-5));
+    text-align: center;
 }
 
 /* A day's packing list that is fully packed reads as done, the way a completed
@@ -2502,7 +2656,6 @@ body.is-dragging {
     flex-wrap: wrap;
     margin-top: var(--space-3);
 }
-
 /* ---- Meal history ---- */
 .star-rating,
 .star-rating-input {

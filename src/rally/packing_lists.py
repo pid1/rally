@@ -28,6 +28,14 @@ Every item has an optional owner (a family member) and an optional bag. The
 page groups a packing list by either — who owns what, what goes in each bag —
 over one order; the summary groups by owner and names the bag.
 
+A bag has an owner too, and may go in another bag. Both are the household's
+on the bag, and a template or a day can read them differently
+(``PackingListTemplateBag``, ``PackingListDayBag``) the way a day reads an
+item differently. Which bags are on a list is never stored: it is every bag
+something on the list is in, and every bag those go in
+(``resolve_day_bags``, ``resolve_template_bags``). A day records which of them
+were grabbed (``PackingListDayBagCheck``).
+
 Item history (``PackingListItemHistory``) is what autocomplete suggests. Typing
 a name creates its row; ``count_packed_days`` counts how many past days each
 name was on a list.
@@ -49,10 +57,13 @@ from rally.models import (
     FamilyMember,
     PackingListBag,
     PackingListDay,
+    PackingListDayBag,
+    PackingListDayBagCheck,
     PackingListDayCheck,
     PackingListDayItem,
     PackingListItemHistory,
     PackingListTemplate,
+    PackingListTemplateBag,
     PackingListTemplateItem,
     PackingListTemplateSchedule,
     Setting,
@@ -235,6 +246,202 @@ def resolve_day(
     return _apply_item_order(resolved, day.item_order)
 
 
+@dataclass(frozen=True)
+class BagOnList:
+    """One bag as it reads on one list (a template or a day)."""
+
+    id: int
+    name: str
+    owner_id: int | None
+    parent_bag_id: int | None  # The bag it goes in on this list, always one also on it
+    checked: bool  # Grabbed, on a day; always False on a template
+    changed: bool  # This list reads it differently from the level above
+
+
+def _bag_reading_rows(
+    db: Session, *, template_id: int | None, day_id: int | None
+) -> tuple[dict, dict]:
+    """This list's readings of bags, by bag id: the template's and the day's."""
+    template_rows = {}
+    if template_id is not None:
+        template_rows = {
+            row.bag_id: row
+            for row in db.query(PackingListTemplateBag).filter(
+                PackingListTemplateBag.packing_list_template_id == template_id
+            )
+        }
+    day_rows = {}
+    if day_id is not None:
+        day_rows = {
+            row.bag_id: row
+            for row in db.query(PackingListDayBag).filter(PackingListDayBag.day_id == day_id)
+        }
+    return template_rows, day_rows
+
+
+def bag_reading(
+    db: Session, bag: PackingListBag, *, template_id: int | None, day_id: int | None = None
+) -> tuple[int | None, int | None]:
+    """``(owner_id, parent_bag_id)`` for one bag where it is being read: the
+    day's reading, else the template's, else the household's."""
+    template_rows, day_rows = _bag_reading_rows(db, template_id=template_id, day_id=day_id)
+    row = day_rows.get(bag.id) or template_rows.get(bag.id) or bag
+    return row.owner_id, row.parent_bag_id
+
+
+def readings_at(
+    db: Session, *, template_id: int | None, day_id: int | None
+) -> tuple[dict[int, PackingListBag], dict[int, tuple[int | None, int | None]], set[int]]:
+    """Every household bag, how each reads at this level, and which this level
+    reads differently. A parent that is not a bag reads as none."""
+    bags = {b.id: b for b in db.query(PackingListBag).all()}
+    template_rows, day_rows = _bag_reading_rows(db, template_id=template_id, day_id=day_id)
+    own = day_rows if day_id is not None else template_rows
+    readings = {}
+    for bag_id, bag in bags.items():
+        row = day_rows.get(bag_id) or template_rows.get(bag_id) or bag
+        parent = row.parent_bag_id if row.parent_bag_id in bags else None
+        readings[bag_id] = (row.owner_id, parent)
+    return bags, readings, set(own)
+
+
+def _goes_in(bag_id: int, parent_of) -> list[int]:
+    """The bags ``bag_id`` goes in, innermost first. A chain that comes back
+    round to a bag already on it stops there: readings at different levels
+    can combine into a loop that no single write made, and a loop must read
+    as a list rather than hang."""
+    chain: list[int] = []
+    seen = {bag_id}
+    current = parent_of(bag_id)
+    while current is not None and current not in seen:
+        chain.append(current)
+        seen.add(current)
+        current = parent_of(current)
+    return chain
+
+
+def _bags_on_list(
+    db: Session,
+    item_bag_ids,
+    *,
+    template_id: int | None,
+    day_id: int | None,
+    checked: set[int],
+) -> list[BagOnList]:
+    """The bags on a list, outermost first and then the bags inside each, A to Z
+    among bags that go in the same one.
+
+    A bag is on the list when an item on it is in that bag, or in a bag inside
+    it. A bag that is in a loop goes in nothing here, so every bag on the list
+    is drawn exactly once.
+    """
+    bags, readings, own = readings_at(db, template_id=template_id, day_id=day_id)
+
+    def parent_of(bag_id):
+        return readings[bag_id][1]
+
+    on_list: set[int] = set()
+    for bag_id in item_bag_ids:
+        if bag_id in bags:
+            on_list.add(bag_id)
+            on_list.update(_goes_in(bag_id, parent_of))
+
+    def tree_parent(bag_id):
+        # A parent whose own chain leads back here is a loop: none, here.
+        parent = parent_of(bag_id)
+        if parent is None or parent == bag_id or bag_id in _goes_in(parent, parent_of):
+            return None
+        return parent
+
+    children: dict[int | None, list[int]] = {}
+    for bag_id in on_list:
+        children.setdefault(tree_parent(bag_id), []).append(bag_id)
+
+    ordered: list[BagOnList] = []
+
+    def visit(parent: int | None) -> None:
+        for bag_id in sorted(children.get(parent, []), key=lambda b: bags[b].name.lower()):
+            owner_id, _ = readings[bag_id]
+            ordered.append(
+                BagOnList(
+                    id=bag_id,
+                    name=bags[bag_id].name,
+                    owner_id=owner_id,
+                    parent_bag_id=parent,
+                    checked=bag_id in checked,
+                    changed=bag_id in own,
+                )
+            )
+            visit(bag_id)
+
+    visit(None)
+    return ordered
+
+
+def resolve_template_bags(
+    db: Session, template_id: int, items: list[PackingListTemplateItem]
+) -> list[BagOnList]:
+    """A template's bags as it reads them (see ``_bags_on_list``)."""
+    return _bags_on_list(
+        db, {i.bag_id for i in items}, template_id=template_id, day_id=None, checked=set()
+    )
+
+
+def checked_bag_ids(db: Session, day_id: int) -> set[int]:
+    return {
+        row.bag_id
+        for row in db.query(PackingListDayBagCheck.bag_id).filter(
+            PackingListDayBagCheck.day_id == day_id
+        )
+    }
+
+
+def resolve_day_bags(db: Session, day: PackingListDay, resolved: list[DayItem]) -> list[BagOnList]:
+    """A day's bags as it reads them, each with whether it was grabbed.
+
+    ``resolved`` is the day's items as ``resolve_day`` reads them, so a bag an
+    item was moved out of on this day only is not on this day.
+    """
+    return _bags_on_list(
+        db,
+        {i.bag_id for i in resolved},
+        template_id=day.packing_list_template_id,
+        day_id=day.id,
+        checked=checked_bag_ids(db, day.id),
+    )
+
+
+def prune_bag_checks(db: Session, day: PackingListDay, bags: list[BagOnList]) -> bool:
+    """Delete the grab checks of bags no longer on a day, so a bag that comes
+    back comes back unchecked. Returns whether anything was deleted. Does not
+    commit."""
+    on_day = {bag.id for bag in bags}
+    stale = [b for b in checked_bag_ids(db, day.id) if b not in on_day]
+    if stale:
+        db.query(PackingListDayBagCheck).filter(
+            PackingListDayBagCheck.day_id == day.id, PackingListDayBagCheck.bag_id.in_(stale)
+        ).delete(synchronize_session=False)
+    return bool(stale)
+
+
+def nests_in_itself(
+    db: Session,
+    bag_id: int,
+    parent_bag_id: int | None,
+    *,
+    template_id: int | None,
+    day_id: int | None,
+) -> bool:
+    """Whether putting ``bag_id`` in ``parent_bag_id`` at this level would put
+    it inside itself: the parent is the bag, or a bag already inside it."""
+    if parent_bag_id is None:
+        return False
+    if parent_bag_id == bag_id:
+        return True
+    _, readings, _ = readings_at(db, template_id=template_id, day_id=day_id)
+    return bag_id in _goes_in(parent_bag_id, lambda b: readings.get(b, (None, None))[1])
+
+
 def change_count(db: Session, day: PackingListDay, items: list[PackingListTemplateItem]) -> int:
     """How many items this day differs from its template on: items it edited,
     removed, or added for itself. A templateless day has no template to differ
@@ -307,6 +514,24 @@ def _make_templateless(
     db.query(PackingListDayCheck).filter(PackingListDayCheck.day_id == day.id).delete(
         synchronize_session=False
     )
+    # The template's readings of bags become the day's, where the day has
+    # none of its own, so its bags read as they did too.
+    day_bags = {
+        row.bag_id
+        for row in db.query(PackingListDayBag.bag_id).filter(PackingListDayBag.day_id == day.id)
+    }
+    for row in db.query(PackingListTemplateBag).filter(
+        PackingListTemplateBag.packing_list_template_id == template.id
+    ):
+        if row.bag_id not in day_bags:
+            db.add(
+                PackingListDayBag(
+                    day_id=day.id,
+                    bag_id=row.bag_id,
+                    owner_id=row.owner_id,
+                    parent_bag_id=row.parent_bag_id,
+                )
+            )
     day.pack_days_before = pack_days_before(day, template)
     day.name = template.name
     day.description = template.description
@@ -333,7 +558,7 @@ def delete_template(db: Session, template: PackingListTemplate) -> None:
     for day in days.all():
         _make_templateless(db, day, template, items)
     db.flush()
-    for model in (PackingListTemplateItem, PackingListTemplateSchedule):
+    for model in (PackingListTemplateItem, PackingListTemplateSchedule, PackingListTemplateBag):
         db.query(model).filter(model.packing_list_template_id == template.id).delete(
             synchronize_session=False
         )
@@ -353,17 +578,26 @@ def ordered_bags(db: Session) -> list[PackingListBag]:
     return db.query(PackingListBag).order_by(func.lower(PackingListBag.name).asc()).all()
 
 
-def bag_named(db: Session, name: str | None, *, create: bool = True) -> PackingListBag | None:
-    """The bag with this name, ignoring case, made if it is new.
+def bag_named(
+    db: Session, name: str | None, owner_id: int | None = None, *, create: bool = True
+) -> PackingListBag | None:
+    """The bag a name typed on an item means, made if there is none.
 
-    Bags are typed on the item, so a new name is how a bag comes to exist; a
-    name that matches one already there, in any case, is that bag. A blank
-    name is no bag.
+    A bag is unique by name and owner, so a name can mean several bags: it
+    means the one the item's owner (``owner_id``) owns, failing that the one
+    nobody owns, and failing both a new bag nobody owns — matched ignoring
+    case each time. "Backpack" on Emma's item is Emma's Backpack; on an item
+    for Everyone it is the ownerless one, never Emma's or Jake's. A blank name
+    is no bag.
     """
     name = (name or "").strip()
     if not name:
         return None
-    bag = db.query(PackingListBag).filter(func.lower(PackingListBag.name) == name.lower()).first()
+    same_name = (
+        db.query(PackingListBag).filter(func.lower(PackingListBag.name) == name.lower()).all()
+    )
+    by_owner = {bag.owner_id: bag for bag in same_name}
+    bag = (by_owner.get(owner_id) if owner_id is not None else None) or by_owner.get(None)
     if bag is None and create:
         bag = PackingListBag(name=name)
         db.add(bag)
@@ -372,8 +606,16 @@ def bag_named(db: Session, name: str | None, *, create: bool = True) -> PackingL
 
 
 def clear_member(db: Session, member_id: int) -> None:
-    """A family member is going: their items become Everyone's. Does not commit."""
-    for model in (PackingListTemplateItem, PackingListDayItem, PackingListItemHistory):
+    """A family member is going: their items and bags become Everyone's. Does
+    not commit."""
+    for model in (
+        PackingListTemplateItem,
+        PackingListDayItem,
+        PackingListItemHistory,
+        PackingListBag,
+        PackingListTemplateBag,
+        PackingListDayBag,
+    ):
         db.query(model).filter(model.owner_id == member_id).update(
             {model.owner_id: None}, synchronize_session=False
         )

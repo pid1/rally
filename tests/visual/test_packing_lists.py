@@ -228,7 +228,8 @@ def test_a_days_packing_lists_share_one_box_dated_once(browser, live_server, pac
         last = box.locator(":scope > *").last
         assert last.evaluate("el => el.classList.contains('date-label')")
         packs = box.locator(
-            ":scope > [data-day-card] .editable-item-meta:not(.packing-list-progress)"
+            ":scope > [data-day-card] .editable-item-meta"
+            ":not(.packing-list-progress):not(.packing-list-bag-progress)"
         )
         assert set(packs.all_inner_texts()) == {"Pack the day of"}
         # A subtle hairline, inset to the entries' padding, sits between the
@@ -634,9 +635,13 @@ def test_the_view_switch_groups_every_packing_list_by_owner_or_by_bag(
     try:
         row = open_row(page, packing_list["id"])
         # By owner on arrival: the family's order, then Everyone. Each item
-        # shows its bag beneath it.
+        # shows its bag beside it — with whose it is when that is not the
+        # group's person: Emma's goggles are in a bag nobody owns.
         assert list(sections(row)) == ["Dad", "Emma", "Everyone"]
-        assert item_row(row, "Goggles").locator(".editable-item-description").inner_text() == BAG
+        assert (
+            item_row(row, "Goggles").locator(".editable-item-description").inner_text()
+            == f"{BAG} (Everyone)"
+        )
         assert item_row(row, "Keys").locator(".editable-item-description").inner_text() == "No bag"
 
         page.click('#view-chips [data-view="bag"]')
@@ -690,13 +695,14 @@ def test_a_bag_typed_on_an_item_joins_the_list_and_manage_bags_renames_it(
         page.fill("#item-bag", "Browser test car")
         save_item(page)
 
+        # A row is one line until its Edit unfolds it in place.
         page.click("#btn-manage-bags")
-        row = page.locator(
-            "#bag-manage-list .manage-row", has=page.locator('input[value="Browser test car"]')
-        )
-        row.locator("input").fill("Browser test glovebox")
-        row.get_by_role("button", name="Rename").click()
-        page.locator('#bag-manage-list input[value="Browser test glovebox"]').wait_for()
+        page.get_by_role("button", name="Edit Browser test car").click()
+        page.fill("#bag-edit-name", "Browser test glovebox")
+        page.locator("#bag-manage-list").get_by_role("button", name="Save").click()
+        page.locator(
+            "#bag-manage-list .manage-row .editable-item-title", has_text="Browser test glovebox"
+        ).wait_for()
         page.click("#btn-close-bags")
         page.click('#view-chips [data-view="bag"]')
         assert "Browser test glovebox" in sections(packing_list_row(page, packing_list["id"]))
@@ -724,11 +730,22 @@ def test_an_item_name_is_suggested_with_the_owner_and_bag_it_had(
         context.close()
 
 
-def drag(page, grip, target_box):
+def drag(page, grip, target_box, steps=20):
+    """Press the grip and move to the target, without letting go.
+
+    `bounding_box()` does not scroll, and a press below the viewport lands on
+    nothing, so the grip is brought into view first and `target_box` (measured
+    before that) is moved by however far the page scrolled. `steps=1` jumps
+    straight there, for a test about where the pointer ends rather than what
+    it passes over on the way."""
+    before = page.evaluate("window.scrollY")
+    grip.scroll_into_view_if_needed()
+    shift = page.evaluate("window.scrollY") - before
+    target_box = {**target_box, "y": target_box["y"] - shift}
     box = grip.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
-    page.mouse.move(target_box["x"] + 200, target_box["y"] + 30, steps=20)
+    page.mouse.move(target_box["x"] + 200, target_box["y"] + 30, steps=steps)
 
 
 def test_dragging_an_item_onto_another_owner_reassigns_it(browser, live_server, packing_list):
@@ -768,7 +785,9 @@ def test_a_drag_cannot_leave_its_packing_list(browser, live_server, packing_list
         reorders = []
         page.on("request", lambda r: reorders.append(r.url) if "reorder" in r.url else None)
         grip = item_row(target, "Snacks").locator(".drag-handle")
-        drag(page, grip, elsewhere.locator(".list-group").first.bounding_box())
+        # Straight there: on the way, the pointer would pass over this list's
+        # own groups, and a row let go after that is a move within its list.
+        drag(page, grip, elsewhere.locator(".list-group").first.bounding_box(), steps=1)
         page.mouse.up()
         page.wait_for_timeout(500)
 
@@ -1364,9 +1383,10 @@ def test_unchecking_repeats_turns_the_button_into_remove_schedule(
         assert page.locator("#btn-update-schedule").inner_text() == "Remove schedule"
         assert not page.locator("#schedule-details").is_visible()
         press_and_close(page, "btn-update-schedule")
+        # The row's own ↻, not a bag's ▣ further down it.
         page.wait_for_function(
             f"""!document.querySelector(
-                '[data-template-row="{packing_list["id"]}"] .title-indicator')"""
+                '[data-template-row="{packing_list["id"]}"] > .editable-item-content .title-indicator')"""
         )
         assert any(m.startswith("Stop repeating Browser test trip?") for m in dialogs)
     finally:
@@ -1390,9 +1410,13 @@ def test_the_archive_shows_what_was_packed_and_cannot_change_it(browser, live_se
         first.wait_for()
         disclosure(first).click()
         open_groups(first)
-        boxes = first.locator("input[type=checkbox]")
+        boxes = first.locator("input[data-item]")
         assert boxes.count() == 13
         assert all(boxes.nth(i).is_checked() and boxes.nth(i).is_disabled() for i in range(13))
+        # Its bags are there to read too, and cannot be grabbed after the fact.
+        bag_boxes = first.locator("input[data-bag]")
+        assert bag_boxes.count() == 2
+        assert all(bag_boxes.nth(i).is_disabled() for i in range(2))
         assert first.get_by_role("button").count() == 0
         # No "items changed" note in the archive.
         assert page.locator(".day-changes").count() == 0
@@ -1620,11 +1644,20 @@ def test_a_row_dropped_on_a_folded_group_goes_to_its_end(browser, live_server, p
         page.wait_for_load_state("networkidle")
 
         row = packing_list_row(page, packing_list["id"])
-        # Everyone, now empty, is gone once the row is redrawn from the server.
-        group(row, "Everyone").wait_for(state="detached")
+        # Wait for the row to be redrawn from the server: the drag moved the
+        # row in the page at once, but only the redraw recounts the group.
+        page.wait_for_function(
+            f"""document.querySelector('[data-template-row="{packing_list["id"]}"]'
+                + ' .list-group[data-group$=":{packing_list["members"]["Dad"]}"]'
+                + ' .list-group-count')?.textContent === '2 items'"""
+        )
+        # Everyone has no items left, but it keeps its group: the fixture's
+        # bag has no owner, so it is Everyone's to grab.
+        assert sections(row)["Everyone"] == [f"{BAG} ▣"]
         assert sections(row)["Dad"] == ["Keys", "Snacks"]
-        # Dad stays folded.
-        assert open_groups_named(row) == []
+        # Dad stays folded; Everyone, still there for its bag, stays as the
+        # test left it, open.
+        assert open_groups_named(row) == ["Everyone"]
         assert group(row, "Dad").locator(".list-group-count").inner_text() == "2 items"
     finally:
         context.close()
@@ -1785,7 +1818,13 @@ def test_the_items_filter_narrows_coming_up_and_leaves_folding_alone(
         chip(page, "false").click()
         assert chip(page, "false").get_attribute("aria-pressed") == "true"
         target = card(page, first["id"])
-        assert sections(target) == {"Dad": ["Keys"], "Emma": ["Towel"], "Everyone": ["Snacks"]}
+        # The fixture's bag has no owner, and nobody has grabbed it: it heads
+        # Everyone under Not packed, as an unpacked item would.
+        assert sections(target) == {
+            "Dad": ["Keys"],
+            "Emma": ["Towel"],
+            "Everyone": [f"{BAG} ▣", "Snacks"],
+        }
         # Folding as it was, counts the whole list's.
         assert open_groups_named(target) == ["Emma"]
         assert group(target, "Emma").locator(".list-group-count").inner_text() == "1 of 2 packed"
@@ -1831,6 +1870,10 @@ def test_a_row_leaves_as_it_is_ticked_and_focus_moves_on(browser, live_server, p
             with page.expect_response("**/template-items/**"):
                 target.get_by_label(f"Packed {name}").click()
 
+        def grab(name):
+            with page.expect_response("**/bags/**"):
+                target.get_by_label(f"Grabbed {name}").click()
+
         def focused():
             return page.evaluate(
                 """() => { const el = document.activeElement;
@@ -1843,9 +1886,13 @@ def test_a_row_leaves_as_it_is_ticked_and_focus_moves_on(browser, live_server, p
         tick("Goggles")
         assert item_row(target, "Goggles").count() == 0
         assert focused() == "Packed Towel"
-        # Its group goes with it: the next open group.
+        # Its group goes with it: the next open group's first row, which is
+        # Everyone's bag — bags head their group.
         tick("Towel")
         assert group(target, "Emma").count() == 0
+        assert focused() == f"Grabbed {BAG}"
+        # A bag leaves the same way, and focus moves on to the item under it.
+        grab(BAG)
         assert focused() == "Packed Snacks"
         # No open group left: the header of the group still drawn, folded.
         tick("Snacks")
@@ -2102,3 +2149,96 @@ def test_a_taken_name_is_refused_and_the_modal_stays(browser, live_server, packi
         assert page.locator("#template-modal-overlay").is_visible()
     finally:
         context.close()
+
+
+# --- Bags: owners, nesting, grabbing (#262) ------------------------------------------------
+
+
+def _own_bag(live_server, packing_list, owner="Emma"):
+    api(
+        live_server,
+        "PUT",
+        f"/api/packing-list-bags/{packing_list['bag_id']}",
+        {"owner_id": packing_list["members"][owner]},
+    )
+
+
+def test_a_persons_bags_head_their_group_and_a_grab_counts_in_place(
+    browser, live_server, packing_list
+):
+    _own_bag(live_server, packing_list)
+    day = packing_list["days"][0]
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_card(page, day["id"])
+        emma = group(target, "Emma")
+        # The bag first, marked as one, then her items; the count says both.
+        assert sections(target)["Emma"] == [f"{BAG} ▣", "Goggles", "Towel"]
+        assert emma.locator(".list-group-lead .editable-item").count() == 1
+        assert emma.locator(".list-group-count").inner_text() == "0 of 2 packed · 0 of 1 bag"
+        bag_line = target.locator(".packing-list-bag-progress")
+        assert bag_line.inner_text() == "0 of 1 bag grabbed"
+
+        box = target.get_by_label(f"Grabbed {BAG}")
+        with page.expect_response("**/bags/**"):
+            box.click()
+        page.wait_for_function(
+            f"document.querySelector('[data-day-card=\"{day['id']}\"] .packing-list-bag-progress')"
+            "?.textContent === '1 of 1 bag grabbed'"
+        )
+        assert emma.locator(".list-group-count").inner_text() == "0 of 2 packed · 1 of 1 bag"
+        # Only the counts moved: focus is still on the box just ticked.
+        assert box.evaluate("el => el === document.activeElement")
+        # A bag's row is not part of the group's order: no grip, no Edit.
+        lead = emma.locator(".list-group-lead .editable-item")
+        assert lead.locator(".drag-handle").count() == 0
+        assert lead.get_by_role("button").count() == 0
+
+        # By bag, no bag rows: the groups are the bags.
+        page.click('#view-chips [data-view="bag"]')
+        assert card(page, day["id"]).locator("[data-bag-row]").count() == 0
+    finally:
+        context.close()
+
+    assert api(live_server, "GET", f"/api/packing-list-days/{day['id']}")["bags_checked"] == 1
+
+
+def test_change_bags_removes_a_bag_from_one_day_and_keeps_its_items(
+    browser, live_server, packing_list
+):
+    _own_bag(live_server, packing_list)
+    first, second = packing_list["days"]
+    dialogs = []
+    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    try:
+        target = open_card(page, first["id"])
+        target.locator("[data-change-day-bags]").click()
+        modal = page.locator("#list-bags-modal-overlay")
+        modal.locator(".modal-content").wait_for()
+        assert page.locator("#list-bags-modal-title").inner_text().lower() == (
+            "change bags: browser test trip"
+        )
+        # Remove only marks the bag; nothing is written until Save.
+        modal.get_by_role("button", name="Remove from day").click()
+        modal.get_by_text("Removed when you save.").wait_for()
+        assert dialogs == []
+        with page.expect_response("**/remove"):
+            modal.get_by_role("button", name="Save").click()
+        modal.wait_for(state="hidden")
+        assert dialogs == [
+            f'Remove {BAG} from this day? The 2 items in it move to "No bag" on this day'
+            " only — nothing is taken off the list."
+        ]
+        page.wait_for_function(
+            f"!document.querySelector('[data-day-card=\"{first['id']}\"] [data-bag-row]')"
+        )
+    finally:
+        context.close()
+
+    on_first = api(live_server, "GET", f"/api/packing-list-days/{first['id']}")
+    assert on_first["bags"] == []
+    assert len(on_first["items"]) == 4
+    assert {i["name"] for i in on_first["items"] if i["changed"]} == {"Goggles", "Towel"}
+    # The other day, and the template, keep the bag.
+    on_second = api(live_server, "GET", f"/api/packing-list-days/{second['id']}")
+    assert [b["name"] for b in on_second["bags"]] == [BAG]

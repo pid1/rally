@@ -1253,16 +1253,62 @@ class PackingListBagCreate(BaseModel):
         return _require_name(value)
 
 
-class PackingListBagUpdate(PackingListBagCreate):
-    pass
+class PackingListBagUpdate(BaseModel):
+    """A partial edit of a bag's household defaults. ``owner_id`` and
+    ``parent_bag_id`` use ``UNSET``: left out, they stay; ``null`` clears
+    (Everyone, goes in nothing)."""
+
+    name: str | None = None
+    owner_id: int | None = UNSET
+    parent_bag_id: int | None = UNSET
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        return None if value is None else _require_name(value)
 
 
 class PackingListBagResponse(BaseModel):
     id: int
     name: str
+    owner_id: int | None = None  # The household's; None is Everyone
+    parent_bag_id: int | None = None  # The bag it goes in, by default
     item_count: int = 0  # Template items in it, across every packing list
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PackingListBagReadingUpdate(BaseModel):
+    """One list's reading of a bag: whose it is and what it goes in there.
+    Both fields, since a reading is whole; ``null`` is Everyone, and goes in
+    nothing."""
+
+    owner_id: int | None
+    parent_bag_id: int | None
+
+
+class PackingListDayBagUpdate(BaseModel):
+    """Grab a bag on one day, or read it differently there. Partial:
+    ``owner_id`` and ``parent_bag_id`` use ``UNSET``, and setting either
+    writes the day's reading, copying the other from how the bag reads now."""
+
+    checked: bool | None = None
+    owner_id: int | None = UNSET
+    parent_bag_id: int | None = UNSET
+
+
+class PackingListBagOnListResponse(BaseModel):
+    """A bag as one template or one day reads it, in reading order: outermost
+    first, then the bags inside each. ``parent_bag_id`` is always a bag on the
+    same list. ``changed`` says this list reads it differently from the level
+    above (``Reset`` shows). ``checked`` is grabbed, on a day."""
+
+    id: int
+    name: str
+    owner_id: int | None = None
+    parent_bag_id: int | None = None
+    changed: bool = False
+    checked: bool = False
 
 
 class PackingListItemCreate(BaseModel):
@@ -1402,6 +1448,7 @@ class PackingListTemplateResponse(PackingListTemplateSummary):
     (``None`` when it does not)."""
 
     items: list[PackingListTemplateItemResponse]
+    bags: list[PackingListBagOnListResponse] = []
     schedule: PackingListTemplateScheduleResponse | None = None
 
 
@@ -1506,6 +1553,8 @@ class PackingListDaySummary(BaseModel):
     schedule_id: int | None = None  # The schedule that put it there; None when added by hand
     total: int
     checked: int
+    bags_total: int = 0  # Bags on this day: every bag an item is in, and the bags those go in
+    bags_checked: int = 0  # Of those, grabbed
     # Items this day differs from its template on: edited, removed or added.
     # Always 0 on a templateless day, which has no template to differ from.
     changed_count: int = 0
@@ -1533,9 +1582,11 @@ class PackingListDayItemResponse(BaseModel):
 
 
 class PackingListDayResponse(PackingListDaySummary):
-    """The day's packing list itself: its items as this day has them, with checks."""
+    """The day's packing list itself: its items as this day has them, with
+    checks, and its bags with whether each was grabbed."""
 
     items: list[PackingListDayItemResponse]
+    bags: list[PackingListBagOnListResponse] = []
 
 
 class PackingListDayItemCreate(PackingListItemCreate):

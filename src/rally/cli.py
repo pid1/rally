@@ -635,10 +635,11 @@ def seed():
             db.add(note)
 
         # Packing Lists: reusable packing lists, put on days. Each item names its
-        # owner (or None for Everyone) and its bag (or None for No bag), so
-        # both views — who owns what, what goes in each bag — have something
-        # to show: Swim at Nana's splits by child into one pool bag; the
-        # backpacks are one bag per child; the beach day is the family's.
+        # owner (or None for Everyone) and its bag by its key in `bag_specs`
+        # below (or None for No bag), so both views — who owns what, what goes
+        # in each bag — have something to show: Swim at Nana's splits by child
+        # into Mom's pool bag, which rides in Dad's car; each child has a
+        # Backpack of their own; the beach day is the family's.
         # The first day added is the coming Saturday's swim.
         packing_list_specs = [
             (
@@ -662,7 +663,7 @@ def seed():
                 ],
             ),
             (
-                "School backpack",
+                "School backpacks",
                 None,
                 1,
                 [
@@ -696,9 +697,56 @@ def seed():
                     ("Dad", "Work bag", "Headphones", None),
                 ],
             ),
+            # A week away shows bags inside bags, three deep: the pouch in
+            # Emma's toiletries bag, which goes in Dad's suitcase, and items
+            # owned by one person in another person's bag.
+            (
+                "Beach week",
+                "A week at the coast. Pack it the weekend before.",
+                2,
+                [
+                    ("Dad", "Suitcase", "Swim trunks", None),
+                    ("Dad", "Suitcase", "Sandals", None),
+                    ("Mom", "Suitcase", "Sun hat", None),
+                    ("Mom", "Suitcase", "Beach cover-up", None),
+                    ("Emma", "Toiletries bag", "Toothbrush", None),
+                    ("Jake", "Toiletries bag", "Toothbrush", None),
+                    (None, "Toiletries bag", "Toothpaste", None),
+                    ("Emma", "Pouch", "Hair ties", None),
+                    ("Emma", "Pouch", "Retainer case", "Not on the hotel tray this time"),
+                    ("Emma", "Emma's backpack", "Sketchbook", None),
+                    ("Jake", "Jake's backpack", "Books", "For the drive"),
+                    (None, "Car", "Snacks for the drive", None),
+                    (None, None, "Phone chargers", None),
+                ],
+            ),
         ]
         members_by_name = {m.name: m for m in (mom, dad, emma, jake)}
+        # The household's bags, under the key the specs above use: each one's
+        # name, owner and the bag it goes in (by key). A bag is unique by name
+        # and owner, so Emma and Jake each have a "Backpack". Listed parents
+        # first, so a bag's parent exists before it does.
+        bag_specs = {
+            "Car": ("Car", "Dad", None),
+            "Pool bag": ("Pool bag", "Mom", "Car"),
+            "Beach tote": ("Beach tote", "Mom", None),
+            "Cooler": ("Cooler", None, None),
+            "Work bag": ("Work bag", "Dad", None),
+            "Emma's backpack": ("Backpack", "Emma", None),
+            "Jake's backpack": ("Backpack", "Jake", None),
+            "Suitcase": ("Suitcase", "Dad", None),
+            "Toiletries bag": ("Toiletries bag", "Emma", "Suitcase"),
+            "Pouch": ("Pouch", "Emma", "Toiletries bag"),
+        }
         bags: dict[str, PackingListBag] = {}
+        for key, (bag_name, owner_name, parent_key) in bag_specs.items():
+            bags[key] = PackingListBag(
+                name=bag_name,
+                owner_id=members_by_name[owner_name].id if owner_name else None,
+                parent_bag_id=bags[parent_key].id if parent_key else None,
+            )
+            db.add(bags[key])
+            db.flush()
         packing_list_items: dict[tuple[str, str, str | None], PackingListTemplateItem] = {}
         seeded_packing_lists: dict[str, PackingListTemplate] = {}
         for name, description, timing, entries in packing_list_specs:
@@ -708,13 +756,9 @@ def seed():
             db.add(packing_list)
             db.flush()
             seeded_packing_lists[name] = packing_list
-            for position, (owner_name, bag_name, item_name, item_note) in enumerate(entries):
-                if bag_name and bag_name not in bags:
-                    bags[bag_name] = PackingListBag(name=bag_name)
-                    db.add(bags[bag_name])
-                    db.flush()
+            for position, (owner_name, bag_key, item_name, item_note) in enumerate(entries):
                 owner = members_by_name[owner_name].id if owner_name else None
-                bag = bags[bag_name].id if bag_name else None
+                bag = bags[bag_key].id if bag_key else None
                 item = PackingListTemplateItem(
                     packing_list_template_id=packing_list.id,
                     owner_id=owner,
@@ -757,6 +801,9 @@ def seed():
                 checked=[("Swimsuit", "Emma"), ("Goggles", "Emma"), ("Towel", "Emma")],
             ),
             put_on_day("Beach day", 6),
+            # Two weeks out: the nested bags, in Coming Up, with nothing
+            # packed yet.
+            put_on_day("Beach week", saturday + 14),
             put_on_day("Swim at Nana's", saturday - 14, checked=nana_items),
             put_on_day("Swim at Nana's", saturday - 28, checked=nana_items),
             # The archive needs days with more than one packing list and a list
@@ -807,7 +854,7 @@ def seed():
         # page is loaded, a week ahead.
         db.add(
             PackingListTemplateSchedule(
-                packing_list_template_id=seeded_packing_lists["School backpack"].id,
+                packing_list_template_id=seeded_packing_lists["School backpacks"].id,
                 recurrence_type="custom",
                 custom_rule={"freq": "weekly", "interval": 1, "weekdays": [0, 1, 2, 3, 4]},
             )
