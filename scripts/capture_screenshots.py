@@ -372,14 +372,30 @@ BEACH_CARD = '[data-day-card]:has-text("Beach day")'
 BEACH_BOX = f".day-box:has({BEACH_CARD})"
 
 
-def _open_card(card_selector):
-    """A day's packing list is under "View more" in its entry; open it."""
+def _open_groups(card, names=None):
+    """Unfold a packing list's groups — the named ones, or all of them. Every
+    group starts folded (#256), and a shot of a list wants its rows."""
+    folded = card.locator(".list-group--collapsible:not([open])")
+    if names is None:
+        while folded.count():
+            folded.first.locator(":scope > summary").click()
+        return
+    for name in names:
+        card.locator(
+            f'.list-group--collapsible:not([open]):has(.list-group-name:text-is("{name}"))'
+        ).locator(":scope > summary").click()
+
+
+def _open_card(card_selector, groups=()):
+    """A day's packing list is under "View more" in its entry; open it, and
+    unfold `groups` (names, or `None` for every one)."""
 
     def go(page):
         _wait_for_packing_lists(page)
         card = page.locator(card_selector).first
         card.locator(":scope > details > summary").click()
         card.locator(".list-group").first.wait_for()
+        _open_groups(card, groups)
         card.scroll_into_view_if_needed()
         _park_pointer(page)
 
@@ -390,8 +406,44 @@ def _open_swim_by_bag(page):
     """The same day, grouped by bag: owners move to the muted line."""
     _open_card(SWIM_CARD)(page)
     page.click('#view-chips [data-view="bag"]')
-    page.locator(SWIM_CARD).locator(".list-group").first.wait_for()
+    card = page.locator(SWIM_CARD).first
+    card.locator(".list-group").first.wait_for()
+    _open_groups(card)
     _park_pointer(page)
+
+
+# The seed's coming beach week: bags with owners, three deep — Emma's pouch in
+# her toiletries bag in Dad's suitcase — and items in somebody else's bag.
+WEEK_CARD = '[data-day-card]:has-text("Beach week")'
+WEEK_BOX = f".day-box:has({WEEK_CARD})"
+
+
+def _open_week(view="owner", groups=("Dad", "Emma"), top=False):
+    """Beach week opened, in a view, with the named groups unfolded; `top`
+    scrolls its entry to the top of the screen, for a viewport shot."""
+
+    def go(page):
+        _open_card(WEEK_CARD)(page)
+        if view == "bag":
+            page.click('#view-chips [data-view="bag"]')
+        card = page.locator(WEEK_CARD).first
+        card.locator(".list-group").first.wait_for()
+        _open_groups(card, groups)
+        if top:
+            card.evaluate("el => el.scrollIntoView({ block: 'start' })")
+        else:
+            card.scroll_into_view_if_needed()
+        _park_pointer(page)
+
+    return go
+
+
+def _open_change_bags(page):
+    """Change bags on Beach week: every bag's owner and what it goes in."""
+    _open_card(WEEK_CARD)(page)
+    page.locator(WEEK_CARD).first.locator("[data-change-day-bags]").click()
+    page.wait_for_selector("#list-bags-modal-overlay .modal-content", state="visible")
+    page.wait_for_timeout(300)
 
 
 def _template_row(page, name):
@@ -436,7 +488,7 @@ def _open_manage_bags(page):
 def _open_schedule(page):
     """Schedule on the school backpack, with its weekday rule unfolded."""
     _wait_for_packing_lists(page)
-    _template_row(page, "School backpack").locator("[data-schedule]").click()
+    _template_row(page, "School backpacks").locator("[data-schedule]").click()
     page.wait_for_selector("#schedule-modal-overlay .modal-content", state="visible")
     details = page.locator("#schedule-details")
     if not details.evaluate("d => d.open"):
@@ -474,7 +526,12 @@ SHOTS: tuple[Shot, ...] = (
     Shot("readme-shopping", "/shopping"),
     Shot("readme-notes", "/notes"),
     Shot("readme-preparedness", "/preparedness"),
-    Shot("readme-packing-lists", "/packing-lists", element=SWIM_BOX, setup=_open_card(SWIM_CARD)),
+    Shot(
+        "readme-packing-lists",
+        "/packing-lists",
+        element=SWIM_BOX,
+        setup=_open_card(SWIM_CARD, groups=None),
+    ),
     Shot("readme-mobile", "/calendar", width=390, height=844, full_page=False),
     # Calendar reference shots — 1x, matching the inline docs.
     Shot("calendar-month", "/calendar", scale=1, setup=_calendar("calendar", "month")),
@@ -544,7 +601,7 @@ SHOTS: tuple[Shot, ...] = (
         width=1440,
         scale=1,
         element=SWIM_BOX,
-        setup=_open_card(SWIM_CARD),
+        setup=_open_card(SWIM_CARD, groups=None),
     ),
     Shot(
         "packing-list-day-mobile",
@@ -553,7 +610,7 @@ SHOTS: tuple[Shot, ...] = (
         height=844,
         scale=1,
         full_page=False,
-        setup=_open_card(SWIM_CARD),
+        setup=_open_card(SWIM_CARD, groups=("Emma",)),
     ),
     Shot(
         "packing-list-by-bag",
@@ -562,6 +619,44 @@ SHOTS: tuple[Shot, ...] = (
         scale=1,
         element=SWIM_BOX,
         setup=_open_swim_by_bag,
+    ),
+    # Bags (#262): whose each is, what goes in what, and grabbing them — on the
+    # beach week, where the nesting goes three deep.
+    Shot(
+        "packing-list-bags",
+        "/packing-lists",
+        width=1440,
+        scale=1,
+        element=WEEK_BOX,
+        setup=_open_week("owner", ("Dad", "Emma", "Jake")),
+    ),
+    Shot(
+        "packing-list-bags-mobile",
+        "/packing-lists",
+        width=390,
+        height=844,
+        scale=1,
+        # The phone's own screen, as `packing-list-day-mobile` is: the menu
+        # button is fixed to its corner, so an element crop would float it
+        # over a row.
+        full_page=False,
+        setup=_open_week("owner", ("Emma",), top=True),
+    ),
+    Shot(
+        "packing-list-bags-by-bag",
+        "/packing-lists",
+        width=1440,
+        scale=1,
+        element=WEEK_BOX,
+        setup=_open_week("bag", ()),
+    ),
+    Shot(
+        "packing-list-change-bags",
+        "/packing-lists",
+        height=2400,
+        scale=1,
+        element="#list-bags-modal-overlay .modal-content",
+        setup=_open_change_bags,
     ),
     Shot(
         "packing-list-day-changed",

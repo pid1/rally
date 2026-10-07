@@ -21,6 +21,14 @@
  * can be packed at a time. Every class and `data-group` stays where it was,
  * so the drag and anything that updates a count in place cannot tell the
  * difference. `open` says whether it is drawn open; the page remembers.
+ *
+ * `leadHtml` is rows that head the group without being part of its order —
+ * a person's bags above their items on a packing list. They are written into
+ * `.list-group-lead`, between the header and the `.list-container`, rather
+ * than at the top of the list: `drag_reorder.js` treats every row in the list
+ * it cannot drag as a block the dragged rows stay above, so rows that cannot
+ * be dragged must not sit in the list at all. A folded group hides them with
+ * its rows. Like `rowsHtml`, it is markup the caller has already escaped.
  */
 (function () {
     'use strict';
@@ -35,8 +43,11 @@
         return escapeText(text).replace(/"/g, '&quot;');
     }
 
-    function listGroupHtml({ key, name, countLabel, rowsHtml, emptyText, collapsible = false, open = false }) {
-        const rows = rowsHtml || `<div class="container-empty-state">${escapeText(emptyText || 'Nothing here right now.')}</div>`;
+    function listGroupHtml({ key, name, countLabel, rowsHtml, leadHtml, emptyText, collapsible = false, open = false }) {
+        // A group headed by lead rows is not empty, so it shows no notice.
+        const rows = rowsHtml || (leadHtml ? '' : `<div class="container-empty-state">${escapeText(emptyText || 'Nothing here right now.')}</div>`);
+        const lead = leadHtml ? `
+                <div class="list-group-lead">${leadHtml}</div>` : '';
         // A group with no header has nothing to open it by.
         const folds = collapsible && name != null;
         const headerTag = folds ? 'summary' : 'div';
@@ -48,13 +59,13 @@
                 </${headerTag}>`;
         if (folds) {
             return `
-            <details class="list-group list-group--collapsible" data-group="${escapeAttribute(key)}"${open ? ' open' : ''}>${header}
+            <details class="list-group list-group--collapsible" data-group="${escapeAttribute(key)}"${open ? ' open' : ''}>${header}${lead}
                 <div class="list-container">${rows}</div>
             </details>
         `;
         }
         return `
-            <section class="list-group" data-group="${escapeAttribute(key)}">${header}
+            <section class="list-group" data-group="${escapeAttribute(key)}">${header}${lead}
                 <div class="list-container">${rows}</div>
             </section>
         `;

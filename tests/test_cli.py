@@ -141,8 +141,8 @@ def test_seed_repeats_the_backpack_and_the_work_bag_on_weekdays(cli_db):
         cli_db.get(PackingListTemplate, s.packing_list_template_id).name: s
         for s in cli_db.query(PackingListTemplateSchedule)
     }
-    assert sorted(schedules) == ["Dad's work bag", "School backpack"]
-    assert schedules["School backpack"].custom_rule["weekdays"] == [0, 1, 2, 3, 4]
+    assert sorted(schedules) == ["Dad's work bag", "School backpacks"]
+    assert schedules["School backpacks"].custom_rule["weekdays"] == [0, 1, 2, 3, 4]
     work_bag = schedules["Dad's work bag"]
     assert (work_bag.recurrence_type, work_bag.custom_rule) == ("daily", {"weekdays_only": True})
 

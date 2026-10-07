@@ -901,24 +901,45 @@ class PackingListTemplate(Base):
 
 
 class PackingListBag(Base):
-    """A bag things are packed into: Emma's backpack, Pool bag, Car.
+    """A bag things are packed into: a backpack, Pool bag, Car.
 
     One household list, shared by every template and every day, like
     ``ShoppingStore``. Items name their bag in free text and a new name joins
     this list, so it grows as it is used; the Manage bags modal renames and
     removes. An item in no bag has ``bag_id IS NULL`` and reads as "No bag".
-    Names are unique case-insensitively, so typing "pool bag" lands in "Pool bag".
+
+    A bag is unique by its name (ignoring case) **and** its owner, so Emma and
+    Jake can each have a "Backpack". No owner counts as one owner of its own,
+    hence ``IFNULL(owner_id, 0)`` in the index: SQLite treats NULLs as
+    distinct, which would otherwise allow any number of ownerless "Backpack"s.
+    A typed name finds the item owner's bag, then the ownerless one
+    (``rally.packing_lists.bag_named``).
+
+    ``owner_id`` (a family member; NULL is Everyone) and ``parent_bag_id``
+    (the bag it goes in; NULL is none) are the household's defaults. A
+    template or a day can read a bag differently (``PackingListTemplateBag``,
+    ``PackingListDayBag``); ``rally.packing_lists.resolve_day_bags`` and
+    ``resolve_template_bags`` are where the three are laid over each other.
     """
 
     __tablename__ = "packing_list_bags"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to family_members.id
+    parent_bag_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK to packing_list_bags.id; the bag this one goes in
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
     __table_args__ = (
-        Index("ix_packing_list_bags_name_nocase", text("name COLLATE NOCASE"), unique=True),
+        Index(
+            "ix_packing_list_bags_name_owner_nocase",
+            text("name COLLATE NOCASE"),
+            text("IFNULL(owner_id, 0)"),
+            unique=True,
+        ),
     )
 
 
@@ -1153,4 +1174,82 @@ class PackingListDayCheck(Base):
             "template_item_id",
             unique=True,
         ),
+    )
+
+
+class PackingListTemplateBag(Base):
+    """A template's reading of a bag: whose it is and what it goes in, on that
+    template — "on Beach week the suitcase is Dad's".
+
+    Both fields are the template's, copied whole when the reading is made, the
+    rule a day's reading of an item follows: the row existing is the change,
+    and deleting it (Reset) hands the bag back to the household's defaults.
+    A day the template is on reads it, unless that day has its own
+    (``PackingListDayBag``). Unique per ``(packing_list_template_id, bag_id)``.
+    """
+
+    __tablename__ = "packing_list_template_bags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    packing_list_template_id: Mapped[int] = mapped_column(
+        Integer, index=True
+    )  # FK to packing_list_templates.id
+    bag_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_bags.id
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to family_members.id
+    parent_bag_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK to packing_list_bags.id
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_packing_list_template_bags_template_bag",
+            "packing_list_template_id",
+            "bag_id",
+            unique=True,
+        ),
+    )
+
+
+class PackingListDayBag(Base):
+    """One day's reading of a bag: whose it is and what it goes in, that day
+    only. Wins over the template's reading and the household's defaults.
+
+    Copied whole, like ``PackingListTemplateBag``. Unique per ``(day_id, bag_id)``.
+    """
+
+    __tablename__ = "packing_list_day_bags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_days.id
+    bag_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_bags.id
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FK to family_members.id
+    parent_bag_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK to packing_list_bags.id
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (Index("ix_packing_list_day_bags_day_bag", "day_id", "bag_id", unique=True),)
+
+
+class PackingListDayBagCheck(Base):
+    """A bag grabbed on one day. The row's existence *is* the check, as with
+    ``PackingListDayCheck``.
+
+    A bag is on a day only while something on the day is in it (or in a bag
+    inside it), so a check whose bag has left the day is deleted rather than
+    kept for its return (``rally.packing_lists.prune_bag_checks``).
+    """
+
+    __tablename__ = "packing_list_day_bag_checks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_days.id
+    bag_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_bags.id
+    checked_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (
+        Index("ix_packing_list_day_bag_checks_day_bag", "day_id", "bag_id", unique=True),
     )

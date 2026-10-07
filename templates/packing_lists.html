@@ -329,13 +329,34 @@
         </div>
     </div>
 
+    <!-- Change bags: how one packing list — a template or a day — reads its
+         bags: whose each is and what each goes in, Reset to the level above,
+         or take one off the list, which moves its items to No bag. Nothing is
+         written until Save; Cancel leaves the list as it was. -->
+    <div class="modal-overlay" id="list-bags-modal-overlay">
+        <div class="modal-content">
+            <h3 id="list-bags-modal-title">Change bags</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <p class="page-note" id="list-bags-scope-note"></p>
+                <div id="list-bags-list"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn" id="btn-save-list-bags">Save</button>
+                    <button type="button" class="btn btn--secondary" id="btn-close-list-bags">Cancel</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/list_group.js?v={{ css_version }}"></script>
     <script src="/static/drag_reorder.js?v={{ css_version }}"></script>
     <script src="/static/autocomplete.js?v={{ css_version }}"></script>
     <script src="/static/packing_lists.js?v={{ css_version }}"></script>
     <script>
         const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, formatLongDate, addDays, weekdayOf, itemCount,
-            packDaysLabel, viewSections, otherDimension, keyToId, noteHtml, isTemplated, dayRowId,
+            packDaysLabel, viewSections, templateSectionCountLabel, bagRowHtml, changeBagsHtml,
+            otherDimension, keyToId, noteHtml, isTemplated, dayRowId,
             dayBoxesHtml, updateDayCardCounts, requestJson } = PackingLists;
         const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
         const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -386,10 +407,49 @@
                 templates.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
         }
 
+        // Every Owner select on the page: an item's and a bag's. The value
+        // '' is Everyone.
+        function ownerOptionsHtml() {
+            return `<option value="">${EVERYONE}</option>` +
+                members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+        }
+
+        /* Every Goes in select: Nothing, then every household bag A to Z but
+         * the bag itself and the bags inside it, under `parentOf` — the
+         * nesting where it is being set. The server refuses a loop as well;
+         * this keeps one from being offered. */
+        function goesInOptionsHtml(bagId, parentOf) {
+            const inside = new Set([bagId]);
+            let grew = true;
+            while (grew) {
+                grew = false;
+                bags.forEach(b => {
+                    if (!inside.has(b.id) && inside.has(parentOf(b.id))) {
+                        inside.add(b.id);
+                        grew = true;
+                    }
+                });
+            }
+            return '<option value="">Nothing</option>' +
+                bags.filter(b => !inside.has(b.id))
+                    .map(b => `<option value="${b.id}">${escapeHtml(bagLabel(b.id))}</option>`).join('');
+        }
+
+        function householdParent(id) {
+            const bag = bags.find(b => b.id === id);
+            return bag ? bag.parent_bag_id : null;
+        }
+
+        // A bag's name, with its owner when another bag shares the name.
+        function bagLabel(id) {
+            return PackingLists.bagLabelIn(id, bags, members);
+        }
+
         function groupName(id) {
             const list = view === 'bag' ? bags : members;
             const found = list.find(entry => entry.id === id);
-            return found ? found.name : (view === 'bag' ? NO_BAG : EVERYONE);
+            if (!found) return view === 'bag' ? NO_BAG : EVERYONE;
+            return view === 'bag' ? bagLabel(found.id) : found.name;
         }
 
         // ── Rendering ──
@@ -406,6 +466,7 @@
         // the whole list. Client-side, and not remembered either.
         let packedFilter = null;
 
+        // Bags follow the filter too, by whether they were grabbed.
         function showItem(item) {
             return packedFilter === null || item.checked === packedFilter;
         }
@@ -413,7 +474,7 @@
         function visibleDays(today) {
             return days.filter(day =>
                 (!dueNowOnly || day.pack_date <= today)
-                && (packedFilter === null || day.items.some(showItem)));
+                && (packedFilter === null || day.items.some(showItem) || (day.bags || []).some(showItem)));
         }
 
         function renderDays() {
@@ -501,13 +562,15 @@
             return parts.join(' · ');
         }
 
-        function renderItemRow(item) {
-            const other = otherDimension(item, lens());
+        function renderItemRow(item, listBags) {
+            const other = otherDimension(item, lens(), listBags);
             return `
                 <div class="editable-item" data-id="${item.id}">
                     <div class="editable-item-content">
-                        <div class="editable-item-title">${escapeHtml(item.name)}</div>
-                        ${other ? `<div class="editable-item-description">${escapeHtml(other)}</div>` : ''}
+                        <div class="editable-item-title-line">
+                            <div class="editable-item-title">${escapeHtml(item.name)}</div>
+                            ${other ? `<span class="editable-item-description editable-item-aside">${escapeHtml(other)}</span>` : ''}
+                        </div>
                         ${item.note ? `<div class="editable-item-description">${noteHtml(item.note)}</div>` : ''}
                     </div>
                     <div class="editable-item-actions">
@@ -528,14 +591,17 @@
             }
             // Section keys carry the template's id: every template's groups
             // share one drag container, and the reorder has to know whose
-            // group a row was dropped in.
-            return viewSections(c.items, lens()).map(section => {
+            // group a row was dropped in. By owner, each group opens with that
+            // person's bags, without a checkbox: a template is not packed.
+            const listBags = c.bags || [];
+            return viewSections(c.items, lens(), listBags).map(section => {
                 const key = `${c.id}:${section.key}`;
                 return listGroupHtml({
                     key,
                     name: section.name,
-                    countLabel: section.name ? itemCount(section.items.length) : null,
-                    rowsHtml: section.items.map(renderItemRow).join(''),
+                    countLabel: templateSectionCountLabel(section),
+                    leadHtml: section.bags.map(bag => bagRowHtml(bag, { listBags, lens: lens() })).join(''),
+                    rowsHtml: section.items.map(item => renderItemRow(item, listBags)).join(''),
                     collapsible: true,
                     open: openTemplateGroups.has(key),
                 });
@@ -572,6 +638,7 @@
                             ${renderTemplateItems(c)}
                             <div class="editable-item-actions packing-list-day-actions">
                                 <button type="button" class="btn btn--sm btn--secondary" data-add-item="${c.id}">Add Item</button>
+                                ${changeBagsHtml('data-change-template-bags', c.id, c.bags || [])}
                             </div>
                         </div>
                     </details>
@@ -702,6 +769,43 @@
                 : `/api/packing-list-days/${dayId}/template-items/${item.id}`;
         }
 
+        // Only the counts move; re-rendering every row would drop focus from
+        // the box that was just ticked.
+        function updateAllCounts() {
+            days.forEach(day => {
+                const card = daysContainer.querySelector(`[data-day-card="${day.id}"]`);
+                if (card) updateDayCardCounts(card, day, lens());
+            });
+        }
+
+        // A bag grabbed or put back, the way an item is checked.
+        daysContainer.addEventListener('change', async (e) => {
+            const box = e.target.closest('input[data-bag]');
+            if (!box) return;
+            const dayId = parseInt(box.dataset.day, 10);
+            const bagId = parseInt(box.dataset.bag, 10);
+            const row = box.closest('.editable-item');
+            row.classList.toggle('completed', box.checked);
+            const day = days.find(d => d.id === dayId);
+            const held = day && (day.bags || []).find(b => b.id === bagId);
+            if (held) held.checked = box.checked;
+            if (packedFilter !== null && box.checked !== packedFilter) removeFilteredRow(row);
+            pending += 1;
+            let updated;
+            try {
+                updated = await requestJson(`/api/packing-list-days/${dayId}/bags/${bagId}`, { method: 'PUT', body: { checked: box.checked } });
+            } catch (error) {
+                console.error('Error saving bag:', error);
+                alert('Failed to save. The list has been put back the way it was saved.');
+                pending -= 1;
+                await loadDays();
+                return;
+            }
+            pending -= 1;
+            replaceDay(updated);
+            if (pending === 0) updateAllCounts();
+        });
+
         daysContainer.addEventListener('change', async (e) => {
             const box = e.target.closest('input[data-item]');
             if (!box) return;
@@ -729,14 +833,7 @@
             }
             pending -= 1;
             replaceDay(updated);
-            // Only the counts move; re-rendering every row would drop focus
-            // from the box that was just ticked.
-            if (pending === 0) {
-                days.forEach(day => {
-                    const card = daysContainer.querySelector(`[data-day-card="${day.id}"]`);
-                    if (card) updateDayCardCounts(card, day, lens());
-                });
-            }
+            if (pending === 0) updateAllCounts();
         });
 
         daysContainer.addEventListener('click', async (e) => {
@@ -760,10 +857,18 @@
                 if (day) openItemModal({ scope: 'day', day, item: null });
                 return;
             }
+            const changeBags = e.target.closest('[data-change-day-bags]');
+            if (changeBags) {
+                const day = days.find(d => d.id === parseInt(changeBags.dataset.changeDayBags, 10));
+                if (day) openBagsListModal({ scope: 'day', list: day });
+                return;
+            }
             const checkAll = e.target.closest('[data-check-all-day]');
             if (checkAll) {
                 const day = days.find(d => d.id === parseInt(checkAll.dataset.checkAllDay, 10));
-                if (!day || day.total === 0 || day.checked === day.total) return;
+                // Nothing would change: every item packed and every bag grabbed.
+                if (!day || day.total === 0
+                    || (day.checked === day.total && day.bags_checked === day.bags_total)) return;
                 if (!confirm(`Check everything on ${day.name} for ${formatLongDate(day.date)}?`)) return;
                 try {
                     replaceDay(await requestJson(`/api/packing-list-days/${day.id}/check-all`, { method: 'POST' }));
@@ -781,7 +886,7 @@
             if (!day) return;
 
             if (reset) {
-                if (day.checked === 0) return;
+                if (day.checked === 0 && !day.bags_checked) return;
                 if (!confirm(`Uncheck everything on ${day.name} for ${formatLongDate(day.date)}?`)) return;
                 try {
                     replaceDay(await requestJson(`/api/packing-list-days/${day.id}/reset`, { method: 'POST' }));
@@ -912,14 +1017,27 @@
         const modalBody = document.querySelector('#item-modal-overlay .modal-body');
 
         function fillOwnerSelect(selected) {
-            ownerSelect.innerHTML = `<option value="">${EVERYONE}</option>` +
-                members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+            ownerSelect.innerHTML = ownerOptionsHtml();
             ownerSelect.value = selected == null ? '' : String(selected);
         }
 
-        function bagNameOf(id) {
+        // The bag the field means, when it was picked rather than typed: the
+        // item's own bag on opening, a suggestion accepted. Two bags can share
+        // a name (Emma's Backpack, Jake's), so a picked bag goes by id while
+        // the field still reads its name; anything typed goes by name, and
+        // the server finds the item owner's bag of that name.
+        let chosenBag = null;
+
+        function chooseBag(id) {
             const bag = bags.find(b => b.id === id);
-            return bag ? bag.name : '';
+            chosenBag = bag ? { id: bag.id, name: bag.name } : null;
+            bagInput.value = bag ? bag.name : '';
+        }
+
+        function bagPayload() {
+            const typed = bagInput.value.trim();
+            if (chosenBag && typed === chosenBag.name) return { bag_id: chosenBag.id };
+            return { bag: typed || null };
         }
 
         // Item names come from history, ranked by the server. Wired in add
@@ -932,12 +1050,12 @@
             scrollBox: modalBody,
             enabled: () => !!(itemContext && !itemContext.item),
             source: (query) => requestJson(`/api/packing-list-items/suggestions?q=${encodeURIComponent(query)}`),
-            label: (s) => ({ name: s.name, detail: s.bag_name }),
+            label: (s) => ({ name: s.name, detail: s.bag_id != null ? bagLabel(s.bag_id) || s.bag_name : s.bag_name }),
             onAccept: (suggestion) => {
                 if (ownerSelect.value === '' && members.some(m => m.id === suggestion.owner_id)) {
                     ownerSelect.value = String(suggestion.owner_id);
                 }
-                if (!bagInput.value.trim() && suggestion.bag_name) bagInput.value = suggestion.bag_name;
+                if (!bagInput.value.trim() && suggestion.bag_id != null) chooseBag(suggestion.bag_id);
             },
             onForget: (suggestion) =>
                 requestJson(`/api/packing-list-items/suggestions/${suggestion.id}`, { method: 'DELETE' }),
@@ -945,6 +1063,7 @@
 
         // Bags come from the household's list, matched here: the list is
         // short and already loaded. A name not on it becomes a new bag on save.
+        // Bags that share a name say whose each is.
         const bagAutocomplete = attachAutocomplete({
             input: bagInput,
             menu: document.getElementById('bag-suggestions'),
@@ -954,7 +1073,12 @@
                 return bags.filter(b => b.name.toLowerCase().includes(q))
                     .sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)));
             },
-            label: (b) => ({ name: b.name }),
+            label: (b) => {
+                if (bagLabel(b.id) === b.name) return { name: b.name };
+                const owner = members.find(m => m.id === b.owner_id);
+                return { name: b.name, detail: owner ? owner.name : EVERYONE };
+            },
+            onAccept: (b) => chooseBag(b.id),
         });
 
         // Enter in the name or the bag is how a list is entered from the
@@ -1004,7 +1128,7 @@
             document.getElementById('item-name').value = item ? item.name : '';
             document.getElementById('item-note').value = item ? (item.note || '') : '';
             fillOwnerSelect(item ? item.owner_id : null);
-            bagInput.value = item ? bagNameOf(item.bag_id) : '';
+            chooseBag(item ? item.bag_id : null);
             // style.display rather than `hidden`: a class that sets display
             // (.btn, .form-group) wins over the attribute.
             addAnotherBtn.style.display = item ? 'none' : '';
@@ -1044,7 +1168,7 @@
                 name: nameInput.value,
                 note: document.getElementById('item-note').value || null,
                 owner_id: ownerSelect.value ? parseInt(ownerSelect.value, 10) : null,
-                bag: bagInput.value.trim() || null,
+                ...bagPayload(),
             };
             let saved;
             try {
@@ -1053,10 +1177,9 @@
                 alert(error.message || 'Failed to save item');
                 return;
             }
-            // A new bag name made a new bag.
-            if (payload.bag && !bags.some(b => b.name.toLowerCase() === payload.bag.toLowerCase())) {
-                await loadBags();
-            }
+            // A typed bag name may have made a new bag. Which one it found
+            // depends on the owner too, so the list is simply read again.
+            if (payload.bag) await loadBags();
             if (itemContext.scope === 'day') {
                 replaceDay(saved);
                 itemContext.day = saved;
@@ -1114,14 +1237,15 @@
 
         templatesContainer.addEventListener('click', async (e) => {
             const target = e.target.closest(
-                '[data-schedule], [data-edit-template], [data-toggle-schedule], [data-add-item], [data-edit-item]'
+                '[data-schedule], [data-edit-template], [data-toggle-schedule], [data-add-item], [data-edit-item], [data-change-template-bags]'
             );
             if (!target) return;
             const row = target.closest('[data-template-row]');
             const template = templateById(parseInt(row.dataset.templateRow, 10));
             if (!template) return;
 
-            if (target.dataset.schedule) openScheduleModal(template);
+            if (target.dataset.changeTemplateBags) openBagsListModal({ scope: 'template', list: template });
+            else if (target.dataset.schedule) openScheduleModal(template);
             else if (target.dataset.editTemplate) openTemplateModal(template);
             else if (target.dataset.addItem) openItemModal({ scope: 'template', template, item: null });
             else if (target.dataset.editItem) {
@@ -1235,7 +1359,46 @@
         // ── Manage bags ──
         //
         // The household's list, shared by every packing list. Bags are usually
-        // made by typing a new one on an item; this renames and removes them.
+        // made by typing a new one on an item; this renames and removes them,
+        // and sets each one's default owner and the bag it goes in. A row
+        // stays one line until its Edit unfolds it in place; one at a time.
+        let editingBagId = null;
+
+        function bagDefaultsLine(b) {
+            const parts = [];
+            const owner = members.find(m => m.id === b.owner_id);
+            if (owner) parts.push(owner.name);
+            const parent = bags.find(other => other.id === b.parent_bag_id);
+            if (parent) parts.push(`in ${parent.name}`);
+            return parts.join(' · ');
+        }
+
+        /* The household's bags as they nest: each outermost bag, then the bags
+         * that go in it, then theirs, A to Z among bags in the same one. A
+         * parent that is gone, or a chain that loops, reads as the top level,
+         * so every bag is listed exactly once. */
+        function bagsInNestingOrder() {
+            const ids = new Set(bags.map(b => b.id));
+            const insideItself = (bag) => {
+                const seen = new Set([bag.id]);
+                let parent = bag.parent_bag_id;
+                while (parent != null && ids.has(parent)) {
+                    if (seen.has(parent)) return true;
+                    seen.add(parent);
+                    parent = householdParent(parent);
+                }
+                return false;
+            };
+            const parentOf = (bag) => (ids.has(bag.parent_bag_id) && !insideItself(bag) ? bag.parent_bag_id : null);
+            const ordered = [];
+            const visit = (parent) => {
+                bags.filter(b => parentOf(b) === parent)
+                    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+                    .forEach(b => { ordered.push(b); visit(b.id); });
+            };
+            visit(null);
+            return ordered;
+        }
 
         function renderBagManageList() {
             const list = document.getElementById('bag-manage-list');
@@ -1243,18 +1406,54 @@
                 list.innerHTML = `<div class="container-empty-state">No bags yet. Items without one are under "${NO_BAG}".</div>`;
                 return;
             }
-            list.innerHTML = bags.map(b => `
+            list.innerHTML = bagsInNestingOrder().map(b => {
+                if (b.id !== editingBagId) {
+                    const line = bagDefaultsLine(b);
+                    return `
                 <div class="manage-row" data-id="${b.id}">
-                    <input type="text" value="${escapeAttr(b.name)}" aria-label="Bag name" maxlength="100">
-                    <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
-                    <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
-                </div>
-            `).join('');
+                    <div class="manage-row-text">
+                        <div class="editable-item-title">${escapeHtml(b.name)}</div>
+                        ${line ? `<div class="editable-item-description">${escapeHtml(line)}</div>` : ''}
+                    </div>
+                    <button type="button" class="btn btn--sm" data-action="edit" aria-label="Edit ${escapeAttr(b.name)}">Edit</button>
+                </div>`;
+                }
+                return `
+                <div class="manage-row manage-row--editing" data-id="${b.id}">
+                    <div class="form-group">
+                        <label for="bag-edit-name">Name</label>
+                        <input type="text" id="bag-edit-name" value="${escapeAttr(b.name)}" maxlength="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="bag-edit-owner">Owner</label>
+                        <select id="bag-edit-owner">${ownerOptionsHtml()}</select>
+                    </div>
+                    <div class="form-group">
+                        <label for="bag-edit-parent">Goes in</label>
+                        <select id="bag-edit-parent">${goesInOptionsHtml(b.id, householdParent)}</select>
+                    </div>
+                    <div class="manage-row-actions">
+                        <button type="button" class="btn btn--sm" data-action="save">Save</button>
+                        <button type="button" class="btn btn--sm btn--secondary" data-action="cancel">Cancel</button>
+                        <button type="button" class="btn btn--sm btn--secondary" data-action="delete">Delete</button>
+                    </div>
+                </div>`;
+            }).join('');
+            const editing = bags.find(b => b.id === editingBagId);
+            if (editing) {
+                document.getElementById('bag-edit-owner').value = editing.owner_id == null ? '' : String(editing.owner_id);
+                document.getElementById('bag-edit-parent').value = editing.parent_bag_id == null ? '' : String(editing.parent_bag_id);
+                document.getElementById('bag-edit-name').focus();
+            }
         }
 
         async function afterBagChange() {
             await refresh();
             renderBagManageList();
+        }
+
+        function selectedId(select) {
+            return select.value ? parseInt(select.value, 10) : null;
         }
 
         document.getElementById('bag-manage-list').addEventListener('click', async (e) => {
@@ -1263,20 +1462,259 @@
             const row = button.closest('.manage-row');
             const bagId = parseInt(row.dataset.id, 10);
             const bag = bags.find(b => b.id === bagId);
+            const action = button.dataset.action;
+            if (action === 'edit' || action === 'cancel') {
+                editingBagId = action === 'edit' ? bagId : null;
+                renderBagManageList();
+                if (action === 'cancel') {
+                    const edit = document.querySelector(`#bag-manage-list .manage-row[data-id="${bagId}"] [data-action="edit"]`);
+                    if (edit) edit.focus();
+                }
+                return;
+            }
             try {
-                if (button.dataset.action === 'rename') {
-                    const name = row.querySelector('input').value.trim();
+                if (action === 'save') {
+                    const name = document.getElementById('bag-edit-name').value.trim();
                     if (!name) return;
-                    await requestJson(`/api/packing-list-bags/${bagId}`, { method: 'PUT', body: { name } });
+                    await requestJson(`/api/packing-list-bags/${bagId}`, {
+                        method: 'PUT',
+                        body: {
+                            name,
+                            owner_id: selectedId(document.getElementById('bag-edit-owner')),
+                            parent_bag_id: selectedId(document.getElementById('bag-edit-parent')),
+                        },
+                    });
                 } else {
-                    if (!confirm(`Delete ${bag ? bag.name : 'this bag'}? What's in it moves to "${NO_BAG}" — nothing is lost.`)) return;
+                    const inner = bags.filter(b => b.parent_bag_id === bagId).map(b => b.name);
+                    const innerNote = inner.length
+                        ? `, and ${inner.join(', ')} will no longer go inside anything`
+                        : '';
+                    if (!confirm(`Delete ${bag ? bag.name : 'this bag'}? What's in it moves to "${NO_BAG}"${innerNote} — nothing is lost.`)) return;
                     await requestJson(`/api/packing-list-bags/${bagId}`, { method: 'DELETE' });
                 }
             } catch (error) {
-                alert(error.status === 409 ? 'A bag with that name already exists.' : 'Failed to update the bag.');
+                // A 409 says whose bag already has the name.
+                alert(error.message || 'Failed to update the bag.');
                 return;
             }
+            editingBagId = null;
             await afterBagChange();
+        });
+
+        // ── Change bags (one packing list's) ──
+        //
+        // `bagsListContext` is { scope: 'template' | 'day', list }: whose bags
+        // these are. Like every other Rally form, nothing is written until
+        // Save, and Cancel leaves the list as it was. Each bag's edits wait in
+        // `bagEdits` (by bag id): `owner_id` / `parent_bag_id` as the form now
+        // reads them, `reset` (go back to the level above) and `remove` (take
+        // it off this list). Save then writes them all and reloads the page,
+        // since a template's reading reaches its days.
+        let bagsListContext = null;
+        let bagEdits = new Map();
+
+        function bagsListUrl(bagId) {
+            const { scope, list } = bagsListContext;
+            return scope === 'day'
+                ? `/api/packing-list-days/${list.id}/bags/${bagId}`
+                : `/api/packing-list-templates/${list.id}/bags/${bagId}`;
+        }
+
+        /* How a bag reads one level above this list, which is what Reset
+         * puts it back to: a templated day's template (when the bag is on
+         * it), else the household. */
+        function bagAbove(bagId) {
+            const { scope, list } = bagsListContext;
+            if (scope === 'day' && isTemplated(list)) {
+                const template = templateById(list.packing_list_template_id);
+                const onTemplate = template && (template.bags || []).find(b => b.id === bagId);
+                if (onTemplate) return { owner_id: onTemplate.owner_id, parent_bag_id: onTemplate.parent_bag_id };
+            }
+            const bag = bags.find(b => b.id === bagId);
+            return { owner_id: bag ? bag.owner_id : null, parent_bag_id: bag ? bag.parent_bag_id : null };
+        }
+
+        /* A bag as the form reads it now: its pending edit, else as the list
+         * reads it. */
+        function bagAsEdited(bag) {
+            const edit = bagEdits.get(bag.id);
+            return {
+                owner_id: edit ? edit.owner_id : bag.owner_id,
+                parent_bag_id: edit ? edit.parent_bag_id : bag.parent_bag_id,
+                changed: edit ? (edit.reset ? false : edit.dirty || bag.changed) : bag.changed,
+                reset: !!(edit && edit.reset),
+                remove: !!(edit && edit.remove),
+            };
+        }
+
+        function editBag(bagId, changes) {
+            const bag = (bagsListContext.list.bags || []).find(b => b.id === bagId);
+            const current = bagAsEdited(bag);
+            bagEdits.set(bagId, {
+                owner_id: current.owner_id,
+                parent_bag_id: current.parent_bag_id,
+                reset: current.reset,
+                remove: current.remove,
+                dirty: !!(bagEdits.get(bagId) || {}).dirty,
+                ...changes,
+            });
+        }
+
+        function renderBagsListModal(focusId = null) {
+            const { scope, list } = bagsListContext;
+            const listBags = list.bags || [];
+            // Where a bag goes, as the form now reads it, so a loop the
+            // pending edits would make is not offered either.
+            const parentOf = id => {
+                const onList = listBags.find(b => b.id === id);
+                return onList ? bagAsEdited(onList).parent_bag_id : householdParent(id);
+            };
+            const removeLabel = scope === 'day' ? 'Remove from day' : 'Remove from template';
+            document.getElementById('list-bags-modal-title').textContent = `Change bags: ${list.name}`;
+            let note;
+            if (scope === 'template') {
+                note = `Changes show up on every day ${list.name} is on, except where a day has changed this bag.`;
+            } else if (isTemplated(list)) {
+                note = `For "${list.name}" on ${formatLongDate(list.date)} only. The packing list template stays as it is.`;
+            } else {
+                note = `For "${list.name}" on ${formatLongDate(list.date)}.`;
+            }
+            document.getElementById('list-bags-scope-note').textContent = note;
+            const container = document.getElementById('list-bags-list');
+            if (listBags.length === 0) {
+                container.innerHTML = '<div class="container-empty-state">No bags on this packing list.</div>';
+                return;
+            }
+            container.innerHTML = listBags.map(bag => {
+                const state = bagAsEdited(bag);
+                const disabled = state.remove ? 'disabled' : '';
+                const actions = state.remove
+                    ? `<span class="editable-item-description">Removed when you save.</span>
+                       <button type="button" class="btn btn--sm btn--quiet" data-action="undo-remove">Undo</button>`
+                    : `${state.changed ? '<button type="button" class="btn btn--sm btn--quiet" data-action="reset">Reset</button>' : ''}
+                       <button type="button" class="btn btn--sm btn--quiet" data-action="remove">${removeLabel}</button>`;
+                return `
+                <div class="manage-row manage-row--editing ${state.remove ? 'is-read-only' : ''}" data-id="${bag.id}">
+                    <div class="editable-item-title">${escapeHtml(bagLabel(bag.id) || bag.name)}</div>
+                    <div class="form-group">
+                        <label for="list-bag-owner-${bag.id}">Owner</label>
+                        <select id="list-bag-owner-${bag.id}" data-field="owner_id" ${disabled}>${ownerOptionsHtml()}</select>
+                    </div>
+                    <div class="form-group">
+                        <label for="list-bag-parent-${bag.id}">Goes in</label>
+                        <select id="list-bag-parent-${bag.id}" data-field="parent_bag_id" ${disabled}>${goesInOptionsHtml(bag.id, parentOf)}</select>
+                    </div>
+                    <div class="manage-row-actions">${actions}</div>
+                </div>`;
+            }).join('');
+            listBags.forEach(bag => {
+                const state = bagAsEdited(bag);
+                document.getElementById(`list-bag-owner-${bag.id}`).value = state.owner_id == null ? '' : String(state.owner_id);
+                document.getElementById(`list-bag-parent-${bag.id}`).value = state.parent_bag_id == null ? '' : String(state.parent_bag_id);
+            });
+            // A redraw replaces the control that was in use; put focus back.
+            if (focusId) {
+                const target = document.getElementById(focusId)
+                    || container.querySelector(`.manage-row[data-id="${focusId.split(':')[0]}"] button`);
+                if (target) target.focus();
+            }
+        }
+
+        function openBagsListModal(context) {
+            bagsListContext = context;
+            bagEdits = new Map();
+            renderBagsListModal();
+            showModalOverlay('list-bags-modal-overlay');
+        }
+
+        function closeBagsListModal() {
+            hideModalOverlay('list-bags-modal-overlay');
+            bagsListContext = null;
+            bagEdits = new Map();
+        }
+
+        document.getElementById('list-bags-list').addEventListener('change', (e) => {
+            const select = e.target.closest('select[data-field]');
+            if (!select || !bagsListContext) return;
+            const bagId = parseInt(select.closest('.manage-row').dataset.id, 10);
+            // Choosing a value after Reset makes it this list's own again.
+            editBag(bagId, { [select.dataset.field]: selectedId(select), reset: false, dirty: true });
+            renderBagsListModal(select.id);
+        });
+
+        document.getElementById('list-bags-list').addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button || !bagsListContext) return;
+            const bagId = parseInt(button.closest('.manage-row').dataset.id, 10);
+            const action = button.dataset.action;
+            if (action === 'reset') {
+                editBag(bagId, { ...bagAbove(bagId), reset: true, dirty: false });
+            } else if (action === 'remove') {
+                editBag(bagId, { remove: true });
+            } else if (action === 'undo-remove') {
+                editBag(bagId, { remove: false });
+            }
+            renderBagsListModal(`${bagId}:`);
+        });
+
+        /* What Save will ask before it removes anything: one line per bag
+         * taken off, saying where its items go. */
+        function removalQuestion(removed) {
+            const { scope, list } = bagsListContext;
+            const where = scope === 'day' ? 'on this day only' : `on ${list.name} and every day it's on`;
+            const lines = removed.map(bag => {
+                const count = list.items.filter(i => i.bag_id === bag.id).length;
+                const what = count === 0
+                    ? 'Anything in it moves'
+                    : `The ${itemCount(count)} in it ${count === 1 ? 'moves' : 'move'}`;
+                return removed.length === 1
+                    ? `Remove ${bagLabel(bag.id) || bag.name} from this ${scope === 'day' ? 'day' : 'template'}? ${what} to "${NO_BAG}" ${where} — nothing is taken off the list.`
+                    : `${bagLabel(bag.id) || bag.name}: ${what.toLowerCase()} to "${NO_BAG}"`;
+            });
+            if (removed.length === 1) return lines[0];
+            return `Remove ${removed.length} bags from this ${scope === 'day' ? 'day' : 'template'}? Nothing is taken off the list; ${where}:\n\n${lines.join('\n')}`;
+        }
+
+        document.getElementById('btn-save-list-bags').addEventListener('click', async () => {
+            if (!bagsListContext) return;
+            const { scope, list } = bagsListContext;
+            const listBags = list.bags || [];
+            const removed = listBags.filter(b => bagAsEdited(b).remove);
+            if (removed.length && !confirm(removalQuestion(removed))) return;
+            const removedIds = new Set(removed.map(b => b.id));
+            try {
+                // Removals first: taking a bag off sends the bags in it to
+                // the top level, and an edit to one of those must win.
+                for (const bag of removed) {
+                    await requestJson(`${bagsListUrl(bag.id)}/remove`, { method: 'POST' });
+                }
+                for (const bag of listBags) {
+                    const edit = bagEdits.get(bag.id);
+                    if (!edit || removedIds.has(bag.id)) continue;
+                    if (edit.reset) {
+                        await requestJson(`${bagsListUrl(bag.id)}/reading`, { method: 'DELETE' });
+                    } else if (edit.dirty) {
+                        // A reading is whole: both fields, as the form reads them.
+                        await requestJson(bagsListUrl(bag.id), {
+                            method: 'PUT',
+                            body: { owner_id: edit.owner_id, parent_bag_id: edit.parent_bag_id },
+                        });
+                    }
+                }
+            } catch (error) {
+                // Whatever was written stays written; show the list as it now is.
+                alert(error.message || 'Failed to change the bags.');
+                await refresh();
+                closeBagsListModal();
+                return;
+            }
+            closeBagsListModal();
+            await refresh();
+        });
+
+        document.getElementById('btn-close-list-bags').addEventListener('click', closeBagsListModal);
+        document.getElementById('list-bags-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'list-bags-modal-overlay') closeBagsListModal();
         });
 
         document.getElementById('bag-add-form').addEventListener('submit', async (e) => {
@@ -1287,7 +1725,7 @@
             try {
                 await requestJson('/api/packing-list-bags', { method: 'POST', body: { name } });
             } catch (error) {
-                alert(error.status === 409 ? 'A bag with that name already exists.' : 'Failed to add the bag.');
+                alert(error.status === 409 ? error.message : 'Failed to add the bag.');
                 return;
             }
             input.value = '';
@@ -1299,6 +1737,7 @@
         }
 
         document.getElementById('btn-manage-bags').addEventListener('click', () => {
+            editingBagId = null;
             renderBagManageList();
             showModalOverlay('bags-modal-overlay');
         });
