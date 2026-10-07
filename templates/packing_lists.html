@@ -254,6 +254,31 @@
         </div>
     </div>
 
+    <!-- Resync with template: how much of one day to bring back in line with
+         its template. The calendar's scope question (#263) in shape — nothing
+         is chosen when it opens, and Resync waits for a choice. -->
+    <div class="modal-overlay" id="day-resync-modal-overlay">
+        <div class="modal-content modal-content--narrow">
+            <h3 id="day-resync-modal-title">Resync with template</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label id="day-resync-modal-label">Undo:</label>
+                    <div class="radio-options" role="radiogroup" aria-labelledby="day-resync-modal-label">
+                        <label><input type="radio" name="day-resync-scope" value="items"> Only item changes</label>
+                        <label><input type="radio" name="day-resync-scope" value="all"> All changes on this day</label>
+                    </div>
+                    <small id="day-resync-modal-help"></small>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn" id="btn-day-resync-confirm" disabled>Resync</button>
+                    <button type="button" class="btn btn--secondary" id="btn-day-resync-cancel">Cancel</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Add / Edit Item: one modal for a packing list's items and a day's.
          Which one it is editing decides the note under the title and what
          its secondary button does. -->
@@ -857,6 +882,12 @@
                 if (day) openItemModal({ scope: 'day', day, item: null });
                 return;
             }
+            const resync = e.target.closest('[data-resync-day]');
+            if (resync) {
+                const day = days.find(d => d.id === parseInt(resync.dataset.resyncDay, 10));
+                if (day) openResyncModal(day);
+                return;
+            }
             const changeBags = e.target.closest('[data-change-day-bags]');
             if (changeBags) {
                 const day = days.find(d => d.id === parseInt(changeBags.dataset.changeDayBags, 10));
@@ -921,6 +952,57 @@
             const card = daysContainer.querySelector(`[data-day-card="${dayId}"]`);
             if (card) card.scrollIntoView({ block: 'center' });
         }
+
+        // ── Resync with template (one day's) ──
+        //
+        // The modal is the confirmation: nothing is chosen when it opens, and
+        // Resync waits for a choice. It closes before the request goes out,
+        // the calendar's scope question's order.
+        let resyncingDay = null;
+        const resyncConfirm = document.getElementById('btn-day-resync-confirm');
+
+        function openResyncModal(day) {
+            resyncingDay = day;
+            document.getElementById('day-resync-modal-title').textContent = `Resync with template: ${day.name}`;
+            document.getElementById('day-resync-modal-help').textContent =
+                `${formatLongDate(day.date)}. This can't be undone.`;
+            document.querySelectorAll('input[name="day-resync-scope"]').forEach(input => {
+                input.checked = false;
+            });
+            resyncConfirm.disabled = true;
+            showModalOverlay('day-resync-modal-overlay');
+        }
+
+        function closeResyncModal() {
+            hideModalOverlay('day-resync-modal-overlay');
+            resyncingDay = null;
+        }
+
+        document.querySelectorAll('input[name="day-resync-scope"]').forEach(input => {
+            input.addEventListener('change', () => {
+                resyncConfirm.disabled = false;
+            });
+        });
+        resyncConfirm.addEventListener('click', async () => {
+            const chosen = document.querySelector('input[name="day-resync-scope"]:checked');
+            const day = resyncingDay;
+            if (!chosen || !day) return;
+            closeResyncModal();
+            try {
+                replaceDay(await requestJson(`/api/packing-list-days/${day.id}/resync`, {
+                    method: 'POST',
+                    body: { scope: chosen.value },
+                }));
+            } catch (error) {
+                alert('Failed to resync with the template');
+                return;
+            }
+            renderDays();
+        });
+        document.getElementById('btn-day-resync-cancel').addEventListener('click', closeResyncModal);
+        document.getElementById('day-resync-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'day-resync-modal-overlay') closeResyncModal();
+        });
 
         // ── Edit Packing List (one day's) ──
         //

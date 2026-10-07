@@ -382,6 +382,7 @@
                 <button type="button" class="btn btn--sm btn--secondary" data-add-day-item="${day.id}">Add Item</button>
                 ${changeBagsHtml('data-change-day-bags', day.id, listBags)}
                 <button type="button" class="btn btn--sm btn--quiet" data-remove-day="${day.id}">${isTemplated(day) ? 'Remove from day' : 'Delete'}</button>
+                ${day.changed_count ? `<button type="button" class="btn btn--sm btn--quiet" data-resync-day="${day.id}">Resync with template</button>` : ''}
             </div>`;
         // How far this day has drifted from its template, beside its Edit.
         // A templateless day's count is always 0, so it never shows.

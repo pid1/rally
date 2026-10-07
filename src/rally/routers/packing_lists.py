@@ -57,6 +57,7 @@ from rally.schemas import (
     PackingListDayItemUpdate,
     PackingListDayReorder,
     PackingListDayResponse,
+    PackingListDayResync,
     PackingListDayUpdate,
     PackingListItemCreate,
     PackingListItemUpdate,
@@ -788,7 +789,8 @@ def delete_bag(bag_id: int, db: Session = Depends(get_db)):
 
     SQLite does not enforce the reference, so this is done by hand — items on
     every template, every day's own items and readings, and history; the bags
-    inside it, by default and in every reading — the same reason deleting a
+    inside it, by default and in every reading, and any day's record of a bag
+    taken out of it — the same reason deleting a
     shopping store moves its items to Anywhere. Readings of the bag itself and
     its grab checks go with it.
     """
@@ -801,6 +803,9 @@ def delete_bag(bag_id: int, db: Session = Depends(get_db)):
         db.query(model).filter(model.parent_bag_id == bag.id).update(
             {model.parent_bag_id: None}, synchronize_session=False
         )
+    db.query(PackingListDayBag).filter(PackingListDayBag.removed_from_bag_id == bag.id).update(
+        {PackingListDayBag.removed_from_bag_id: None}, synchronize_session=False
+    )
     for model in (PackingListTemplateBag, PackingListDayBag, PackingListDayBagCheck):
         db.query(model).filter(model.bag_id == bag.id).delete(synchronize_session=False)
     db.delete(bag)
@@ -853,8 +858,17 @@ def _set_template_reading(
 
 
 def _set_day_reading(
-    db: Session, day_id: int, bag_id: int, owner_id: int | None, parent_bag_id: int | None
+    db: Session,
+    day_id: int,
+    bag_id: int,
+    owner_id: int | None,
+    parent_bag_id: int | None,
+    *,
+    removed_from_bag_id: int | None = None,
 ) -> None:
+    """Write a day's reading of a bag, whole. ``removed_from_bag_id`` is set
+    only by taking a bag off the day; every other write clears it, which is
+    what keeps a resync from undoing a choice somebody made by hand."""
     row = (
         db.query(PackingListDayBag)
         .filter(PackingListDayBag.day_id == day_id, PackingListDayBag.bag_id == bag_id)
@@ -865,6 +879,7 @@ def _set_day_reading(
         db.add(row)
     row.owner_id = owner_id
     row.parent_bag_id = parent_bag_id
+    row.removed_from_bag_id = removed_from_bag_id
 
 
 @templates_router.put("/{template_id}/bags/{bag_id}", response_model=PackingListTemplateResponse)
@@ -1219,13 +1234,7 @@ def delete_day(day_id: int, db: Session = Depends(get_db)):
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
-    for model in (
-        PackingListDayCheck,
-        PackingListDayItem,
-        PackingListDayBag,
-        PackingListDayBagCheck,
-    ):
-        db.query(model).filter(model.day_id == day.id).delete(synchronize_session=False)
+    logic.clear_day_state(db, day)
     db.delete(day)
     db.commit()
     return Response(status_code=204)
@@ -1491,6 +1500,25 @@ def check_all(day_id: int, db: Session = Depends(get_db)):
     return _day_response(db, day)
 
 
+@days_router.post("/{day_id}/resync", response_model=PackingListDayResponse)
+def resync_day(day_id: int, payload: PackingListDayResync, db: Session = Depends(get_db)):
+    """Bring one day back in line with its template (``logic.resync_day``):
+    ``items`` undoes its item changes, ``all`` everything it does differently.
+
+    Idempotent. A past day is a ``403``; a templateless day, which has no
+    template to resync with, a ``422``.
+    """
+    day = _get_day(db, day_id)
+    _require_current(db, day)
+    if day.packing_list_template_id is None:
+        raise HTTPException(
+            status_code=422, detail="This packing list has no template to resync with."
+        )
+    logic.resync_day(db, day, payload.scope)
+    db.commit()
+    return _day_response(db, day)
+
+
 def _day_bags(db: Session, day: PackingListDay) -> tuple[list, list[logic.BagOnList]]:
     """A day's items and bags as it reads them."""
     resolved = logic.resolve_day(
@@ -1577,9 +1605,10 @@ def remove_day_bag(day_id: int, bag_id: int, db: Session = Depends(get_db)):
 
     Each item in it moves to No bag on this day only: a template item through
     the day's reading of it (so it reads ``(changed)``), one of the day's own
-    directly. The bags that went in it go in nothing on this day, and its grab
-    check goes. The template, and every other day, keep the bag. Item history
-    is untouched: this is a move.
+    directly. The bags that went in it go in nothing on this day, each reading
+    recording the bag it came out of (``removed_from_bag_id``) so a resync can
+    put it back, and its grab check goes. The template, and every other day,
+    keep the bag. Item history is untouched: this is a move.
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
@@ -1598,7 +1627,7 @@ def remove_day_bag(day_id: int, bag_id: int, db: Session = Depends(get_db)):
             _get_own_item(db, day, item.id).bag_id = None
     for inner in bags:
         if inner.parent_bag_id == bag_id:
-            _set_day_reading(db, day.id, inner.id, inner.owner_id, None)
+            _set_day_reading(db, day.id, inner.id, inner.owner_id, None, removed_from_bag_id=bag_id)
     db.query(PackingListDayBagCheck).filter(
         PackingListDayBagCheck.day_id == day.id, PackingListDayBagCheck.bag_id == bag_id
     ).delete(synchronize_session=False)

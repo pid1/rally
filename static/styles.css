@@ -490,6 +490,48 @@ footer {
     font-size: var(--text-sm);
 }
 
+/* `--sm` sets padding on every side, which would put back the inset `--quiet`
+   takes off and leave two quiet buttons 32px apart. A quiet button reads as
+   text at any size. */
+.btn--sm.btn--quiet {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Quiet buttons side by side read as a list of links, so a dot goes between
+   them: "Change bags · Remove from day". The second button steps a further
+   `--space-2` out, which with its row's `--space-2` gap gives the dot 16px,
+   and the dot hangs in that space outside the button, so it is no part of
+   the hit area. A button that starts a wrapped line carries no dot and is
+   drawn back to the line's edge: `static/inline_separators.js` marks it
+   `.is-line-start`, since no selector can see where a line wraps. It is
+   drawn back with `left` rather than losing the margin, so the line it
+   starts is the same width either way and cannot wrap differently because
+   of the mark. */
+.btn--quiet + .btn--quiet {
+    position: relative;
+    margin-inline-start: var(--space-2);
+}
+
+/* Set upright and without the underline: it separates, it is not a link. */
+.btn--quiet + .btn--quiet::before {
+    content: "·";
+    position: absolute;
+    right: 100%;
+    width: var(--space-4);
+    text-align: center;
+    font-style: normal;
+    color: var(--ink-muted);
+}
+
+.btn--quiet + .btn--quiet.is-line-start {
+    left: calc(-1 * var(--space-2));
+}
+
+.btn--quiet + .btn--quiet.is-line-start::before {
+    content: none;
+}
+
 .btn:disabled {
     color: var(--ink-subtle);
     border-color: var(--rule);
@@ -2644,10 +2686,18 @@ body.is-dragging {
 }
 
 /* A day's card holds its own packing list under "View more", with the day's
-   controls beneath the items. */
+   controls beneath the items. Wrapped lines of quiet buttons stack at their
+   full target height with nothing between them — the target is already the
+   space around the text — while a bordered button keeps the gap below it, so
+   its border never meets the line underneath. */
 .packing-list-day-actions {
     flex-wrap: wrap;
+    row-gap: 0;
     margin-top: var(--space-3);
+}
+
+.packing-list-day-actions > .btn:not(.btn--quiet) {
+    margin-bottom: var(--space-2);
 }
 /* ---- Meal history ---- */
 .star-rating,

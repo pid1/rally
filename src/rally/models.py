@@ -1217,6 +1217,11 @@ class PackingListDayBag(Base):
     only. Wins over the template's reading and the household's defaults.
 
     Copied whole, like ``PackingListTemplateBag``. Unique per ``(day_id, bag_id)``.
+
+    ``removed_from_bag_id`` says why a bag goes in nothing on this day: it
+    names the bag that taking a bag off the day took this one out of. Every
+    other write of the reading clears it, so a resync can put back what a
+    removal undid without touching what somebody chose.
     """
 
     __tablename__ = "packing_list_day_bags"
@@ -1228,6 +1233,9 @@ class PackingListDayBag(Base):
     parent_bag_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # FK to packing_list_bags.id
+    removed_from_bag_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK to packing_list_bags.id; set only by taking a bag off the day
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 

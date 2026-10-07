@@ -63,6 +63,12 @@ def _migrate():
     return _load("migrate_036_add_bag_owners_and_nesting").migrate()
 
 
+def _migrate_to_models():
+    """036, then every later migration the models already reflect."""
+    assert _migrate() is True
+    assert _load("migrate_037_add_day_bag_removed_from").migrate() is True
+
+
 def _rows(path, sql):
     with sqlite3.connect(path) as conn:
         return conn.execute(sql).fetchall()
@@ -119,7 +125,7 @@ def test_a_missing_database_is_not_an_error(tmp_path, monkeypatch):
 
 def test_agrees_with_the_models(db_path, tmp_path):
     """The new tables, their columns and their indexes are what the models make."""
-    _migrate()
+    _migrate_to_models()
     fresh = tmp_path / "fresh.db"
     engine = create_engine(f"sqlite:///{fresh}")
     Base.metadata.create_all(engine)
@@ -150,7 +156,7 @@ def test_one_reading_and_one_check_per_bag_per_list(db_path, statement):
 
 
 def test_the_orm_can_use_what_it_made(db_path):
-    _migrate()
+    _migrate_to_models()
     engine = create_engine(f"sqlite:///{db_path}")
     with Session(engine) as session:
         suitcase = PackingListBag(name="Duffel", owner_id=4)

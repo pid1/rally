@@ -1418,6 +1418,18 @@ class PackingListDayReorder(BaseModel):
     items: list[PackingListDayItemRef]
 
 
+class PackingListDayResync(BaseModel):
+    """How much of a day to bring back in line with its template.
+
+    ``items`` undoes the day's item edits, removals and additions (and puts a
+    bag back inside a bag the day took off, once that bag is back); ``all``
+    undoes every way the day differs: those, its order, its bag readings, its
+    checks, its label and its lead time.
+    """
+
+    scope: Literal["items", "all"]
+
+
 class PackingListSuggestion(BaseModel):
     """An item name from history, with the owner and bag it last had.
 

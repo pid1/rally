@@ -199,6 +199,8 @@ The button family collapsed from nine ad hoc classes (`.btn-add`, `.btn-primary`
 
 Everything focusable shows a ring: one `:focus-visible` rule in the base layer, and no component may switch it off (E1). Hit areas are ≥44px wherever a finger is likely — keyed off `(pointer: coarse)` as well as width, because the wall tablet is a coarse pointer at desktop size (E2).
 
+A quiet button reads as text at every size, so `--sm` does not give it back the horizontal padding `--quiet` removes. Two quiet buttons side by side are a list of links and get a `·` between them, in a 16px space outside either hit area: "Change bags · Remove from day", "Refreshed · Edit". A wrapped line never opens with the dot. CSS cannot tell where a line wraps, and the clipping trick that keeps "Goggles · Pool bag" tidy would clip a button's focus ring as well, so `static/inline_separators.js` (loaded by the base layout) marks a quiet button that starts a line `.is-line-start`. That hides its dot and shifts it back to the line's edge with `left`, which moves nothing else, so the mark cannot change where the line wraps.
+
 `.phone-link` and `.inline-link` are the components that deliberately stay inline and under 44px: one wraps a phone number, the other a URL, found inside a line of text somebody else wrote. Each takes its size, color and italics from that line and adds only an underline. A 44px target would break the sentence around it, which is the case WCAG 2.5.8 exempts.
 
 `.rich-text` is the structure for block content that arrives as markup (paragraphs, emphasis, lists): the spacing between blocks and nothing else, with size and color inherited from wherever it sits. A Daily Note card and an event's Notes row both use it.
