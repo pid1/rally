@@ -565,6 +565,103 @@ def delete_template(db: Session, template: PackingListTemplate) -> None:
     db.delete(template)
 
 
+# Every table that holds something about one day only, by ``day_id``: its
+# checks, its own changes, its readings of bags and its grab checks.
+DAY_STATE_MODELS = (
+    PackingListDayCheck,
+    PackingListDayItem,
+    PackingListDayBag,
+    PackingListDayBagCheck,
+)
+
+
+def clear_day_state(db: Session, day: PackingListDay) -> None:
+    """Delete everything kept about one day only (``DAY_STATE_MODELS``). Does
+    not commit. Taking a packing list off its day and resyncing all of it with
+    its template both start here, so a table added later reaches both."""
+    for model in DAY_STATE_MODELS:
+        db.query(model).filter(model.day_id == day.id).delete(synchronize_session=False)
+
+
+def _schedule_label(db: Session, day: PackingListDay) -> str | None:
+    """The label the schedule that made a day gives its days now, or ``None``
+    for a day added by hand (or whose schedule was deleted)."""
+    if day.schedule_id is None:
+        return None
+    schedule = (
+        db.query(PackingListTemplateSchedule)
+        .filter(PackingListTemplateSchedule.id == day.schedule_id)
+        .first()
+    )
+    return schedule.label if schedule else None
+
+
+def _restore_removed_bags(db: Session, day: PackingListDay) -> None:
+    """Put each bag that taking a bag off the day un-nested back in that bag,
+    once the bag is on the day again. Does not commit.
+
+    Only a reading still carrying its ``removed_from_bag_id`` is touched: any
+    hand edit since cleared it. Its owner stays, and a reading that then says
+    what the level above says is deleted rather than kept as a copy. A bag
+    whose removed bag is still off the day keeps its reading and its record,
+    and so does one whose return would put a bag inside itself.
+    """
+    rows = (
+        db.query(PackingListDayBag)
+        .filter(
+            PackingListDayBag.day_id == day.id,
+            PackingListDayBag.removed_from_bag_id.isnot(None),
+        )
+        .all()
+    )
+    if not rows:
+        return
+    resolved = resolve_day(db, day, ordered_template_items(db, day.packing_list_template_id))
+    on_day = {bag.id for bag in resolve_day_bags(db, day, resolved)}
+    _, above, _ = readings_at(db, template_id=day.packing_list_template_id, day_id=None)
+    for row in rows:
+        parent = row.removed_from_bag_id
+        if parent not in on_day or nests_in_itself(
+            db, row.bag_id, parent, template_id=day.packing_list_template_id, day_id=day.id
+        ):
+            continue
+        row.parent_bag_id = parent
+        row.removed_from_bag_id = None
+        if above.get(row.bag_id) == (row.owner_id, parent):
+            db.delete(row)
+        db.flush()
+
+
+def resync_day(db: Session, day: PackingListDay, scope: str) -> None:
+    """Bring a templated day back in line with its template. Does not commit.
+
+    ``items`` deletes the day's own changes to its items — readings of
+    template items, removals and items only it had — so each template item
+    reads as the template has it, keeping its check (a check names the
+    template item, not the reading). A bag the day took off comes back with
+    its items, and the bags that removal un-nested go back in it
+    (``_restore_removed_bags``). Nothing else moves.
+
+    ``all`` deletes everything kept about the day (``clear_day_state``) and
+    its order, gives it the template's lead time and its schedule's label (or
+    none), and lets a schedule's relabel reach it again.
+
+    The template, every other day and item history are untouched: a resync
+    types nothing, and only a day that is over is ever counted.
+    """
+    if scope == "all":
+        clear_day_state(db, day)
+        day.item_order = None
+        day.pack_days_before = None
+        day.label = _schedule_label(db, day)
+        day.label_edited = False
+        return
+    db.query(PackingListDayItem).filter(PackingListDayItem.day_id == day.id).delete(
+        synchronize_session=False
+    )
+    _restore_removed_bags(db, day)
+
+
 # --- Owners and bags -------------------------------------------------------------
 
 

@@ -117,6 +117,7 @@ def _migrate_to_models():
     """035, then every later migration the models already reflect."""
     assert _migrate() is True
     assert _load("migrate_036_add_bag_owners_and_nesting").migrate() is True
+    assert _load("migrate_037_add_day_bag_removed_from").migrate() is True
 
 
 def _tables(path):

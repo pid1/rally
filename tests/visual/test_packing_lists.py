@@ -2242,3 +2242,120 @@ def test_change_bags_removes_a_bag_from_one_day_and_keeps_its_items(
     # The other day, and the template, keep the bag.
     on_second = api(live_server, "GET", f"/api/packing-list-days/{second['id']}")
     assert [b["name"] for b in on_second["bags"]] == [BAG]
+
+
+# --- Resync with template (#266) ----------------------------------------------------
+
+
+def test_resync_shows_only_on_a_changed_day_and_asks_how_much(browser, live_server, packing_list):
+    first, second = packing_list["days"]
+    towel, goggles = packing_list["items"]["Towel"], packing_list["items"]["Goggles"]
+    base = f"/api/packing-list-days/{first['id']}"
+    api(live_server, "PUT", f"{base}/template-items/{towel['id']}", {"checked": True})
+    api(live_server, "PUT", f"{base}/template-items/{goggles['id']}", {"name": "Spare goggles"})
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        unchanged = open_card(page, second["id"], groups=False)
+        assert unchanged.locator("[data-resync-day]").count() == 0
+
+        target = open_card(page, first["id"], groups=False)
+        buttons = target.locator(".packing-list-day-actions button").all_inner_texts()
+        assert buttons[-1] == "Resync with template"
+        target.get_by_role("button", name="Resync with template").click()
+
+        modal = page.locator("#day-resync-modal-overlay")
+        modal.wait_for(state="visible")
+        assert modal.locator("h3").inner_text().lower() == "resync with template: browser test trip"
+        radios = modal.locator('input[name="day-resync-scope"]')
+        assert [radios.nth(i).is_checked() for i in range(radios.count())] == [False, False]
+        confirm = modal.get_by_role("button", name="Resync", exact=True)
+        assert confirm.is_disabled()
+
+        modal.get_by_label("Only item changes").check()
+        assert confirm.is_enabled()
+        confirm.click()
+        modal.wait_for(state="hidden")
+        card(page, first["id"]).locator("[data-resync-day]").wait_for(state="detached")
+        assert card(page, first["id"]).locator(".day-changes").count() == 0
+    finally:
+        context.close()
+
+    day = api(live_server, "GET", base)
+    assert (day["changed_count"], day["checked"]) == (0, 1)
+    assert "Goggles" in [i["name"] for i in day["items"]]
+
+
+def test_cancel_leaves_the_day_as_it_was(browser, live_server, packing_list):
+    first = packing_list["days"][0]
+    goggles = packing_list["items"]["Goggles"]
+    base = f"/api/packing-list-days/{first['id']}"
+    api(live_server, "DELETE", f"{base}/template-items/{goggles['id']}")
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_card(page, first["id"], groups=False)
+        target.get_by_role("button", name="Resync with template").click()
+        modal = page.locator("#day-resync-modal-overlay")
+        modal.get_by_label("All changes on this day").check()
+        modal.get_by_role("button", name="Cancel").click()
+        modal.wait_for(state="hidden")
+    finally:
+        context.close()
+    assert api(live_server, "GET", base)["changed_count"] == 1
+
+
+def test_a_dot_separates_quiet_buttons_but_never_starts_a_line(browser, live_server, packing_list):
+    """At 320px the day's quiet buttons wrap: "Change bags · Remove from day"
+    on one line and "Resync with template" alone on the next, flush with the
+    row's edge and with no dot before it."""
+    first = packing_list["days"][0]
+    goggles = packing_list["items"]["Goggles"]
+    api(
+        live_server,
+        "PUT",
+        f"/api/packing-list-days/{first['id']}/template-items/{goggles['id']}",
+        {"name": "Spare goggles"},
+    )
+    context, page = open_page(
+        browser, f"{live_server}/packing-lists", viewport={"width": 320, "height": 800}
+    )
+    try:
+        target = open_card(page, first["id"], groups=False)
+        page.wait_for_function(
+            f"""document.querySelector('[data-resync-day="{first["id"]}"]')
+                .classList.contains('is-line-start')"""
+        )
+        quiet = target.locator(".packing-list-day-actions").evaluate(
+            """(row) => {
+                const left = row.getBoundingClientRect().left;
+                return [...row.querySelectorAll('.btn--quiet + .btn--quiet')].map(b => {
+                    const before = b.previousElementSibling.getBoundingClientRect();
+                    const box = b.getBoundingClientRect();
+                    return {
+                        name: b.textContent.trim(),
+                        wrapped: box.top >= before.bottom - 1,
+                        marked: b.classList.contains('is-line-start'),
+                        dot: getComputedStyle(b, '::before').content,
+                        flush: Math.abs(box.left - left) < 1,
+                    };
+                });
+            }"""
+        )
+    finally:
+        context.close()
+
+    assert quiet == [
+        {
+            "name": "Remove from day",
+            "wrapped": False,
+            "marked": False,
+            "dot": '"·"',
+            "flush": False,
+        },
+        {
+            "name": "Resync with template",
+            "wrapped": True,
+            "marked": True,
+            "dot": "none",
+            "flush": True,
+        },
+    ]
