@@ -105,7 +105,9 @@ def _edit_and_save(page, occurrence, *, mutate, scope):
                     end: document.getElementById('event-end-time').value,
                 };
                 if (mutate) new Function(mutate)();
-                document.querySelector(`[data-scope="${scope}"]`).click();
+                document.getElementById('btn-save-event').click();
+                document.querySelector(`input[name="event-scope"][value="${scope}"]`).click();
+                document.getElementById('btn-scope-confirm').click();
                 await new Promise(r => setTimeout(r, 600));
                 return { shown, sent };
             } finally {

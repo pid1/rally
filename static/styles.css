@@ -2559,13 +2559,6 @@ body.is-dragging {
     overflow-wrap: break-word;
 }
 
-.event-scope-prompt {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding-top: var(--space-2);
-}
-
 .notify-result {
     padding: var(--space-3);
     border: 1px solid var(--rule);
