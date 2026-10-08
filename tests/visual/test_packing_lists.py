@@ -274,9 +274,11 @@ def test_today_and_tomorrow_are_named_in_the_day_box(browser, live_server, packi
     ]
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
-
+        # A date's box can be in both sections (#268), so find it by the
+        # packing list it holds.
         def label(day):
-            return page.locator(f'[data-day-box="{day["date"]}"] > .date-label').inner_text()
+            box = f'[data-day-box="{day["date"]}"]:has([data-day-card="{day["id"]}"])'
+            return page.locator(f"{box} > .date-label").inner_text()
 
         assert label(made[0]).lower() == "today"
         assert label(made[1]).lower() == "tomorrow"
@@ -285,7 +287,7 @@ def test_today_and_tomorrow_are_named_in_the_day_box(browser, live_server, packi
         context.close()
 
 
-def test_due_now_shows_what_has_reached_its_packing_day(browser, live_server):
+def test_due_now_and_coming_up_cut_the_listing_at_the_packing_day(browser, live_server):
     early = api(
         live_server,
         "POST",
@@ -319,21 +321,32 @@ def test_due_now_shows_what_has_reached_its_packing_day(browser, live_server):
     api(live_server, "POST", f"/api/packing-list-days/{ids['today']}/check-all")
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
+        due_now = page.locator("#due-now-container")
+        coming_up = page.locator("#coming-up-container")
+        assert page.locator("#due-now-section h3").inner_text().lower() == "due now"
+        assert page.locator("#coming-up-section h3").inner_text().lower() == "coming up"
+        # Its packing day has come: Due Now, ahead of a later list on an
+        # earlier date it would have followed in one listing.
+        assert due_now.locator(f'[data-day-card="{ids["due"]}"]').count() == 1
+        # Packed or not: the section is about when, not how far along.
+        assert due_now.locator(f'[data-day-card="{ids["today"]}"]').count() == 1
+        assert coming_up.locator(f'[data-day-card="{ids["not_yet"]}"]').count() == 1
+        assert due_now.locator(f'[data-day-card="{ids["not_yet"]}"]').count() == 0
+
+        # Packing: Due now hides Coming Up, heading and all.
         chip = page.locator('#day-filters [data-filter="due-now"]')
         assert chip.inner_text() == "Due now"
         assert page.locator("#packing-label").inner_text() == "Packing"
-        assert card(page, ids["not_yet"]).count() == 1
-
         chip.click()
         assert "active" in chip.get_attribute("class")
-        assert card(page, ids["due"]).count() == 1
-        # Packed or not, it shows: the filter is about when, not how far along.
-        assert card(page, ids["today"]).count() == 1
-        assert card(page, ids["not_yet"]).count() == 0
+        assert not page.locator("#coming-up-section").is_visible()
+        assert card(page, ids["due"]).is_visible()
+        assert card(page, ids["today"]).is_visible()
 
         page.click("#filter-clear")
         assert "active" not in chip.get_attribute("class")
-        assert card(page, ids["not_yet"]).count() == 1
+        assert page.locator("#coming-up-section").is_visible()
+        assert card(page, ids["not_yet"]).is_visible()
     finally:
         context.close()
         delete_template(live_server, early["id"])
@@ -1586,7 +1599,9 @@ def test_groups_start_folded_and_stay_as_left_while_on_the_page(browser, live_se
         group(target, "Emma").locator(".list-group-rule").click()
         assert open_groups_named(card(page, day["id"])) == ["Emma"]
         # `toggle` is dispatched as a task of its own: wait for it to be kept.
-        page.wait_for_function("openDayGroups.size === 1")
+        page.wait_for_function(
+            f"openDayGroups.has('{day['id']}:{packing_list['members']['Emma']}')"
+        )
         assert target.get_by_label("Packed Goggles").is_visible()
 
         # Folding the packing list away and back leaves its groups as they were.
@@ -1611,6 +1626,125 @@ def test_groups_start_folded_and_stay_as_left_while_on_the_page(browser, live_se
         dad = group(card(page, day["id"]), "Dad")
         assert dad.locator(".list-group-count").inner_text() == "1 of 2 packed"
         assert open_groups_named(card(page, day["id"])) == ["Emma"]
+    finally:
+        context.close()
+
+
+# --- Lone groups and the two sections (#268) ----------------------------------------------
+
+
+def test_a_lone_group_opens_and_then_stays_as_left(browser, live_server):
+    """One group drawn: opening the packing list already said which group was
+    wanted. Folded by hand, it stays folded; a second group leaves it open."""
+    members = {m["name"]: m["id"] for m in api(live_server, "GET", "/api/family")}
+    lone = api(
+        live_server, "POST", "/api/packing-list-templates", {"name": "Browser test lone day"}
+    )
+    api(live_server, "POST", f"/api/packing-list-templates/{lone['id']}/items", {"name": "Bucket"})
+    day = api(
+        live_server,
+        "POST",
+        "/api/packing-list-days",
+        {"packing_list_template_id": lone["id"], "date": in_days(20)},
+    )
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_card(page, day["id"], groups=False)
+        assert open_groups_named(target) == ["Everyone"]
+        assert target.get_by_label("Packed Bucket").is_visible()
+        # A template's row follows the same rule.
+        assert open_groups_named(open_row(page, lone["id"], groups=False)) == ["Everyone"]
+
+        # Folded by hand, it stays folded: View less and more, and a refetch.
+        group(target, "Everyone").locator("summary").click()
+        page.wait_for_function(f"foldedDayGroups.has('{day['id']}:none')")
+        disclosure(target).click()
+        disclosure(target).click()
+        assert open_groups_named(card(page, day["id"])) == []
+        page.evaluate("loadDays()")
+        page.wait_for_load_state("networkidle")
+        assert open_groups_named(card(page, day["id"])) == []
+
+        # Switching View forgets the fold, as it forgets every opened group.
+        page.click('#view-chips [data-view="bag"]')
+        assert open_groups_named(card(page, day["id"])) == ["No bag"]
+        page.click('#view-chips [data-view="owner"]')
+        assert open_groups_named(card(page, day["id"])) == ["Everyone"]
+
+        # A second group arrives folded; the first, opened, stays open.
+        api(
+            live_server,
+            "POST",
+            f"/api/packing-list-templates/{lone['id']}/items",
+            {"name": "Sun hat", "owner_id": members["Emma"]},
+        )
+        page.evaluate("loadDays()")
+        page.wait_for_load_state("networkidle")
+        assert list(sections(card(page, day["id"]))) == ["Emma", "Everyone"]
+        assert open_groups_named(card(page, day["id"])) == ["Everyone"]
+    finally:
+        context.close()
+        delete_template(live_server, lone["id"])
+
+
+def test_the_only_group_the_items_filter_leaves_opens(browser, live_server, packing_list):
+    first = packing_list["days"][0]
+    api(
+        live_server,
+        "PUT",
+        f"/api/packing-list-days/{first['id']}/template-items/{packing_list['items']['Goggles']['id']}",
+        {"checked": True},
+    )
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        target = open_card(page, first["id"], groups=False)
+        assert open_groups_named(target) == []
+        # Packed leaves Emma's group alone in the list: it is drawn open.
+        chip(page, "true").click()
+        assert open_groups_named(card(page, first["id"])) == ["Emma"]
+        # Back to every group: it was opened, so it stays open; the rest fold.
+        chip(page, "true").click()
+        assert open_groups_named(card(page, first["id"])) == ["Emma"]
+        assert list(sections(card(page, first["id"]))) == ["Dad", "Emma", "Everyone"]
+    finally:
+        context.close()
+
+
+def test_each_section_says_when_it_has_nothing(browser, live_server):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+
+        def note(section):
+            return page.locator(f"#{section}-container > .container-empty-state").inner_text()
+
+        add_hint = 'Click "Add Packing List" to put a packing list on a day.'
+        # Only what is still coming up: Due Now is empty, Coming Up is not.
+        page.evaluate("days = days.filter(d => d.pack_date > todayLocal()); renderDays()")
+        assert note("due-now") == f"Nothing to pack yet. {add_hint}"
+        assert page.locator("#coming-up-container [data-day-card]").count() > 0
+        # With Packing: Due now on, it reads the same.
+        page.click('#day-filters [data-filter="due-now"]')
+        assert note("due-now") == f"Nothing to pack yet. {add_hint}"
+        page.click("#filter-clear")
+
+        page.evaluate("days = []; renderDays()")
+        assert note("coming-up") == f"Nothing coming up. {add_hint}"
+        # Under the Items filter each section says so on its own.
+        chip(page, "true").click()
+        assert note("due-now") == "Nothing matches this filter."
+        assert note("coming-up") == "Nothing matches this filter."
+    finally:
+        context.close()
+
+
+def test_the_archive_opens_a_lone_group(browser, live_server):
+    """The seed's past work bags are all Dad's: one group, drawn open."""
+    context, page = open_page(browser, f"{live_server}/packing-lists/previous")
+    try:
+        work_bag = page.locator("[data-day-card]", has_text="Dad's work bag").first
+        work_bag.wait_for()
+        disclosure(work_bag).click()
+        assert open_groups_named(work_bag) == ["Dad"]
     finally:
         context.close()
 
@@ -1695,8 +1829,10 @@ def test_the_archive_folds_groups_and_view_refolds_them(browser, live_server):
         opened = open_groups_named(first)
         assert len(opened) == 1
         # Load more and search redraw every loaded day; the group stays open.
-        # (`toggle` is dispatched as a task of its own, so wait for it.)
-        page.wait_for_function("openDayGroups.size === 1")
+        # (`toggle` is dispatched as a task of its own, so wait for it. Other
+        # days' lone groups are in the set too (#268), so wait for this one.)
+        key = first.locator(".list-group--collapsible[open]").get_attribute("data-group")
+        page.wait_for_function(f"openDayGroups.has('{key}')")
         page.evaluate("archive.render()")
         first = page.locator("[data-day-card]", has_text="Swim at Nana's").first
         assert open_groups_named(first) == opened
@@ -1813,7 +1949,9 @@ def test_the_items_filter_narrows_coming_up_and_leaves_folding_alone(
     try:
         target = open_card(page, first["id"], groups=False)
         group(target, "Emma").locator("summary").click()
-        page.wait_for_function("openDayGroups.size === 1")
+        page.wait_for_function(
+            f"openDayGroups.has('{first['id']}:{packing_list['members']['Emma']}')"
+        )
 
         chip(page, "false").click()
         assert chip(page, "false").get_attribute("aria-pressed") == "true"
@@ -1846,11 +1984,11 @@ def test_the_items_filter_narrows_coming_up_and_leaves_folding_alone(
         # It combines with Due now, and Clear Filters turns both off.
         chip(page, "false").click()
         page.click('#day-filters [data-filter="due-now"]')
-        assert card(page, first["id"]).count() == 0  # packs in 20 days
+        assert not card(page, first["id"]).is_visible()  # packs in 20 days: Coming Up
         page.click("#filter-clear")
         assert chip(page, "false").get_attribute("aria-pressed") == "false"
         assert page.locator("#day-filters .filter-chip.active").count() == 0
-        assert card(page, first["id"]).count() == 1
+        assert card(page, first["id"]).is_visible()
     finally:
         context.close()
 

@@ -804,6 +804,13 @@ def seed():
             # Two weeks out: the nested bags, in Coming Up, with nothing
             # packed yet.
             put_on_day("Beach week", saturday + 14),
+            # Tomorrow's box is split across Due Now and Coming Up whatever
+            # day the seed runs: Beach week packs two days ahead, so it is
+            # due now, while Beach day packs the day of and is still coming up.
+            # Neither template is on tomorrow otherwise (the swim and the
+            # concert are on a Saturday, the schedules on weekdays).
+            put_on_day("Beach week", 1),
+            put_on_day("Beach day", 1),
             put_on_day("Swim at Nana's", saturday - 14, checked=nana_items),
             put_on_day("Swim at Nana's", saturday - 28, checked=nana_items),
             # The archive needs days with more than one packing list and a list

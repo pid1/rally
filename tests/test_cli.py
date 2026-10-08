@@ -1,5 +1,7 @@
 """Tests for the seed CLI: it populates sample data and is idempotent."""
 
+from datetime import date, timedelta
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -28,6 +30,7 @@ from rally.models import (
     ShoppingStore,
     Todo,
 )
+from rally.packing_lists import pack_date
 from rally.preparedness import status_of
 from rally.utils.timezone import today_utc
 
@@ -183,6 +186,26 @@ def test_seed_shows_a_one_off_beside_a_templates_day(cli_db):
     assert [(d.name, d.pack_days_before) for d in one_offs] == [("Fall concert", 1)]
     same_day = cli_db.query(PackingListDay).filter_by(date=one_offs[0].date).count()
     assert same_day >= 2
+
+
+@pytest.mark.parametrize("day_of_month", range(5, 12))  # Monday 5 through Sunday 11 October 2026
+def test_seed_splits_tomorrows_box_across_due_now_and_coming_up(cli_db, monkeypatch, day_of_month):
+    """A developer has to be able to see one date's box in both sections on
+    whatever day the seed runs: a packing list on tomorrow that is due now,
+    and one that is still coming up."""
+    today = date(2026, 10, day_of_month)
+    monkeypatch.setattr(cli, "today_utc", lambda: today)
+    cli.seed()
+    tomorrow = (today + timedelta(days=1)).isoformat()
+
+    pack_dates = []
+    for day in cli_db.query(PackingListDay).filter_by(date=tomorrow):
+        lead = day.pack_days_before
+        if lead is None:
+            lead = cli_db.get(PackingListTemplate, day.packing_list_template_id).pack_days_before
+        pack_dates.append(pack_date(day.date, lead))
+    assert any(p <= today.isoformat() for p in pack_dates)
+    assert any(p > today.isoformat() for p in pack_dates)
 
 
 def test_seed_is_idempotent(cli_db):

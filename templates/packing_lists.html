@@ -25,10 +25,10 @@
         </header>
 
         <!-- The page's toolbar, where every Rally page has it: under the page
-             header, above the content. It filters Coming Up only.
-             Packing: Due now — every packing list whose packing day has come and
-             whose day has not passed, packed or not — the daily summary's
-             PACK TODAY rule. Styled as the Meal Planner's Meal Type chips. -->
+             header, above the content. It filters Due Now and Coming Up.
+             Packing: Due now hides Coming Up, leaving only the packing lists
+             whose packing day has come. Styled as the Meal Planner's Meal Type
+             chips. -->
         <div class="toolbar">
             <!-- How every packing list on the page is grouped: who owns what, or
                  what goes in each bag. One is always chosen; it is a view, not
@@ -60,16 +60,30 @@
             </div>
         </div>
 
-        <!-- Two sections under the one page title, each headed the way a
-             Settings section is: an h3 beside its own action. -->
-        <section class="stack">
-            <div class="page-header-row">
-                <h3>Coming Up</h3>
-            </div>
-            <div class="list-container" id="days-container">
-                <div class="container-loading-state">Loading…</div>
-            </div>
-        </section>
+        <!-- Sections under the one page title, each headed the way a
+             Settings section is: an h3 beside its own action. Due Now and
+             Coming Up are one listing cut at the packing day, so they share
+             #days-container: the drag, the refetch guard and the toggle
+             listener address both through it. -->
+        <div class="stack" id="days-container">
+            <section class="stack" id="due-now-section">
+                <div class="page-header-row">
+                    <h3>Due Now</h3>
+                </div>
+                <div class="list-container" id="due-now-container">
+                    <div class="container-loading-state">Loading…</div>
+                </div>
+            </section>
+            <section class="stack" id="coming-up-section">
+                <div class="page-header-row">
+                    <h3>Coming Up</h3>
+                </div>
+                <div class="list-container" id="coming-up-container">
+                    <div class="container-loading-state">Loading…</div>
+                </div>
+            </section>
+            <div class="container-empty-state" id="days-error" hidden></div>
+        </div>
 
         <section class="stack">
             <div class="page-header-row">
@@ -382,7 +396,7 @@
         const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, formatLongDate, addDays, weekdayOf, itemCount,
             packDaysLabel, viewSections, templateSectionCountLabel, bagRowHtml, changeBagsHtml,
             otherDimension, keyToId, noteHtml, isTemplated, dayRowId,
-            dayBoxesHtml, updateDayCardCounts, requestJson } = PackingLists;
+            dayBoxesHtml, updateDayCardCounts, groupIsOpen, requestJson } = PackingLists;
         const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
         const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -408,6 +422,10 @@
         // leaves its groups as they were. Switching View empties both.
         const openDayGroups = new Set();
         const openTemplateGroups = new Set();
+        // Groups somebody folded by hand, so a lone group (which opens on its
+        // own) stays folded once folded. Emptied with the open sets.
+        const foldedDayGroups = new Set();
+        const foldedTemplateGroups = new Set();
         // Held while a check is in flight, so a refetch cannot paint over a
         // box somebody has just ticked with the state from before it.
         let pending = 0;
@@ -479,9 +497,10 @@
 
         // ── Rendering ──
 
-        // Packing: "Due now" narrows Coming Up to the packing lists whose packing day
-        // has come: packing day today or earlier, day today or later. Coming Up
-        // already holds only today on, so the packing day is the whole test.
+        // The listing is cut at the packing day: Due Now holds the packing
+        // lists whose packing day has come (today or earlier), packed or not,
+        // and Coming Up the rest. The listing holds only today on, so the
+        // packing day is the whole test. Packing: "Due now" hides Coming Up.
         // Client-side, over what is loaded; not remembered across visits.
         let dueNowOnly = false;
         // Items: `false` shows only what is not packed, `true` only what is,
@@ -496,31 +515,60 @@
             return packedFilter === null || item.checked === packedFilter;
         }
 
-        function visibleDays(today) {
+        function visibleDays() {
             return days.filter(day =>
-                (!dueNowOnly || day.pack_date <= today)
-                && (packedFilter === null || day.items.some(showItem) || (day.bags || []).some(showItem)));
+                packedFilter === null || day.items.some(showItem) || (day.bags || []).some(showItem));
+        }
+
+        // The two sections, in page order: which days each holds, and what
+        // it says when it holds none.
+        const DAY_SECTIONS = [
+            {
+                id: 'due-now',
+                holds: (day, today) => day.pack_date <= today,
+                empty: 'Nothing to pack yet. Click "Add Packing List" to put a packing list on a day.',
+            },
+            {
+                id: 'coming-up',
+                holds: (day, today) => day.pack_date > today,
+                empty: 'Nothing coming up. Click "Add Packing List" to put a packing list on a day.',
+            },
+        ];
+
+        function sectionEmptyHtml(section) {
+            const text = packedFilter !== null ? 'Nothing matches this filter.' : section.empty;
+            return `<div class="container-empty-state">${escapeHtml(text)}</div>`;
         }
 
         function renderDays() {
             const today = todayLocal();
-            const container = document.getElementById('days-container');
-            const shown = visibleDays(today);
-            if (shown.length) {
-                container.innerHTML = dayBoxesHtml(shown, {
-                    today,
-                    isOpen: day => openDays.has(day.id),
-                    isGroupOpen: key => openDayGroups.has(key),
-                    showItem,
-                    lens: lens(),
-                });
-            } else if (packedFilter !== null) {
-                container.innerHTML = '<div class="container-empty-state">Nothing matches this filter. Clear the filter to see everything coming up.</div>';
-            } else if (dueNowOnly) {
-                container.innerHTML = '<div class="container-empty-state">Nothing to pack today. Clear the filter to see everything coming up.</div>';
-            } else {
-                container.innerHTML = '<div class="container-empty-state">Nothing coming up. Click "Add Packing List" to put a packing list on a day.</div>';
-            }
+            const shown = visibleDays();
+            document.getElementById('days-error').hidden = true;
+            DAY_SECTIONS.forEach(section => {
+                const element = document.getElementById(`${section.id}-section`);
+                element.hidden = section.id === 'coming-up' && dueNowOnly;
+                const held = shown.filter(day => section.holds(day, today));
+                document.getElementById(`${section.id}-container`).innerHTML = held.length
+                    ? dayBoxesHtml(held, {
+                        today,
+                        isOpen: day => openDays.has(day.id),
+                        isGroupOpen: key => openDayGroups.has(key),
+                        isGroupFolded: key => foldedDayGroups.has(key),
+                        showItem,
+                        lens: lens(),
+                    })
+                    : sectionEmptyHtml(section);
+            });
+        }
+
+        // In place of both sections, until the next render puts them back.
+        function showDaysError(message) {
+            DAY_SECTIONS.forEach(section => {
+                document.getElementById(`${section.id}-section`).hidden = true;
+            });
+            const error = document.getElementById('days-error');
+            error.textContent = message;
+            error.hidden = false;
         }
 
         function setDueNow(on) {
@@ -566,6 +614,8 @@
             view = next;
             openDayGroups.clear();
             openTemplateGroups.clear();
+            foldedDayGroups.clear();
+            foldedTemplateGroups.clear();
             document.querySelectorAll('#view-chips [data-view]').forEach(chip => {
                 const on = chip.dataset.view === next;
                 chip.classList.toggle('active', on);
@@ -619,7 +669,8 @@
             // group a row was dropped in. By owner, each group opens with that
             // person's bags, without a checkbox: a template is not packed.
             const listBags = c.bags || [];
-            return viewSections(c.items, lens(), listBags).map(section => {
+            const sections = viewSections(c.items, lens(), listBags);
+            return sections.map(section => {
                 const key = `${c.id}:${section.key}`;
                 return listGroupHtml({
                     key,
@@ -628,7 +679,10 @@
                     leadHtml: section.bags.map(bag => bagRowHtml(bag, { listBags, lens: lens() })).join(''),
                     rowsHtml: section.items.map(item => renderItemRow(item, listBags)).join(''),
                     collapsible: true,
-                    open: openTemplateGroups.has(key),
+                    open: groupIsOpen(key, sections.length, {
+                        isGroupOpen: k => openTemplateGroups.has(k),
+                        isGroupFolded: k => foldedTemplateGroups.has(k),
+                    }),
                 });
             }).join('');
         }
@@ -705,8 +759,7 @@
                 await loadTemplates();
             } catch (error) {
                 console.error('Error loading packing lists:', error);
-                document.getElementById('days-container').innerHTML =
-                    '<div class="container-empty-state">Could not load packing lists. Try again in a moment.</div>';
+                showDaysError('Could not load packing lists. Try again in a moment.');
             }
         }
 
@@ -716,8 +769,17 @@
             const details = e.target;
             if (!(details instanceof HTMLDetailsElement)) return;
             if (details.classList.contains('list-group--collapsible')) {
-                const groups = details.closest('#days-container') ? openDayGroups : openTemplateGroups;
-                if (details.open) groups.add(details.dataset.group); else groups.delete(details.dataset.group);
+                const inDays = details.closest('#days-container');
+                const opened = inDays ? openDayGroups : openTemplateGroups;
+                const folded = inDays ? foldedDayGroups : foldedTemplateGroups;
+                const key = details.dataset.group;
+                if (details.open) {
+                    opened.add(key);
+                    folded.delete(key);
+                } else {
+                    opened.delete(key);
+                    folded.add(key);
+                }
                 return;
             }
             const set = details.dataset.day ? openDays : (details.dataset.template ? openTemplates : null);
@@ -777,13 +839,15 @@
             const group = row.closest('.list-group');
             const card = row.closest('[data-day-card]');
             const box = card.closest('.day-box');
+            const list = box.closest('.list-container');
             row.remove();
             if (!group.querySelector('.editable-item')) group.remove();
             if (!card.querySelector('.list-group')) card.remove();
             if (!box.querySelector('[data-day-card]')) box.remove();
-            if (!daysContainer.querySelector('[data-day-card]')) {
-                renderDays();
-                return;
+            // A section left with nothing says so; the other section is
+            // left exactly as it is.
+            if (!list.querySelector('[data-day-card]')) {
+                list.innerHTML = sectionEmptyHtml(DAY_SECTIONS.find(s => `${s.id}-container` === list.id));
             }
             if (target) target.focus();
         }

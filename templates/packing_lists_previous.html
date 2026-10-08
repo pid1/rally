@@ -55,10 +55,12 @@
         const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIMEZONE }).format(new Date());
         // Which cards are open, so Load more puts them back the way they were,
-        // and which groups inside them, by group key. A group not in the set
-        // is folded; switching View empties it.
+        // and which groups inside them, by group key: opened, or folded by
+        // hand. A group in neither is folded unless it is a list's only one;
+        // switching View empties both.
         const openDays = new Set();
         const openDayGroups = new Set();
+        const foldedDayGroups = new Set();
         // Who and which bags, for grouping; By owner on every visit.
         let members = [];
         let bags = [];
@@ -69,7 +71,13 @@
             // from it to the packing list it sits in.
             if (e.target.matches('.list-group--collapsible')) {
                 const key = e.target.dataset.group;
-                if (e.target.open) openDayGroups.add(key); else openDayGroups.delete(key);
+                if (e.target.open) {
+                    openDayGroups.add(key);
+                    foldedDayGroups.delete(key);
+                } else {
+                    openDayGroups.delete(key);
+                    foldedDayGroups.add(key);
+                }
                 return;
             }
             const details = e.target.closest('details[data-day]');
@@ -93,6 +101,7 @@
             render: (days) => PackingLists.dayBoxesHtml(days, {
                 today, readOnly: true, isOpen: day => openDays.has(day.id),
                 isGroupOpen: key => openDayGroups.has(key),
+                isGroupFolded: key => foldedDayGroups.has(key),
                 lens: { view, members, bags },
             }),
         });
@@ -103,6 +112,7 @@
             view = chip.dataset.view;
             // Every group starts folded again, as on a fresh visit.
             openDayGroups.clear();
+            foldedDayGroups.clear();
             document.querySelectorAll('#view-chips [data-view]').forEach(c => {
                 const on = c.dataset.view === view;
                 c.classList.toggle('active', on);
@@ -115,6 +125,7 @@
                 PackingLists.dayBoxesHtml(archive.items, {
                     today, readOnly: true, isOpen: day => openDays.has(day.id),
                     isGroupOpen: key => openDayGroups.has(key),
+                    isGroupFolded: key => foldedDayGroups.has(key),
                     lens: { view, members, bags },
                 });
         });
