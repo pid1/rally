@@ -654,6 +654,17 @@ class FollowedTeamResponse(FollowedTeamBase):
 # Calendar events
 
 
+PackingListSpan = Literal["first", "every"]
+
+
+class OccurrencePackingList(BaseModel):
+    """One packing list an occurrence brings, and the days it sits on."""
+
+    template_id: int
+    name: str
+    day_ids: list[int] = []
+
+
 class EventBase(BaseModel):
     """The shape a form submits.
 
@@ -676,6 +687,10 @@ class EventBase(BaseModel):
     notify_minutes_before: int | None = None
     attendee_ids: list[int] = []
     calendar_id: int | None = None  # Defaults to the family's first native calendar
+    # Packing list templates every occurrence brings, and where a multi-day
+    # occurrence's go: its first day, or every day it covers.
+    packing_list_template_ids: list[int] = []
+    packing_list_span: PackingListSpan | None = None
 
 
 class EventCreate(EventBase):
@@ -696,6 +711,10 @@ class EventUpdate(BaseModel):
     notify_minutes_before: int | None = UNSET
     attendee_ids: list[int] | None = None
     calendar_id: int | None = None
+    # The lists at the scope saved: the series' for `all` and `following`, the
+    # occurrence's own for `this`. None leaves them alone, as attendees do.
+    packing_list_template_ids: list[int] | None = None
+    packing_list_span: PackingListSpan | None = UNSET  # Always the series'
 
 
 class EventOverrideResponse(BaseModel):
@@ -734,6 +753,8 @@ class EventResponse(BaseModel):
     notify_minutes_before: int | None = None
     attendee_ids: list[int] = []
     overrides: list[EventOverrideResponse] = []
+    packing_list_template_ids: list[int] = []  # The series' own
+    packing_list_span: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -773,6 +794,8 @@ class OccurrenceResponse(BaseModel):
     recurrence_text: str = ""
     editable: bool = False
     notify_minutes_before: int | None = None
+    # This occurrence's packing lists, A-Z. Always empty for an external one.
+    packing_lists: list[OccurrencePackingList] = []
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1546,6 +1569,14 @@ class PackingListDayUpdate(BaseModel):
         return _blank_to_none(value)
 
 
+class PackingListDayEventLink(BaseModel):
+    """A calendar event a day belongs to: the occurrence's own title."""
+
+    event_id: int
+    title: str
+    occurrence_date: str
+
+
 class PackingListDaySummary(BaseModel):
     """A day's packing list as a row: what it is, when, and how far along.
 
@@ -1570,6 +1601,8 @@ class PackingListDaySummary(BaseModel):
     # Items this day differs from its template on: edited, removed or added.
     # Always 0 on a templateless day, which has no template to differ from.
     changed_count: int = 0
+    # The calendar events this day moves and goes with; empty for most days.
+    events: list[PackingListDayEventLink] = []
 
 
 class PackingListDayItemResponse(BaseModel):

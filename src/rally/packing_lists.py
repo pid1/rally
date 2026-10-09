@@ -49,17 +49,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from rally.calendars import dates_covered, expand_event, window_bounds
 from rally.models import (
+    Event,
+    EventOverride,
+    EventPackingList,
     FamilyMember,
     PackingListBag,
     PackingListDay,
     PackingListDayBag,
     PackingListDayBagCheck,
     PackingListDayCheck,
+    PackingListDayEvent,
     PackingListDayItem,
     PackingListItemHistory,
     PackingListTemplate,
@@ -554,6 +560,8 @@ def delete_template(db: Session, template: PackingListTemplate) -> None:
     Bags and item history are the household's, not the template's, and stay.
     """
     items = ordered_template_items(db, template.id)
+    # No event brings it any more, and its days stop moving with any event.
+    unlink_template(db, template.id)
     days = db.query(PackingListDay).filter(PackingListDay.packing_list_template_id == template.id)
     for day in days.all():
         _make_templateless(db, day, template, items)
@@ -892,6 +900,645 @@ def process_schedules(db: Session, today: date) -> int:
             candidate = get_next_recurrence_date(schedule, candidate)
     db.commit()
     return created
+
+
+# --- Packing lists on calendar events ----------------------------------------------
+#
+# An event can bring packing list templates with it (``EventPackingList``), and
+# the days it put them on, or adopted, are recorded in ``PackingListDayEvent``.
+# ``sync_event_packing_lists`` is the one place those rows and the days behind
+# them are written: every event write calls it, and so does the daily pass, so
+# a repeating event's lists keep being filled in ahead.
+
+SPAN_FIRST = "first"
+SPAN_EVERY = "every"
+
+# How far past the lookahead to look for a repeating event's next occurrence,
+# so a monthly event always has its next list on the page. A year covers a
+# yearly event; anything rarer simply waits until it is within reach.
+NEXT_OCCURRENCE_DAYS = 400
+
+
+class EventPackingListError(Exception):
+    """A sync that cannot go ahead without the person who asked for it."""
+
+
+class AdoptNeeded(EventPackingListError):
+    """Moving would put a list on a date its template is already on, dropping
+    the moving day's checks and changes. ``adopts`` says what, for the
+    confirmation the calendar asks before trying again with ``adopt=True``."""
+
+    def __init__(self, adopts: list[dict]):
+        super().__init__("adopt needed")
+        self.adopts = adopts
+
+
+class MovedIntoPast(EventPackingListError):
+    """An occurrence with packing lists on a day from today on was moved to a
+    day that has passed."""
+
+
+MOVED_INTO_PAST_MESSAGE = (
+    "This event has packing lists. Remove them before moving it to a day that has passed."
+)
+
+
+def _event_rows(db: Session, event_id: int) -> list[EventPackingList]:
+    return (
+        db.query(EventPackingList)
+        .filter(EventPackingList.event_id == event_id)
+        .order_by(EventPackingList.id.asc())
+        .all()
+    )
+
+
+def series_template_ids(rows: list[EventPackingList]) -> list[int]:
+    """The templates every occurrence of the series brings, in the order added."""
+    return [row.packing_list_template_id for row in rows if row.occurrence_date is None]
+
+
+def occurrence_template_ids(rows: list[EventPackingList], occurrence_date: str) -> set[int]:
+    """One occurrence's templates: the series', plus what it adds, minus what it
+    leaves out."""
+    wanted = set(series_template_ids(rows))
+    for row in rows:
+        if row.occurrence_date != occurrence_date:
+            continue
+        if row.removed:
+            wanted.discard(row.packing_list_template_id)
+        else:
+            wanted.add(row.packing_list_template_id)
+    return wanted
+
+
+def set_series_lists(db: Session, event_id: int, template_ids: list[int]) -> None:
+    """Make ``template_ids`` the series' own lists. Does not commit.
+
+    Each occurrence's own rows stay, the way a series edit keeps overrides. An
+    occurrence row the new series makes redundant goes: an addition the series
+    now has, or a removal of a list the series no longer has.
+    """
+    wanted = list(dict.fromkeys(template_ids))
+    rows = _event_rows(db, event_id)
+    for row in rows:
+        if row.occurrence_date is None and row.packing_list_template_id not in wanted:
+            db.delete(row)
+    have = set(series_template_ids(rows))
+    for template_id in wanted:
+        if template_id not in have:
+            db.add(EventPackingList(event_id=event_id, packing_list_template_id=template_id))
+    for row in rows:
+        if row.occurrence_date is None:
+            continue
+        in_series = row.packing_list_template_id in wanted
+        if in_series != bool(row.removed):
+            db.delete(row)
+    db.flush()
+
+
+def set_occurrence_lists(
+    db: Session, event_id: int, occurrence_date: str, template_ids: list[int]
+) -> None:
+    """Make one occurrence's lists ``template_ids``, as differences from the
+    series': an addition for each list the series lacks, a removal for each
+    series list it leaves out. Does not commit."""
+    rows = _event_rows(db, event_id)
+    series = set(series_template_ids(rows))
+    wanted = set(template_ids)
+    for row in rows:
+        if row.occurrence_date == occurrence_date:
+            db.delete(row)
+    db.flush()
+    for template_id in sorted(wanted - series):
+        db.add(
+            EventPackingList(
+                event_id=event_id,
+                packing_list_template_id=template_id,
+                occurrence_date=occurrence_date,
+            )
+        )
+    for template_id in sorted(series - wanted):
+        db.add(
+            EventPackingList(
+                event_id=event_id,
+                packing_list_template_id=template_id,
+                occurrence_date=occurrence_date,
+                removed=True,
+            )
+        )
+    db.flush()
+
+
+def split_event_packing_lists(db: Session, head_id: int, tail_id: int, split: str) -> None:
+    """Carry a series' packing lists onto the tail a split made. Does not commit.
+
+    The tail starts with the head's series lists; occurrence rows and day links
+    on or after the split describe occurrences that now belong to the tail, so
+    they move to it — the way the split moves overrides.
+    """
+    for template_id in series_template_ids(_event_rows(db, head_id)):
+        db.add(EventPackingList(event_id=tail_id, packing_list_template_id=template_id))
+    db.query(EventPackingList).filter(
+        EventPackingList.event_id == head_id,
+        EventPackingList.occurrence_date.isnot(None),
+        EventPackingList.occurrence_date >= split,
+    ).update({EventPackingList.event_id: tail_id}, synchronize_session=False)
+    db.query(PackingListDayEvent).filter(
+        PackingListDayEvent.event_id == head_id,
+        PackingListDayEvent.occurrence_date >= split,
+    ).update({PackingListDayEvent.event_id: tail_id}, synchronize_session=False)
+    db.flush()
+
+
+def _template_day(db: Session, template_id: int, day: str) -> PackingListDay | None:
+    """The day ``template_id`` is on at ``day``, if any (``_date_clash``'s query)."""
+    return (
+        db.query(PackingListDay)
+        .filter(
+            PackingListDay.packing_list_template_id == template_id,
+            PackingListDay.date == day,
+        )
+        .first()
+    )
+
+
+def _delete_day(db: Session, day: PackingListDay) -> None:
+    clear_day_state(db, day)
+    db.delete(day)
+
+
+def _links_on_day(db: Session, day_id: int) -> int:
+    return db.query(PackingListDayEvent).filter(PackingListDayEvent.day_id == day_id).count()
+
+
+def _release(db: Session, link: PackingListDayEvent) -> None:
+    """Drop one link, and its day with it once no event is left linked to it."""
+    day_id = link.day_id
+    db.delete(link)
+    db.flush()
+    if day_id is None or _links_on_day(db, day_id):
+        return
+    day = db.query(PackingListDay).filter(PackingListDay.id == day_id).first()
+    if day is not None:
+        _delete_day(db, day)
+
+
+def _place(
+    db: Session, event_id: int, occurrence_date: str, template_id: int, day: str
+) -> PackingListDayEvent:
+    """Link an occurrence's list on ``day``: adopt the template's day already
+    there, or put the template on that day."""
+    existing = _template_day(db, template_id, day)
+    if existing is None:
+        existing = PackingListDay(packing_list_template_id=template_id, date=day)
+        db.add(existing)
+        db.flush()
+    link = PackingListDayEvent(
+        day_id=existing.id,
+        event_id=event_id,
+        occurrence_date=occurrence_date,
+        packing_list_template_id=template_id,
+        date=day,
+    )
+    db.add(link)
+    db.flush()
+    return link
+
+
+def _expand(event: Event, overrides: list, start: date, end: date, tz: ZoneInfo) -> list:
+    window_start, window_end = window_bounds(start, end + timedelta(days=1), tz)
+    return expand_event(
+        event, overrides=overrides, window_start=window_start, window_end=window_end, local_tz=tz
+    )
+
+
+def _wanted_dates(occurrence, span: str | None, today: str) -> list[str]:
+    """The dates, from today on, an occurrence's lists go on."""
+    dates = dates_covered(occurrence)
+    if span != SPAN_EVERY:
+        dates = dates[:1]
+    return [value for value in dates if value >= today]
+
+
+def _occurrences_in_play(
+    db: Session, event: Event, links: list[PackingListDayEvent], today: date, tz: ZoneInfo
+) -> dict[str, object]:
+    """The occurrences a sync looks at, by original date.
+
+    Every occurrence through the lookahead; for a repeating event, the next one
+    even when it is further out; for a one-time event, its one occurrence
+    wherever it is; and any occurrence that already has a list on a day from
+    today on, so one placed as the next occurrence is not let go once the
+    lookahead has moved past it. The window reaches back to wherever an
+    occurrence has been moved, so a move into the past is seen as one.
+    """
+    overrides = db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
+    horizon = today + timedelta(days=SUMMARY_LOOKAHEAD_DAYS)
+    linked = {link.occurrence_date for link in links}
+
+    start = today
+    end = horizon
+    if not event.rrule:
+        start = min(start, date.fromisoformat(event.start_date))
+        end = max(end, date.fromisoformat(event.end_date))
+    for override in overrides:
+        if override.occurrence_date in linked and override.start_date:
+            start = min(start, date.fromisoformat(override.start_date))
+            end = max(end, date.fromisoformat(override.end_date or override.start_date))
+    for link in links:
+        end = max(end, date.fromisoformat(link.date), date.fromisoformat(link.occurrence_date))
+
+    found = {}
+    for occurrence in _expand(event, overrides, start, end, tz):
+        in_reach = occurrence.start_local_date <= horizon.isoformat()
+        if not event.rrule or in_reach or occurrence.occurrence_date in linked:
+            found[occurrence.occurrence_date] = occurrence
+
+    if event.rrule:
+        today_iso = today.isoformat()
+        upcoming = [o for o in found.values() if o.start_local_date >= today_iso]
+        if not upcoming:
+            later = _expand(
+                event, overrides, horizon, today + timedelta(days=NEXT_OCCURRENCE_DAYS), tz
+            )
+            later = [o for o in later if o.start_local_date >= today_iso]
+            if later:
+                first = min(later, key=lambda o: o.start_local_date)
+                found[first.occurrence_date] = first
+    return found
+
+
+def sync_event_packing_lists(
+    db: Session, event: Event, today: date, *, tz: ZoneInfo, adopt: bool = False
+) -> None:
+    """Put an event's packing lists on its occurrences' days, and take them off
+    the days its occurrences no longer have. Does not commit; idempotent.
+
+    Nothing before today is ever written. A day an event adopted goes when its
+    last link does, whoever put it there first. A moved occurrence moves its
+    days rather than recreating them, so checks go with them, except:
+
+    * the template is already on the new date and the day is the moving
+      occurrence's alone — the event adopts the day already there and the
+      moving day goes, which raises ``AdoptNeeded`` unless ``adopt``;
+    * the day is shared with another event — it stays with that event, and
+      this occurrence gets a day of its own on the new date.
+
+    Raises ``MovedIntoPast`` when an occurrence that still wants a list on a day
+    from today on has been moved entirely before today. Both are raised before
+    anything is written.
+    """
+    today_iso = today.isoformat()
+    rows = _event_rows(db, event.id)
+    links = (
+        db.query(PackingListDayEvent)
+        .filter(PackingListDayEvent.event_id == event.id, PackingListDayEvent.date >= today_iso)
+        .order_by(PackingListDayEvent.date.asc(), PackingListDayEvent.id.asc())
+        .all()
+    )
+    if not rows and not links:
+        return
+    occurrences = _occurrences_in_play(db, event, links, today, tz)
+
+    current: dict[tuple[str, int], list[PackingListDayEvent]] = {}
+    for link in links:
+        current.setdefault((link.occurrence_date, link.packing_list_template_id), []).append(link)
+
+    wanted: dict[tuple[str, int], list[str]] = {}
+    for occurrence_date, occurrence in occurrences.items():
+        dates = _wanted_dates(occurrence, event.packing_list_span, today_iso)
+        for template_id in occurrence_template_ids(rows, occurrence_date):
+            wanted[(occurrence_date, template_id)] = dates
+
+    # Plan first, so a refusal leaves nothing half done.
+    releases: list[PackingListDayEvent] = []
+    moves: list[tuple[PackingListDayEvent, int, str, str]] = []
+    places: dict[int, list[tuple[str, str]]] = {}
+    leaving: dict[int, list[PackingListDayEvent]] = {}
+    passed: set[int] = set()
+    for key in sorted(set(current) | set(wanted)):
+        occurrence_date, template_id = key
+        links_now = current.get(key, [])
+        dates = wanted.get(key)
+        if dates is None:
+            for link in links_now:
+                (leaving.setdefault(template_id, []) if link.day_id else releases).append(link)
+            continue
+        if not dates:
+            # Wanted, and every date it could go on has passed.
+            passed.add(template_id)
+        kept = {link.date for link in links_now if link.date in dates}
+        going = [link for link in links_now if link.date not in dates]
+        arriving = [value for value in dates if value not in kept]
+        for link, value in zip(going, arriving, strict=False):
+            moves.append((link, template_id, occurrence_date, value))
+        for link in going[len(arriving) :]:
+            (leaving.setdefault(template_id, []) if link.day_id else releases).append(link)
+        for value in arriving[len(going) :]:
+            places.setdefault(template_id, []).append((occurrence_date, value))
+
+    # A day leaving one occurrence and a list arriving on another, for the same
+    # template, is one move: a one-time event that moves gets a new original
+    # date, and so does every occurrence of a series moved to another weekday.
+    # Pairing them keeps the day, and its checks, rather than starting over.
+    for template_id, going in leaving.items():
+        going.sort(key=lambda link: link.date)
+        arriving = sorted(places.get(template_id, []), key=lambda pair: pair[1])
+        for link, (occurrence_date, value) in zip(going, arriving, strict=False):
+            moves.append((link, template_id, occurrence_date, value))
+        releases.extend(going[len(arriving) :])
+        places[template_id] = arriving[len(going) :]
+        if template_id in passed and len(going) > len(arriving):
+            raise MovedIntoPast(MOVED_INTO_PAST_MESSAGE)
+
+    adopts = []
+    for link, template_id, _, value in moves:
+        if link.day_id is not None and _links_on_day(db, link.day_id) == 1:
+            target = _template_day(db, template_id, value)
+            if target is not None and target.id != link.day_id:
+                adopts.append(_adopt_detail(db, link, target))
+    if adopts and not adopt:
+        raise AdoptNeeded(adopts)
+
+    for link in releases:
+        _release(db, link)
+    for link, template_id, occurrence_date, value in moves:
+        link.occurrence_date = occurrence_date
+        _move(db, link, template_id, value)
+    for template_id, arriving in places.items():
+        for occurrence_date, value in arriving:
+            _place(db, event.id, occurrence_date, template_id, value)
+    db.flush()
+
+
+def _move(db: Session, link: PackingListDayEvent, template_id: int, value: str) -> None:
+    """Move one link, and its day when the day is this link's alone."""
+    if link.day_id is None:
+        link.date = value
+        return
+    target = _template_day(db, template_id, value)
+    alone = _links_on_day(db, link.day_id) == 1
+    if alone and target is None:
+        day = db.query(PackingListDay).filter(PackingListDay.id == link.day_id).first()
+        if day is not None:
+            day.date = value
+        link.date = value
+        db.flush()
+        return
+    old_day_id = link.day_id
+    if target is None:
+        target = PackingListDay(packing_list_template_id=template_id, date=value)
+        db.add(target)
+        db.flush()
+    link.day_id = target.id
+    link.date = value
+    db.flush()
+    if alone:
+        old = db.query(PackingListDay).filter(PackingListDay.id == old_day_id).first()
+        if old is not None:
+            _delete_day(db, old)
+
+
+def _adopt_detail(db: Session, link: PackingListDayEvent, target: PackingListDay) -> dict:
+    template = (
+        db.query(PackingListTemplate)
+        .filter(PackingListTemplate.id == target.packing_list_template_id)
+        .first()
+    )
+    checked = (
+        db.query(PackingListDayCheck).filter(PackingListDayCheck.day_id == link.day_id).count()
+        + db.query(PackingListDayItem)
+        .filter(PackingListDayItem.day_id == link.day_id, PackingListDayItem.checked == True)  # noqa: E712
+        .count()
+        + db.query(PackingListDayBagCheck)
+        .filter(PackingListDayBagCheck.day_id == link.day_id)
+        .count()
+    )
+    return {
+        "template_name": template.name if template else "",
+        "from_date": link.date,
+        "to_date": target.date,
+        "checked": checked > 0,
+    }
+
+
+def adopt_message(adopts: list[dict]) -> str:
+    """The calendar's confirmation before a move adopts a day already there."""
+    sentences = []
+    for adopt in adopts:
+        sentence = (
+            f'"{adopt["template_name"]}" is already on {_long_date(adopt["to_date"])}. '
+            "This event will use that list instead"
+        )
+        if adopt["checked"]:
+            sentence += f", and what was checked on {_long_date(adopt['from_date'])} will be lost"
+        sentences.append(sentence + ".")
+    return " ".join(sentences) + " Continue?"
+
+
+def release_event_packing_lists(db: Session, event_id: int, today: date) -> None:
+    """An event is being deleted: take its lists off every day from today on
+    (each day going once no event is left linked to it), then drop everything
+    the event kept. Past days stay, as ordinary days. Does not commit."""
+    today_iso = today.isoformat()
+    for link in (
+        db.query(PackingListDayEvent)
+        .filter(PackingListDayEvent.event_id == event_id, PackingListDayEvent.date >= today_iso)
+        .all()
+    ):
+        _release(db, link)
+    db.query(PackingListDayEvent).filter(PackingListDayEvent.event_id == event_id).delete(
+        synchronize_session=False
+    )
+    db.query(EventPackingList).filter(EventPackingList.event_id == event_id).delete(
+        synchronize_session=False
+    )
+    db.flush()
+
+
+def unlink_day(db: Session, day: PackingListDay) -> None:
+    """A day is being taken off on the Packing Lists page: unlink it from every
+    event linked to it, so none of them puts it back. Does not commit.
+
+    Where the occurrence keeps the list on other dates (an ``Every day``
+    occurrence covering more than this one), the link stays with no day, which
+    keeps just this date empty. Otherwise the occurrence leaves the list out:
+    its own addition is dropped, or a removal is written; on a one-time event
+    the event's own row for the template goes.
+    """
+    for link in db.query(PackingListDayEvent).filter(PackingListDayEvent.day_id == day.id).all():
+        event = db.query(Event).filter(Event.id == link.event_id).first()
+        others = (
+            db.query(PackingListDayEvent)
+            .filter(
+                PackingListDayEvent.event_id == link.event_id,
+                PackingListDayEvent.occurrence_date == link.occurrence_date,
+                PackingListDayEvent.packing_list_template_id == link.packing_list_template_id,
+                PackingListDayEvent.id != link.id,
+            )
+            .count()
+        )
+        if event is not None and event.packing_list_span == SPAN_EVERY and others:
+            link.day_id = None
+            continue
+        if event is not None:
+            _leave_out(db, event, link.occurrence_date, link.packing_list_template_id)
+        db.delete(link)
+    db.flush()
+
+
+def _leave_out(db: Session, event: Event, occurrence_date: str, template_id: int) -> None:
+    rows = _event_rows(db, event.id)
+    if not event.rrule:
+        for row in rows:
+            if row.packing_list_template_id == template_id:
+                db.delete(row)
+        return
+    own = [
+        row
+        for row in rows
+        if row.occurrence_date == occurrence_date and row.packing_list_template_id == template_id
+    ]
+    for row in own:
+        db.delete(row)
+    if template_id in series_template_ids(rows):
+        db.add(
+            EventPackingList(
+                event_id=event.id,
+                packing_list_template_id=template_id,
+                occurrence_date=occurrence_date,
+                removed=True,
+            )
+        )
+
+
+def unlink_template(db: Session, template_id: int) -> None:
+    """A template is being deleted: no event brings it any more, and its days
+    become ordinary days, no longer moving or going with an event. Does not
+    commit."""
+    db.query(EventPackingList).filter(
+        EventPackingList.packing_list_template_id == template_id
+    ).delete(synchronize_session=False)
+    db.query(PackingListDayEvent).filter(
+        PackingListDayEvent.packing_list_template_id == template_id
+    ).delete(synchronize_session=False)
+
+
+def join_names(names: list[str]) -> str:
+    """Names in a sentence, each in straight double quotes, with the Oxford
+    comma: ``"A"``, ``"A" and "B"``, ``"A", "B", and "C"``. Quoting is what keeps
+    a title with "and" in it from reading as two."""
+    quoted = [f'"{name}"' for name in names]
+    if len(quoted) <= 2:
+        return " and ".join(quoted)
+    return ", ".join(quoted[:-1]) + ", and " + quoted[-1]
+
+
+def process_event_packing_lists(db: Session, today: date, tz: ZoneInfo) -> int:
+    """The daily pass: sync every event that brings a packing list, so a
+    repeating event's lists are filled in as the lookahead moves forward.
+    Commits. A sync that would need somebody's answer is skipped and logged
+    rather than failing a read; it cannot arise from time passing alone.
+    Returns how many events were synced."""
+    event_ids = sorted({row.event_id for row in db.query(EventPackingList.event_id).all()})
+    synced = 0
+    for event_id in event_ids:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if event is None:
+            continue
+        try:
+            # A refusal is raised before anything is written, so there is
+            # nothing to roll back.
+            sync_event_packing_lists(db, event, today, tz=tz)
+            synced += 1
+        except EventPackingListError as exc:
+            print(f"Packing lists for event {event_id} not synced: {exc}")
+    db.commit()
+    return synced
+
+
+def day_events(db: Session, day_ids: list[int]) -> dict[int, list[dict]]:
+    """The events linked to each day, by occurrence: ``{event_id, title,
+    occurrence_date}``, an occurrence's own title winning over the series'."""
+    if not day_ids:
+        return {}
+    links = (
+        db.query(PackingListDayEvent)
+        .filter(PackingListDayEvent.day_id.in_(day_ids))
+        .order_by(PackingListDayEvent.id.asc())
+        .all()
+    )
+    if not links:
+        return {}
+    event_ids = {link.event_id for link in links}
+    titles = {
+        event.id: event.title for event in db.query(Event).filter(Event.id.in_(event_ids)).all()
+    }
+    retitled = {
+        (override.event_id, override.occurrence_date): override.title
+        for override in db.query(EventOverride)
+        .filter(EventOverride.event_id.in_(event_ids), EventOverride.title.isnot(None))
+        .all()
+    }
+    result: dict[int, list[dict]] = {}
+    seen: set[tuple[int, int, str]] = set()
+    for link in links:
+        key = (link.day_id, link.event_id, link.occurrence_date)
+        if key in seen or link.event_id not in titles:
+            continue
+        seen.add(key)
+        title = retitled.get((link.event_id, link.occurrence_date)) or titles[link.event_id]
+        result.setdefault(link.day_id, []).append(
+            {"event_id": link.event_id, "title": title, "occurrence_date": link.occurrence_date}
+        )
+    return result
+
+
+def occurrence_packing_lists(
+    db: Session, pairs: list[tuple[int, str]]
+) -> dict[tuple[int, str], list[dict]]:
+    """Each native occurrence's packing lists, A–Z: ``{template_id, name,
+    day_ids}``. An occurrence the sync has not reached yet still names its
+    lists, with no days."""
+    event_ids = {event_id for event_id, _ in pairs}
+    if not event_ids:
+        return {}
+    rows_by_event: dict[int, list[EventPackingList]] = {}
+    for row in db.query(EventPackingList).filter(EventPackingList.event_id.in_(event_ids)).all():
+        rows_by_event.setdefault(row.event_id, []).append(row)
+    if not rows_by_event:
+        return {}
+    names = {
+        template.id: template.name
+        for template in db.query(PackingListTemplate).filter(
+            PackingListTemplate.id.in_(
+                {row.packing_list_template_id for rows in rows_by_event.values() for row in rows}
+            )
+        )
+    }
+    days: dict[tuple[int, str, int], list[int]] = {}
+    for link in db.query(PackingListDayEvent).filter(
+        PackingListDayEvent.event_id.in_(rows_by_event), PackingListDayEvent.day_id.isnot(None)
+    ):
+        days.setdefault(
+            (link.event_id, link.occurrence_date, link.packing_list_template_id), []
+        ).append(link.day_id)
+    result = {}
+    for event_id, occurrence_date in pairs:
+        rows = rows_by_event.get(event_id)
+        if not rows:
+            continue
+        lists = [
+            {
+                "template_id": template_id,
+                "name": names[template_id],
+                "day_ids": sorted(days.get((event_id, occurrence_date, template_id), [])),
+            }
+            for template_id in occurrence_template_ids(rows, occurrence_date)
+            if template_id in names
+        ]
+        result[(event_id, occurrence_date)] = sorted(lists, key=lambda item: item["name"].lower())
+    return result
 
 
 # --- The daily summary -----------------------------------------------------------

@@ -862,8 +862,10 @@ footer {
 
 /* A field that is shown but cannot be changed — a recurring task's start date
    once the series has completions. Read-back, not an input: saying so beats a
-   field that silently ignores what is typed into it. */
-.form-group input:disabled,
+   field that silently ignores what is typed into it. The text field selector
+   repeats the field rule's :not()s so it outranks that rule, which would
+   otherwise repaint a disabled field's background. */
+.form-group input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):disabled,
 .form-group select:disabled,
 .form-group textarea:disabled {
     background: var(--surface-sunken);
@@ -1666,6 +1668,34 @@ html.modal-open {
     color: var(--ink);
     font-family: var(--font-body);
     font-size: var(--text-base);
+}
+
+/* A select in a row takes the room a text field would, and keeps the look
+   `.form-group select` gives it — its caret padding and its border — which a
+   shared rule with the text field above would override. */
+.manage-row select {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Rows a form has picked and will save with it — the packing lists an event
+   brings — each on a sunken ground, so they read as the form's contents
+   rather than as more of its labels. The hairline between manage rows gives
+   way to the gap. */
+.picked-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.picked-list:not(:empty) {
+    margin-bottom: var(--space-2);
+}
+
+.picked-list .manage-row {
+    padding: var(--space-1) var(--space-3);
+    border-bottom: none;
+    background: var(--surface-sunken);
 }
 
 /* A row's text when it is read rather than edited in place: its name, and a

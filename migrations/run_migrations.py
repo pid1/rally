@@ -84,6 +84,9 @@ def run_migrations():
         from migrate_037_add_day_bag_removed_from import (
             migrate as migrate_037_add_day_bag_removed_from,
         )
+        from migrate_038_add_event_packing_lists import (
+            migrate as migrate_038_add_event_packing_lists,
+        )
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -142,6 +145,7 @@ def run_migrations():
         ("035_packing_list_templates", migrate_035_packing_list_templates),
         ("036_add_bag_owners_and_nesting", migrate_036_add_bag_owners_and_nesting),
         ("037_add_day_bag_removed_from", migrate_037_add_day_bag_removed_from),
+        ("038_add_event_packing_lists", migrate_038_add_event_packing_lists),
     ]
 
     print("=" * 60)
