@@ -126,10 +126,12 @@
                             <option value="monthly">Monthly on this date</option>
                             <option value="yearly">Yearly on this date</option>
                             <option value="custom">Custom…</option>
-                            <!-- Selected only by `repeatFromRrule` for a stored rule
-                                 richer than even the custom controls. Hidden so it
-                                 cannot be chosen: it names a rule, it does not build one. -->
-                            <option value="other" hidden>Custom schedule</option>
+                            <!-- Named only by `repeatFromRrule` for a stored rule
+                                 richer than even the custom controls: it names a
+                                 rule, it does not build one. Detached from the select
+                                 except while such an event is open (OTHER_REPEAT_OPTION),
+                                 because Safari ignores `hidden` on an <option>. -->
+                            <option value="other">Custom schedule</option>
                         </select>
                         <small id="event-repeat-help" style="display:none;">This event repeats on a schedule this form cannot edit. Leave it as it is to keep the schedule; picking another option replaces it.</small>
                     </div>
@@ -228,6 +230,25 @@
                         <label id="event-attendees-label">Who's involved</label>
                         <div class="weekday-checkboxes" id="event-attendees" role="group" aria-labelledby="event-attendees-label"></div>
                         <small>Attendees decide who a reminder reaches.</small>
+                    </div>
+                    <!-- Packing lists the event brings: a row per list, then a
+                         select that adds whatever is picked in it. Nothing is
+                         written until Save. -->
+                    <div class="form-group" id="event-packing-group">
+                        <label for="event-packing-select">What to pack</label>
+                        <div class="picked-list" id="event-packing-list"></div>
+                        <div class="manage-row" id="event-packing-add-row">
+                            <select id="event-packing-select" aria-label="Packing list to add"></select>
+                        </div>
+                        <div class="container-empty-state" id="event-packing-empty" style="display:none">No packing list templates yet.</div>
+                        <small>Packing lists follow this event when it moves, and go when it's deleted.</small>
+                    </div>
+                    <div class="form-group" id="event-packing-span-group" style="display:none">
+                        <label id="event-packing-span-label">Put on</label>
+                        <div class="radio-options" role="radiogroup" aria-labelledby="event-packing-span-label">
+                            <label><input type="radio" name="event-packing-span" value="first"> First day</label>
+                            <label><input type="radio" name="event-packing-span" value="every"> Every day</label>
+                        </div>
                     </div>
                     <div class="form-group" id="event-notify-group">
                         <label for="event-notify">Remind attendees</label>
@@ -329,6 +350,12 @@
         let editingOccurrence = null; // The occurrence that was clicked
         let scopeAction = 'save';     // What the scope modal confirms: 'save' or 'delete'
         let detailOccurrence = null;
+        // What to pack: every template, the ones this form has added, and what
+        // it opened with, so a save only sends packing lists when they changed.
+        let packingTemplates = [];
+        let packingChosen = [];
+        let packingOpened = [];
+        let spanOpened = null;
         // The date the now tick last saw, so it can notice midnight passing.
         let tickDate = todayIso();
 
@@ -470,6 +497,15 @@
             renderAttendeeCheckboxes();
             renderLegend();
             renderCalendarOptions();
+        }
+
+        async function fetchPackingTemplates() {
+            const response = await fetch('/api/packing-list-templates');
+            if (!response.ok) return;
+            packingTemplates = (await response.json())
+                .map(t => ({ id: t.id, name: t.name }))
+                .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+            renderPackingSection();
         }
 
         /* Only Rally's own calendars can hold an event: the external feeds are
@@ -1130,6 +1166,89 @@
             const allDay = document.getElementById('event-all-day').checked;
             document.getElementById('event-timed-group').style.display = allDay ? 'none' : '';
             document.getElementById('event-allday-group').style.display = allDay ? '' : 'none';
+            renderPackingSpan();
+        }
+
+        // --- What to pack
+
+        function packingName(id) {
+            const template = packingTemplates.find(t => t.id === id);
+            return template ? template.name : '';
+        }
+
+        /* Names in a sentence, each in straight double quotes so a title with
+           "and" in it never reads as two, joined with the Oxford comma. The
+           server's `packing_lists.join_names` says the same thing. */
+        function joinNames(names) {
+            const quoted = names.map(name => `"${name}"`);
+            if (quoted.length <= 2) return quoted.join(' and ');
+            return `${quoted.slice(0, -1).join(', ')}, and ${quoted[quoted.length - 1]}`;
+        }
+
+        function renderPackingSection() {
+            const chosen = packingChosen
+                .filter(id => packingName(id))
+                .sort((a, b) => packingName(a).localeCompare(packingName(b), undefined, { sensitivity: 'base' }));
+            document.getElementById('event-packing-list').innerHTML = chosen.map(id => `
+                <div class="manage-row">
+                    <div class="manage-row-text">${escapeHtml(packingName(id))}</div>
+                    <button type="button" class="btn btn--sm btn--quiet" data-remove-packing="${id}">Remove</button>
+                </div>`).join('');
+            const left = packingTemplates.filter(t => !packingChosen.includes(t.id));
+            document.getElementById('event-packing-select').innerHTML =
+                '<option value="">Add a packing list…</option>' +
+                left.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+            const none = packingTemplates.length === 0;
+            document.getElementById('event-packing-add-row').style.display = none || !left.length ? 'none' : '';
+            document.getElementById('event-packing-empty').style.display = none ? '' : 'none';
+            renderPackingSpan();
+        }
+
+        /* `Put on` only means something for an event that covers more than one
+           date and brings a list. */
+        function eventSpansDays() {
+            const allDay = document.getElementById('event-all-day').checked;
+            const start = allDay
+                ? document.getElementById('event-start-date').value
+                : document.getElementById('event-start-time').value.slice(0, 10);
+            const end = allDay
+                ? document.getElementById('event-end-date').value
+                : document.getElementById('event-end-time').value.slice(0, 10);
+            return Boolean(start && end && end > start);
+        }
+
+        function renderPackingSpan() {
+            const shown = packingChosen.length > 0 && eventSpansDays();
+            document.getElementById('event-packing-span-group').style.display = shown ? '' : 'none';
+        }
+
+        function packingSpanShown() {
+            return document.getElementById('event-packing-span-group').style.display !== 'none';
+        }
+
+        function chosenSpan() {
+            const checked = document.querySelector('input[name="event-packing-span"]:checked');
+            return checked ? checked.value : null;
+        }
+
+        function sameIds(a, b) {
+            return a.length === b.length && a.every(id => b.includes(id));
+        }
+
+        /* Opens on the occurrence's own lists, so Tuesday shows its gym bag
+           and Wednesday does not; the span is the series'. */
+        function setPackingForm(lists, span) {
+            packingChosen = lists.slice();
+            packingOpened = lists.slice();
+            spanOpened = span || null;
+            document.querySelectorAll('input[name="event-packing-span"]').forEach(radio => {
+                radio.checked = radio.value === span;
+            });
+            renderPackingSection();
+        }
+
+        function spanChanged() {
+            return packingSpanShown() && chosenSpan() !== spanOpened;
         }
 
         /* Moving an event to another day means moving it, not restating how
@@ -1242,6 +1361,7 @@
             } else {
                 const moved = editingEvent.overrides.filter(o => !o.cancelled).length;
                 if (moved) help = `${moved} occurrence(s) have their own changes. "All events" keeps them.`;
+                if (spanChanged()) help = `${help} "Put on" applies to every event in the series.`.trim();
             }
             document.getElementById('event-scope-modal-help').textContent = help;
             showModalOverlay('event-scope-modal-overlay');
@@ -1305,6 +1425,7 @@
             document.getElementById('event-end-date').value = day;
 
             applyRuleToForm(null, day);
+            setPackingForm([], null);
 
             document.getElementById('btn-delete-event').style.display = 'none';
             rememberStartValues();
@@ -1363,6 +1484,11 @@
             renderCalendarOptions();
             document.getElementById('event-calendar').value =
                 String(occurrence.calendar_id || editingEvent.calendar_id || '');
+
+            setPackingForm(
+                (occurrence.packing_lists || []).map(p => p.template_id),
+                editingEvent.packing_list_span
+            );
 
             document.getElementById('btn-delete-event').style.display = '';
 
@@ -1585,8 +1711,9 @@
            form only speaks about recurrence when the user actually changed it. */
         function rruleChange(choice, startIso, allDay) {
             // `other` names the stored rule rather than building one, so choosing
-            // it can only mean "leave it". The option is hidden, but relying on
-            // that to hold would make a cleared recurrence the failure mode.
+            // it can only mean "leave it". The option is only in the select for
+            // such a rule, but relying on that to hold would make a cleared
+            // recurrence the failure mode.
             if (choice === 'other') return {};
             const compiled = compileRepeat(choice, startIso, allDay);
             if (!editingEvent) return { rrule: compiled };
@@ -1702,6 +1829,15 @@
            controls behind it, and the bound. Defaults first, so a rule that says
            nothing about a control leaves it in a known state rather than showing
            whatever the last event happened to put there. */
+        /* `Custom schedule` is in the select only while the open event's stored
+           rule needs it, where it is the current choice and choosing it again
+           means "leave the rule alone". Detached rather than `hidden` for the
+           reason VIEW_ONLY_OPTIONS gives: Safari, on a Mac as on a phone,
+           ignores `hidden` on an <option>, so a hidden entry was still offered
+           on every new event. Captured once, before the first detach. */
+        const OTHER_REPEAT_OPTION = document.querySelector('#event-repeat option[value="other"]');
+        OTHER_REPEAT_OPTION.remove();
+
         function applyRuleToForm(rrule, startIso) {
             document.querySelectorAll('#event-custom-weekdays input').forEach(i => { i.checked = false; });
             document.getElementById('event-custom-freq').value = 'daily';
@@ -1717,7 +1853,10 @@
             document.getElementById('event-ends-count').value = '10';
 
             const choice = repeatFromRrule(rrule, startIso);
-            document.getElementById('event-repeat').value = choice;
+            const repeatSelect = document.getElementById('event-repeat');
+            if (choice === 'other') repeatSelect.appendChild(OTHER_REPEAT_OPTION);
+            else OTHER_REPEAT_OPTION.remove();
+            repeatSelect.value = choice;
             if (choice === 'custom') applyCustomToForm(customFromRrule(rrule));
             if (choice && choice !== 'other') applyEndsToForm(rrule);
             updateRepeatGroups();
@@ -1801,15 +1940,38 @@
                 ...rruleChange(document.getElementById('event-repeat').value, start, allDay),
                 notify_minutes_before: notify ? Number(notify) : null,
                 attendee_ids: checkedAttendeeIds(),
-                calendar_id: Number(document.getElementById('event-calendar').value) || null
+                calendar_id: Number(document.getElementById('event-calendar').value) || null,
+                ...packingChange()
             };
+        }
+
+        /* Packing lists travel only when they changed, the habit `rruleChange()`
+           keeps: a title-only edit at `This occurrence` must write no
+           occurrence lists. These are the occurrence's lists as the form shows
+           them; `saveEvent()` turns them into the series' for a series scope. */
+        function packingChange() {
+            const change = {};
+            if (!sameIds(packingChosen, packingOpened)) change.packing_list_template_ids = packingChosen.slice();
+            if (spanChanged()) change.packing_list_span = chosenSpan();
+            return change;
+        }
+
+        /* `All events` and `This and following` change the series, and the form
+           shows one occurrence. Apply what the form added and removed to the
+           series' own lists, so Tuesday's extra gym bag does not become every
+           day's because the series was edited from Tuesday. */
+        function seriesPackingIds() {
+            const series = editingEvent.packing_list_template_ids || [];
+            const added = packingChosen.filter(id => !packingOpened.includes(id));
+            const removed = packingOpened.filter(id => !packingChosen.includes(id));
+            return [...series.filter(id => !removed.includes(id)), ...added.filter(id => !series.includes(id))];
         }
 
         /* Run before the scope modal opens, so nobody picks which events a
            change reaches and is then sent back to fix a field. The Save button
            submits the form, so `required` has already run by the time this
            does; these are the checks `required` cannot make. */
-        function eventFormReady(payload) {
+        function eventFormReady(payload, scope) {
             if (!payload.title) return false;
             if (!payload.start) { alert('A start date is required'); return false; }
             if (!payload.calendar_id && nativeCalendars.length) {
@@ -1817,12 +1979,30 @@
                 document.getElementById('event-calendar').focus();
                 return false;
             }
+            if (packingSpanShown() && !chosenSpan()) {
+                alert('Choose which days the packing lists go on');
+                document.querySelector('input[name="event-packing-span"]').focus();
+                return false;
+            }
+            /* A one-time event, or one occurrence, moved before today while it
+               has packing lists. The API refuses this for every scope; this is
+               the early answer where the page can see it. */
+            const onePlace = !editingEvent || !editingEvent.rrule || scope === 'this';
+            const hasLists = editingOccurrence && (editingOccurrence.packing_lists || []).length > 0;
+            if (editingEvent && onePlace && hasLists && !timesUntouched()
+                && payload.start.slice(0, 10) < todayIso()) {
+                alert('This event has packing lists. Remove them before moving it to a day that has passed.');
+                return false;
+            }
             return true;
         }
 
-        async function saveEvent(scope) {
+        async function saveEvent(scope, adopt = false) {
             const payload = formPayload();
-            if (!eventFormReady(payload)) return;
+            if (!eventFormReady(payload, scope)) return;
+            if (editingEvent && scope !== 'this' && payload.packing_list_template_ids) {
+                payload.packing_list_template_ids = seriesPackingIds();
+            }
 
             /* An edit that did not touch the times says nothing about them, so
                the request carries no `start`/`end` and the API's "leave alone"
@@ -1842,6 +2022,7 @@
                 const params = new URLSearchParams({ scope: scope || 'all' });
                 const occurrenceDate = document.getElementById('event-occurrence-date').value;
                 if (scope && scope !== 'all' && occurrenceDate) params.set('occurrence_date', occurrenceDate);
+                if (adopt) params.set('adopt', 'true');
                 url = `/api/events/${editingEvent.id}?${params.toString()}`;
                 method = 'PUT';
             }
@@ -1853,11 +2034,31 @@
             });
             if (!response.ok) {
                 const detail = await response.json().catch(() => ({}));
-                alert(detail.detail || 'Failed to save the event');
+                /* The move would put a list on a date its template is already
+                   on. Nothing was saved; asked first, it goes ahead and the
+                   event uses the list already there. Cancel leaves the form as
+                   it was, like any failed save. */
+                if (response.status === 409 && detail.detail && detail.detail.adopts) {
+                    if (confirm(detail.detail.message)) saveEvent(scope, true);
+                    return;
+                }
+                alert((typeof detail.detail === 'string' && detail.detail) || 'Failed to save the event');
                 return;
             }
             closeEventModal();
+            fetchPackingTemplates();
             load();
+        }
+
+        /* Names the packing lists that come off with a one-time event, so the
+           question says everything the answer does. */
+        function deleteQuestion() {
+            const lists = (editingOccurrence && editingOccurrence.packing_lists) || [];
+            if (!lists.length) return 'Delete this event?';
+            const day = parseIso(editingOccurrence.start_date)
+                .toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+            const names = joinNames(lists.map(p => p.name));
+            return `Delete this event? ${names} come${lists.length === 1 ? 's' : ''} off ${day} too.`;
         }
 
         async function deleteEvent(scope) {
@@ -1921,12 +2122,22 @@
             }
             rows.push(
                 ['where', 'Where', occurrence.location || '—'],
-                ['who', 'Who', occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || 'Nobody in particular')],
+                ['who', 'Who', occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || 'Nobody in particular')]
+            );
+            /* Each list links to the Packing Lists page. Built as markup, so
+               each name is escaped here. */
+            if ((occurrence.packing_lists || []).length) {
+                rows.push(['packing-lists', 'Packing lists', occurrence.packing_lists
+                    .map(p => `<a class="inline-link" href="/packing-lists">${escapeHtml(p.name)}</a>`)
+                    .join(', '), true]);
+            }
+            rows.push(
                 ['calendar', 'Calendar', occurrence.calendar_label || occurrence.source],
-                /* Notes is the one row that arrives as markup: the server has
-                   already turned the description into paragraphs, line breaks
-                   and links (see `rally.rich_text`), so it is inserted as it
-                   is rather than escaped. Every other value here is text. */
+                /* Notes arrives as markup: the server has already turned the
+                   description into paragraphs, line breaks and links (see
+                   `rally.rich_text`), so it is inserted as it is rather than
+                   escaped. Packing lists is built as markup above; every other
+                   value here is text. */
                 ['notes', 'Notes', occurrence.description_html || '—', true]
             );
             if (occurrence.notify_minutes_before) {
@@ -2171,6 +2382,17 @@
         document.getElementById('event-start-time').addEventListener('change', refreshRecurrencePreview);
         document.getElementById('event-start-date').addEventListener('change', refreshRecurrencePreview);
 
+        /* Only the Save button saves. Enter in a field would otherwise submit
+           the form — the browser's implicit submission — and a half-typed
+           title or a date being stepped through is not a decision to save.
+           Activating the Save button itself, by click or keyboard, still does;
+           a textarea keeps Enter for its line breaks. */
+        document.getElementById('event-form').addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            const field = event.target;
+            if (field.tagName === 'INPUT' || field.tagName === 'SELECT') event.preventDefault();
+        });
+
         // Save always submits, so `required` runs for a series too. A series
         // then asks which events the change reaches; anything else just saves.
         document.getElementById('event-form').addEventListener('submit', (event) => {
@@ -2184,13 +2406,35 @@
 
         document.getElementById('event-calendar').addEventListener('change', checkCalendarOwner);
 
+        /* Picking a template adds it. A pick that waited for a separate Add
+           button was a pick Save silently dropped: the select reads like a
+           field whose value is saved, so nobody thinks to press Add. */
+        document.getElementById('event-packing-select').addEventListener('change', (e) => {
+            const id = Number(e.target.value);
+            if (!id || packingChosen.includes(id)) return;
+            packingChosen.push(id);
+            renderPackingSection();
+            const next = document.getElementById('event-packing-select');
+            if (next.offsetParent) next.focus();
+        });
+        document.getElementById('event-packing-list').addEventListener('click', (e) => {
+            const button = e.target.closest('[data-remove-packing]');
+            if (!button) return;
+            const id = Number(button.dataset.removePacking);
+            packingChosen = packingChosen.filter(chosen => chosen !== id);
+            renderPackingSection();
+        });
+        ['event-start-time', 'event-end-time', 'event-start-date', 'event-end-date'].forEach(id => {
+            document.getElementById(id).addEventListener('change', renderPackingSpan);
+        });
+
         document.getElementById('btn-delete-event').addEventListener('click', () => {
             if (!editingEvent) return;
             if (editingEvent.rrule) {
                 openScopeModal('delete');
                 return;
             }
-            if (confirm('Delete this event?')) deleteEvent('all');
+            if (confirm(deleteQuestion())) deleteEvent('all');
         });
 
         document.querySelectorAll('input[name="event-scope"]').forEach(input => {
@@ -2269,9 +2513,10 @@
            member list would add a round trip to the first paint for no reason.
            Nothing is drawn until `load()`, so there is no flicker either way. */
         (async function init() {
-            const [, , landingView] = await Promise.all([
+            const [, , , landingView] = await Promise.all([
                 fetchFamilyMembers(),
                 fetchNativeCalendars(),
+                fetchPackingTemplates(),
                 RallyDevice.preferences().then(values => values[LANDING_VIEW_SETTING]),
             ]);
             applyLandingView(landingView);

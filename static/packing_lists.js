@@ -21,11 +21,22 @@
     const NO_BAG = 'No bag';
     // After a bag's name, saying it is a bag to grab rather than an item.
     const BAG_GLYPH = '▣';
+    // After a packing list's name, saying a calendar event put it on its day.
+    const EVENT_GLYPH = '⚭';
     // The key of the group for no owner, or no bag.
     const NONE_KEY = 'none';
     const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
         'August', 'September', 'October', 'November', 'December'];
+
+    /* Names in a sentence, each in straight double quotes so a title with
+       "and" in it never reads as two, joined with the Oxford comma. The
+       server's `packing_lists.join_names` says the same thing. */
+    function joinNames(names) {
+        const quoted = names.map(name => `"${name}"`);
+        if (quoted.length <= 2) return quoted.join(' and ');
+        return `${quoted.slice(0, -1).join(', ')}, and ${quoted[quoted.length - 1]}`;
+    }
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -365,6 +376,17 @@
         const repeats = day.schedule_id
             ? ' <span class="title-indicator" title="Added by a recurring schedule">↻</span>'
             : '';
+        // ⚭ says a calendar event put it here and it moves and goes with the
+        // event, which the `For:` line names; each title links to the calendar.
+        const events = day.events || [];
+        const fromEvent = events.length
+            ? ` <span class="title-indicator" title="From a calendar event">${EVENT_GLYPH}</span>`
+            : '';
+        const forLine = events.length
+            ? `<div class="editable-item-meta">For: ${events
+                .map(event => `<a class="inline-link" href="/calendar">${escapeHtml(event.title)}</a>`)
+                .join(' · ')}</div>`
+            : '';
         // Group keys carry the day's id: every day's groups share one drag
         // container, and a drop has to know whose group it landed in.
         // Only the groups with a row left to draw count toward a lone group.
@@ -411,8 +433,9 @@
         return `
             <div class="day-box-entry ${done ? 'completed' : ''}" data-day-card="${day.id}">
                 <div class="editable-item-content">
-                    <div class="editable-item-title">${escapeHtml(day.name)}${label}${fromTemplate}${repeats}</div>
+                    <div class="editable-item-title">${escapeHtml(day.name)}${label}${fromTemplate}${repeats}${fromEvent}</div>
                     <div class="editable-item-meta">${escapeHtml(packLine(day))}</div>
+                    ${forLine}
                     <div class="packing-list-progress-line">
                         <span class="editable-item-meta packing-list-progress" data-progress role="status" aria-live="polite">${escapeHtml(progressLabel(day.checked, day.total))}</span>
                         <span class="editable-item-meta packing-list-bag-progress" data-bag-progress role="status" aria-live="polite"${day.bags_total ? '' : ' hidden'}>${escapeHtml(bagsProgressLabel(day.bags_checked || 0, day.bags_total || 0))}</span>
@@ -503,6 +526,7 @@
         NO_BAG,
         escapeHtml,
         escapeAttr,
+        joinNames,
         formatLongDate,
         addDays,
         weekdayOf,

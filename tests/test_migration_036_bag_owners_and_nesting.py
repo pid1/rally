@@ -67,6 +67,7 @@ def _migrate_to_models():
     """036, then every later migration the models already reflect."""
     assert _migrate() is True
     assert _load("migrate_037_add_day_bag_removed_from").migrate() is True
+    assert _load("migrate_038_add_event_packing_lists").migrate() is True
 
 
 def _rows(path, sql):

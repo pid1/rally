@@ -22,6 +22,8 @@ a day's id can never be mistaken for a template's, and ``suggestions`` never
 for an id.
 """
 
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
@@ -294,6 +296,7 @@ def _day_responses(db: Session, rows: list[PackingListDay]) -> list[PackingListD
         .all()
     }
     contents: dict[int | None, list[PackingListTemplateItem]] = {}
+    linked = logic.day_events(db, [d.id for d in rows])
     responses = []
     for day in rows:
         template = templates.get(day.packing_list_template_id)
@@ -342,6 +345,7 @@ def _day_responses(db: Session, rows: list[PackingListDay]) -> list[PackingListD
                     for i in resolved
                 ],
                 bags=_bag_on_list_responses(bags),
+                events=linked.get(day.id, []),
             )
         )
     if pruned:
@@ -392,9 +396,12 @@ def _date_clash(
 def _run_daily_passes(db: Session) -> None:
     """What the Packing Lists page's listing does before it reads: put
     schedules' templates on their days, and count the days that are over
-    into item history. Both are cheap when there is nothing to do."""
-    today = today_local(local_timezone_name(db))
+    into item history, and fill in calendar events' packing lists as the
+    lookahead moves forward. All cheap when there is nothing to do."""
+    tz_name = local_timezone_name(db)
+    today = today_local(tz_name)
     logic.process_schedules(db, today)
+    logic.process_event_packing_lists(db, today, ZoneInfo(tz_name))
     logic.count_packed_days(db, today)
 
 
@@ -1205,6 +1212,13 @@ def update_day(day_id: int, payload: PackingListDayUpdate, db: Session = Depends
             )
         day.name = payload.name
     if payload.date is not None and payload.date != day.date:
+        events = logic.day_events(db, [day.id]).get(day.id, [])
+        if events:
+            titles = logic.join_names([event["title"] for event in events])
+            raise HTTPException(
+                status_code=422,
+                detail=(f"This packing list moves with {titles}. Change the date on the calendar."),
+            )
         if payload.date < today_local_str(db):
             raise HTTPException(status_code=422, detail="Pick today or a later day")
         _date_clash(db, day.packing_list_template_id, payload.date, exclude_id=day.id)
@@ -1234,6 +1248,8 @@ def delete_day(day_id: int, db: Session = Depends(get_db)):
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
+    # Off every event it belongs to too, so none of them puts it back.
+    logic.unlink_day(db, day)
     logic.clear_day_state(db, day)
     db.delete(day)
     db.commit()

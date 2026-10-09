@@ -121,6 +121,7 @@
                         <label for="day-date">Date</label>
                         <input type="date" id="day-date" required>
                         <small id="day-pack-hint"></small>
+                        <div class="form-message" id="day-add-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label for="day-label">Label (optional)</label>
@@ -249,6 +250,8 @@
                     <div class="form-group">
                         <label for="day-edit-date">Date</label>
                         <input type="date" id="day-edit-date" required>
+                        <small id="day-edit-date-note" style="display:none"></small>
+                        <div class="form-message" id="day-edit-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label for="day-edit-label">Label (optional)</label>
@@ -287,6 +290,25 @@
                 <div class="modal-actions">
                     <button type="button" class="btn" id="btn-day-resync-confirm" disabled>Resync</button>
                     <button type="button" class="btn btn--secondary" id="btn-day-resync-cancel">Cancel</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- A confirmation that can show a name in bold, which confirm() cannot.
+         Generic on purpose: the title, message and confirm button are set
+         each time it opens (openConfirmModal), so other confirmations on the
+         page can move to it without new markup. -->
+    <div class="modal-overlay" id="confirm-modal-overlay">
+        <div class="modal-content modal-content--narrow">
+            <h3 id="confirm-modal-title"></h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <p id="confirm-modal-message"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn" id="btn-confirm-modal-confirm"></button>
+                    <button type="button" class="btn btn--secondary" id="btn-confirm-modal-cancel">Cancel</button>
                 </div>
             </div>
             </div>
@@ -393,7 +415,7 @@
     <script src="/static/autocomplete.js?v={{ css_version }}"></script>
     <script src="/static/packing_lists.js?v={{ css_version }}"></script>
     <script>
-        const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, formatLongDate, addDays, weekdayOf, itemCount,
+        const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, joinNames, formatLongDate, addDays, weekdayOf, itemCount,
             packDaysLabel, viewSections, templateSectionCountLabel, bagRowHtml, changeBagsHtml,
             otherDimension, keyToId, noteHtml, isTemplated, dayRowId,
             dayBoxesHtml, updateDayCardCounts, groupIsOpen, requestJson } = PackingLists;
@@ -995,10 +1017,25 @@
 
             // A templated day comes off its day and the template stays. A day
             // with no template is the only copy, so it is deleted outright.
-            const question = isTemplated(day)
-                ? `Take ${day.name} off ${formatLongDate(day.date)}? The packing list template itself stays.`
-                : `Delete ${day.name}? Its items go with it.`;
-            if (!confirm(question)) return;
+            // The name is bold, and a day a calendar event put here says the
+            // event loses it too, its title quoted.
+            const name = `<strong>${escapeHtml(day.name)}</strong>`;
+            const events = day.events || [];
+            const alsoOff = events.length
+                ? ` It also comes off ${escapeHtml(joinNames(events.map(e => e.title)))} on that day.`
+                : '';
+            const confirmed = isTemplated(day)
+                ? await openConfirmModal({
+                    title: 'Remove from day',
+                    messageHtml: `Take ${name} off ${escapeHtml(formatLongDate(day.date))}? The packing list template itself stays.${alsoOff}`,
+                    confirmLabel: 'Remove',
+                })
+                : await openConfirmModal({
+                    title: 'Delete packing list',
+                    messageHtml: `Delete ${name}? Its items go with it.`,
+                    confirmLabel: 'Delete',
+                });
+            if (!confirmed) return;
             try {
                 await requestJson(`/api/packing-list-days/${day.id}`, { method: 'DELETE' });
             } catch (error) {
@@ -1007,6 +1044,31 @@
             }
             openDays.delete(day.id);
             await refresh();
+        });
+
+        /* Ask in `#confirm-modal-overlay`: resolves true on the confirm button,
+           false on Cancel. `messageHtml` is inserted as markup, so every name
+           in it must already be escaped. */
+        let resolveConfirm = null;
+        function openConfirmModal({ title, messageHtml, confirmLabel }) {
+            document.getElementById('confirm-modal-title').textContent = title;
+            document.getElementById('confirm-modal-message').innerHTML = messageHtml;
+            document.getElementById('btn-confirm-modal-confirm').textContent = confirmLabel;
+            showModalOverlay('confirm-modal-overlay');
+            return new Promise(resolve => { resolveConfirm = resolve; });
+        }
+
+        function closeConfirmModal(answer) {
+            hideModalOverlay('confirm-modal-overlay');
+            const resolve = resolveConfirm;
+            resolveConfirm = null;
+            if (resolve) resolve(answer);
+        }
+
+        document.getElementById('btn-confirm-modal-confirm').addEventListener('click', () => closeConfirmModal(true));
+        document.getElementById('btn-confirm-modal-cancel').addEventListener('click', () => closeConfirmModal(false));
+        document.getElementById('confirm-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'confirm-modal-overlay') closeConfirmModal(false);
         });
 
         // Open a day's card and bring it into view: where "Add to a Day" lands.
@@ -1078,6 +1140,7 @@
 
         function openDayEditModal(day) {
             editingDay = day;
+            clearFormMessage('day-edit-message');
             document.getElementById('day-edit-form').reset();
             // A templateless day's name is its own to change; a templated
             // day is called what its template is called.
@@ -1095,6 +1158,15 @@
             const date = document.getElementById('day-edit-date');
             date.min = todayLocal();
             date.value = day.date;
+            /* A day a calendar event put here moves with the event. The field
+               keeps the day's date, so the submit below leaves it out. */
+            const events = day.events || [];
+            date.disabled = events.length > 0;
+            const dateNote = document.getElementById('day-edit-date-note');
+            dateNote.textContent = events.length
+                ? `Set by ${joinNames(events.map(e => e.title))}. Change the date on the calendar.`
+                : '';
+            dateNote.style.display = events.length ? '' : 'none';
             document.getElementById('day-edit-label').value = day.label || '';
             document.getElementById('day-edit-pack-days').value = day.pack_days_before;
             showModalOverlay('day-edit-modal-overlay');
@@ -1127,11 +1199,9 @@
                 await requestJson(`/api/packing-list-days/${day.id}`, { method: 'PUT', body: payload });
             } catch (error) {
                 if (error.status === 409 && error.detail && error.detail.id) {
-                    // Already on that date: open that day instead, as Add
-                    // Packing List does. Nothing was saved, so nothing moves.
-                    closeDayEditModal();
-                    await loadDays();
-                    revealDay(error.detail.id);
+                    // Already on that date: refused, and said so where the
+                    // date is. Nothing was saved and the form keeps its edits.
+                    showFormMessage('day-edit-message', alreadyOnMessage(day.name, date));
                     return;
                 }
                 alert(error.message || 'Failed to save the packing list');
@@ -1142,6 +1212,7 @@
             await loadDays();
         });
 
+        document.getElementById('day-edit-date').addEventListener('change', () => clearFormMessage('day-edit-message'));
         document.getElementById('btn-cancel-day-edit').addEventListener('click', closeDayEditModal);
         document.getElementById('day-edit-modal-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'day-edit-modal-overlay') closeDayEditModal();
@@ -2069,7 +2140,26 @@
             updatePackHint();
         }
 
+        /* A refusal reported in place: the form's `.form-message`, cleared by
+           the next change to what it is about. */
+        function showFormMessage(id, text) {
+            const message = document.getElementById(id);
+            message.textContent = text;
+            message.hidden = false;
+            // The form scrolls, and a refusal nobody can see is no refusal.
+            message.scrollIntoView({ block: 'center' });
+        }
+
+        function clearFormMessage(id) {
+            document.getElementById(id).hidden = true;
+        }
+
+        function alreadyOnMessage(name, date) {
+            return `${joinNames([name])} is already on ${formatLongDate(date)}.`;
+        }
+
         function openAddDayModal() {
+            clearFormMessage('day-add-message');
             addForm.reset();
             typedName = '';
             sourceSelect.innerHTML = templateOptionsHtml();
@@ -2095,6 +2185,10 @@
             if (!addName.readOnly) typedName = addName.value;
         });
         addDate.addEventListener('change', updatePackHint);
+        addDate.addEventListener('change', () => clearFormMessage('day-add-message'));
+        sourceSelect.addEventListener('change', () => clearFormMessage('day-add-message'));
+        addForm.querySelectorAll('input[name="day-add-mode"], input[name="day-add-start"]').forEach(radio =>
+            radio.addEventListener('change', () => clearFormMessage('day-add-message')));
         addPackDays.addEventListener('input', updatePackHint);
 
         addForm.addEventListener('submit', async (e) => {
@@ -2116,19 +2210,17 @@
                 if (template) payload.copy_from_template_id = template.id;
             }
             let dayId;
-            let created = true;
             try {
                 dayId = (await requestJson('/api/packing-list-days', { method: 'POST', body: payload })).id;
             } catch (error) {
                 if (error.status === 409 && error.detail && error.detail.id) {
-                    // The template is already on that day: open it rather
-                    // than refusing.
-                    dayId = error.detail.id;
-                    created = false;
-                } else {
-                    alert(error.message || 'Failed to add the packing list');
+                    // The template is already on that day: refused, and said
+                    // so under the date. The modal keeps everything entered.
+                    showFormMessage('day-add-message', alreadyOnMessage(template.name, payload.date));
                     return;
                 }
+                alert(error.message || 'Failed to add the packing list');
+                return;
             }
             closeAddDayModal();
             // A new day is the one thing to show next, so the filters come
@@ -2138,7 +2230,7 @@
             revealDay(dayId);
             // A blank list's next step is its first item. A copy or a
             // kept-in-sync day already has items to look over.
-            if (created && !template) {
+            if (!template) {
                 const day = days.find(d => d.id === dayId);
                 if (day) openItemModal({ scope: 'day', day, item: null });
             }

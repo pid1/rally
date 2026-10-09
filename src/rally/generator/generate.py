@@ -689,6 +689,9 @@ class SummaryGenerator:
 
             today = now_utc().astimezone(self.local_tz).date()
             packing_lists.process_schedules(db, today)
+            # Calendar events' lists too, so a drop-off nobody opened the page
+            # for still makes the briefing.
+            packing_lists.process_event_packing_lists(db, today, self.local_tz)
             # The 4 AM run is the one that happens even when nobody opens the
             # page, so it counts yesterday's lists into item history too.
             packing_lists.count_packed_days(db, today)

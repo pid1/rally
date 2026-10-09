@@ -253,6 +253,10 @@ class Event(Base):
     notify_minutes_before: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # Push reminder lead time; NULL means no reminder
+    # Where a multi-day occurrence's packing lists go: "first" (its start date)
+    # or "every" (each date it covers). NULL reads as "first". The series'
+    # alone, like attendees and the reminder.
+    packing_list_span: Mapped[str | None] = mapped_column(String(10), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
@@ -1179,7 +1183,7 @@ class PackingListDayCheck(Base):
 
 class PackingListTemplateBag(Base):
     """A template's reading of a bag: whose it is and what it goes in, on that
-    template — "on Beach week the suitcase is Dad's".
+    template — "on Family vacation the suitcase is Dad's".
 
     Both fields are the template's, copied whole when the reading is made, the
     rule a day's reading of an item follows: the row existing is the change,
@@ -1260,4 +1264,85 @@ class PackingListDayBagCheck(Base):
 
     __table_args__ = (
         Index("ix_packing_list_day_bag_checks_day_bag", "day_id", "bag_id", unique=True),
+    )
+
+
+class EventPackingList(Base):
+    """A packing list template an event brings with it: "School backpack" on
+    every school drop-off.
+
+    ``occurrence_date`` NULL is the series' own: every occurrence has it. Set,
+    the row is one occurrence's difference, keyed on the occurrence's
+    **original** local date (the key ``EventOverride`` uses, which survives the
+    occurrence being moved): an addition only that occurrence has, or with
+    ``removed`` a series list that occurrence leaves out. An occurrence's lists
+    are the series', plus its additions, minus its removals
+    (``rally.packing_lists.occurrence_template_ids``).
+
+    Unique per ``(event_id, packing_list_template_id, IFNULL(occurrence_date,
+    ''))``: SQLite treats NULLs as distinct, and the series' row has to count as
+    one row like any other.
+    """
+
+    __tablename__ = "event_packing_lists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to events.id
+    packing_list_template_id: Mapped[int] = mapped_column(
+        Integer, index=True
+    )  # FK to packing_list_templates.id
+    occurrence_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # YYYY-MM-DD, original local date; NULL for the whole series
+    removed: Mapped[bool] = mapped_column(default=False)  # Occurrence rows only
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_event_packing_lists_event_template_occurrence",
+            "event_id",
+            "packing_list_template_id",
+            text("IFNULL(occurrence_date, '')"),
+            unique=True,
+        ),
+    )
+
+
+class PackingListDayEvent(Base):
+    """A day an event put a packing list on, or adopted: the link that makes the
+    day move and go with the event.
+
+    One row per event occurrence, template and date. A day can have any number
+    of rows — two events that both bring "Beach day" on Saturday share the one
+    day — and it goes when its last row does. ``day_id`` NULL is a date the
+    list was taken off on the Packing Lists page while the occurrence kept it
+    on its other dates (an "Every day" occurrence): the row stays so that date
+    is never filled again.
+
+    ``rally.packing_lists.sync_event_packing_lists`` is the one writer.
+    """
+
+    __tablename__ = "packing_list_day_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, index=True
+    )  # FK to packing_list_days.id; NULL for a date taken off by hand
+    event_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to events.id
+    occurrence_date: Mapped[str] = mapped_column(String(10))  # Original local date
+    packing_list_template_id: Mapped[int] = mapped_column(
+        Integer, index=True
+    )  # FK to packing_list_templates.id
+    date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD the list sits on
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_packing_list_day_events_unique",
+            "event_id",
+            "occurrence_date",
+            "packing_list_template_id",
+            "date",
+            unique=True,
+        ),
     )

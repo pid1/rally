@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from rally import packing_lists
 from rally.calendars import (
     Occurrence,
     RecurrenceError,
@@ -39,7 +40,9 @@ from rally.models import (
     EventAttendee,
     EventNotification,
     EventOverride,
+    EventPackingList,
     FamilyMember,
+    PackingListTemplate,
 )
 from rally.notifications import (
     KIND_CREATED,
@@ -60,6 +63,7 @@ from rally.schemas import (
     EventOverrideResponse,
     EventResponse,
     EventUpdate,
+    OccurrencePackingList,
     OccurrencePage,
     OccurrenceResponse,
     RecurrenceDescribeRequest,
@@ -192,6 +196,10 @@ def _event_response(db: Session, event: Event) -> EventResponse:
         series_end_date=event.series_end_date,
         notify_minutes_before=event.notify_minutes_before,
         attendee_ids=_attendee_ids(db, event.id),
+        packing_list_template_ids=packing_lists.series_template_ids(
+            packing_lists._event_rows(db, event.id)
+        ),
+        packing_list_span=event.packing_list_span,
         overrides=[
             EventOverrideResponse(
                 occurrence_date=override.occurrence_date,
@@ -241,6 +249,60 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         editable=occurrence.editable,
         notify_minutes_before=occurrence.notify_minutes_before,
     )
+
+
+def _with_packing_lists(
+    db: Session, responses: list[OccurrenceResponse]
+) -> list[OccurrenceResponse]:
+    """Fill in each native occurrence's packing lists, in one pass for the page."""
+    pairs = [
+        (response.event_id, response.occurrence_date)
+        for response in responses
+        if response.event_id is not None and response.occurrence_date
+    ]
+    lists = packing_lists.occurrence_packing_lists(db, pairs)
+    for response in responses:
+        found = lists.get((response.event_id, response.occurrence_date))
+        if found:
+            response.packing_lists = [OccurrencePackingList(**item) for item in found]
+    return responses
+
+
+def _require_templates(db: Session, template_ids: list[int] | None) -> list[int] | None:
+    """Refuse a packing list id that is not a template, keeping the first
+    mention of each. SQLite would store a stray id happily, and the list would
+    then be on no day and in no modal."""
+    if template_ids is None:
+        return None
+    wanted = list(dict.fromkeys(template_ids))
+    found = {
+        row.id
+        for row in db.query(PackingListTemplate.id).filter(PackingListTemplate.id.in_(wanted))
+    }
+    if len(found) != len(wanted):
+        raise HTTPException(status_code=422, detail="Unknown packing list template")
+    return wanted
+
+
+def _sync_packing_lists(db: Session, event: Event, *, adopt: bool = False) -> None:
+    """Bring an event's packing list days in line with it, or refuse the write.
+
+    Runs before the write is committed. A refusal rolls the whole write back,
+    so the event and its packing lists change together or not at all.
+    """
+    tz = _tz(db)
+    today = now_utc().astimezone(tz).date()
+    try:
+        packing_lists.sync_event_packing_lists(db, event, today, tz=tz, adopt=adopt)
+    except packing_lists.AdoptNeeded as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={"message": packing_lists.adopt_message(exc.adopts), "adopts": exc.adopts},
+        ) from exc
+    except packing_lists.MovedIntoPast as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _load_event(db: Session, event_id: int) -> Event:
@@ -356,7 +418,9 @@ def list_occurrences(
         ]
 
     return OccurrencePage(
-        occurrences=[_occurrence_response(occurrence, tz) for occurrence in occurrences],
+        occurrences=_with_packing_lists(
+            db, [_occurrence_response(occurrence, tz) for occurrence in occurrences]
+        ),
         failures=result.failures,
     )
 
@@ -422,6 +486,7 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
         fields, start=payload.start, end=payload.end, all_day=payload.all_day, tzid=tz_name
     )
     rrule = _validated_rrule(payload.rrule)
+    template_ids = _require_templates(db, payload.packing_list_template_ids)
 
     event = Event(
         calendar_id=calendar.id,
@@ -432,14 +497,19 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
         rrule=rrule,
         series_end_date=series_end_date(rrule),
         notify_minutes_before=payload.notify_minutes_before,
+        packing_list_span=payload.packing_list_span,
         **fields,
     )
     _reject_impossible_bound(event)
     db.add(event)
-    db.commit()
-    db.refresh(event)
+    # Flushed, not committed: the event needs an id for its attendees and
+    # packing lists, and a refused packing list sync must leave nothing behind.
+    db.flush()
 
     _set_attendees(db, event.id, payload.attendee_ids)
+    if template_ids:
+        packing_lists.set_series_lists(db, event.id, template_ids)
+        _sync_packing_lists(db, event)
     db.commit()
     db.refresh(event)
 
@@ -483,7 +553,9 @@ def list_event_occurrences(
         window_end=window_end,
         local_tz=tz,
     )
-    return [_occurrence_response(occurrence, tz) for occurrence in occurrences]
+    return _with_packing_lists(
+        db, [_occurrence_response(occurrence, tz) for occurrence in occurrences]
+    )
 
 
 def _require_occurrence_date(event: Event, scope: str, occurrence_date: str | None) -> date:
@@ -508,6 +580,7 @@ def update_event(
     payload: EventUpdate,
     scope: str = Query(SCOPE_ALL, pattern="^(this|following|all)$"),
     occurrence_date: str | None = None,
+    adopt: bool = Query(False, description="Go ahead when a move adopts a packing list day"),
     db: Session = Depends(get_db),
 ):
     """Edit an event at one of three scopes.
@@ -526,19 +599,33 @@ def update_event(
     the notice names differs by scope, and that is the point: a change to one
     Tuesday says that Tuesday, while a change to the series says the next one
     people will actually turn up to.
+
+    Packing lists follow the same scopes (``packing_lists.set_series_lists`` /
+    ``set_occurrence_lists``), and the event's packing list days are synced
+    before anything is committed. A move that would adopt a day already there
+    is a ``409`` unless ``adopt``; a move of an occurrence with packing lists
+    into the past is a ``422``. Either way nothing is written.
     """
     event = _load_event(db, event_id)
     tz_name = payload.tzid or event.tzid or local_timezone_name(db)
+    template_ids = _require_templates(db, payload.packing_list_template_ids)
+    if payload.packing_list_span is not UNSET:
+        event.packing_list_span = payload.packing_list_span
 
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        response = _update_single_occurrence(db, event, payload, split_day, tz_name)
+        _update_single_occurrence(db, event, payload, split_day, tz_name)
+        if template_ids is not None:
+            packing_lists.set_occurrence_lists(db, event.id, split_day.isoformat(), template_ids)
+        _sync_packing_lists(db, event, adopt=adopt)
+        db.commit()
+        db.refresh(event)
         notify_event_change(db, event, kind=KIND_UPDATED, occurrence_date=split_day.isoformat())
-        return response
+        return _event_response(db, event)
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        response = _split_series(db, event, payload, split_day, tz_name)
+        response = _split_series(db, event, payload, split_day, tz_name, template_ids, adopt)
         # The edit now lives on the tail series, so that is what gets described.
         tail = db.query(Event).filter(Event.id == response.id).first()
         if tail is not None:
@@ -555,6 +642,10 @@ def update_event(
     except HTTPException:
         db.rollback()
         raise
+    if template_ids is not None:
+        packing_lists.set_series_lists(db, event.id, template_ids)
+    db.flush()
+    _sync_packing_lists(db, event, adopt=adopt)
     db.commit()
     db.refresh(event)
     notify_event_change(db, event, kind=KIND_UPDATED)
@@ -592,8 +683,9 @@ def _apply_event_fields(db: Session, event: Event, payload: EventUpdate, tz_name
 
 def _update_single_occurrence(
     db: Session, event: Event, payload: EventUpdate, split_day: date, tz_name: str
-) -> EventResponse:
-    """Write an override for one occurrence, leaving the series alone."""
+) -> None:
+    """Write an override for one occurrence, leaving the series alone. Flushes;
+    the caller commits once the packing lists have been synced."""
     override = (
         db.query(EventOverride)
         .filter(
@@ -637,15 +729,23 @@ def _update_single_occurrence(
     if payload.attendee_ids is not None:
         _set_attendees(db, event.id, payload.attendee_ids)
 
-    db.commit()
-    db.refresh(event)
-    return _event_response(db, event)
+    db.flush()
 
 
 def _split_series(
-    db: Session, event: Event, payload: EventUpdate, split_day: date, tz_name: str
+    db: Session,
+    event: Event,
+    payload: EventUpdate,
+    split_day: date,
+    tz_name: str,
+    template_ids: list[int] | None = None,
+    adopt: bool = False,
 ) -> EventResponse:
-    """Truncate the original series and carry the edit forward on a new one."""
+    """Truncate the original series and carry the edit forward on a new one.
+
+    Nothing is committed until both series' packing lists are synced, so a
+    refused sync leaves no tail behind.
+    """
     original_rrule = event.rrule
     tz = ZoneInfo(event.tzid or tz_name)
     # The tail is a new row, so a bad calendar id would create an event that
@@ -693,12 +793,12 @@ def _split_series(
             if payload.notify_minutes_before is UNSET
             else payload.notify_minutes_before
         ),
+        packing_list_span=event.packing_list_span,
         **fields,
     )
     _reject_impossible_bound(tail)
     db.add(tail)
-    db.commit()
-    db.refresh(tail)
+    db.flush()
 
     attendee_ids = (
         payload.attendee_ids if payload.attendee_ids is not None else _attendee_ids(db, event.id)
@@ -711,7 +811,14 @@ def _split_series(
         if override.occurrence_date >= split_day.isoformat():
             override.event_id = tail.id
 
+    packing_lists.split_event_packing_lists(db, event.id, tail.id, split_day.isoformat())
+    if template_ids is not None:
+        packing_lists.set_series_lists(db, tail.id, template_ids)
+
     _truncate_series(event, split_day)
+    db.flush()
+    _sync_packing_lists(db, event, adopt=adopt)
+    _sync_packing_lists(db, tail, adopt=adopt)
     db.commit()
     db.refresh(tail)
     return _event_response(db, tail)
@@ -751,6 +858,8 @@ def delete_event(
             override = EventOverride(event_id=event.id, occurrence_date=split_day.isoformat())
             db.add(override)
         override.cancelled = True
+        db.flush()
+        _sync_packing_lists(db, event)
         db.commit()
         send_change_notice(db, notice)
         return None
@@ -767,6 +876,12 @@ def delete_event(
             EventOverride.event_id == event.id,
             EventOverride.occurrence_date >= split_day.isoformat(),
         ).delete(synchronize_session=False)
+        db.query(EventPackingList).filter(
+            EventPackingList.event_id == event.id,
+            EventPackingList.occurrence_date >= split_day.isoformat(),
+        ).delete(synchronize_session=False)
+        db.flush()
+        _sync_packing_lists(db, event)
         db.commit()
         send_change_notice(db, notice)
         return None
@@ -786,6 +901,9 @@ def delete_event(
     db.query(EventNotification).filter(EventNotification.event_id == event.id).delete(
         synchronize_session=False
     )
+    # Its packing lists come off every day from today on; past days stay.
+    tz = _tz(db)
+    packing_lists.release_event_packing_lists(db, event.id, now_utc().astimezone(tz).date())
     db.delete(event)
     db.commit()
     send_change_notice(db, notice)
