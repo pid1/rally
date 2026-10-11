@@ -40,6 +40,20 @@ from rally.models import (
     Todo,
 )
 
+# --- Process-wide caches -------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clear_anthropic_model_max_cache():
+    """The generator caches each Anthropic model's maximum output tokens for the
+    life of the process; clear it so no test sees another test's lookup."""
+    from rally.generator import generate
+
+    generate._ANTHROPIC_MODEL_MAX_TOKENS.clear()
+    yield
+    generate._ANTHROPIC_MODEL_MAX_TOKENS.clear()
+
+
 # --- Database + client ---------------------------------------------------------
 
 

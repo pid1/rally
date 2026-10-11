@@ -8,8 +8,8 @@ Rally verifies LLM, weather, calendar and followed-team settings as you save the
 
 Pick a provider in Settings → **LLM**:
 
-- **Anthropic.** An API key and a model. The token budget can be set explicitly, or resolved from the model's real maximum at save time.
-- **OpenAI-compatible.** Any endpoint that speaks the OpenAI API, including a local server such as LM Studio or Ollama. GLM 4.7 Flash is a good local choice.
+- **Anthropic.** An API key and a model. Responses use the model's maximum output, looked up from Anthropic when the briefing runs, so there is no token budget to set.
+- **OpenAI-compatible.** Any endpoint that speaks the OpenAI API, including a local server such as LM Studio or Ollama. GLM 4.7 Flash is a good local choice. Rally sends no output token limit, so the server's own limit applies.
 
 Two free-text fields shape what the model writes:
 
@@ -18,7 +18,7 @@ Two free-text fields shape what the model writes:
 | **Family context** | Who is in the family, ages, routines, what matters. The model reads this every run |
 | **Agent voice** | The tone to write in |
 
-Both are versioned. Every save records a snapshot, and **Version History** rolls either one back without touching the other. The same applies to the LLM provider, model and token budget, which are versioned together as one coupled snapshot: rolling back restores all of it at once.
+Both are versioned. Every save records a snapshot, and **Version History** rolls either one back without touching the other. The same applies to the LLM provider and model, which are versioned together as one coupled snapshot: rolling back restores both at once.
 
 **Home location**, for example "Highland Village, TX", is sent to the model as its own block, so the briefing can reason about local conditions.
 

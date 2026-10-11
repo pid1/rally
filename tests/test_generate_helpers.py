@@ -17,7 +17,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rally.database import Base
-from rally.generator.generate import LLM_MAX_TOKENS, SummaryGenerator
+from rally.generator import generate as generate_module
+from rally.generator.generate import LLMModelLimitError, SummaryGenerator
 from rally.models import (
     AISettingsHistory,
     Calendar,
@@ -102,7 +103,6 @@ def test_init_anthropic_provider_from_db(gen_db, mock_llm):
     assert gen.stem_concept_enabled is True
     assert gen.shopping_list_in_summary_enabled is True
     assert gen.packing_lists_in_summary_enabled is False
-    assert gen.max_tokens == LLM_MAX_TOKENS  # default when unset
 
 
 def test_init_local_provider_from_db(gen_db, mock_llm):
@@ -124,64 +124,108 @@ def test_init_local_provider_from_db(gen_db, mock_llm):
     assert gen.shopping_list_in_summary_enabled is False  # default when unset
     # On by default: the section omits itself on days with nothing coming up.
     assert gen.packing_lists_in_summary_enabled is True
-    assert gen.max_tokens == LLM_MAX_TOKENS  # default when unset
 
 
-# --- max_tokens resolution -------------------------------------------------------
+# --- Anthropic max_tokens resolution ---------------------------------------------
 
 
-def test_max_tokens_reads_provider_specific_db_setting(gen_db, mock_llm):
+class _FakeModels:
+    def __init__(self, result=None, exc=None):
+        self.result = result
+        self.exc = exc
+        self.calls = []
+
+    def retrieve(self, model_id):
+        self.calls.append(model_id)
+        if self.exc is not None:
+            raise self.exc
+        return self.result
+
+
+def _anthropic_generator(models: _FakeModels, model: str = "claude-x") -> SummaryGenerator:
+    gen = SummaryGenerator.__new__(SummaryGenerator)
+    gen.provider = "anthropic"
+    gen.model = model
+    gen.client = SimpleNamespace(models=models)
+    return gen
+
+
+def test_init_ignores_leftover_max_tokens_settings(gen_db, mock_llm):
+    """Rows for the removed max-tokens keys (before migration 038 runs) are
+    simply ignored — no budget is read from them, and nothing is resolved at
+    construction time."""
     _seed_settings(
         gen_db,
         {
             "llm_provider": "anthropic",
             "llm_anthropic_model": "claude-x",
             "llm_anthropic_api_key": "sk-test",
-            "llm_anthropic_max_tokens": "128000",
-            # A local budget must never leak onto the active Anthropic provider.
+            "llm_anthropic_max_tokens": "4000",
+            "llm_anthropic_max_tokens_mode": "custom",
             "llm_local_max_tokens": "4000",
         },
     )
 
     gen = SummaryGenerator()
 
-    assert gen.max_tokens == 128000
+    assert not hasattr(gen, "max_tokens")
+    assert not [c for c in mock_llm.calls if c[0] == "models.retrieve"]
 
 
-def test_max_tokens_switches_with_provider(gen_db, mock_llm):
-    """Each provider owns its own key — switching Provider switches budgets."""
-    _seed_settings(
-        gen_db,
-        {
-            "llm_provider": "local",
-            "llm_local_model": "llama",
-            "llm_local_base_url": "http://localhost:1234/v1",
-            "llm_local_max_tokens": "6000",
-            "llm_anthropic_max_tokens": "128000",
-        },
-    )
+def test_anthropic_max_tokens_resolves_from_models_api():
+    models = _FakeModels(result=SimpleNamespace(id="claude-x", max_tokens=128000))
+    gen = _anthropic_generator(models)
 
-    gen = SummaryGenerator()
-
-    assert gen.max_tokens == 6000
+    assert gen._anthropic_max_tokens() == 128000
+    assert models.calls == ["claude-x"]
 
 
-def test_max_tokens_falls_back_to_config_toml_provider_table():
-    """DB setting absent -> falls back to that provider's own config.toml
-    table, exercised directly against the real _resolve_max_tokens method."""
-    gen = SummaryGenerator.__new__(SummaryGenerator)
-    gen.provider = "anthropic"
-    gen.config = {"llm": {"anthropic": {"max_tokens": 32000}}}
+def test_anthropic_max_tokens_cached_per_model():
+    """Looked up once per model per process, and a different model gets its own."""
+    models = _FakeModels(result=SimpleNamespace(max_tokens=64000))
+    gen = _anthropic_generator(models)
+    gen._anthropic_max_tokens()
+    gen._anthropic_max_tokens()
+    assert models.calls == ["claude-x"]
 
-    assert gen._resolve_max_tokens({}) == 32000
+    # A model change never reuses the previous model's number.
+    other = _FakeModels(result=SimpleNamespace(max_tokens=128000))
+    gen2 = _anthropic_generator(other, model="claude-y")
+    assert gen2._anthropic_max_tokens() == 128000
+    assert other.calls == ["claude-y"]
 
 
-def test_max_tokens_defaults_when_neither_db_nor_config_toml_set():
-    gen = SummaryGenerator.__new__(SummaryGenerator)
-    gen.provider = "local"
-    gen.config = {}
+def test_anthropic_max_tokens_lookup_failure_raises_clear_error():
+    class NotFoundError(Exception):
+        status_code = 404
 
-    assert gen._resolve_max_tokens({}) == LLM_MAX_TOKENS
+    gen = _anthropic_generator(_FakeModels(exc=NotFoundError("model not found")))
+
+    with pytest.raises(LLMModelLimitError) as excinfo:
+        gen._anthropic_max_tokens()
+    assert "claude-x" in str(excinfo.value)
+    assert "model not found" in str(excinfo.value)
+    assert generate_module._ANTHROPIC_MODEL_MAX_TOKENS == {}
+
+
+def test_anthropic_max_tokens_transient_error_reraised_for_retry():
+    """A network blip is left as-is so _call_llm's retry budget covers it."""
+
+    class APIConnectionError(Exception):
+        pass
+
+    gen = _anthropic_generator(_FakeModels(exc=APIConnectionError("down")))
+
+    with pytest.raises(APIConnectionError):
+        gen._anthropic_max_tokens()
+
+
+@pytest.mark.parametrize("bad", [None, 0, -1, "128000"])
+def test_anthropic_max_tokens_rejects_unusable_value(bad):
+    gen = _anthropic_generator(_FakeModels(result=SimpleNamespace(max_tokens=bad)))
+
+    with pytest.raises(LLMModelLimitError):
+        gen._anthropic_max_tokens()
 
 
 # --- load_meal_plans ---------------------------------------------------------
