@@ -105,7 +105,12 @@ def packing_list(live_server):
             "/api/packing-list-days",
             {"packing_list_template_id": cid, "date": in_days(n)},
         )
-        for n in (20, 27)
+        # Past every date the seed puts a packing list on: its furthest is
+        # Beach week on the Saturday two weeks out, 15 to 21 days away
+        # depending on the weekday (22 here in a Chicago evening, when the
+        # seed's UTC today is already tomorrow). A seeded list on the same day
+        # would share the day's box and change what the tests see in it.
+        for n in (23, 27)
     ]
     try:
         yield {
