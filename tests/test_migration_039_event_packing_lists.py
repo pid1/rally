@@ -1,4 +1,4 @@
-"""Migration 038 adds packing lists on calendar events (#270).
+"""Migration 039 adds packing lists on calendar events (#270).
 
 It runs on every container start, so it has to be a no-op the second time,
 write no rows — no event brings a list until somebody adds one — and leave a
@@ -28,7 +28,7 @@ def _load(name):
 
 
 def _migrate():
-    return _load("migrate_038_add_event_packing_lists").migrate()
+    return _load("migrate_039_add_event_packing_lists").migrate()
 
 
 def _columns(path, table):

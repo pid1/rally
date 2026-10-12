@@ -35,9 +35,9 @@ def test_llm_anthropic_success(client, make_setting, mock_llm):
     assert mock_llm.calls[0][0] == "anthropic"
 
 
-def test_llm_anthropic_success_includes_configured_budget(client, make_setting, mock_llm):
-    """The verify modal auto-closes, so this is the one place a freshly
-    resolved "Model maximum" budget is confirmed back to the operator."""
+def test_llm_anthropic_success_message_has_no_budget_note(client, make_setting, mock_llm):
+    """There is no configured budget to report — a leftover settings row from
+    before token limits were removed must not leak into the message."""
     make_setting("llm_provider", "anthropic")
     make_setting("llm_anthropic_api_key", "sk-test")
     make_setting("llm_anthropic_model", "claude-x")
@@ -45,8 +45,7 @@ def test_llm_anthropic_success_includes_configured_budget(client, make_setting, 
 
     body = client.post("/api/settings/test-llm").json()
 
-    assert body["success"] is True
-    assert "128000" in body["message"]
+    assert body == {"success": True, "message": "Connected to claude-x"}
 
 
 def test_llm_local_success(client, make_setting, mock_llm):

@@ -16,10 +16,10 @@ import pytest
 from rally.calendars import Occurrence
 from rally.generator import generate as generate_module
 from rally.generator.generate import (
-    LLM_MAX_TOKENS,
     LLM_RETRY_ATTEMPTS,
     LLM_RETRY_JITTER,
     LLM_RETRY_MAX_DELAY,
+    LLMModelLimitError,
     LLMTruncatedError,
     SummaryGenerator,
     _is_retryable_llm_error,
@@ -68,7 +68,6 @@ def make_generator(tz: str = "UTC") -> SummaryGenerator:
     gen.sports_watchlist_enabled = False
     gen.prep_overdue_in_summary_enabled = False
     gen.packing_lists_in_summary_enabled = False
-    gen.max_tokens = LLM_MAX_TOKENS
     return gen
 
 
@@ -88,13 +87,19 @@ class _FakeStream:
         return self._message
 
 
+# What the fake Models API reports as every model's maximum output.
+MODEL_MAX_TOKENS = 128000
+
+
 class FakeAnthropic:
     """Stands in for anthropic.Anthropic — records the stream() kwargs.
 
-    _call_llm's Anthropic branch streams (see the "Model maximum" budget
-    change in generate.py) rather than calling create() directly, so this fake
-    mirrors that: stream() returns a context manager whose get_final_message()
-    yields the same Message shape create() used to return.
+    _call_llm's Anthropic branch streams (max_tokens is the model's full
+    output ceiling, which the SDK refuses on a non-streaming request) rather
+    than calling create() directly, so this fake mirrors that: stream()
+    returns a context manager whose get_final_message() yields the same
+    Message shape create() used to return. ``models.retrieve`` answers the
+    generator's lookup of the model's maximum output tokens.
     """
 
     def __init__(self, text, blocks=None, stop_reason="end_turn", usage=None):
@@ -103,7 +108,13 @@ class FakeAnthropic:
         self._stop_reason = stop_reason
         self._usage = usage
         self.messages = self
+        self.models = self
         self.last_kwargs = None
+        self.retrieved = []
+
+    def retrieve(self, model_id):
+        self.retrieved.append(model_id)
+        return SimpleNamespace(id=model_id, max_tokens=MODEL_MAX_TOKENS)
 
     def stream(self, **kwargs):
         self.last_kwargs = kwargs
@@ -215,7 +226,7 @@ def test_call_llm_anthropic_raises_on_max_tokens_stop_reason():
     gen.client = FakeAnthropic(
         '{"greeting": "cut off mid-str',
         stop_reason="max_tokens",
-        usage=SimpleNamespace(input_tokens=1200, output_tokens=LLM_MAX_TOKENS),
+        usage=SimpleNamespace(input_tokens=1200, output_tokens=MODEL_MAX_TOKENS),
     )
 
     with pytest.raises(LLMTruncatedError) as excinfo:
@@ -223,8 +234,8 @@ def test_call_llm_anthropic_raises_on_max_tokens_stop_reason():
 
     message = str(excinfo.value)
     assert "stop_reason=max_tokens" in message
-    assert f"output_tokens={LLM_MAX_TOKENS}" in message
-    assert f"max_tokens={LLM_MAX_TOKENS}" in message
+    assert f"output_tokens={MODEL_MAX_TOKENS}" in message
+    assert f"max_tokens={MODEL_MAX_TOKENS}" in message
 
 
 def test_call_llm_local_raises_on_length_finish_reason():
@@ -234,7 +245,7 @@ def test_call_llm_local_raises_on_length_finish_reason():
     gen.client = FakeOpenAI(
         "partial",
         finish_reason="length",
-        usage=SimpleNamespace(prompt_tokens=900, completion_tokens=LLM_MAX_TOKENS),
+        usage=SimpleNamespace(prompt_tokens=900, completion_tokens=4000),
     )
 
     with pytest.raises(LLMTruncatedError) as excinfo:
@@ -307,30 +318,61 @@ def test_call_llm_logs_reasoning_tokens_when_reported(capsys):
     assert "reasoning=700" in out
 
 
-def test_call_llm_anthropic_sends_configured_max_tokens():
-    """max_tokens comes from the instance, not the module default — this is
-    what makes the per-provider "Model maximum" budget actually take effect."""
+def test_call_llm_anthropic_sends_model_max_tokens():
+    """max_tokens is the model's own maximum, looked up from the Models API —
+    there is no configured budget to send instead."""
     gen = make_generator()
     gen.provider = "anthropic"
     gen.model = "claude-x"
-    gen.max_tokens = 128000
     gen.client = FakeAnthropic("hi")
 
     gen._call_llm("hi")
 
-    assert gen.client.last_kwargs["max_tokens"] == 128000
+    assert gen.client.retrieved == ["claude-x"]
+    assert gen.client.last_kwargs["max_tokens"] == MODEL_MAX_TOKENS
 
 
-def test_call_llm_local_sends_configured_max_tokens():
+def test_call_llm_anthropic_looks_up_model_max_once_per_model():
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-x"
+    gen.client = FakeAnthropic("hi")
+
+    gen._call_llm("hi")
+    gen._call_llm("again")
+
+    assert gen.client.retrieved == ["claude-x"]
+
+
+def test_call_llm_anthropic_fails_loudly_when_model_max_unavailable():
+    """No fallback to a small cap: an unresolvable model stops the call."""
+
+    class BrokenModels:
+        def retrieve(self, model_id):
+            raise ValueError("no such model")
+
+    gen = make_generator()
+    gen.provider = "anthropic"
+    gen.model = "claude-typo"
+    gen.client = FakeAnthropic("hi")
+    gen.client.models = BrokenModels()
+
+    with pytest.raises(LLMModelLimitError) as excinfo:
+        gen._call_llm("hi")
+
+    assert "claude-typo" in str(excinfo.value)
+    assert gen.client.last_kwargs is None  # the message was never sent
+
+
+def test_call_llm_local_sends_no_max_tokens():
     gen = make_generator()
     gen.provider = "local"
     gen.model = "llama"
-    gen.max_tokens = 8000
     gen.client = FakeOpenAI("hi")
 
     gen._call_llm("hi")
 
-    assert gen.client.last_kwargs["max_tokens"] == 8000
+    assert "max_tokens" not in gen.client.last_kwargs
 
 
 def test_call_llm_logs_when_provider_reports_no_usage(capsys):
@@ -564,7 +606,7 @@ def test_generate_summary_truncation_is_not_reported_as_a_json_error(frozen_now,
     gen.client = FakeAnthropic(
         '{"greeting": "Happy Monday! Let',
         stop_reason="max_tokens",
-        usage=SimpleNamespace(input_tokens=2000, output_tokens=LLM_MAX_TOKENS),
+        usage=SimpleNamespace(input_tokens=2000, output_tokens=MODEL_MAX_TOKENS),
     )
 
     data = gen.generate_summary()

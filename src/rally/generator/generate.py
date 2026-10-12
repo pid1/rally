@@ -21,10 +21,13 @@ from rally.utils.timezone import now_utc, today_utc
 # sub-topics within the same broader area are still allowed inside the window.
 STEM_REPEAT_WINDOW_DAYS = 60
 
-# Token budget for a single LLM call. On the Anthropic Messages API this cap
-# covers thinking tokens *and* visible output, so a reasoning-heavy call can
-# burn most of it before the JSON body is finished.
-LLM_MAX_TOKENS = 4000
+# There is deliberately no output token budget of our own. Anthropic requires
+# max_tokens on every request, so it is set to the model's own maximum output,
+# looked up from the Models API the first time each model is used in this
+# process (see SummaryGenerator._anthropic_max_tokens). Local OpenAI-compatible
+# servers get no max_tokens at all and fall back to their own limit. Volume is
+# a handful of calls a day, so a truncated briefing costs far more than tokens.
+_ANTHROPIC_MODEL_MAX_TOKENS: dict[str, int] = {}
 
 # Retry budget for a single LLM call.
 #
@@ -95,6 +98,15 @@ _RETRYABLE_ERRNOS = frozenset(
 # about the request itself (bad key, malformed body, model not found) and will
 # fail identically however many times it is sent.
 _RETRYABLE_STATUS_CODES = frozenset({408, 409, 425, 429})
+
+
+class LLMModelLimitError(Exception):
+    """Raised when the model's maximum output tokens can't be determined.
+
+    Anthropic needs an explicit max_tokens, and the only acceptable value is
+    the model's own ceiling. Rather than quietly fall back to a small cap that
+    could truncate the briefing, generation stops with this error.
+    """
 
 
 class LLMTruncatedError(Exception):
@@ -270,10 +282,6 @@ class SummaryGenerator:
                     api_key=provider_config.get("api_key", "no-key-needed"),
                 )
 
-        # Token budget for this provider. Read after self.provider is set
-        # above, since the resolution depends on which provider is active.
-        self.max_tokens = self._resolve_max_tokens(db_settings)
-
         # Get local timezone: DB setting > config.toml > UTC
         tz_name = db_settings.get("local_timezone", self.config.get("local_timezone", "UTC"))
         self.local_tz_name = tz_name
@@ -322,20 +330,39 @@ class SummaryGenerator:
         # Optional: owner emails for accurate declined-event detection (config.toml fallback only)
         self.calendar_owners = self.config.get("calendar_owners", {})
 
-    def _resolve_max_tokens(self, db_settings: dict) -> int:
-        """Resolve this provider's token budget: DB setting > that provider's
-        own config.toml table (e.g. [llm.anthropic]) > the module default.
+    def _anthropic_max_tokens(self) -> int:
+        """The configured Anthropic model's maximum output tokens.
 
-        Each provider owns its own settings key, so switching providers never
-        carries one provider's budget onto the other.
+        Looked up via the Models API once per model per process, so a model
+        change in Settings is picked up on the next run with no stored number
+        to go stale. A transient network fault is re-raised as-is so
+        :meth:`_call_llm`'s retry budget covers it; anything else (unknown
+        model, bad key, a response without a usable limit) raises
+        :class:`LLMModelLimitError` rather than falling back to a small cap.
         """
-        max_tokens_key = (
-            "llm_anthropic_max_tokens" if self.provider == "anthropic" else "llm_local_max_tokens"
-        )
-        if max_tokens_key in db_settings:
-            return int(db_settings[max_tokens_key])
-        provider_config = self.config.get("llm", {}).get(self.provider, {})
-        return int(provider_config.get("max_tokens", LLM_MAX_TOKENS))
+        cached = _ANTHROPIC_MODEL_MAX_TOKENS.get(self.model)
+        if cached is not None:
+            return cached
+
+        try:
+            info = self.client.models.retrieve(self.model)
+        except Exception as exc:
+            if _is_retryable_llm_error(exc):
+                raise
+            raise LLMModelLimitError(
+                f"Couldn't look up the maximum output tokens for Anthropic model "
+                f"{self.model!r} via the Models API: {type(exc).__name__}: {exc}"
+            ) from exc
+
+        max_tokens = getattr(info, "max_tokens", None)
+        if not isinstance(max_tokens, int) or max_tokens <= 0:
+            raise LLMModelLimitError(
+                f"The Models API returned no usable max_tokens for Anthropic model "
+                f"{self.model!r} (got {max_tokens!r})."
+            )
+
+        _ANTHROPIC_MODEL_MAX_TOKENS[self.model] = max_tokens
+        return max_tokens
 
     def fetch_calendars(self):
         """Every calendar occurrence in the next 7 days, from every source.
@@ -975,11 +1002,14 @@ class SummaryGenerator:
 
         Raises:
             LLMTruncatedError: the model ran out of token budget mid-response.
+            LLMModelLimitError: the Anthropic model's maximum output tokens
+                couldn't be looked up.
         """
         if self.provider == "anthropic":
+            max_tokens = self._anthropic_max_tokens()
             kwargs: dict = {
                 "model": self.model,
-                "max_tokens": self.max_tokens,
+                "max_tokens": max_tokens,
                 "messages": [{"role": "user", "content": user_prompt}],
             }
             if system_prompt:
@@ -992,24 +1022,24 @@ class SummaryGenerator:
                 ]
             # Streaming, rather than a plain create() call: the SDK refuses a
             # non-streaming request whose max_tokens could exceed its timeout
-            # guard, which a "Model maximum" budget (up to a model's full
-            # output ceiling) can trip. get_final_message() returns the same
-            # Message shape create() did, so nothing below this call changed.
+            # guard, which a model's full output ceiling trips.
+            # get_final_message() returns the same Message shape create() did.
             with self.client.messages.stream(**kwargs) as stream:
                 response = stream.get_final_message()
 
             usage = getattr(response, "usage", None)
             stop_reason = getattr(response, "stop_reason", None)
             print(
-                f"[{label}] stop_reason={stop_reason} max_tokens={self.max_tokens} "
+                f"[{label}] stop_reason={stop_reason} max_tokens={max_tokens} "
                 f"{_describe_usage(usage)}"
             )
             if stop_reason == "max_tokens":
                 raise LLMTruncatedError(
                     f"LLM response truncated: stop_reason=max_tokens, "
                     f"output_tokens={getattr(usage, 'output_tokens', 'unknown')}, "
-                    f"max_tokens={self.max_tokens}. Thinking tokens share this budget — "
-                    f"raise the configured Max Tokens or shorten the prompt."
+                    f"max_tokens={max_tokens} (the model's maximum output). Thinking "
+                    f"tokens share this budget — shorten the prompt or use a model "
+                    f"with a larger output limit."
                 )
 
             # Newer models may return thinking blocks before the text block,
@@ -1020,9 +1050,10 @@ class SummaryGenerator:
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": user_prompt})
+            # No max_tokens: the server applies its own limit, so nothing on
+            # this side can cut a response short.
             response = self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=self.max_tokens,
                 messages=messages,
             )
 
@@ -1030,16 +1061,14 @@ class SummaryGenerator:
             usage = getattr(response, "usage", None)
             # OpenAI-compatible servers signal budget exhaustion as "length".
             finish_reason = getattr(choices[0], "finish_reason", None) if choices else None
-            print(
-                f"[{label}] finish_reason={finish_reason} max_tokens={self.max_tokens} "
-                f"{_describe_usage(usage)}"
-            )
+            print(f"[{label}] finish_reason={finish_reason} {_describe_usage(usage)}")
             if finish_reason == "length":
                 raise LLMTruncatedError(
                     f"LLM response truncated: finish_reason=length, "
                     f"completion_tokens={getattr(usage, 'completion_tokens', 'unknown')}, "
-                    f"max_tokens={self.max_tokens}. Reasoning tokens share this budget — "
-                    f"raise the configured Max Tokens or shorten the prompt."
+                    f"no max_tokens was sent, so the server's own output limit was hit. "
+                    f"Reasoning tokens share that limit — raise it on the server or "
+                    f"shorten the prompt."
                 )
 
             return choices[0].message.content if choices else ""

@@ -248,34 +248,18 @@ class AISettingHistoryResponse(BaseModel):
 LLM_CONFIG_FIELD = "llm_config"
 
 
-# Default token budget mirroring generate.LLM_MAX_TOKENS. Not imported directly —
-# generate.py is the generator's own module and schemas.py stays free of it to
-# avoid a needless cross-module coupling for one constant.
-DEFAULT_LLM_MAX_TOKENS = 4000
-
-LLMMaxTokensMode = Literal["model_max", "custom"]
-
-
 class LLMConfigUpdate(BaseModel):
     """Explicit save of the LLM provider + model pair — creates a new history snapshot.
 
-    ``max_tokens`` is always sent by the client (whatever is currently shown in
-    the field); in ``model_max`` mode the server ignores it and resolves the
-    real value from the provider instead. ``max_tokens_mode`` is meaningful for
-    Anthropic only — the router forces it to ``custom`` for every other provider.
-
-    The "must be positive" rule is deliberately NOT enforced here as a Field
-    constraint: the browser sends a blank/zero placeholder in ``model_max``
-    mode (the field is read-only and not yet resolved), and that value is
-    correctly ignored downstream — a schema-level gt=0 would reject the
-    request before the handler ever gets to ignore it. The router validates
-    positivity itself, and only when max_tokens_mode == "custom".
+    There is no output token budget to configure: Anthropic requests always use
+    the model's own maximum and local requests send no limit at all. Older
+    clients that still send ``max_tokens`` / ``max_tokens_mode`` are not
+    rejected — unknown fields are ignored (pydantic's default), so they're
+    simply dropped.
     """
 
     provider: str
     model: str
-    max_tokens: int = DEFAULT_LLM_MAX_TOKENS
-    max_tokens_mode: LLMMaxTokensMode = "custom"
 
 
 class LLMConfigState(BaseModel):
@@ -283,19 +267,19 @@ class LLMConfigState(BaseModel):
 
     provider: str
     model: str
-    max_tokens: int | None = None  # None when no snapshot exists yet
-    max_tokens_mode: LLMMaxTokensMode | None = None
     history_id: int | None = None  # None when no snapshot exists yet
 
 
 class LLMConfigHistoryEntry(BaseModel):
-    """One snapshot row from llm_settings_history, with the coupled value unpacked."""
+    """One snapshot row from llm_settings_history, with the coupled value unpacked.
+
+    Snapshots saved before token limits were removed also carry ``max_tokens``
+    / ``max_tokens_mode`` in their JSON; those keys are ignored.
+    """
 
     id: int
     provider: str
     model: str
-    max_tokens: int
-    max_tokens_mode: LLMMaxTokensMode
     created_at: datetime
     last_used_at: datetime
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Migration 038: Packing lists on calendar events.
+"""Migration 039: Packing lists on calendar events.
 
 Adds:
 
