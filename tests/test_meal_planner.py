@@ -111,6 +111,68 @@ def test_delete_and_404(client, db_session):
     assert client.delete("/api/meal-planner/9999").status_code == 404
 
 
+# --- Notes -----------------------------------------------------------------------
+
+
+def test_create_with_notes(client):
+    body = _create(client, plan="Brinner", notes="Sausages, eggs, pancakes")
+    assert body["notes"] == "Sausages, eggs, pancakes"
+
+
+def test_create_without_notes_is_null(client):
+    body = _create(client, plan="Tacos")
+    assert body["notes"] is None
+
+
+def test_create_with_blank_notes_is_null(client):
+    body = _create(client, plan="Tacos", notes="   ")
+    assert body["notes"] is None
+
+
+def test_update_sets_notes(client):
+    plan = _create(client, plan="Tacos")
+
+    body = client.put(f"/api/meal-planner/{plan['id']}", json={"notes": "Extra cheese"}).json()
+
+    assert body["notes"] == "Extra cheese"
+
+
+def test_update_clears_notes_via_null(client):
+    plan = _create(client, plan="Tacos", notes="Extra cheese")
+
+    body = client.put(f"/api/meal-planner/{plan['id']}", json={"notes": None}).json()
+
+    assert body["notes"] is None
+
+
+def test_update_clears_notes_via_blank_string(client):
+    plan = _create(client, plan="Tacos", notes="Extra cheese")
+
+    body = client.put(f"/api/meal-planner/{plan['id']}", json={"notes": "   "}).json()
+
+    assert body["notes"] is None
+
+
+def test_update_omitting_notes_leaves_it(client):
+    plan = _create(client, plan="Tacos", notes="Extra cheese")
+
+    body = client.put(f"/api/meal-planner/{plan['id']}", json={"plan": "Tacos al pastor"}).json()
+
+    assert body["plan"] == "Tacos al pastor"
+    assert body["notes"] == "Extra cheese"
+
+
+def test_previous_search_matches_notes_text(client, make_meal_plan, frozen_now):
+    frozen_now(TODAY)
+    make_meal_plan("2026-05-01", plan="Brinner", rating=4, notes="Sausages and pancakes")
+    make_meal_plan("2026-05-02", plan="Tacos", rating=4)
+
+    page = client.get("/api/meal-planner/previous", params={"search": "pancakes"}).json()
+
+    assert [p["plan"] for p in page["items"]] == ["Brinner"]
+    assert page["total"] == 1
+
+
 # --- Reviews -------------------------------------------------------------------
 
 

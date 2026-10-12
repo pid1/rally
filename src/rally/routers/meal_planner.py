@@ -27,6 +27,19 @@ _MEAL_TYPE_ORDER = case(
 )
 
 
+def _clean_notes(notes: str | None) -> str | None:
+    """Blank or whitespace-only notes are stored as NULL.
+
+    A cleared field in the form sends an empty string, not ``null``; without
+    this, a blank submission would leave an empty notes line on the card
+    instead of no line at all.
+    """
+    if notes is None:
+        return None
+    stripped = notes.strip()
+    return stripped or None
+
+
 @router.get("", response_model=list[MealPlanResponse])
 def list_meal_plans(db: Session = Depends(get_db)):
     """List all meal plans ordered by date then meal type."""
@@ -41,6 +54,7 @@ def create_meal_plan(plan: MealPlanCreate, db: Session = Depends(get_db)):
         date=plan.date,
         meal_type=plan.meal_type,
         plan=plan.plan,
+        notes=_clean_notes(plan.notes),
         attendee_ids=plan.attendee_ids,
         cook_id=plan.cook_id,
     )
@@ -56,7 +70,8 @@ def list_previous_meals(
     min_rating: int | None = Query(None, ge=1, le=5),
     meal_type: list[str] | None = Query(None),
     search: str | None = Query(
-        None, description="Case-insensitive keyword matched against the meal and its review."
+        None,
+        description="Case-insensitive keyword matched against the meal, its notes, or its review.",
     ),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -97,7 +112,13 @@ def list_previous_meals(
 
     if search and search.strip():
         term = f"%{search.strip()}%"
-        query = query.filter(or_(MealPlan.plan.ilike(term), MealPlan.review.ilike(term)))
+        query = query.filter(
+            or_(
+                MealPlan.plan.ilike(term),
+                MealPlan.notes.ilike(term),
+                MealPlan.review.ilike(term),
+            )
+        )
 
     total = query.count()
 
@@ -150,6 +171,8 @@ def update_meal_plan(
         db_plan.meal_type = plan.meal_type
     if plan.plan is not None:
         db_plan.plan = plan.plan
+    if plan.notes is not UNSET:
+        db_plan.notes = _clean_notes(plan.notes)
     if plan.attendee_ids is not UNSET:
         db_plan.attendee_ids = plan.attendee_ids
     if plan.cook_id is not UNSET:

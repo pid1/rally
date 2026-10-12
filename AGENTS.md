@@ -428,6 +428,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `037_add_day_bag_removed_from` - Add `packing_list_day_bags.removed_from_bag_id`: the bag that taking a bag off a day took this one out of, so `Only item changes` on a resync can put it back. Purely additive and writes **no rows**: every existing reading gets NULL, so a bag removed before the upgrade has no record and a resync leaves its inner bags going in nothing rather than guessing which readings a removal wrote
 - `038_remove_llm_max_tokens` - Delete the `llm_anthropic_max_tokens`, `llm_anthropic_max_tokens_mode` and `llm_local_max_tokens` settings rows. Rally no longer caps LLM output (Anthropic uses the model's own maximum, looked up at run time; local sends no `max_tokens`), so nothing reads them. `llm_settings_history` snapshots are left as they are — older ones still carry `max_tokens`/`max_tokens_mode` in their JSON, which the app ignores
 - `039_add_event_packing_lists` - Add `events.packing_list_span` (`first` / `every`; NULL reads as `first`) and the `event_packing_lists` and `packing_list_day_events` tables plus their indexes. The unique index on `event_packing_lists` is over `(event_id, packing_list_template_id, IFNULL(occurrence_date, ''))` because SQLite treats NULLs as distinct and the series' own row has to count once; the one on `packing_list_day_events` is `(event_id, occurrence_date, packing_list_template_id, date)`. The tables are created even where `events` does not exist yet. Purely additive and writes **no rows**: no event brings a packing list until somebody adds one
+- `040_add_meal_notes` - Add `dinner_plans.notes`: optional detail on a meal (who wants what, substitutions), kept separate from `plan`, which is the meal's name (`Meal Name` in the UI). Purely additive and writes **no rows**: every existing meal gets `notes = NULL` and its `plan` text is untouched
 
 ### Running Migrations
 
@@ -684,6 +685,7 @@ rally/
 │   ├── migrate_037_add_day_bag_removed_from.py # Migration 037: which bag a removal took a bag out of, on a day's reading
 │   ├── migrate_038_remove_llm_max_tokens.py # Migration 038: delete the removed LLM max tokens settings keys
 │   ├── migrate_039_add_event_packing_lists.py # Migration 039: packing lists on calendar events, and the days they put them on
+│   ├── migrate_040_add_meal_notes.py # Migration 040: add dinner_plans.notes
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium
@@ -943,10 +945,11 @@ rally/
   - All calls are issued concurrently under one short overall budget and are best-effort: a provider outage degrades to a missing section, never a failed summary
 - ✅ Meal planner - Full CRUD API and UI
   - Multiple plans per date (e.g. half the family at a restaurant, half eating at home)
+  - `plan` is the meal's name (`Meal Name` in the modal; the single-line field it has always been). Optional `notes` — who wants what, substitutions — is a separate, multiline field, rendered on its own `.editable-item-description` line under the name, on both the planner card and the Previous Meals card. Blank or whitespace-only notes are stored as `NULL` (`meal_planner._clean_notes`), so a cleared field leaves no empty line. `notes` is searchable on Previous Meals alongside the meal and its review. The modal's `#plan-text` is a single-line `<input>`; opening a meal saved before this change for Edit flattens any line breaks in its name to spaces (`flattenToOneLine()` in `static/meal_edit_modal.js`) rather than losing them on save — meals that are never edited are untouched
   - Optional attendees: select which family members are eating (defaults to everyone)
   - Optional cook assignment: who's preparing the meal
   - Next 7 days display with smart date formatting
-  - LLM generator annotates plans with attendee/cook names for smarter reminders
+  - LLM generator annotates plans with attendee/cook names for smarter reminders, and with `[Notes: …]` right after the meal name when notes are set (line breaks collapsed to spaces)
   - Luxury UI matching Rally aesthetic
 - ✅ Preparedness (`/preparedness`, `/go-list`) - Emergency stock with refresh schedules, a daily Pushover digest, and a printable go list
   - Items carry a name, free-text quantity, location and notes. Quantity is deliberately *not* parsed: with no par levels or low-stock alerts in scope, an integer would be structure bought for features that are not being built and paid for on every entry
@@ -1246,7 +1249,7 @@ visual suite (above) before shipping a layout change.
 - `/api/meal-planner` - Meal plan CRUD endpoints
   - `GET /api/meal-planner` - List all meal plans
   - `POST /api/meal-planner` - Create new meal plan (multiple per date allowed)
-  - `GET /api/meal-planner/previous?sort=&min_rating=&meal_type=&search=&limit=&offset=` - Meals before today (local time). `sort` is `rating_desc` (default), `date_desc` or `date_asc`, each ending in `id` so offset paging never repeats or skips a tied meal; repeatable `meal_type`; `search` matches the meal or its review, case-insensitively; `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`
+  - `GET /api/meal-planner/previous?sort=&min_rating=&meal_type=&search=&limit=&offset=` - Meals before today (local time). `sort` is `rating_desc` (default), `date_desc` or `date_asc`, each ending in `id` so offset paging never repeats or skips a tied meal; repeatable `meal_type`; `search` matches the meal, its notes, or its review, case-insensitively; `limit` (default 50, max 200), `offset`. Returns `{items, has_more, total}`
   - `GET /api/meal-planner/{id}` - Get specific plan
   - `GET /api/meal-planner/date/{date}` - Get all plans for a date (YYYY-MM-DD)
   - `PUT /api/meal-planner/{id}` - Update plan
@@ -1411,7 +1414,7 @@ The database is automatically created when the app starts. Migrations run automa
 - `PackingListDayCheck` - One template item checked on one day; the row's existence is the check. Unique per `(day_id, template_item_id)`
 - `EventPackingList` - A packing list template an event brings: `occurrence_date` NULL for the series, set (the original occurrence date) for one occurrence's addition or, with `removed`, its leaving one out
 - `PackingListDayEvent` - A day an event put a list on, or adopted: event, original occurrence date, template, date and `day_id` (NULL keeps one date of an `Every day` occurrence empty). A day goes when its last row does
-- `MealPlan` - Meal planning (stored in the `dinner_plans` table, a name kept from when it only planned dinners) with date, meal type, plan text, rating and review, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
+- `MealPlan` - Meal planning (stored in the `dinner_plans` table, a name kept from when it only planned dinners) with date, meal type, plan text (the meal's name), optional notes text, rating and review, attendee_ids (JSON array of family member IDs), cook_id (family member ID), and timestamps. Multiple plans per date are allowed.
 
 ### Dependency Issues
 

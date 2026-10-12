@@ -33,6 +33,7 @@ MEASURE_JS = r"""() => {
   return {
     overlayShown: getComputedStyle(document.getElementById('modal-overlay')).display !== 'none',
     text: document.getElementById('plan-text').value,
+    notes: document.getElementById('plan-notes').value,
     date: document.getElementById('plan-date').value,
     mealType: document.getElementById('plan-meal-type').value,
     cook: document.getElementById('plan-cook').value,
@@ -82,6 +83,7 @@ def batch(browser, live_server):
         page.check(".attendee-cb >> nth=0")
         page.select_option("#plan-cook", index=1)
         page.fill("#plan-text", FIRST_MEAL)
+        page.fill("#plan-notes", "first notes")
 
         page.click("#btn-save-add-another")
         # The save is what clears the field, so waiting on it is waiting on the
@@ -91,6 +93,7 @@ def batch(browser, live_server):
 
         # The second entry types only the menu — which is the whole point.
         page.fill("#plan-text", SECOND_MEAL)
+        page.fill("#plan-notes", "second notes")
         page.click("#btn-save-add-another")
         page.wait_for_function("() => document.getElementById('plan-text').value === ''")
         after_second = page.evaluate(MEASURE_JS)
@@ -108,6 +111,7 @@ def test_the_modal_stays_open_with_only_the_menu_cleared(batch):
 
     assert after_first["overlayShown"], "Save & Add Another closed the modal"
     assert after_first["text"] == "", "the menu text was not cleared for the next entry"
+    assert after_first["notes"] == "", "notes were not cleared for the next entry"
     assert after_first["focused"] == "plan-text", (
         "the next menu should be typeable without reaching for the mouse"
     )
@@ -143,7 +147,9 @@ def test_both_meals_reach_the_server_with_the_retained_fields(batch):
     first, second = sorted(created, key=lambda p: p["id"])
 
     assert first["plan"] == FIRST_MEAL
+    assert first["notes"] == "first notes"
     assert second["plan"] == SECOND_MEAL
+    assert second["notes"] == "second notes"
     # The second was saved without re-entering any of these.
     for field in ("date", "meal_type", "cook_id", "attendee_ids"):
         assert first[field] == second[field], f"{field} was not carried to the second meal"

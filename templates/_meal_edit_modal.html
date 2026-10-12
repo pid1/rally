@@ -27,8 +27,12 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>Meal Plan</label>
-                <textarea id="plan-text" placeholder="What's on the menu?" required rows="3"></textarea>
+                <label>Meal Name</label>
+                <input type="text" id="plan-text" placeholder="e.g. Brinner" required>
+            </div>
+            <div class="form-group">
+                <label for="plan-notes">Notes (optional)</label>
+                <textarea id="plan-notes" placeholder="What's on the menu?" rows="3"></textarea>
             </div>
             <div class="form-group">
                 <label>Who's Eating? <small>(leave unchecked for everyone)</small></label>
@@ -37,7 +41,7 @@
                 </div>
             </div>
             <div class="form-group">
-                <label>Who's Cooking? <small>(optional)</small></label>
+                <label for="plan-cook">Who's Cooking? (optional)</label>
                 <select id="plan-cook">
                     <option value="">— nobody assigned —</option>
                 </select>

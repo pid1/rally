@@ -491,7 +491,8 @@ MEAL_TYPES = ("Breakfast", "Lunch", "Dinner", "Snacks")
 class MealPlanBase(BaseModel):
     date: str  # YYYY-MM-DD format
     meal_type: str = "Dinner"  # Breakfast, Lunch, Dinner, Snacks
-    plan: str
+    plan: str  # The meal's name ("Meal Name" in the UI)
+    notes: str | None = None  # Optional detail on the meal; who wants what, substitutions
     attendee_ids: list[int] | None = None  # family_member IDs (who's eating); None = everyone
     cook_id: int | None = None  # family_member ID (who's cooking)
     rating: int | None = None  # 1-5 star rating; null = not yet reviewed
@@ -506,6 +507,7 @@ class MealPlanUpdate(BaseModel):
     date: str | None = None
     meal_type: str | None = None
     plan: str | None = None
+    notes: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     attendee_ids: list[int] | None = UNSET  # None means "clear"; UNSET means "not provided"
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
 

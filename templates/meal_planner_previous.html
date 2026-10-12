@@ -84,7 +84,7 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Review <small>(optional)</small></label>
+                    <label for="review-text">Review (optional)</label>
                     <textarea id="review-text" placeholder="How was this meal?" rows="4"></textarea>
                 </div>
                 <div class="modal-actions">
@@ -222,6 +222,9 @@
         function renderMeals(plans) {
             return plans.map(plan => {
                 const mealType = plan.meal_type || 'Dinner';
+                const notesHtml = plan.notes
+                    ? `<div class="editable-item-description">${escapeHtml(plan.notes)}</div>`
+                    : '';
                 const reviewHtml = plan.review
                     ? `<div class="history-card-review">${escapeHtml(plan.review)}</div>`
                     : '';
@@ -238,6 +241,7 @@
                             <div class="history-card-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
                             <div class="date-label">${escapeHtml(formatDate(plan.date))}</div>
                         </div>
+                        ${notesHtml}
                         ${ratingRow}
                         ${reviewHtml}
                     </div>

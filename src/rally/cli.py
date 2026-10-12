@@ -471,6 +471,7 @@ def seed():
                 date=(today_date - timedelta(days=4)).strftime("%Y-%m-%d"),
                 meal_type="Dinner",
                 plan="Meatloaf with mashed potatoes",
+                notes="Extra gravy on the side for Jake.",
                 cook_id=dad.id,
                 rating=4,
                 review="Comfort food done right.",
@@ -532,7 +533,8 @@ def seed():
             MealPlan(
                 date=today_date.strftime("%Y-%m-%d"),
                 meal_type="Breakfast",
-                plan="Pancakes and bacon",
+                plan="Brinner",
+                notes="Sausages, eggs, and pancakes.",
                 attendee_ids=[dad.id, jake.id, emma.id],
                 cook_id=dad.id,
             ),

@@ -90,6 +90,7 @@ def run_migrations():
         from migrate_039_add_event_packing_lists import (
             migrate as migrate_039_add_event_packing_lists,
         )
+        from migrate_040_add_meal_notes import migrate as migrate_040_add_meal_notes
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -150,6 +151,7 @@ def run_migrations():
         ("037_add_day_bag_removed_from", migrate_037_add_day_bag_removed_from),
         ("038_remove_llm_max_tokens", migrate_038_remove_llm_max_tokens),
         ("039_add_event_packing_lists", migrate_039_add_event_packing_lists),
+        ("040_add_meal_notes", migrate_040_add_meal_notes),
     ]
 
     print("=" * 60)
