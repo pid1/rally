@@ -11,12 +11,14 @@ from rally.models import (
     DashboardSnapshot,
     Event,
     EventAttendee,
+    EventPackingList,
     FamilyMember,
     MealPlan,
     Note,
     PackingListBag,
     PackingListDay,
     PackingListDayCheck,
+    PackingListDayEvent,
     PackingListDayItem,
     PackingListItemHistory,
     PackingListTemplate,
@@ -44,6 +46,8 @@ def seed():
         db.query(MealPlan).delete()
         db.query(Note).delete()
         for model in (
+            EventPackingList,
+            PackingListDayEvent,
             PackingListDayCheck,
             PackingListDayItem,
             PackingListDay,
@@ -701,7 +705,7 @@ def seed():
             # Emma's toiletries bag, which goes in Dad's suitcase, and items
             # owned by one person in another person's bag.
             (
-                "Beach week",
+                "Family vacation",
                 "A week at the coast. Pack it the weekend before.",
                 2,
                 [
@@ -803,13 +807,13 @@ def seed():
             put_on_day("Beach day", 6),
             # Two weeks out: the nested bags, in Coming Up, with nothing
             # packed yet.
-            put_on_day("Beach week", saturday + 14),
+            put_on_day("Family vacation", saturday + 14),
             # Tomorrow's box is split across Due Now and Coming Up whatever
-            # day the seed runs: Beach week packs two days ahead, so it is
+            # day the seed runs: Family vacation packs two days ahead, so it is
             # due now, while Beach day packs the day of and is still coming up.
             # Neither template is on tomorrow otherwise (the swim and the
             # concert are on a Saturday, the schedules on weekdays).
-            put_on_day("Beach week", 1),
+            put_on_day("Family vacation", 1),
             put_on_day("Beach day", 1),
             put_on_day("Swim at Nana's", saturday - 14, checked=nana_items),
             put_on_day("Swim at Nana's", saturday - 28, checked=nana_items),
@@ -829,6 +833,40 @@ def seed():
                 checked=[("Laptop and charger", "Dad"), ("Badge", "Dad")],
             ),
         ]
+
+        # The swim is on the calendar too, as an all-day event on Dad's
+        # calendar that brings the swim's packing list. Its link adopts the
+        # Saturday day above, label and checks and all, so the demo shows ⚭
+        # and "For: Swim at Nana's" there, and the event lists it.
+        swim_day = packing_list_days[0]
+        swim = Event(
+            calendar_id=native_calendars[dad.id].id,
+            uid="rally-seed-swim-at-nanas@rally.local",
+            title="Swim at Nana's",
+            location="Nana's house",
+            **resolve_event_times(
+                start=swim_day.date, end=swim_day.date, all_day=True, tzid=seed_tz
+            ),
+        )
+        db.add(swim)
+        db.flush()
+        for member in (dad, emma, jake):
+            db.add(EventAttendee(event_id=swim.id, family_member_id=member.id))
+        db.add(
+            EventPackingList(
+                event_id=swim.id,
+                packing_list_template_id=seeded_packing_lists["Swim at Nana's"].id,
+            )
+        )
+        db.add(
+            PackingListDayEvent(
+                day_id=swim_day.id,
+                event_id=swim.id,
+                occurrence_date=swim_day.date,
+                packing_list_template_id=seeded_packing_lists["Swim at Nana's"].id,
+                date=swim_day.date,
+            )
+        )
 
         # A one-off on the swim's Saturday: a list with no template behind it,
         # so the demo shows one beside a template's day (which carries ⧉).

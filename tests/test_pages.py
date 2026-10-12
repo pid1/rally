@@ -234,3 +234,66 @@ def test_settings_scopes_its_defaults_to_this_device(client):
     assert 'id="device-label"' in html
     assert 'id="device-list"' in html
     assert "RallyDevice.deviceId()" in html
+
+
+def test_the_event_modal_asks_what_to_pack(client):
+    """#270: the event modal's packing lists reuse Manage Bags' add row, and
+    `Put on` offers both answers with neither chosen."""
+    html = client.get("/calendar").text
+    assert 'id="event-packing-group"' in html
+    assert '<div class="manage-row" id="event-packing-add-row">' in html
+    assert ">What to pack</label>" in html
+    assert (
+        "Packing lists follow this event when it moves, and go when it&#39;s deleted." in html
+        or ("Packing lists follow this event when it moves, and go when it's deleted." in html)
+    )
+    span = html[html.index('id="event-packing-span-group"') :]
+    span = span[: span.index("</div>\n                    </div>")]
+    assert 'value="first"> First day' in span
+    assert 'value="every"> Every day' in span
+    assert "checked" not in span
+
+
+def test_packing_lists_confirm_in_a_modal_that_can_bold(client):
+    """#270: Remove from day / Delete ask in a generic confirmation modal on the
+    shared chassis, not confirm(), so the list's name can be bold."""
+    html = client.get("/packing-lists").text
+    overlay = html[html.index('id="confirm-modal-overlay"') :]
+    assert 'class="modal-content modal-content--narrow"' in overlay[:200]
+    assert 'id="confirm-modal-title"' in overlay
+    assert 'id="btn-confirm-modal-cancel">Cancel</button>' in overlay
+    assert "openConfirmModal({" in html
+    assert "Take ${day.name} off" not in html
+
+
+def test_a_template_already_on_a_date_is_refused_in_place(client):
+    """Add Packing List (kept in sync) and Edit Packing List refuse a date the
+    template is already on, with a message under Date, rather than closing and
+    opening the other day without saying why."""
+    html = client.get("/packing-lists").text
+    for message_id in ("day-add-message", "day-edit-message"):
+        assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
+    assert html.count("alreadyOnMessage(") == 3  # the helper and its two callers
+    assert "revealDay(error.detail.id)" not in html
+
+
+def test_custom_schedule_is_detached_rather_than_hidden(client):
+    """Safari ignores `hidden` on an <option>, so `Custom schedule` was offered
+    on every new event. It is detached at load and put back only for a stored
+    rule the custom controls cannot show — the VIEW_ONLY_OPTIONS treatment."""
+    html = client.get("/calendar").text
+    assert '<option value="other">Custom schedule</option>' in html
+    assert '<option value="other" hidden>' not in html
+    assert "OTHER_REPEAT_OPTION.remove();" in html
+    assert "if (choice === 'other') repeatSelect.appendChild(OTHER_REPEAT_OPTION);" in html
+
+
+def test_only_the_save_button_saves_an_event(client):
+    """Enter in a field of the event form must not submit it: the browser's
+    implicit submission is turned off, so only the Save button saves."""
+    html = client.get("/calendar").text
+    guard = html[html.index("document.getElementById('event-form').addEventListener('keydown'") :]
+    guard = guard[: guard.index("});")]
+    assert "event.key !== 'Enter'" in guard
+    assert "field.tagName === 'INPUT' || field.tagName === 'SELECT'" in guard
+    assert "event.preventDefault()" in guard

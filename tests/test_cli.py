@@ -39,8 +39,10 @@ EXPECTED_COUNTS = {
     # One Rally-owned calendar per family member, and no external feeds: a
     # seeded feed URL cannot resolve, so it would only ever render an error.
     "calendars": 4,
-    "events": 5,
-    "event_attendees": 11,
+    # The five sample events, plus the swim at Nana's, which brings its
+    # packing list (#270).
+    "events": 6,
+    "event_attendees": 14,
     "settings": 5,
     "todos": 6,
     "recurring_todos": 3,
@@ -226,3 +228,25 @@ def test_seed_handles_error_and_rolls_back(cli_db, monkeypatch, capsys):
     assert "Error seeding" in capsys.readouterr().out
     # The aborted insert rolled back, so nothing was seeded.
     assert _counts(cli_db)["family"] == 0
+
+
+def test_seed_links_the_swim_to_its_packing_list(cli_db):
+    """The swim event adopts the seeded Saturday swim day, so the demo shows ⚭
+    and "For: Swim at Nana's", and a sync changes nothing about it."""
+    from zoneinfo import ZoneInfo
+
+    from rally import packing_lists
+    from rally.models import EventPackingList, PackingListDay, PackingListDayEvent
+
+    cli.seed()
+    swim = cli_db.query(Event).filter(Event.title == "Swim at Nana's").one()
+    link = cli_db.query(PackingListDayEvent).filter_by(event_id=swim.id).one()
+    day = cli_db.get(PackingListDay, link.day_id)
+    assert day.date == swim.start_date == link.date
+    assert day.label == "Cousins are coming too"
+    assert cli_db.query(EventPackingList).filter_by(event_id=swim.id).count() == 1
+
+    days = cli_db.query(PackingListDay).count()
+    packing_lists.sync_event_packing_lists(cli_db, swim, today_utc(), tz=ZoneInfo("UTC"))
+    assert cli_db.query(PackingListDay).count() == days
+    assert cli_db.query(PackingListDayEvent).filter_by(event_id=swim.id).one().day_id == day.id

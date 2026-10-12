@@ -412,14 +412,14 @@ def _open_swim_by_bag(page):
     _park_pointer(page)
 
 
-# The seed's coming beach week: bags with owners, three deep — Emma's pouch in
+# The seed's coming family vacation: bags with owners, three deep — Emma's pouch in
 # her toiletries bag in Dad's suitcase — and items in somebody else's bag.
-WEEK_CARD = '[data-day-card]:has-text("Beach week")'
+WEEK_CARD = '[data-day-card]:has-text("Family vacation")'
 WEEK_BOX = f".day-box:has({WEEK_CARD})"
 
 
 def _open_week(view="owner", groups=("Dad", "Emma"), top=False):
-    """Beach week opened, in a view, with the named groups unfolded; `top`
+    """Family vacation opened, in a view, with the named groups unfolded; `top`
     scrolls its entry to the top of the screen, for a viewport shot."""
 
     def go(page):
@@ -439,7 +439,7 @@ def _open_week(view="owner", groups=("Dad", "Emma"), top=False):
 
 
 def _open_change_bags(page):
-    """Change bags on Beach week: every bag's owner and what it goes in."""
+    """Change bags on Family vacation: every bag's owner and what it goes in."""
     _open_card(WEEK_CARD)(page)
     page.locator(WEEK_CARD).first.locator("[data-change-day-bags]").click()
     page.wait_for_selector("#list-bags-modal-overlay .modal-content", state="visible")
@@ -466,6 +466,57 @@ def _open_day_edit(page):
     page.locator(SWIM_CARD).first.locator("[data-edit-day]").click()
     page.wait_for_selector("#day-edit-modal-overlay .modal-content", state="visible")
     page.wait_for_timeout(300)
+
+
+def _open_swim_event(page, edit=False):
+    """The seeded swim's event, which brings its packing list (#270)."""
+    page.select_option("#view-select", "agenda")
+    page.select_option("#range-select", "rolling30")
+    page.wait_for_timeout(600)
+    page.locator(".agenda-day .editable-item", has_text="Swim at Nana's").first.click()
+    page.wait_for_selector("#detail-modal-overlay .modal-content", state="visible")
+    if edit:
+        page.locator("#btn-detail-edit").click()
+        page.wait_for_selector("#event-modal-overlay .modal-content", state="visible")
+    page.wait_for_timeout(400)
+
+
+def _open_swim_event_packing(page):
+    """Edit on the swim's event with a second list picked and the event made
+    two days long, so `What to pack` shows both lists and `Put on` — nothing
+    is saved."""
+    _open_swim_event(page, edit=True)
+    page.select_option("#event-packing-select", label="Beach day")
+    end = page.locator("#event-end-date")
+    start = page.input_value("#event-start-date")
+    end.fill((date.fromisoformat(start) + timedelta(days=1)).isoformat())
+    end.dispatch_event("change")
+    page.evaluate("() => document.activeElement.blur()")
+    _park_pointer(page)
+
+
+def _open_swim_remove(page):
+    """Remove from day on the swim's entry: the name bold, the event quoted."""
+    _open_card(SWIM_CARD, groups=None)(page)
+    page.locator(SWIM_CARD).first.locator("[data-remove-day]").click()
+    page.wait_for_selector("#confirm-modal-overlay .modal-content", state="visible")
+    _park_pointer(page)
+
+
+def _open_add_day_refused(page):
+    """Add Packing List, kept in sync, on a date the template is already on:
+    refused in place under Date."""
+    _wait_for_packing_lists(page)
+    day = page.evaluate('() => days.find(d => d.name === "Swim at Nana\'s" && d.label)')
+    page.evaluate("() => openAddDayModal()")
+    page.check('input[name="day-add-start"][value="template"]')
+    page.select_option("#day-add-source", label="Swim at Nana's")
+    page.check('input[name="day-add-mode"][value="sync"]')
+    page.fill("#day-date", day["date"])
+    page.dispatch_event("#day-date", "change")
+    page.click("#day-add-modal-overlay button[type=submit]")
+    page.wait_for_selector("#day-add-message", state="visible")
+    page.wait_for_timeout(400)
 
 
 def _open_add_item_suggesting(page):
@@ -621,7 +672,7 @@ SHOTS: tuple[Shot, ...] = (
         setup=_open_swim_by_bag,
     ),
     # Bags (#262): whose each is, what goes in what, and grabbing them — on the
-    # beach week, where the nesting goes three deep.
+    # family vacation, where the nesting goes three deep.
     Shot(
         "packing-list-bags",
         "/packing-lists",
@@ -807,6 +858,45 @@ SHOTS: tuple[Shot, ...] = (
         scale=1,
         element="#event-modal-overlay .modal-content",
         setup=_open_recurring_edit,
+    ),
+    # Packing lists on calendar events (#270).
+    Shot(
+        "event-packing-lists",
+        "/calendar",
+        # The whole form, Save included: the modal is capped at 90vh.
+        height=2000,
+        scale=1,
+        element="#event-modal-overlay .modal-content",
+        setup=_open_swim_event_packing,
+    ),
+    Shot(
+        "event-detail-packing-lists",
+        "/calendar",
+        scale=1,
+        element="#detail-modal-overlay .modal-content",
+        setup=_open_swim_event,
+    ),
+    Shot(
+        "packing-list-event-day",
+        "/packing-lists",
+        scale=1,
+        element=SWIM_BOX,
+        setup=_open_card(SWIM_CARD, groups=()),
+    ),
+    Shot(
+        "packing-list-remove-day",
+        "/packing-lists",
+        scale=1,
+        element="#confirm-modal-overlay .modal-content",
+        setup=_open_swim_remove,
+    ),
+    Shot(
+        "packing-list-add-refused",
+        "/packing-lists",
+        height=1200,
+        scale=1,
+        element="#day-add-modal-overlay .modal-content",
+        setup=_open_add_day_refused,
     ),
 )
 

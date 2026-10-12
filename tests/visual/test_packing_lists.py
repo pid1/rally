@@ -435,17 +435,21 @@ def test_edit_packing_list_changes_one_days_date_label_and_lead_time(
     )
 
 
-def test_moving_a_day_onto_a_date_it_is_on_opens_that_day(browser, live_server, packing_list):
+def test_moving_a_day_onto_a_date_it_is_on_is_refused_in_place(browser, live_server, packing_list):
+    """Refused under Date, with the modal kept open, rather than closing it and
+    opening the other day without saying why."""
     first, second = packing_list["days"]
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         card(page, first["id"]).locator("[data-edit-day]").click()
         page.fill("#day-edit-date", second["date"])
         page.click("#day-edit-form ~ .modal-actions button[type=submit]")
-        page.wait_for_selector("#day-edit-modal-overlay", state="hidden")
-        page.wait_for_function(
-            f"""document.querySelector('[data-day-card="{second["id"]}"] details')?.open"""
-        )
+        message = page.locator("#day-edit-message")
+        message.wait_for(state="visible")
+        assert message.inner_text().startswith('"Browser test trip" is already on ')
+        assert page.locator("#day-edit-modal-overlay").is_visible()
+        page.dispatch_event("#day-edit-date", "change")
+        assert not message.is_visible()
     finally:
         context.close()
 
@@ -558,6 +562,9 @@ def test_uncheck_all_and_remove_live_in_the_card(browser, live_server, packing_l
         assert card(page, first["id"]).get_by_label("Packed Towel").is_visible()
 
         card(page, first["id"]).get_by_role("button", name="Remove from day").click()
+        # Asked in the page's own modal, the list's name in bold.
+        assert page.inner_text("#confirm-modal-message strong") == "Browser test trip"
+        page.click("#btn-confirm-modal-confirm")
         card(page, first["id"]).wait_for(state="detached")
         assert card(page, second["id"]).count() == 1
     finally:
@@ -975,7 +982,9 @@ def test_add_packing_list_sits_where_add_meal_does(browser, live_server):
     assert packing["inActions"]
 
 
-def test_kept_in_sync_on_a_day_it_is_already_on_opens_that_day(browser, live_server, packing_list):
+def test_kept_in_sync_on_a_day_it_is_already_on_is_refused_in_place(
+    browser, live_server, packing_list
+):
     existing = packing_list["days"][0]
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
@@ -986,10 +995,11 @@ def test_kept_in_sync_on_a_day_it_is_already_on_opens_that_day(browser, live_ser
         page.select_option("#day-add-source", label="Browser test trip")
         page.check('input[name="day-add-mode"][value="sync"]')
         page.fill("#day-date", existing["date"])
-        save_add_day(page)
-        page.wait_for_function(
-            f"""document.querySelector('[data-day-card="{existing["id"]}"] details')?.open"""
-        )
+        page.click("#day-add-modal-overlay button[type=submit]")
+        message = page.locator("#day-add-message")
+        message.wait_for(state="visible")
+        assert message.inner_text().startswith('"Browser test trip" is already on ')
+        assert page.locator("#day-add-modal-overlay").is_visible()
         assert not page.locator("#item-modal-overlay").is_visible()
     finally:
         context.close()
@@ -1484,7 +1494,13 @@ def test_a_deleted_templates_day_stays_and_says_it_has_no_template(browser, live
         )
 
         # Still in Coming Up, as it was, with no template mark, no item marks,
-        # and Delete in place of Remove from day.
+        # and Delete in place of Remove from day. Waited for rather than read
+        # once: on a busy page the re-render can land after the network idles.
+        page.wait_for_function(
+            f"""!document.querySelector('[data-day-card="{day["id"]}"]')
+                ?.querySelector(':scope > .editable-item-content .editable-item-title')
+                ?.textContent.includes('⧉')"""
+        )
         kept = open_card(page, day["id"])
         assert " ".join(title.inner_text().split()) == "Browser test gone"
         assert kept.locator(".item-mark").count() == 0
@@ -1494,9 +1510,15 @@ def test_a_deleted_templates_day_stays_and_says_it_has_no_template(browser, live
         assert note.startswith('For "Browser test gone" on ') and "template" not in note
         page.click("#btn-cancel-item")
 
+        kept.locator("[data-remove-day]").click()
+        assert page.inner_text("#confirm-modal-title").lower() == "delete packing list"
+        assert page.inner_text("#btn-confirm-modal-confirm") == "Delete"
+        assert page.inner_text("#confirm-modal-message") == (
+            "Delete Browser test gone? Its items go with it."
+        )
+        assert page.inner_text("#confirm-modal-message strong") == "Browser test gone"
         with page.expect_response(f"**/api/packing-list-days/{day['id']}"):
-            kept.locator("[data-remove-day]").click()
-        assert dialogs[-1] == "Delete Browser test gone? Its items go with it."
+            page.click("#btn-confirm-modal-confirm")
         card(page, day["id"]).wait_for(state="detached")
     finally:
         context.close()
