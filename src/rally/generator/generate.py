@@ -642,6 +642,12 @@ class SummaryGenerator:
 
                 line = f"{day_label}: {plan.plan}"
 
+                # Notes right after the meal name, before who's eating/cooking.
+                # Line breaks become spaces so each meal stays on one line.
+                if plan.notes:
+                    notes_flat = " ".join(plan.notes.split())
+                    line += f" [Notes: {notes_flat}]"
+
                 # Annotate who's eating (omit if everyone / not specified)
                 if plan.attendee_ids:
                     names = [members.get(mid, f"ID {mid}") for mid in plan.attendee_ids]

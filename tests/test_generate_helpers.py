@@ -273,6 +273,42 @@ def test_load_meal_plans_annotates_attendees_and_cook(gen_db, frozen_now):
     assert "Cook: Dad" in out
 
 
+def test_load_meal_plans_annotates_notes(gen_db, frozen_now):
+    frozen_now(datetime(2026, 5, 10, 12, tzinfo=UTC))
+    gen_db.add(
+        MealPlan(date="2026-05-10", meal_type="Dinner", plan="Brinner", notes="Sausages, eggs")
+    )
+    gen_db.commit()
+
+    out = make_generator().load_meal_plans()
+
+    assert "Today (Dinner): Brinner [Notes: Sausages, eggs]" in out
+
+
+def test_load_meal_plans_omits_notes_when_absent(gen_db, frozen_now):
+    frozen_now(datetime(2026, 5, 10, 12, tzinfo=UTC))
+    gen_db.add(MealPlan(date="2026-05-10", meal_type="Dinner", plan="Tacos"))
+    gen_db.commit()
+
+    out = make_generator().load_meal_plans()
+
+    assert "Notes" not in out
+
+
+def test_load_meal_plans_flattens_multiline_notes(gen_db, frozen_now):
+    frozen_now(datetime(2026, 5, 10, 12, tzinfo=UTC))
+    gen_db.add(
+        MealPlan(
+            date="2026-05-10", meal_type="Dinner", plan="Brinner", notes="Sausages\neggs\npancakes"
+        )
+    )
+    gen_db.commit()
+
+    out = make_generator().load_meal_plans()
+
+    assert "[Notes: Sausages eggs pancakes]" in out
+
+
 # --- _load_ai_setting ----------------------------------------------------------
 
 

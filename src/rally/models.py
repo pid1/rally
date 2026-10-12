@@ -652,6 +652,9 @@ class MealPlan(Base):
         Integer, nullable=True
     )  # 1-5 star rating; null means not yet reviewed
     review: Mapped[str | None] = mapped_column(Text, nullable=True)  # Free-text review of the meal
+    notes: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Optional detail on the meal (who wants what, substitutions); plan is the name
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 

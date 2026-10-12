@@ -26,6 +26,15 @@
         return new Intl.DateTimeFormat('en-CA', { timeZone: tzName || 'UTC' }).format(new Date());
     }
 
+    // `plan-text` (Meal Name) is a single-line <input>, which silently drops
+    // any line break set on it. A meal saved before the split can hold
+    // multi-line text, so opening it for Edit has to flatten it first —
+    // otherwise saving it back would run the lines together with nothing
+    // between them. Meals that are never edited are untouched.
+    function flattenToOneLine(text) {
+        return (text || '').replace(/\r\n|\r|\n/g, ' ');
+    }
+
     class MealEditModal {
         // opts:
         //   getFamilyMembers  () => [{id, name}]   (required)
@@ -128,7 +137,8 @@
             document.getElementById('plan-edit-id').value = plan.id;
             document.getElementById('plan-date').value = plan.date;
             document.getElementById('plan-meal-type').value = plan.meal_type || 'Dinner';
-            document.getElementById('plan-text').value = plan.plan;
+            document.getElementById('plan-text').value = flattenToOneLine(plan.plan);
+            document.getElementById('plan-notes').value = plan.notes || '';
             document.querySelectorAll('.attendee-cb').forEach(cb => {
                 cb.checked = plan.attendee_ids && plan.attendee_ids.includes(parseInt(cb.value));
             });
@@ -154,6 +164,7 @@
             const date = document.getElementById('plan-date').value;
             const meal_type = document.getElementById('plan-meal-type').value;
             const plan = document.getElementById('plan-text').value;
+            const notes = document.getElementById('plan-notes').value;
             const attendee_ids = this._getSelectedAttendeeIds();
             const cook_id = this._getSelectedCookId();
 
@@ -171,10 +182,10 @@
             try {
                 if (this.editingId) {
                     await this._request(`/api/meal-planner/${this.editingId}`, 'PUT',
-                        { date, meal_type, plan, attendee_ids, cook_id });
+                        { date, meal_type, plan, notes, attendee_ids, cook_id });
                 } else {
                     await this._request('/api/meal-planner', 'POST',
-                        { date, meal_type, plan, attendee_ids, cook_id });
+                        { date, meal_type, plan, notes, attendee_ids, cook_id });
                 }
                 if (addAnother) {
                     this._resetForNextEntry();
@@ -188,15 +199,17 @@
             }
         }
 
-        // Clear the menu text and nothing else: the date, meal type, attendees
-        // and cook just entered are almost always right for the next meal too,
-        // and re-entering them is the cost this button exists to remove.
+        // Clear the meal name and notes, and nothing else: the date, meal
+        // type, attendees and cook just entered are almost always right for
+        // the next meal too, and re-entering them is the cost this button
+        // exists to remove.
         //
         // Only ever called after a save has succeeded. A failed save leaves the
         // text in place so it can be corrected and retried.
         _resetForNextEntry() {
             const text = document.getElementById('plan-text');
             text.value = '';
+            document.getElementById('plan-notes').value = '';
             text.focus();
         }
 
