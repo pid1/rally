@@ -109,7 +109,6 @@ NOT_YET_ON_SHARED_DIALOG = {
     "meal_edit_modal.js",
     "meal_planner_previous.html",
     "settings.html",
-    "shopping.html",
 }
 
 
@@ -398,6 +397,27 @@ def test_tasks_ask_and_refuse_through_the_shared_dialog(client):
     # An empty title is caught by `required`; its bubble gives way to the same
     # inline message.
     assert "input.addEventListener('invalid', (e) => {" in html
+
+
+def test_shopping_asks_and_refuses_through_the_shared_dialog(client):
+    """#272: Shopping asks before deleting an item or a store in the shared
+    dialog, naming it in bold, and a store name that is taken reads in place:
+    under the add field, or under the row being renamed."""
+    html = client.get("/shopping").text
+    assert html.count("confirmModal({") == 2
+    assert "title: 'Delete item'" in html
+    assert "title: 'Delete store'" in html
+    assert '<div class="form-message" id="store-add-message" role="alert" hidden></div>' in html
+    assert 'id="store-message-${s.id}" role="alert" hidden' in html
+    # A missing name is refused in place, never by the browser's bubble: the
+    # item name, a new store and a renamed one.
+    assert 'const BLANK_NAME = "A name can\'t be empty.";' in html
+    assert '<div class="form-message" id="item-name-message" role="alert" hidden></div>' in html
+    assert "[['item-name', 'item-name-message'], ['store-add-name', 'store-add-message']]" in html
+    assert "input.addEventListener('invalid', (e) => {" in html
+    assert "refuseBlankName(nameInput, 'item-name-message')" in html
+    assert "refuseBlankName(input, 'store-add-message')" in html
+    assert "refuseBlankName(input, `store-message-${storeId}`)" in html
 
 
 def test_a_template_already_on_a_date_is_refused_in_place(client):
