@@ -205,3 +205,28 @@ def test_delete_todo(client, db_session, make_todo):
 
 def test_delete_missing_returns_404(client):
     assert client.delete("/api/todos/99999").status_code == 404
+
+
+# --- a title of only spaces (#272) --------------------------------------------
+
+
+def test_create_refuses_a_title_of_only_spaces(client):
+    resp = client.post("/api/todos", json={"title": "   "})
+    assert resp.status_code == 422
+    assert "A title can't be empty." in resp.text
+    assert client.get("/api/todos").json() == []
+
+
+def test_update_refuses_a_title_of_only_spaces(client, make_todo):
+    todo = make_todo(title="Buy milk", completed=False, completed_at=None)
+    resp = client.put(f"/api/todos/{todo.id}", json={"title": " \t "})
+    assert resp.status_code == 422
+    assert client.get(f"/api/todos/{todo.id}").json()["title"] == "Buy milk"
+
+
+def test_a_stored_blank_title_still_lists(client, make_todo):
+    """Checked on the way in only: a task saved before the check still reads."""
+    make_todo(title="   ", completed=False, completed_at=None)
+    resp = client.get("/api/todos")
+    assert resp.status_code == 200
+    assert [t["title"] for t in resp.json()] == ["   "]

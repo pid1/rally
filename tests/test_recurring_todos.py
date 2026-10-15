@@ -501,3 +501,20 @@ def test_preview_rejects_a_malformed_start_date(client):
     )
 
     assert resp.status_code == 422
+
+
+# --- a title of only spaces (#272) --------------------------------------------
+
+
+def test_create_refuses_a_title_of_only_spaces(client):
+    resp = client.post("/api/recurring-todos", json={"title": "  ", "recurrence_type": "daily"})
+    assert resp.status_code == 422
+    assert "A title can't be empty." in resp.text
+    assert client.get("/api/recurring-todos").json() == []
+
+
+def test_update_refuses_a_title_of_only_spaces(client):
+    rt = _create(client)
+    resp = client.put(f"/api/recurring-todos/{rt['id']}", json={"title": "   "})
+    assert resp.status_code == 422
+    assert client.get(f"/api/recurring-todos/{rt['id']}").json()["title"] == "Water plants"

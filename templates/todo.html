@@ -74,6 +74,7 @@
                 <div class="form-group">
                     <label>Task</label>
                     <input type="text" id="recurring-title" placeholder="Task title" required>
+                    <div class="form-message" id="recurring-title-message" role="alert" hidden></div>
                 </div>
                 <div class="form-group">
                     <label>Notes (optional)</label>
@@ -84,6 +85,7 @@
                     <label for="recurring-start-date">Starts</label>
                     <input type="date" id="recurring-start-date">
                     <small id="recurring-start-hint">Leave blank to start on the next occurrence from today.</small>
+                    <div class="form-message" id="recurring-start-message" role="alert" hidden></div>
                 </div>
                 <div class="recurrence-preview" id="recurrence-preview" aria-live="polite"></div>
                 <div class="form-group">
@@ -125,6 +127,7 @@
                     <div class="form-group">
                         <label>Task</label>
                         <input type="text" id="todo-title" placeholder="Task title" required>
+                        <div class="form-message" id="todo-title-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label>Notes (optional)</label>
@@ -417,6 +420,29 @@
             if (!hasDue) document.getElementById('recurring-remind-days').value = '';
         }
 
+        /* A missing title is refused in place under the title, with
+           everything entered kept, and cleared on the next keystroke in it.
+           An empty one is caught by `required`, whose `invalid` event is taken
+           here in place of the browser's bubble; one of only spaces passes
+           `required`, so the submit handler refuses it. The server refuses
+           both too. True when the title is refused. */
+        function refuseBlankTitle(inputId, messageId) {
+            const input = document.getElementById(inputId);
+            if (input.value.trim()) return false;
+            showFormMessage(messageId, "A title can't be empty.");
+            input.focus();
+            return true;
+        }
+        [['todo-title', 'todo-title-message'], ['recurring-title', 'recurring-title-message']]
+            .forEach(([inputId, messageId]) => {
+                const input = document.getElementById(inputId);
+                input.addEventListener('input', () => clearFormMessage(messageId));
+                input.addEventListener('invalid', (e) => {
+                    e.preventDefault();
+                    refuseBlankTitle(inputId, messageId);
+                });
+            });
+
         function openAddModal() {
             editingId = null;
             document.getElementById('modal-title').textContent = 'Add Task';
@@ -426,6 +452,7 @@
             document.getElementById('todo-remind-days').value = '';
             document.getElementById('btn-delete-todo').style.display = 'none';
             toggleRemindGroup();
+            clearFormMessage('todo-title-message');
             showModalOverlay('modal-overlay');
         }
 
@@ -443,6 +470,7 @@
             document.getElementById('todo-remind-days').value = todo.remind_days_before != null ? todo.remind_days_before : '';
             document.getElementById('btn-delete-todo').style.display = '';
             toggleRemindGroup();
+            clearFormMessage('todo-title-message');
             showModalOverlay('modal-overlay');
         }
 
@@ -458,33 +486,35 @@
                 await fetchTodos();
             } catch (error) {
                 console.error('Error toggling todo:', error);
-                alert('Failed to update task');
+                fail('Failed to update task');
                 await fetchTodos(); // Refresh to revert UI
             }
         }
 
-        async function confirmDelete(id) {
-            if (!confirm('Are you sure you want to delete this task?')) return;
-            
-            try {
-                await deleteTodo(id);
-                await fetchTodos();
-            } catch (error) {
-                console.error('Error deleting todo:', error);
-                alert('Failed to delete task');
-            }
+        /* Ask before deleting a task, naming it in bold. */
+        function confirmTaskDelete(id) {
+            const todo = todos.find(t => t.id === id);
+            return confirmModal({
+                title: 'Delete task',
+                messageHtml: `Delete <strong>${escapeHtml(todo ? todo.title : '')}</strong>?`,
+                confirmLabel: 'Delete',
+            });
+        }
+
+        function fail(message) {
+            alertModal({ messageHtml: escapeHtml(message) });
         }
 
         async function confirmDeleteFromModal() {
             if (!editingId) return;
-            if (!confirm('Are you sure you want to delete this task?')) return;
+            if (!(await confirmTaskDelete(editingId))) return;
             try {
                 await deleteTodo(editingId);
                 closeModal();
                 await fetchTodos();
             } catch (error) {
                 console.error('Error deleting todo:', error);
-                alert('Failed to delete task');
+                fail('Failed to delete task');
             }
         }
 
@@ -515,7 +545,8 @@
 
         document.getElementById('todo-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+            if (refuseBlankTitle('todo-title', 'todo-title-message')) return;
+
             const assignedTo = document.getElementById('todo-assigned-to').value;
             const remindDays = document.getElementById('todo-remind-days').value;
             const data = {
@@ -536,7 +567,7 @@
                 await fetchTodos();
             } catch (error) {
                 console.error('Error saving todo:', error);
-                alert('Failed to save task');
+                fail('Failed to save task');
             }
         });
 
@@ -626,6 +657,8 @@
             resetStartDateField(null);
             toggleRecurringRemindGroup();
             RecurrenceForm.refreshPreview();
+            clearFormMessage('recurring-start-message');
+            clearFormMessage('recurring-title-message');
             showModalOverlay('recurring-modal-overlay');
         }
 
@@ -646,6 +679,8 @@
             resetStartDateField(rt);
             toggleRecurringRemindGroup();
             RecurrenceForm.refreshPreview();
+            clearFormMessage('recurring-start-message');
+            clearFormMessage('recurring-title-message');
             showModalOverlay('recurring-modal-overlay');
         }
 
@@ -663,31 +698,35 @@
                 });
                 await fetchRecurringTodos();
             } catch (error) {
-                alert('Failed to update recurring task');
+                fail('Failed to update recurring task');
             }
         }
 
-        async function confirmDeleteRecurring(id) {
-            if (!confirm('Delete this recurring task? Existing generated todos will remain.')) return;
-            try {
-                await fetch(`/api/recurring-todos/${id}`, { method: 'DELETE' });
-                await fetchRecurringTodos();
-            } catch (error) {
-                alert('Failed to delete recurring task');
-            }
+        /* Ask before deleting a recurring task, naming it in bold. */
+        function confirmRecurringDelete(id) {
+            const template = recurringTodos.find(rt => rt.id === id);
+            return confirmModal({
+                title: 'Delete recurring task',
+                messageHtml: `Delete <strong>${escapeHtml(template ? template.title : '')}</strong>? Existing generated tasks will remain.`,
+                confirmLabel: 'Delete',
+            });
         }
 
         async function confirmDeleteRecurringFromModal() {
             if (!editingRecurringId) return;
-            if (!confirm('Delete this recurring task? Existing generated todos will remain.')) return;
+            if (!(await confirmRecurringDelete(editingRecurringId))) return;
             try {
                 await fetch(`/api/recurring-todos/${editingRecurringId}`, { method: 'DELETE' });
                 closeRecurringModal();
                 await fetchRecurringTodos();
             } catch (error) {
-                alert('Failed to delete recurring task');
+                fail('Failed to delete recurring task');
             }
         }
+
+        // A check clears on the next change to the form.
+        ['input', 'change'].forEach(type => document.getElementById('recurring-form')
+            .addEventListener(type, () => clearFormMessage('recurring-start-message')));
 
         document.getElementById('btn-add-recurring').addEventListener('click', openAddRecurringModal);
         document.getElementById('btn-cancel-recurring').addEventListener('click', closeRecurringModal);
@@ -697,6 +736,7 @@
 
         document.getElementById('recurring-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (refuseBlankTitle('recurring-title', 'recurring-title-message')) return;
 
             const assignedTo = document.getElementById('recurring-assigned-to').value;
             const recurringRemindDays = document.getElementById('recurring-remind-days').value;
@@ -730,14 +770,21 @@
                     });
                 if (!response.ok) {
                     const body = await response.json().catch(() => ({}));
-                    alert(typeof body.detail === 'string' ? body.detail : 'Failed to save recurring task');
+                    // A refusal the server explains is about the start date
+                    // (the one field it checks in words): said under Starts,
+                    // with the form kept open. Anything else is a failure.
+                    if ((response.status === 409 || response.status === 422) && typeof body.detail === 'string') {
+                        showFormMessage('recurring-start-message', body.detail);
+                    } else {
+                        fail('Failed to save recurring task');
+                    }
                     return;
                 }
                 closeRecurringModal();
                 await fetchRecurringTodos();
                 await fetchTodos(); // Refresh in case a new instance was generated
             } catch (error) {
-                alert('Failed to save recurring task');
+                fail('Failed to save recurring task');
             }
         });
 
