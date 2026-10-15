@@ -106,8 +106,6 @@ def test_modals_are_opened_only_through_the_shared_helper():
 # list; the last one deletes the list.
 NOT_YET_ON_SHARED_DIALOG = {
     "calendar.html",
-    "meal_edit_modal.js",
-    "meal_planner_previous.html",
     "settings.html",
 }
 
@@ -177,15 +175,19 @@ def test_preparedness_asks_and_refuses_in_place(client):
     """#272 — Preparedness asks in the shared dialog with the name in bold, and
     its form checks read in a `.form-message` rather than an alert."""
     html = client.get("/preparedness").text
-    for message_id in (
-        "item-message",
-        "item-date-message",
-        "location-add-message",
-        "location-list-message",
-    ):
+    for message_id in ("item-message", "item-date-message", "location-add-message"):
         assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
     assert html.count("confirmModal({") == 2
     assert "Delete <strong>${escapeHtml(" in html
+    # Locations are renamed in place, as stores are on /shopping: a refusal
+    # (empty, taken) reads under the row with the typed name kept, and any
+    # other failure is the failure dialog.
+    assert "prompt(" not in html
+    assert 'id="location-message-${l.id}" role="alert" hidden' in html
+    assert "refuseBlank(input, messageId, BLANK_NAME)" in html
+    assert "showFormMessage(messageId, 'A location with that name already exists.');" in html
+    assert "Could not rename the location." in html
+    assert "Could not delete the location." in html
 
 
 def test_calendar_offers_view_mode_and_range_as_separate_controls():
@@ -383,20 +385,19 @@ def test_tasks_ask_and_refuse_through_the_shared_dialog(client):
     assert (
         '<div class="form-message" id="recurring-start-message" role="alert" hidden></div>' in html
     )
-    # A title of only spaces is refused in place under the title, on both
-    # forms, and the message is cleared every time a modal opens.
-    assert "A title can't be empty." in html
-    for form, message_id in (
-        ("todo", "todo-title-message"),
-        ("recurring", "recurring-title-message"),
-    ):
+    # A missing title is refused in place under it, through the shared
+    # requireText(), on both forms, and cleared every time a modal opens.
+    assert 'const BLANK_TITLE = "A title can\'t be empty.";' in html
+    for message_id in ("todo-title-message", "recurring-title-message"):
         assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
-        assert f"refuseBlankTitle('{form}-title', '{message_id}')" in html
-        assert html.count(f"clearFormMessage('{message_id}');") == 2
-    assert "setCustomValidity" not in html
-    # An empty title is caught by `required`; its bubble gives way to the same
-    # inline message.
-    assert "input.addEventListener('invalid', (e) => {" in html
+    # Every message in a modal is cleared when it opens, through the shared
+    # clearFormMessages(): both openers of each modal.
+    assert html.count("clearFormMessages('modal-overlay');") == 2
+    assert html.count("clearFormMessages('recurring-modal-overlay');") == 2
+    assert "requireText('todo-title', 'todo-title-message', BLANK_TITLE)" in html
+    assert "requireText('recurring-title', 'recurring-title-message', BLANK_TITLE)" in html
+    assert "if (refuseBlankTodoTitle()) return;" in html
+    assert "if (refuseBlankRecurringTitle()) return;" in html
 
 
 def test_shopping_asks_and_refuses_through_the_shared_dialog(client):
@@ -409,15 +410,161 @@ def test_shopping_asks_and_refuses_through_the_shared_dialog(client):
     assert "title: 'Delete store'" in html
     assert '<div class="form-message" id="store-add-message" role="alert" hidden></div>' in html
     assert 'id="store-message-${s.id}" role="alert" hidden' in html
-    # A missing name is refused in place, never by the browser's bubble: the
-    # item name, a new store and a renamed one.
+    # A missing name is refused in place, through the shared requireText() /
+    # refuseBlank(): the item name, a new store and a renamed one.
     assert 'const BLANK_NAME = "A name can\'t be empty.";' in html
     assert '<div class="form-message" id="item-name-message" role="alert" hidden></div>' in html
-    assert "[['item-name', 'item-name-message'], ['store-add-name', 'store-add-message']]" in html
-    assert "input.addEventListener('invalid', (e) => {" in html
-    assert "refuseBlankName(nameInput, 'item-name-message')" in html
-    assert "refuseBlankName(input, 'store-add-message')" in html
-    assert "refuseBlankName(input, `store-message-${storeId}`)" in html
+    assert "requireText('item-name', 'item-name-message', BLANK_NAME)" in html
+    assert "requireText('store-add-name', 'store-add-message', BLANK_NAME)" in html
+    assert "if (refuseBlankItemName()) return;" in html
+    assert "if (refuseBlankStoreName()) return;" in html
+    assert "refuseBlank(input, `store-message-${storeId}`, BLANK_NAME)" in html
+
+
+def test_meal_planner_asks_through_the_shared_dialog():
+    """#272: the shared meal modal asks before deleting a meal, and before
+    moving a rated one onto the planner, in the shared dialog with the meal's
+    name in bold."""
+    js = (STATIC / "meal_edit_modal.js").read_text()
+    assert js.count("await confirmModal({") == 2
+    assert "title: 'Delete meal'" in js
+    assert "title: 'Move to planner'" in js
+    assert "Moving <strong>${escapeHtml(this.editingPlan.plan)}</strong> to the planner" in js
+
+
+def test_a_missing_value_is_refused_through_the_shared_component():
+    """A required text field's missing value is refused in place by
+    requireText() in dialogs.js. A page that took the browser's `invalid`
+    event itself would be a second copy of it to drift."""
+    js = (STATIC / "dialogs.js").read_text()
+    assert "window.requireText = requireText;" in js
+    assert "window.refuseBlank = refuseBlank;" in js
+    offenders = [
+        p.name
+        for p in _page_sources()
+        if p.name != "dialogs.js" and "addEventListener('invalid'" in p.read_text()
+    ]
+    assert not offenders, f"use requireText() from dialogs.js: {offenders}"
+
+
+def test_the_meal_modal_refuses_a_missing_name_in_place(client):
+    """The shared meal modal refuses a missing Meal Name under it, on both
+    pages it is on, and clears the message whenever it opens."""
+    js = (STATIC / "meal_edit_modal.js").read_text()
+    assert "requireText('plan-text', 'plan-text-message', \"A name can't be empty.\")" in js
+    assert "if (this.refuseBlankName()) return;" in js
+    assert js.count("clearFormMessages('modal-overlay');") == 2
+    for path in ("/meal-planner", "/meal-planner/previous"):
+        html = client.get(path).text
+        assert '<div class="form-message" id="plan-text-message" role="alert" hidden></div>' in html
+
+
+@pytest.mark.parametrize(
+    ("path", "fields"),
+    [
+        ("/notes", [("bodyField", "note-body-message")]),
+        (
+            "/preparedness",
+            [("'item-name'", "item-name-message"), ("'location-add-name'", "location-add-message")],
+        ),
+        (
+            "/packing-lists",
+            [
+                ("'day-add-name'", "day-add-name-message"),
+                ("'day-edit-name-input'", "day-edit-name-message"),
+                ("'template-name'", "template-name-message"),
+                ("'item-name'", "item-name-message"),
+                ("'bag-add-name'", "bag-add-message"),
+            ],
+        ),
+    ],
+)
+def test_required_names_are_refused_in_place(client, path, fields):
+    """#272: every required text field on these pages refuses a missing value
+    under itself through requireText(), never the browser's bubble."""
+    html = client.get(path).text
+    assert "setCustomValidity" not in html
+    for field, message_id in fields:
+        assert f"requireText({field}, '{message_id}'," in html
+        assert f'id="{message_id}" role="alert" hidden' in html
+
+
+@pytest.mark.parametrize(
+    ("path", "overlay_id", "delete_call"),
+    [
+        (
+            "/preparedness",
+            "location-modal-overlay",
+            "await fetch(`/api/preparedness/locations/${id}`",
+        ),
+        ("/shopping", "store-modal-overlay", "await fetch(`/api/shopping/stores/${storeId}`"),
+        (
+            "/packing-lists",
+            "bags-modal-overlay",
+            "await requestJson(`/api/packing-list-bags/${bagId}`",
+        ),
+    ],
+)
+def test_a_confirmed_delete_clears_the_manage_modals_messages(
+    client, path, overlay_id, delete_call
+):
+    """#272: confirming a delete in a "Manage …" modal settles it, so no
+    refusal is left standing: the shared clearFormMessages() clears the whole
+    modal after the answer and before the request. Cancel leaves every message
+    where it was."""
+    html = client.get(path).text
+    confirmed = html.index("if (!confirmed) return;", html.index(delete_call) - 600)
+    between = html[confirmed : html.index(delete_call, confirmed)]
+    assert f"clearFormMessages('{overlay_id}');" in between
+    js = (STATIC / "dialogs.js").read_text()
+    assert "window.clearFormMessages = clearFormMessages;" in js
+
+
+@pytest.mark.parametrize(
+    ("path", "wiring"),
+    [
+        ("/notes", ["requireDate(dateField, 'note-date-message');"]),
+        (
+            "/packing-lists",
+            [
+                "requireDate('day-date', 'day-add-message');",
+                "requireDate('day-edit-date', 'day-edit-message');",
+            ],
+        ),
+    ],
+)
+def test_an_empty_required_date_is_refused_in_place(client, path, wiring):
+    """#272: an empty required date reads "Date is a required field." under
+    it, through the shared requireDate(), never the browser's bubble."""
+    html = client.get(path).text
+    for line in wiring:
+        assert line in html
+    js = (STATIC / "dialogs.js").read_text()
+    assert "const REQUIRED_DATE = 'Date is a required field.';" in js
+    assert "window.requireDate = requireDate;" in js
+    # Only a missing value is taken from the browser: a date before its `min`
+    # keeps the browser's own message rather than failing silently.
+    assert "if (!el.validity.valueMissing) return;" in js
+    # Several fields refused by one Save: the cursor goes to the first.
+    assert "if (!focusTaken) {" in js
+    # A Save stopped by one field still says every other refusal in the form:
+    # each requireText() field's spaces check runs, skipping fields not in use.
+    assert "form.addEventListener('invalid', () => {" in js
+    assert "if (el.disabled || el.readOnly || !el.getClientRects().length) return;" in js
+
+
+def test_changing_a_notes_date_clears_its_messages(client):
+    """A new date on Notes is a new attempt: every message from the last Save
+    clears, on `input` so the taken-date notice (on `change`) still shows."""
+    html = client.get("/notes").text
+    assert "dateField.addEventListener('input', () => clearFormMessages(form));" in html
+
+
+def test_the_meal_modal_refuses_an_empty_date_in_place(client):
+    js = (STATIC / "meal_edit_modal.js").read_text()
+    assert "requireDate('plan-date', 'plan-date-message');" in js
+    html = client.get("/meal-planner").text
+    assert '<div class="form-message" id="plan-date-message" role="alert" hidden></div>' in html
 
 
 def test_a_template_already_on_a_date_is_refused_in_place(client):

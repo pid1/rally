@@ -116,6 +116,7 @@
                     <div class="form-group">
                         <label for="day-add-name">Name</label>
                         <input type="text" id="day-add-name" placeholder="e.g. Concert" maxlength="100" required>
+                        <div class="form-message" id="day-add-name-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label for="day-date">Date</label>
@@ -246,6 +247,7 @@
                     <div class="form-group" id="day-edit-name-field" style="display:none">
                         <label for="day-edit-name-input">Name</label>
                         <input type="text" id="day-edit-name-input" maxlength="100">
+                        <div class="form-message" id="day-edit-name-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <div class="editable-item-title" id="day-edit-name"></div>
@@ -319,6 +321,7 @@
                                    aria-controls="item-suggestions" required>
                             <div class="autocomplete-menu" id="item-suggestions" role="listbox"></div>
                         </div>
+                        <div class="form-message" id="item-name-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label for="item-owner">Owner</label>
@@ -771,6 +774,19 @@
             alertModal({ messageHtml: escapeHtml(message) });
         }
 
+        // A missing name is refused under its field, never by the browser's
+        // bubble (`requireText()` in dialogs.js), in the server's own words.
+        const BLANK_NAME = "A name can't be empty.";
+        const refuseBlankDayAddName = requireText('day-add-name', 'day-add-name-message', BLANK_NAME);
+        const refuseBlankDayEditName = requireText('day-edit-name-input', 'day-edit-name-message', BLANK_NAME);
+        const refuseBlankTemplateName = requireText('template-name', 'template-name-message', BLANK_NAME);
+        const refuseBlankItemName = requireText('item-name', 'item-name-message', BLANK_NAME);
+        const refuseBlankBagName = requireText('bag-add-name', 'bag-add-message', BLANK_NAME);
+        // An empty Date reads in the box that already says why a date was
+        // refused (a list already on it).
+        requireDate('day-date', 'day-add-message');
+        requireDate('day-edit-date', 'day-edit-message');
+
         // A check clears on the next change to what the form holds.
         function clearOnChange(container, ...ids) {
             ['input', 'change'].forEach(type =>
@@ -1130,8 +1146,7 @@
 
         function openDayEditModal(day) {
             editingDay = day;
-            clearFormMessage('day-edit-message');
-            clearFormMessage('day-edit-actions-message');
+            clearFormMessages('day-edit-modal-overlay');
             document.getElementById('day-edit-form').reset();
             // A templateless day's name is its own to change; a templated
             // day is called what its template is called.
@@ -1171,6 +1186,8 @@
         document.getElementById('day-edit-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const day = editingDay;
+            // A templateless day's name is its own, and required.
+            if (!isTemplated(day) && refuseBlankDayEditName()) return;
             const payload = {};
             const date = document.getElementById('day-edit-date').value;
             const label = document.getElementById('day-edit-label').value.trim() || null;
@@ -1296,16 +1313,13 @@
         // button (Save), which would close the modal after every item.
         // Registered after both autocompletes, so Enter on a highlighted
         // suggestion has already been taken (`defaultPrevented`) and only
-        // accepts it. A name of only spaces passes `required`, so it is
-        // refused here with the server's own words, on the name, rather than
-        // coming back as an alert.
+        // accepts it. A missing name is refused under the name, as Save
+        // refuses it (from the bag too, where the name is not the field in
+        // hand).
         function enterSavesItem(e) {
             if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing || !itemContext) return;
-            if (!nameInput.value.trim()) {
+            if (refuseBlankItemName()) {
                 e.preventDefault();
-                nameInput.setCustomValidity("A name can't be empty.");
-                nameInput.focus();
-                nameInput.reportValidity();
                 return;
             }
             if (itemContext.item) return; // Edit: Enter is Save, as the browser has it
@@ -1314,14 +1328,12 @@
         }
         nameInput.addEventListener('keydown', enterSavesItem);
         bagInput.addEventListener('keydown', enterSavesItem);
-        nameInput.addEventListener('input', () => nameInput.setCustomValidity(''));
 
         function openItemModal(context) {
             itemContext = context;
             const { scope, item } = context;
             itemForm.reset();
-            clearFormMessage('item-actions-message');
-            nameInput.setCustomValidity('');
+            clearFormMessages('item-modal-overlay');
             nameAutocomplete.close();
             bagAutocomplete.close();
             document.getElementById('item-modal-title').textContent = item ? 'Edit Item' : 'Add Item';
@@ -1374,6 +1386,7 @@
         itemForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!itemContext) return;
+            if (refuseBlankItemName()) return;
             const another = e.submitter === addAnotherBtn;
             const payload = {
                 name: nameInput.value,
@@ -1703,8 +1716,8 @@
             }
             try {
                 if (action === 'save') {
+                    if (refuseBlank('bag-edit-name', 'bag-edit-message', BLANK_NAME)) return;
                     const name = document.getElementById('bag-edit-name').value.trim();
-                    if (!name) return;
                     await requestJson(`/api/packing-list-bags/${bagId}`, {
                         method: 'PUT',
                         body: {
@@ -1724,6 +1737,7 @@
                         confirmLabel: 'Delete',
                     });
                     if (!confirmed) return;
+                    clearFormMessages('bags-modal-overlay');
                     await requestJson(`/api/packing-list-bags/${bagId}`, { method: 'DELETE' });
                 }
             } catch (error) {
@@ -1987,9 +2001,9 @@
 
         document.getElementById('bag-add-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (refuseBlankBagName()) return;
             const input = document.getElementById('bag-add-name');
             const name = input.value.trim();
-            if (!name) return;
             try {
                 await requestJson('/api/packing-list-bags', { method: 'POST', body: { name } });
             } catch (error) {
@@ -2009,7 +2023,7 @@
 
         document.getElementById('btn-manage-bags').addEventListener('click', () => {
             editingBagId = null;
-            clearFormMessage('bag-add-message');
+            clearFormMessages('bags-modal-overlay');
             renderBagManageList();
             showModalOverlay('bags-modal-overlay');
         });
@@ -2069,7 +2083,7 @@
             // Folded away: a schedule that already exists is described on the
             // row, and the controls open when Repeats is turned on.
             scheduleDetails.open = false;
-            clearFormMessage('schedule-actions-message');
+            clearFormMessages('schedule-modal-overlay');
             showScheduleMode();
             showModalOverlay('schedule-modal-overlay');
         }
@@ -2206,8 +2220,7 @@
         }
 
         function openAddDayModal() {
-            clearFormMessage('day-add-message');
-            clearFormMessage('day-add-actions-message');
+            clearFormMessages('day-add-modal-overlay');
             addForm.reset();
             typedName = '';
             sourceSelect.innerHTML = templateOptionsHtml();
@@ -2244,6 +2257,8 @@
             e.preventDefault();
             const template = addSource();
             const sync = !!template && addMode() === 'sync';
+            // Kept in sync, the name is the template's and cannot be typed.
+            if (!sync && refuseBlankDayAddName()) return;
             const lead = parseInt(addPackDays.value, 10);
             const payload = {
                 date: addDate.value,
@@ -2319,8 +2334,7 @@
         function openTemplateModal(template) {
             editingTemplate = template;
             templateForm.reset();
-            clearFormMessage('template-name-message');
-            clearFormMessage('template-actions-message');
+            clearFormMessages('template-modal-overlay');
             templateSource.innerHTML = templateOptionsHtml();
             document.getElementById('template-start-from').style.display = !template && templates.length ? '' : 'none';
             showTemplateStart();
@@ -2341,6 +2355,7 @@
 
         document.getElementById('template-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (refuseBlankTemplateName()) return;
             const payload = {
                 name: document.getElementById('template-name').value,
                 description: document.getElementById('template-description').value || null,

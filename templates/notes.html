@@ -122,6 +122,14 @@
         const counter = document.getElementById('note-counter');
         const messageBox = document.getElementById('note-message');
         const deleteBtn = document.getElementById('btn-delete-note');
+        // A missing note is refused under the textarea, never by the browser's
+        // bubble, in the server's own words. The server refuses one too.
+        const refuseBlankBody = requireText(bodyField, 'note-body-message', 'A note needs some text.');
+        requireDate(dateField, 'note-date-message');
+        // A new date is a new attempt: every message from the last Save goes.
+        // On `input`, which comes before `change`, so the notice a taken date
+        // shows (on `change`, below) is not cleared away with them.
+        dateField.addEventListener('input', () => clearFormMessages(form));
 
         function updateCounter() {
             const used = bodyField.value.length;
@@ -162,6 +170,7 @@
         function openAddModal() {
             form.reset();
             clearMessage();
+            clearFormMessages('note-modal-overlay');
             idField.value = '';
             document.getElementById('note-modal-title').textContent = 'Add Note';
             dateField.value = todayLocal();
@@ -176,6 +185,7 @@
             if (!note) return;
             form.reset();
             clearMessage();
+            clearFormMessages('note-modal-overlay');
             idField.value = note.id;
             document.getElementById('note-modal-title').textContent = 'Edit Note';
             dateField.value = note.date;
@@ -216,6 +226,7 @@
         async function saveNote(event) {
             event.preventDefault();
             clearMessage();
+            if (refuseBlankBody()) return;
 
             const id = idField.value;
             const payload = { date: dateField.value, body: bodyField.value };
@@ -268,8 +279,9 @@
         // Catch the collision when the date is picked, not only when Save is
         // pressed. Two reasons: the family finds out before writing a note they
         // did not need to write, and an empty body cannot reach Save anyway —
-        // the textarea is `required`, so the browser blocks the submit first
-        // and the "nothing typed yet" case would never be reachable.
+        // the textarea is `required`, so it is refused before the submit
+        // (requireText()) and the "nothing typed yet" case would never be
+        // reachable.
         //
         // Add mode only. Moving an existing note onto an occupied day is a
         // different question — switching would abandon the note being edited —

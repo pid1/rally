@@ -420,28 +420,11 @@
             if (!hasDue) document.getElementById('recurring-remind-days').value = '';
         }
 
-        /* A missing title is refused in place under the title, with
-           everything entered kept, and cleared on the next keystroke in it.
-           An empty one is caught by `required`, whose `invalid` event is taken
-           here in place of the browser's bubble; one of only spaces passes
-           `required`, so the submit handler refuses it. The server refuses
-           both too. True when the title is refused. */
-        function refuseBlankTitle(inputId, messageId) {
-            const input = document.getElementById(inputId);
-            if (input.value.trim()) return false;
-            showFormMessage(messageId, "A title can't be empty.");
-            input.focus();
-            return true;
-        }
-        [['todo-title', 'todo-title-message'], ['recurring-title', 'recurring-title-message']]
-            .forEach(([inputId, messageId]) => {
-                const input = document.getElementById(inputId);
-                input.addEventListener('input', () => clearFormMessage(messageId));
-                input.addEventListener('invalid', (e) => {
-                    e.preventDefault();
-                    refuseBlankTitle(inputId, messageId);
-                });
-            });
+        // A missing title is refused under it, never by the browser's bubble
+        // (`requireText()` in dialogs.js). The server refuses one too.
+        const BLANK_TITLE = "A title can't be empty.";
+        const refuseBlankTodoTitle = requireText('todo-title', 'todo-title-message', BLANK_TITLE);
+        const refuseBlankRecurringTitle = requireText('recurring-title', 'recurring-title-message', BLANK_TITLE);
 
         function openAddModal() {
             editingId = null;
@@ -452,7 +435,7 @@
             document.getElementById('todo-remind-days').value = '';
             document.getElementById('btn-delete-todo').style.display = 'none';
             toggleRemindGroup();
-            clearFormMessage('todo-title-message');
+            clearFormMessages('modal-overlay');
             showModalOverlay('modal-overlay');
         }
 
@@ -470,7 +453,7 @@
             document.getElementById('todo-remind-days').value = todo.remind_days_before != null ? todo.remind_days_before : '';
             document.getElementById('btn-delete-todo').style.display = '';
             toggleRemindGroup();
-            clearFormMessage('todo-title-message');
+            clearFormMessages('modal-overlay');
             showModalOverlay('modal-overlay');
         }
 
@@ -545,7 +528,7 @@
 
         document.getElementById('todo-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (refuseBlankTitle('todo-title', 'todo-title-message')) return;
+            if (refuseBlankTodoTitle()) return;
 
             const assignedTo = document.getElementById('todo-assigned-to').value;
             const remindDays = document.getElementById('todo-remind-days').value;
@@ -657,8 +640,7 @@
             resetStartDateField(null);
             toggleRecurringRemindGroup();
             RecurrenceForm.refreshPreview();
-            clearFormMessage('recurring-start-message');
-            clearFormMessage('recurring-title-message');
+            clearFormMessages('recurring-modal-overlay');
             showModalOverlay('recurring-modal-overlay');
         }
 
@@ -679,8 +661,7 @@
             resetStartDateField(rt);
             toggleRecurringRemindGroup();
             RecurrenceForm.refreshPreview();
-            clearFormMessage('recurring-start-message');
-            clearFormMessage('recurring-title-message');
+            clearFormMessages('recurring-modal-overlay');
             showModalOverlay('recurring-modal-overlay');
         }
 
@@ -736,7 +717,7 @@
 
         document.getElementById('recurring-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (refuseBlankTitle('recurring-title', 'recurring-title-message')) return;
+            if (refuseBlankRecurringTitle()) return;
 
             const assignedTo = document.getElementById('recurring-assigned-to').value;
             const recurringRemindDays = document.getElementById('recurring-remind-days').value;

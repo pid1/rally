@@ -496,3 +496,29 @@ def test_rating_check_constraint_rejects_out_of_range(db_session):
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()
+
+
+# --- a name of only spaces (#272) ---------------------------------------------
+
+
+def test_create_refuses_a_name_of_only_spaces(client):
+    resp = client.post("/api/meal-planner", json={"date": "2026-05-01", "plan": "   "})
+    assert resp.status_code == 422
+    assert "A name can't be empty." in resp.text
+    assert client.get("/api/meal-planner").json() == []
+
+
+def test_update_refuses_a_name_of_only_spaces(client):
+    meal = _create(client, plan="Tacos")
+    resp = client.put(f"/api/meal-planner/{meal['id']}", json={"plan": " \t "})
+    assert resp.status_code == 422
+    assert client.get(f"/api/meal-planner/{meal['id']}").json()["plan"] == "Tacos"
+
+
+def test_a_stored_blank_name_still_lists(client, db_session):
+    """Checked on the way in only: a meal saved before the check still reads."""
+    db_session.add(MealPlan(date="2026-05-01", meal_type="Dinner", plan="   "))
+    db_session.commit()
+    resp = client.get("/api/meal-planner")
+    assert resp.status_code == 200
+    assert [m["plan"] for m in resp.json()] == ["   "]

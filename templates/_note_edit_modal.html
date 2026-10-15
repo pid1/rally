@@ -18,6 +18,7 @@
             <div class="form-group">
                 <label for="note-date">Date</label>
                 <input type="date" id="note-date" required>
+                <div class="form-message" id="note-date-message" role="alert" hidden></div>
             </div>
             <div class="form-group">
                 <label for="note-body">Note</label>
@@ -33,6 +34,10 @@
                   means the limit is heard once, on focus.
                 -->
                 <div class="form-counter" id="note-counter">0 / 2,000 characters</div>
+                <!-- A missing note, refused in place (requireText() in dialogs.js).
+                     Its own slot, so typing clears it without touching a notice
+                     in the box below. -->
+                <div class="form-message" id="note-body-message" role="alert" hidden></div>
                 <!-- Carries both a rejected save and a status notice; the
                      script sets role="alert" or role="status" to match. -->
                 <div class="form-message" id="note-message" hidden></div>

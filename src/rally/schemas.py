@@ -294,13 +294,21 @@ class LLMConfigHistoryResponse(BaseModel):
 # Todos
 
 
-def _refuse_blank_title(value: str | None) -> str | None:
-    """Refuse a title that is only spaces; ``required`` in the form lets one
-    through. Checked on the way in only, so a task already stored with one
-    still lists. The title is kept as typed."""
-    if value is not None and not value.strip():
-        raise ValueError("A title can't be empty.")
-    return value
+def _refuse_blank(message: str):
+    """A validator refusing a text field that is only spaces, with ``message``;
+    ``required`` in the form lets one through. Put it on the schemas that
+    write (create, update) only, so a row already stored with one still reads.
+    The value is kept as typed."""
+
+    def check(value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError(message)
+        return value
+
+    return check
+
+
+_refuse_blank_title = _refuse_blank("A title can't be empty.")
 
 
 class TodoBase(BaseModel):
@@ -513,7 +521,7 @@ class MealPlanBase(BaseModel):
 
 
 class MealPlanCreate(MealPlanBase):
-    pass
+    _plan = field_validator("plan")(_refuse_blank("A name can't be empty."))
 
 
 class MealPlanUpdate(BaseModel):
@@ -523,6 +531,8 @@ class MealPlanUpdate(BaseModel):
     notes: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     attendee_ids: list[int] | None = UNSET  # None means "clear"; UNSET means "not provided"
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
+
+    _plan = field_validator("plan")(_refuse_blank("A name can't be empty."))
 
 
 class MealPlanReviewUpdate(BaseModel):
