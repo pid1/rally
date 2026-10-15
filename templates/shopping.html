@@ -59,6 +59,7 @@
                                    aria-controls="suggestion-menu" required>
                             <div class="autocomplete-menu" id="suggestion-menu" role="listbox"></div>
                         </div>
+                        <div class="form-message" id="item-name-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label>Note (optional)</label>
@@ -93,6 +94,7 @@
                         <input type="text" id="store-add-name" placeholder="Store name" required>
                         <button type="submit" class="btn btn--sm">Add</button>
                     </div>
+                    <div class="form-message" id="store-add-message" role="alert" hidden></div>
                 </form>
                 <div id="store-manage-list"></div>
                 <div class="modal-actions">
@@ -407,10 +409,37 @@
                 await fetchItems();
             } catch (error) {
                 console.error('Error updating item:', error);
-                alert('Failed to update item');
+                fail('Failed to update item');
                 await fetchItems();   // refresh to revert the checkbox
             }
         }
+
+        function fail(message) {
+            alertModal({ messageHtml: escapeHtml(message) });
+        }
+
+        /* A missing name is refused in place under its field, with everything
+           entered kept, and cleared on the next keystroke in it. An empty one
+           is caught by `required`, whose `invalid` event is taken here in place
+           of the browser's bubble; one of only spaces passes `required`, so
+           the form refuses it itself. The server refuses both too. True when
+           the name is refused. */
+        const BLANK_NAME = "A name can't be empty.";
+        function refuseBlankName(input, messageId) {
+            if (input.value.trim()) return false;
+            showFormMessage(messageId, BLANK_NAME);
+            input.focus();
+            return true;
+        }
+        [['item-name', 'item-name-message'], ['store-add-name', 'store-add-message']]
+            .forEach(([inputId, messageId]) => {
+                const input = document.getElementById(inputId);
+                input.addEventListener('input', () => clearFormMessage(messageId));
+                input.addEventListener('invalid', (e) => {
+                    e.preventDefault();
+                    refuseBlankName(input, messageId);
+                });
+            });
 
         // Store reads "Anywhere" on every open, whatever the chips say — matching
         // openAddModal() on /todo, which resets the assignee and ignores the
@@ -420,6 +449,7 @@
             editingItemId = null;
             document.getElementById('item-modal-title').textContent = 'Add Item';
             document.getElementById('item-form').reset();
+            clearFormMessage('item-name-message');
             storeSelect.value = '';
             document.getElementById('btn-delete-item').style.display = 'none';
             nameAutocomplete.close();
@@ -431,6 +461,7 @@
             const item = items.find(i => i.id === id);
             if (!item) return;
             editingItemId = id;
+            clearFormMessage('item-name-message');
             document.getElementById('item-modal-title').textContent = 'Edit Item';
             nameInput.value = item.name;
             document.getElementById('item-note').value = item.note || '';
@@ -450,8 +481,8 @@
         // it again — the same trade every other add button in Rally makes.
         document.getElementById('item-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (refuseBlankName(nameInput, 'item-name-message')) return;
             const name = nameInput.value.trim();
-            if (!name) return;
             const storeValue = storeSelect.value;
             const storeId = storeValue ? parseInt(storeValue, 10) : null;
             const note = document.getElementById('item-note').value || null;
@@ -465,7 +496,7 @@
                 await fetchItems();
             } catch (error) {
                 console.error('Error saving item:', error);
-                alert('Failed to save item');
+                fail('Failed to save item');
             }
         });
 
@@ -473,14 +504,20 @@
 
         document.getElementById('btn-delete-item').addEventListener('click', async () => {
             if (!editingItemId) return;
-            if (!confirm('Delete this item?')) return;
+            const item = items.find(i => i.id === editingItemId);
+            const confirmed = await confirmModal({
+                title: 'Delete item',
+                messageHtml: `Delete <strong>${escapeHtml(item ? item.name : '')}</strong>?`,
+                confirmLabel: 'Delete',
+            });
+            if (!confirmed) return;
             try {
                 await deleteItem(editingItemId);
                 closeItemModal();
                 await fetchItems();
             } catch (error) {
                 console.error('Error deleting item:', error);
-                alert('Failed to delete item');
+                fail('Failed to delete item');
             }
         });
 
@@ -496,12 +533,15 @@
                 list.innerHTML = '<div class="container-empty-state">No stores yet. Items you add land under "Anywhere".</div>';
                 return;
             }
+            // Each row's refusal reads under it, so a name somebody is renaming
+            // to stays typed while the message says why it was not saved.
             list.innerHTML = stores.map(s => `
                 <div class="manage-row" data-id="${s.id}">
                     <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
                     <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
                     <button type="button" class="btn btn--sm" data-action="delete">Delete</button>
                 </div>
+                <div class="form-message" id="store-message-${s.id}" role="alert" hidden></div>
             `).join('');
         }
 
@@ -512,24 +552,34 @@
             const storeId = parseInt(row.dataset.id, 10);
 
             if (button.dataset.action === 'rename') {
-                const name = row.querySelector('input').value.trim();
-                if (!name) return;
+                const input = row.querySelector('input');
+                clearFormMessage(`store-message-${storeId}`);
+                if (refuseBlankName(input, `store-message-${storeId}`)) return;
+                const name = input.value.trim();
                 const response = await fetch(`/api/shopping/stores/${storeId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name })
                 });
                 if (!response.ok) {
-                    alert(response.status === 409 ? 'A store with that name already exists.' : 'Failed to rename store.');
+                    if (response.status === 409) {
+                        showFormMessage(`store-message-${storeId}`, 'A store with that name already exists.');
+                    } else {
+                        fail('Failed to rename store.');
+                    }
                     return;
                 }
             } else {
                 const store = stores.find(s => s.id === storeId);
-                const label = store ? store.name : 'this store';
-                if (!confirm(`Delete ${label}? Its items move to "Anywhere" — nothing is lost.`)) return;
+                const confirmed = await confirmModal({
+                    title: 'Delete store',
+                    messageHtml: `Delete <strong>${escapeHtml(store ? store.name : '')}</strong>? Its items move to "Anywhere" — nothing is lost.`,
+                    confirmLabel: 'Delete',
+                });
+                if (!confirmed) return;
                 const response = await fetch(`/api/shopping/stores/${storeId}`, { method: 'DELETE' });
                 if (!response.ok) {
-                    alert('Failed to delete store.');
+                    fail('Failed to delete store.');
                     return;
                 }
                 selectedStores.delete(String(storeId));
@@ -540,18 +590,28 @@
             await fetchItems();
         });
 
+        // A refusal clears on the next keystroke in the field it is about.
+        document.getElementById('store-manage-list').addEventListener('input', (e) => {
+            const row = e.target.closest('.manage-row');
+            if (row) clearFormMessage(`store-message-${row.dataset.id}`);
+        });
+
         document.getElementById('store-add-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('store-add-name');
+            if (refuseBlankName(input, 'store-add-message')) return;
             const name = input.value.trim();
-            if (!name) return;
             const response = await fetch('/api/shopping/stores', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name })
             });
             if (!response.ok) {
-                alert(response.status === 409 ? 'A store with that name already exists.' : 'Failed to add store.');
+                if (response.status === 409) {
+                    showFormMessage('store-add-message', 'A store with that name already exists.');
+                } else {
+                    fail('Failed to add store.');
+                }
                 return;
             }
             input.value = '';
@@ -560,6 +620,7 @@
         });
 
         document.getElementById('btn-manage-stores').addEventListener('click', () => {
+            clearFormMessage('store-add-message');
             renderStoreManageList();
             showModalOverlay('store-modal-overlay');
         });
@@ -610,7 +671,7 @@
                     await reorderItems(key === ANYWHERE ? null : parseInt(key, 10), itemIds);
                 } catch (error) {
                     console.error('Error reordering items:', error);
-                    alert('Failed to save the new order');
+                    fail('Failed to save the new order');
                 }
                 // Refetch either way: on success to pick up the store change,
                 // and on failure to put the list back the way the server has it
