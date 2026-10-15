@@ -1,0 +1,19 @@
+{#- The one dialog every page asks its questions and reports its failures in,
+    in place of the browser's confirm() and alert(). Included once by base.html
+    after the page's content, so it draws over any page modal. Behavior is
+    /static/dialogs.js (confirmModal, alertModal); the title, message and
+    buttons are set each time it opens. A failure hides the title and Cancel. -#}
+<div class="modal-overlay" id="dialog-modal-overlay">
+    <div class="modal-content modal-content--narrow">
+        <h3 id="dialog-modal-title"></h3>
+        <div class="modal-scroll">
+        <div class="modal-body">
+            <p id="dialog-modal-message"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn--primary" id="btn-dialog-modal-confirm"></button>
+                <button type="button" class="btn" id="btn-dialog-modal-cancel">Cancel</button>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>

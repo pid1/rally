@@ -92,25 +92,27 @@
         <section>
             <div class="card-header">Buttons</div>
             <p class="page-note">
-                One family, four roles, one size plus a compact modifier. Save is the same
-                control everywhere it appears.
+                One family: outlined, primary, and quiet, plus a compact size. Primary marks
+                the one button that commits a form or a modal, so Save is the same control
+                everywhere it appears. Hover it for its ring.
             </p>
             <div class="list-container">
                 <div class="editable-item">
                     <div class="editable-item-content">
-                        <div class="editable-item-description">Default &middot; primary action</div>
+                        <div class="editable-item-description">Primary &middot; Save, a dialog&rsquo;s confirm</div>
                         <div class="page-header-actions">
-                            <button class="btn">Add Task</button>
-                            <button class="btn" disabled>Disabled</button>
+                            <button class="btn btn--primary">Save</button>
+                            <button class="btn btn--primary" disabled>Disabled</button>
                         </div>
                     </div>
                 </div>
                 <div class="editable-item">
                     <div class="editable-item-content">
-                        <div class="editable-item-description">Secondary &middot; cancel, delete, dismiss</div>
+                        <div class="editable-item-description">Outlined &middot; every other action</div>
                         <div class="page-header-actions">
-                            <button class="btn btn--secondary">Cancel</button>
-                            <button class="btn btn--secondary">Delete</button>
+                            <button class="btn">Add Task</button>
+                            <button class="btn">Cancel</button>
+                            <button class="btn" disabled>Disabled</button>
                         </div>
                     </div>
                 </div>
@@ -128,7 +130,7 @@
                         <div class="editable-item-description">Compact &middot; inside a list row</div>
                         <div class="page-header-actions">
                             <button class="btn btn--sm">Edit</button>
-                            <button class="btn btn--secondary btn--sm">Delete</button>
+                            <button class="btn btn--sm">Delete</button>
                         </div>
                     </div>
                 </div>
@@ -162,7 +164,7 @@
                 <div class="toolbar-search">
                     <label class="toolbar-label" for="sg-search">Search</label>
                     <input type="text" id="sg-search" class="search-input" placeholder="Search">
-                    <button type="button" class="btn btn--secondary">Search</button>
+                    <button type="button" class="btn">Search</button>
                     <button type="button" class="btn btn--quiet">Clear Search</button>
                 </div>
                 <div class="toolbar-reset">
@@ -522,6 +524,40 @@
                 <button class="btn" onclick="showModalOverlay('sg-modal')">Open modal</button>
             </div>
         </section>
+
+        <section>
+            <div class="card-header">Dialog</div>
+            <p class="page-note">
+                Rally&rsquo;s own questions and failures, in place of the browser&rsquo;s
+                <code>confirm()</code> and <code>alert()</code>: <code>confirmModal()</code> and
+                <code>alertModal()</code> in <code>static/dialogs.js</code>. A question is titled with
+                the action, names what it touches in bold, and answers with the verb or Cancel. A
+                failure has no title and one OK.
+            </p>
+            <div class="page-header-actions">
+                <button class="btn" id="sg-dialog-confirm">Ask a question</button>
+                <button class="btn" id="sg-dialog-alert">Report a failure</button>
+            </div>
+        </section>
+
+        <section>
+            <div class="card-header">Form message</div>
+            <p class="page-note">
+                A form check or a notice, next to what it is about, with the form left open:
+                <code>showFormMessage(id, text, role)</code>. A check is <code>role="alert"</code>,
+                a notice <code>role="status"</code>; they differ in what they say, not in how loud
+                they are.
+            </p>
+            <div class="form-group">
+                <label for="sg-form-message-name">Store name</label>
+                <input type="text" id="sg-form-message-name" value="Trader Joe's">
+                <div class="form-message" role="alert">A store with that name already exists.</div>
+            </div>
+            <div class="form-group">
+                <button type="button" class="btn btn--primary">Save</button>
+                <div class="form-message" role="status">Learning settings saved.</div>
+            </div>
+        </section>
     </div>
 
     <div class="modal-overlay" id="sg-modal">
@@ -538,17 +574,25 @@
                     <textarea id="sg-modal-note" rows="3"></textarea>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" onclick="hideModalOverlay('sg-modal')">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete">Delete</button>
+                    <button type="button" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" onclick="hideModalOverlay('sg-modal')">Cancel</button>
+                    <button type="button" class="btn modal-delete">Delete</button>
                 </div>
             </div>
             </div>
         </div>
     </div>
 
-    <script src="/static/modal.js?v={{ css_version }}"></script>
     <script>
+        document.getElementById('sg-dialog-confirm').addEventListener('click', () => confirmModal({
+            title: 'Delete task',
+            messageHtml: 'Delete <strong>Buy milk</strong>?',
+            confirmLabel: 'Delete',
+        }));
+        document.getElementById('sg-dialog-alert').addEventListener('click', () => alertModal({
+            messageHtml: 'Failed to save task',
+        }));
+
         // Read the tokens back out of the cascade rather than hard-coding them,
         // so this page cannot describe a scale the stylesheet no longer has.
         const root = getComputedStyle(document.documentElement);

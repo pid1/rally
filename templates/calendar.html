@@ -265,9 +265,9 @@
                 </form>
 
                 <div class="modal-actions" id="event-modal-actions">
-                    <button type="submit" form="event-form" class="btn" id="btn-save-event">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-event">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-event" style="display:none">Delete</button>
+                    <button type="submit" form="event-form" class="btn btn--primary" id="btn-save-event">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-event">Cancel</button>
+                    <button type="button" class="btn modal-delete" id="btn-delete-event" style="display:none">Delete</button>
                 </div>
             </div>
             </div>
@@ -284,8 +284,8 @@
                 <div id="detail-notify-result"></div>
                 <div class="modal-actions">
                     <button type="button" class="btn" id="btn-notify-attendees" style="display:none;">Notify attendees</button>
-                    <button type="button" class="btn btn--secondary" id="btn-detail-edit" style="display:none;">Edit</button>
-                    <button type="button" class="btn btn--secondary" id="btn-close-detail">Close</button>
+                    <button type="button" class="btn" id="btn-detail-edit" style="display:none;">Edit</button>
+                    <button type="button" class="btn" id="btn-close-detail">Close</button>
                 </div>
             </div>
             </div>
@@ -311,15 +311,14 @@
                     <small id="event-scope-modal-help"></small>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn" id="btn-scope-confirm" disabled>Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-scope-cancel">Cancel</button>
+                    <button type="button" class="btn btn--primary" id="btn-scope-confirm" disabled>Save</button>
+                    <button type="button" class="btn" id="btn-scope-cancel">Cancel</button>
                 </div>
             </div>
             </div>
         </div>
     </div>
 
-    <script src="/static/modal.js?v={{ css_version }}"></script>
     <script>
         // State
         let familyMembers = [];

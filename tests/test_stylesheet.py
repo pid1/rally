@@ -207,3 +207,22 @@ def test_the_allowlist_has_no_stale_entries():
     styled = _classes_with_rules()
     stale = {name for name in CLASSES_WITHOUT_RULES if name not in applied or name in styled}
     assert not stale, f"allowlisted classes that no longer need to be: {sorted(stale)}"
+
+
+def _block(selector: str) -> str:
+    """The declarations of one top-level rule, by its exact selector."""
+    match = re.search(r"(?:^|\})\s*" + re.escape(selector) + r"\s*\{([^}]*)\}", SOURCE)
+    assert match, f"no rule for {selector}"
+    return match.group(1)
+
+
+def test_the_primary_button_is_filled_and_secondary_is_gone():
+    """#272 — the button that commits is named by `.btn--primary` and filled at
+    rest; plain `.btn` is the outlined button, so `--secondary` (which would
+    look exactly like it) has no rule left."""
+    primary = _block(".btn--primary")
+    assert "background: var(--ink)" in primary
+    assert "color: var(--inverse)" in primary
+    assert "box-shadow" in _block(".btn--primary:hover:not(:disabled)")
+    assert "background: var(--surface-sunken)" in _block(".btn:hover:not(:disabled)")
+    assert "--secondary" not in SOURCE

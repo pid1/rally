@@ -105,9 +105,9 @@
                 </div>
             </form>
                 <div class="modal-actions">
-                    <button type="submit" form="recurring-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-recurring">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-recurring" style="display:none" onclick="confirmDeleteRecurringFromModal()">Delete</button>
+                    <button type="submit" form="recurring-form" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-recurring">Cancel</button>
+                    <button type="button" class="btn modal-delete" id="btn-delete-recurring" style="display:none" onclick="confirmDeleteRecurringFromModal()">Delete</button>
                 </div>
             </div>
             </div>
@@ -147,9 +147,9 @@
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="todo-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
+                    <button type="submit" form="todo-form" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel">Cancel</button>
+                    <button type="button" class="btn modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
                 </div>
             </div>
             </div>
@@ -748,5 +748,4 @@
         });
     </script>
 
-    <script src="/static/modal.js?v={{ css_version }}"></script>
 {% endblock %}

@@ -613,6 +613,87 @@ def test_focus_rings_are_not_clipped_inside_modals(browser, live_server, page):
         context.close()
 
 
+# Every button in a modal's actions, scrolled to the end of the modal, measured
+# against the bottom of the box that clips it. The room it needs is the larger
+# of its focus ring and, for a primary button, the hover ring, read back out of
+# the stylesheet so the test follows the rule rather than a copy of it.
+ACTIONS_CLIP_JS = r"""
+(overlayId) => {
+  const hoverRing = (() => {
+    for (const sheet of document.styleSheets) {
+      let rules;
+      try { rules = sheet.cssRules; } catch (e) { continue; }
+      for (const rule of rules) {
+        if (rule.selectorText !== '.btn--primary:hover:not(:disabled)') continue;
+        const spreads = [...rule.style.boxShadow.matchAll(/0(?:px)? 0(?:px)? 0(?:px)? (\d+(?:\.\d+)?)px/g)]
+          .map(m => parseFloat(m[1]));
+        return spreads.length ? Math.max(...spreads) : 0;
+      }
+    }
+    return null;
+  })();
+  const overlay = document.getElementById(overlayId);
+  const body = overlay.querySelector('.modal-body');
+  if (!body) return { hoverRing, clipped: [], measured: 0 };
+  showModalOverlay(overlayId);
+  body.scrollTop = body.scrollHeight;
+  const br = body.getBoundingClientRect();
+  const bottom = br.bottom - parseFloat(getComputedStyle(body).borderBottomWidth);
+  const clipped = [];
+  let measured = 0;
+  for (const el of body.querySelectorAll('.modal-actions .btn')) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    el.focus();
+    const cs = getComputedStyle(el);
+    const focusRing = cs.outlineStyle === 'none'
+      ? 0 : parseFloat(cs.outlineWidth) + Math.max(0, parseFloat(cs.outlineOffset));
+    el.blur();
+    const ring = Math.max(focusRing, el.classList.contains('btn--primary') ? hoverRing : 0);
+    const room = bottom - r.bottom;
+    measured += 1;
+    if (room < ring - 0.5) {
+      clipped.push({
+        button: el.id || (el.textContent || '').trim().slice(0, 20),
+        ring, room: Math.round(room * 10) / 10,
+      });
+    }
+  }
+  hideModalOverlay(overlayId);
+  return { hoverRing, clipped, measured };
+}
+"""
+
+
+@pytest.mark.parametrize("page", ALL_PAGES)
+def test_rings_below_modal_actions_are_not_clipped(browser, live_server, page):
+    """#272 — a modal's last row of buttons keeps its rings whole.
+
+    `.modal-body` is the modal's scroll box and clips whatever its children
+    draw outside it. Its actions are its last row, and with no room below them
+    the bottom edge of the primary button's hover ring (and of every button's
+    focus ring) was cut off — first seen on Save in Preparedness' Add Item.
+    """
+    context, p = _open(browser, live_server, PAGES[page], height=460)
+    try:
+        overlays = p.eval_on_selector_all(
+            ".modal-overlay", "els => els.map(e => e.id).filter(Boolean)"
+        )
+        if not overlays:
+            pytest.skip(f"{page} has no modals")
+        measured = 0
+        for overlay_id in overlays:
+            result = p.evaluate(ACTIONS_CLIP_JS, overlay_id)
+            assert result["hoverRing"], "no hover ring found on .btn--primary"
+            measured += result["measured"]
+            assert not result["clipped"], (
+                f"{page}/#{overlay_id} clips the rings below its actions: {result['clipped']}"
+            )
+        assert measured, f"{page} has modals but no action buttons were measured"
+    finally:
+        context.close()
+
+
 # Open a modal, drive it to the bottom, close it, and open it again. A short
 # viewport is what makes this measurable: a modal only scrolls when its content
 # outruns the 90vh cap.
