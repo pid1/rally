@@ -29,15 +29,6 @@
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
         'August', 'September', 'October', 'November', 'December'];
 
-    /* Names in a sentence, each in straight double quotes so a title with
-       "and" in it never reads as two, joined with the Oxford comma. The
-       server's `packing_lists.join_names` says the same thing. */
-    function joinNames(names) {
-        const quoted = names.map(name => `"${name}"`);
-        if (quoted.length <= 2) return quoted.join(' and ');
-        return `${quoted.slice(0, -1).join(', ')}, and ${quoted[quoted.length - 1]}`;
-    }
-
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text == null ? '' : String(text);
@@ -526,7 +517,6 @@
         NO_BAG,
         escapeHtml,
         escapeAttr,
-        joinNames,
         formatLongDate,
         addDays,
         weekdayOf,

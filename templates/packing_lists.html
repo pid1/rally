@@ -132,6 +132,7 @@
                         <small>0 means the same day.</small>
                     </div>
                 </form>
+                <div class="form-message" id="day-add-actions-message" role="alert" hidden></div>
                 <div class="modal-actions">
                     <button type="submit" form="day-add-form" class="btn btn--primary">Save</button>
                     <button type="button" class="btn" id="btn-cancel-day-add">Cancel</button>
@@ -183,6 +184,7 @@
                          template that repeats. With Repeats off and no schedule
                          there is nothing to update or remove, so only Cancel
                          shows. -->
+                    <div class="form-message" id="schedule-actions-message" role="alert" hidden></div>
                     <div class="modal-actions" id="schedule-repeat-actions">
                         <button type="submit" class="btn btn--primary" id="btn-update-schedule">Update schedule</button>
                         <button type="button" class="btn" data-cancel-schedule>Cancel</button>
@@ -208,6 +210,7 @@
                     <div class="form-group">
                         <label for="template-name">Name</label>
                         <input type="text" id="template-name" placeholder="e.g. Beach day" maxlength="100" required>
+                        <div class="form-message" id="template-name-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label for="template-description">Description (optional)</label>
@@ -218,6 +221,7 @@
                         <small>0 means the same day.</small>
                     </div>
                 </form>
+                <div class="form-message" id="template-actions-message" role="alert" hidden></div>
                 <div class="modal-actions">
                     <button type="submit" form="template-form" class="btn btn--primary">Save</button>
                     <button type="button" class="btn" id="btn-cancel-template">Cancel</button>
@@ -262,6 +266,7 @@
                         <small>0 means the same day.</small>
                     </div>
                 </form>
+                <div class="form-message" id="day-edit-actions-message" role="alert" hidden></div>
                 <div class="modal-actions">
                     <button type="submit" form="day-edit-form" class="btn btn--primary">Save</button>
                     <button type="button" class="btn" id="btn-cancel-day-edit">Cancel</button>
@@ -290,25 +295,6 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn--primary" id="btn-day-resync-confirm" disabled>Resync</button>
                     <button type="button" class="btn" id="btn-day-resync-cancel">Cancel</button>
-                </div>
-            </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- A confirmation that can show a name in bold, which confirm() cannot.
-         Generic on purpose: the title, message and confirm button are set
-         each time it opens (openConfirmModal), so other confirmations on the
-         page can move to it without new markup. -->
-    <div class="modal-overlay" id="confirm-modal-overlay">
-        <div class="modal-content modal-content--narrow">
-            <h3 id="confirm-modal-title"></h3>
-            <div class="modal-scroll">
-            <div class="modal-body">
-                <p id="confirm-modal-message"></p>
-                <div class="modal-actions">
-                    <button type="button" class="btn" id="btn-confirm-modal-confirm"></button>
-                    <button type="button" class="btn" id="btn-confirm-modal-cancel">Cancel</button>
                 </div>
             </div>
             </div>
@@ -354,6 +340,7 @@
                         <label for="item-note">Notes (optional)</label>
                         <textarea id="item-note" rows="2" placeholder="Which one, how many, where it's kept"></textarea>
                     </div>
+                    <div class="form-message" id="item-actions-message" role="alert" hidden></div>
                     <div class="modal-actions">
                         <button type="submit" class="btn btn--primary">Save</button>
                         <!-- Add mode only. A submit button, so the required-field
@@ -380,6 +367,7 @@
                         <input type="text" id="bag-add-name" placeholder="Pool bag, the car, a backpack" maxlength="100" required>
                         <button type="submit" class="btn btn--sm">Add</button>
                     </div>
+                    <div class="form-message" id="bag-add-message" role="alert" hidden></div>
                 </form>
                 <div id="bag-manage-list"></div>
                 <div class="modal-actions">
@@ -415,7 +403,7 @@
     <script src="/static/autocomplete.js?v={{ css_version }}"></script>
     <script src="/static/packing_lists.js?v={{ css_version }}"></script>
     <script>
-        const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, joinNames, formatLongDate, addDays, weekdayOf, itemCount,
+        const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, formatLongDate, addDays, weekdayOf, itemCount,
             packDaysLabel, viewSections, templateSectionCountLabel, bagRowHtml, changeBagsHtml,
             otherDimension, keyToId, noteHtml, isTemplated, dayRowId,
             dayBoxesHtml, updateDayCardCounts, groupIsOpen, requestJson } = PackingLists;
@@ -772,6 +760,23 @@
             bags = await requestJson('/api/packing-list-bags');
         }
 
+        /* A refusal a form shows in place, in a `.form-message` beside what
+           it is about (#272): a 409, or a 422 that says what is wrong.
+           Anything else is a failure, reported in the shared dialog. */
+        function isFormCheck(error) {
+            return error.status === 409 || (error.status === 422 && typeof error.detail === 'string');
+        }
+
+        function fail(message) {
+            alertModal({ messageHtml: escapeHtml(message) });
+        }
+
+        // A check clears on the next change to what the form holds.
+        function clearOnChange(container, ...ids) {
+            ['input', 'change'].forEach(type =>
+                container.addEventListener(type, () => ids.forEach(clearFormMessage)));
+        }
+
         async function refresh() {
             try {
                 // Who and which bags first: both views are drawn from them.
@@ -907,7 +912,7 @@
                 updated = await requestJson(`/api/packing-list-days/${dayId}/bags/${bagId}`, { method: 'PUT', body: { checked: box.checked } });
             } catch (error) {
                 console.error('Error saving bag:', error);
-                alert('Failed to save. The list has been put back the way it was saved.');
+                fail('Failed to save. The list has been put back the way it was saved.');
                 pending -= 1;
                 await loadDays();
                 return;
@@ -937,7 +942,7 @@
                 updated = await requestJson(dayItemUrl(dayId, item), { method: 'PUT', body: { checked: box.checked } });
             } catch (error) {
                 console.error('Error saving check:', error);
-                alert('Failed to save. The list has been put back the way it was saved.');
+                fail('Failed to save. The list has been put back the way it was saved.');
                 pending -= 1;
                 await loadDays();
                 return;
@@ -986,11 +991,16 @@
                 // Nothing would change: every item packed and every bag grabbed.
                 if (!day || day.total === 0
                     || (day.checked === day.total && day.bags_checked === day.bags_total)) return;
-                if (!confirm(`Check everything on ${day.name} for ${formatLongDate(day.date)}?`)) return;
+                const confirmed = await confirmModal({
+                    title: 'Check all',
+                    messageHtml: `Check everything on <strong>${escapeHtml(day.name)}</strong> for ${escapeHtml(formatLongDate(day.date))}?`,
+                    confirmLabel: 'Check',
+                });
+                if (!confirmed) return;
                 try {
                     replaceDay(await requestJson(`/api/packing-list-days/${day.id}/check-all`, { method: 'POST' }));
                 } catch (error) {
-                    alert('Failed to check everything');
+                    fail('Failed to check everything');
                     return;
                 }
                 renderDays();
@@ -1004,11 +1014,16 @@
 
             if (reset) {
                 if (day.checked === 0 && !day.bags_checked) return;
-                if (!confirm(`Uncheck everything on ${day.name} for ${formatLongDate(day.date)}?`)) return;
+                const confirmed = await confirmModal({
+                    title: 'Uncheck all',
+                    messageHtml: `Uncheck everything on <strong>${escapeHtml(day.name)}</strong> for ${escapeHtml(formatLongDate(day.date))}?`,
+                    confirmLabel: 'Uncheck',
+                });
+                if (!confirmed) return;
                 try {
                     replaceDay(await requestJson(`/api/packing-list-days/${day.id}/reset`, { method: 'POST' }));
                 } catch (error) {
-                    alert('Failed to uncheck everything');
+                    fail('Failed to uncheck everything');
                     return;
                 }
                 renderDays();
@@ -1025,12 +1040,12 @@
                 ? ` It also comes off ${escapeHtml(joinNames(events.map(e => e.title)))} on that day.`
                 : '';
             const confirmed = isTemplated(day)
-                ? await openConfirmModal({
+                ? await confirmModal({
                     title: 'Remove from day',
                     messageHtml: `Take ${name} off ${escapeHtml(formatLongDate(day.date))}? The packing list template itself stays.${alsoOff}`,
                     confirmLabel: 'Remove',
                 })
-                : await openConfirmModal({
+                : await confirmModal({
                     title: 'Delete packing list',
                     messageHtml: `Delete ${name}? Its items go with it.`,
                     confirmLabel: 'Delete',
@@ -1039,36 +1054,11 @@
             try {
                 await requestJson(`/api/packing-list-days/${day.id}`, { method: 'DELETE' });
             } catch (error) {
-                alert('Failed to remove it from the day');
+                fail('Failed to remove it from the day');
                 return;
             }
             openDays.delete(day.id);
             await refresh();
-        });
-
-        /* Ask in `#confirm-modal-overlay`: resolves true on the confirm button,
-           false on Cancel. `messageHtml` is inserted as markup, so every name
-           in it must already be escaped. */
-        let resolveConfirm = null;
-        function openConfirmModal({ title, messageHtml, confirmLabel }) {
-            document.getElementById('confirm-modal-title').textContent = title;
-            document.getElementById('confirm-modal-message').innerHTML = messageHtml;
-            document.getElementById('btn-confirm-modal-confirm').textContent = confirmLabel;
-            showModalOverlay('confirm-modal-overlay');
-            return new Promise(resolve => { resolveConfirm = resolve; });
-        }
-
-        function closeConfirmModal(answer) {
-            hideModalOverlay('confirm-modal-overlay');
-            const resolve = resolveConfirm;
-            resolveConfirm = null;
-            if (resolve) resolve(answer);
-        }
-
-        document.getElementById('btn-confirm-modal-confirm').addEventListener('click', () => closeConfirmModal(true));
-        document.getElementById('btn-confirm-modal-cancel').addEventListener('click', () => closeConfirmModal(false));
-        document.getElementById('confirm-modal-overlay').addEventListener('click', (e) => {
-            if (e.target.id === 'confirm-modal-overlay') closeConfirmModal(false);
         });
 
         // Open a day's card and bring it into view: where "Add to a Day" lands.
@@ -1120,7 +1110,7 @@
                     body: { scope: chosen.value },
                 }));
             } catch (error) {
-                alert('Failed to resync with the template');
+                fail('Failed to resync with the template');
                 return;
             }
             renderDays();
@@ -1141,6 +1131,7 @@
         function openDayEditModal(day) {
             editingDay = day;
             clearFormMessage('day-edit-message');
+            clearFormMessage('day-edit-actions-message');
             document.getElementById('day-edit-form').reset();
             // A templateless day's name is its own to change; a templated
             // day is called what its template is called.
@@ -1204,7 +1195,8 @@
                     showFormMessage('day-edit-message', alreadyOnMessage(day.name, date));
                     return;
                 }
-                alert(error.message || 'Failed to save the packing list');
+                if (isFormCheck(error)) showFormMessage('day-edit-actions-message', error.message);
+                else fail('Failed to save the packing list');
                 return;
             }
             closeDayEditModal();
@@ -1213,6 +1205,7 @@
         });
 
         document.getElementById('day-edit-date').addEventListener('change', () => clearFormMessage('day-edit-message'));
+        clearOnChange(document.getElementById('day-edit-form'), 'day-edit-actions-message');
         document.getElementById('btn-cancel-day-edit').addEventListener('click', closeDayEditModal);
         document.getElementById('day-edit-modal-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'day-edit-modal-overlay') closeDayEditModal();
@@ -1327,6 +1320,7 @@
             itemContext = context;
             const { scope, item } = context;
             itemForm.reset();
+            clearFormMessage('item-actions-message');
             nameInput.setCustomValidity('');
             nameAutocomplete.close();
             bagAutocomplete.close();
@@ -1391,7 +1385,8 @@
             try {
                 saved = await saveItem(payload);
             } catch (error) {
-                alert(error.message || 'Failed to save item');
+                if (isFormCheck(error)) showFormMessage('item-actions-message', error.message);
+                else fail('Failed to save item');
                 return;
             }
             // A typed bag name may have made a new bag. Which one it found
@@ -1421,28 +1416,44 @@
         deleteItemBtn.addEventListener('click', async () => {
             if (!itemContext || !itemContext.item) return;
             const { scope, item } = itemContext;
+            const name = `<strong>${escapeHtml(item.name)}</strong>`;
             try {
                 if (scope === 'day') {
                     const day = itemContext.day;
-                    const message = item.source === 'template'
-                        ? `Take ${item.name} off ${formatLongDate(day.date)}? The packing list template keeps it.`
-                        : `Delete ${item.name} from ${formatLongDate(day.date)}?`;
-                    if (!confirm(message)) return;
+                    const date = escapeHtml(formatLongDate(day.date));
+                    const confirmed = item.source === 'template'
+                        ? await confirmModal({
+                            title: 'Remove item',
+                            messageHtml: `Take ${name} off ${date}? The packing list template keeps it.`,
+                            confirmLabel: 'Remove',
+                        })
+                        : await confirmModal({
+                            title: 'Delete item',
+                            messageHtml: `Delete ${name} from ${date}?`,
+                            confirmLabel: 'Delete',
+                        });
+                    if (!confirmed) return;
                     replaceDay(await requestJson(dayItemUrl(day.id, item), { method: 'DELETE' }));
                     closeItemModal();
                     renderDays();
                     return;
                 }
-                if (!confirm(`Delete ${item.name}? It comes off every day ${itemContext.template.name} is on.`)) return;
+                const confirmed = await confirmModal({
+                    title: 'Delete item',
+                    messageHtml: `Delete ${name}? It comes off every day ${escapeHtml(itemContext.template.name)} is on.`,
+                    confirmLabel: 'Delete',
+                });
+                if (!confirmed) return;
                 await requestJson(`/api/packing-list-templates/${itemContext.template.id}/items/${item.id}`, { method: 'DELETE' });
             } catch (error) {
-                alert('Failed to delete item');
+                fail('Failed to delete item');
                 return;
             }
             closeItemModal();
             await refresh();
         });
 
+        clearOnChange(itemForm, 'item-actions-message');
         document.getElementById('btn-cancel-item').addEventListener('click', closeItemModal);
         document.getElementById('item-modal-overlay').addEventListener('click', (e) => {
             if (e.target.id === 'item-modal-overlay') closeItemModal();
@@ -1474,7 +1485,7 @@
                     await requestJson(`/api/packing-list-template-schedules/${template.schedule.id}`,
                         { method: 'PUT', body: { active: !template.schedule.active } });
                 } catch (error) {
-                    alert('Failed to update the schedule');
+                    fail('Failed to update the schedule');
                     return;
                 }
                 await refresh();
@@ -1516,7 +1527,7 @@
                     });
                 } catch (error) {
                     console.error('Error reordering items:', error);
-                    alert('Failed to save the new order');
+                    fail('Failed to save the new order');
                 }
                 // Either way: on success to pick up the new owner or bag, on
                 // failure to put back what the server actually has.
@@ -1562,7 +1573,7 @@
                     }));
                 } catch (error) {
                     console.error('Error reordering items:', error);
-                    alert('Failed to save the new order');
+                    fail('Failed to save the new order');
                     // Put back what the server actually has.
                     await loadDays();
                     return;
@@ -1649,6 +1660,7 @@
                         <label for="bag-edit-parent">Goes in</label>
                         <select id="bag-edit-parent">${goesInOptionsHtml(b.id, householdParent)}</select>
                     </div>
+                    <div class="form-message" id="bag-edit-message" role="alert" hidden></div>
                     <div class="manage-row-actions">
                         <button type="button" class="btn btn--sm" data-action="save">Save</button>
                         <button type="button" class="btn btn--sm" data-action="cancel">Cancel</button>
@@ -1706,17 +1718,26 @@
                     const innerNote = inner.length
                         ? `, and ${inner.join(', ')} will no longer go inside anything`
                         : '';
-                    if (!confirm(`Delete ${bag ? bag.name : 'this bag'}? What's in it moves to "${NO_BAG}"${innerNote} — nothing is lost.`)) return;
+                    const confirmed = await confirmModal({
+                        title: 'Delete bag',
+                        messageHtml: `Delete <strong>${escapeHtml(bag ? bag.name : '')}</strong>? What's in it moves to "${escapeHtml(NO_BAG)}"${escapeHtml(innerNote)} — nothing is lost.`,
+                        confirmLabel: 'Delete',
+                    });
+                    if (!confirmed) return;
                     await requestJson(`/api/packing-list-bags/${bagId}`, { method: 'DELETE' });
                 }
             } catch (error) {
-                // A 409 says whose bag already has the name.
-                alert(error.message || 'Failed to update the bag.');
+                // A 409 says whose bag already has the name; it reads in the
+                // row being edited.
+                if (action === 'save' && isFormCheck(error)) showFormMessage('bag-edit-message', error.message);
+                else fail('Failed to update the bag.');
                 return;
             }
             editingBagId = null;
             await afterBagChange();
         });
+
+        clearOnChange(document.getElementById('bag-manage-list'), 'bag-edit-message');
 
         // ── Change bags (one packing list's) ──
         //
@@ -1821,6 +1842,7 @@
                         <label for="list-bag-parent-${bag.id}">Goes in</label>
                         <select id="list-bag-parent-${bag.id}" data-field="parent_bag_id" ${disabled}>${goesInOptionsHtml(bag.id, parentOf)}</select>
                     </div>
+                    <div class="form-message" id="list-bag-message-${bag.id}" role="alert" hidden></div>
                     <div class="manage-row-actions">${actions}</div>
                 </div>`;
             }).join('');
@@ -1875,21 +1897,25 @@
         });
 
         /* What Save will ask before it removes anything: one line per bag
-         * taken off, saying where its items go. */
+         * taken off, its name in bold, saying where its items go. */
         function removalQuestion(removed) {
             const { scope, list } = bagsListContext;
-            const where = scope === 'day' ? 'on this day only' : `on ${list.name} and every day it's on`;
+            const where = escapeHtml(scope === 'day' ? 'on this day only' : `on ${list.name} and every day it's on`);
+            const noBag = escapeHtml(NO_BAG);
             const lines = removed.map(bag => {
                 const count = list.items.filter(i => i.bag_id === bag.id).length;
                 const what = count === 0
                     ? 'Anything in it moves'
                     : `The ${itemCount(count)} in it ${count === 1 ? 'moves' : 'move'}`;
+                const name = `<strong>${escapeHtml(bagLabel(bag.id) || bag.name)}</strong>`;
                 return removed.length === 1
-                    ? `Remove ${bagLabel(bag.id) || bag.name} from this ${scope === 'day' ? 'day' : 'template'}? ${what} to "${NO_BAG}" ${where} — nothing is taken off the list.`
-                    : `${bagLabel(bag.id) || bag.name}: ${what.toLowerCase()} to "${NO_BAG}"`;
+                    ? `Remove ${name} from this ${scope === 'day' ? 'day' : 'template'}? ${what} to "${noBag}" ${where} — nothing is taken off the list.`
+                    : `${name}: ${what.toLowerCase()} to "${noBag}"`;
             });
-            if (removed.length === 1) return lines[0];
-            return `Remove ${removed.length} bags from this ${scope === 'day' ? 'day' : 'template'}? Nothing is taken off the list; ${where}:\n\n${lines.join('\n')}`;
+            const messageHtml = removed.length === 1
+                ? lines[0]
+                : `Remove ${removed.length} bags from this ${scope === 'day' ? 'day' : 'template'}? Nothing is taken off the list; ${where}:<br><br>${lines.join('<br>')}`;
+            return { title: removed.length === 1 ? 'Remove bag' : 'Remove bags', messageHtml, confirmLabel: 'Remove' };
         }
 
         document.getElementById('btn-save-list-bags').addEventListener('click', async () => {
@@ -1897,17 +1923,24 @@
             const { scope, list } = bagsListContext;
             const listBags = list.bags || [];
             const removed = listBags.filter(b => bagAsEdited(b).remove);
-            if (removed.length && !confirm(removalQuestion(removed))) return;
+            if (removed.length && !(await confirmModal(removalQuestion(removed)))) return;
             const removedIds = new Set(removed.map(b => b.id));
+            // Which bag is being written, and which are done, so a refusal
+            // can be shown on its own row and the rest kept as entered.
+            let writing = null;
+            const written = new Set();
             try {
                 // Removals first: taking a bag off sends the bags in it to
                 // the top level, and an edit to one of those must win.
                 for (const bag of removed) {
+                    writing = bag.id;
                     await requestJson(`${bagsListUrl(bag.id)}/remove`, { method: 'POST' });
+                    written.add(bag.id);
                 }
                 for (const bag of listBags) {
                     const edit = bagEdits.get(bag.id);
                     if (!edit || removedIds.has(bag.id)) continue;
+                    writing = bag.id;
                     if (edit.reset) {
                         await requestJson(`${bagsListUrl(bag.id)}/reading`, { method: 'DELETE' });
                     } else if (edit.dirty) {
@@ -1917,10 +1950,28 @@
                             body: { owner_id: edit.owner_id, parent_bag_id: edit.parent_bag_id },
                         });
                     }
+                    written.add(bag.id);
                 }
             } catch (error) {
-                // Whatever was written stays written; show the list as it now is.
-                alert(error.message || 'Failed to change the bags.');
+                // Whatever was written stays written.
+                if (isFormCheck(error)) {
+                    // Refused on one bag (an owner that clashes, a bag inside
+                    // itself): the form stays open on the list as it now
+                    // reads, keeping the edits not yet written, and says so
+                    // on that bag's row.
+                    written.forEach(id => bagEdits.delete(id));
+                    await refresh();
+                    const current = scope === 'day'
+                        ? days.find(d => d.id === list.id)
+                        : templateById(list.id);
+                    if (current) {
+                        bagsListContext.list = current;
+                        renderBagsListModal();
+                        showFormMessage(`list-bag-message-${writing}`, error.message);
+                        return;
+                    }
+                }
+                fail('Failed to change the bags.');
                 await refresh();
                 closeBagsListModal();
                 return;
@@ -1942,7 +1993,8 @@
             try {
                 await requestJson('/api/packing-list-bags', { method: 'POST', body: { name } });
             } catch (error) {
-                alert(error.status === 409 ? error.message : 'Failed to add the bag.');
+                if (isFormCheck(error)) showFormMessage('bag-add-message', error.message);
+                else fail('Failed to add the bag.');
                 return;
             }
             input.value = '';
@@ -1953,8 +2005,11 @@
             hideModalOverlay('bags-modal-overlay');
         }
 
+        clearOnChange(document.getElementById('bag-add-form'), 'bag-add-message');
+
         document.getElementById('btn-manage-bags').addEventListener('click', () => {
             editingBagId = null;
+            clearFormMessage('bag-add-message');
             renderBagManageList();
             showModalOverlay('bags-modal-overlay');
         });
@@ -2014,6 +2069,7 @@
             // Folded away: a schedule that already exists is described on the
             // row, and the controls open when Repeats is turned on.
             scheduleDetails.open = false;
+            clearFormMessage('schedule-actions-message');
             showScheduleMode();
             showModalOverlay('schedule-modal-overlay');
         }
@@ -2039,7 +2095,12 @@
             try {
                 if (!repeatsBox.checked) {
                     if (!existing) return;
-                    if (!confirm(`Stop repeating ${template.name}? Days it has already added stay.`)) return;
+                    const confirmed = await confirmModal({
+                        title: 'Remove schedule',
+                        messageHtml: `Stop repeating <strong>${escapeHtml(template.name)}</strong>? Days it has already added stay.`,
+                        confirmLabel: 'Remove',
+                    });
+                    if (!confirmed) return;
                     await requestJson(`/api/packing-list-template-schedules/${existing.id}`, { method: 'DELETE' });
                 } else {
                     const payload = {
@@ -2058,9 +2119,8 @@
                 // The rule is inside "View schedule"; open it so the fix is
                 // in front of whoever has to make it.
                 scheduleDetails.open = true;
-                alert(error.status === 422 && typeof error.detail === 'string'
-                    ? error.detail
-                    : 'Failed to update the schedule. Check the dates and the days it repeats on.');
+                if (isFormCheck(error)) showFormMessage('schedule-actions-message', error.message);
+                else fail('Failed to update the schedule. Check the dates and the days it repeats on.');
                 return;
             }
             closeScheduleModal();
@@ -2068,6 +2128,7 @@
             await refresh();
         });
 
+        clearOnChange(document.getElementById('schedule-repeat-form'), 'schedule-actions-message');
         document.querySelectorAll('[data-cancel-schedule]').forEach(button =>
             button.addEventListener('click', closeScheduleModal));
         document.getElementById('schedule-modal-overlay').addEventListener('click', (e) => {
@@ -2140,26 +2201,13 @@
             updatePackHint();
         }
 
-        /* A refusal reported in place: the form's `.form-message`, cleared by
-           the next change to what it is about. */
-        function showFormMessage(id, text) {
-            const message = document.getElementById(id);
-            message.textContent = text;
-            message.hidden = false;
-            // The form scrolls, and a refusal nobody can see is no refusal.
-            message.scrollIntoView({ block: 'center' });
-        }
-
-        function clearFormMessage(id) {
-            document.getElementById(id).hidden = true;
-        }
-
         function alreadyOnMessage(name, date) {
             return `${joinNames([name])} is already on ${formatLongDate(date)}.`;
         }
 
         function openAddDayModal() {
             clearFormMessage('day-add-message');
+            clearFormMessage('day-add-actions-message');
             addForm.reset();
             typedName = '';
             sourceSelect.innerHTML = templateOptionsHtml();
@@ -2190,6 +2238,7 @@
         addForm.querySelectorAll('input[name="day-add-mode"], input[name="day-add-start"]').forEach(radio =>
             radio.addEventListener('change', () => clearFormMessage('day-add-message')));
         addPackDays.addEventListener('input', updatePackHint);
+        clearOnChange(addForm, 'day-add-actions-message');
 
         addForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -2219,7 +2268,8 @@
                     showFormMessage('day-add-message', alreadyOnMessage(template.name, payload.date));
                     return;
                 }
-                alert(error.message || 'Failed to add the packing list');
+                if (isFormCheck(error)) showFormMessage('day-add-actions-message', error.message);
+                else fail('Failed to add the packing list');
                 return;
             }
             closeAddDayModal();
@@ -2269,6 +2319,8 @@
         function openTemplateModal(template) {
             editingTemplate = template;
             templateForm.reset();
+            clearFormMessage('template-name-message');
+            clearFormMessage('template-actions-message');
             templateSource.innerHTML = templateOptionsHtml();
             document.getElementById('template-start-from').style.display = !template && templates.length ? '' : 'none';
             showTemplateStart();
@@ -2303,7 +2355,13 @@
                     ? await requestJson(`/api/packing-list-templates/${editingTemplate.id}`, { method: 'PUT', body: payload })
                     : await requestJson('/api/packing-list-templates', { method: 'POST', body: payload });
             } catch (error) {
-                alert(error.status === 409 ? 'A packing list template with that name already exists.' : (error.message || 'Failed to save the packing list template'));
+                if (error.status === 409) {
+                    showFormMessage('template-name-message', 'A packing list template with that name already exists.');
+                } else if (isFormCheck(error)) {
+                    showFormMessage('template-actions-message', error.message);
+                } else {
+                    fail('Failed to save the packing list template');
+                }
                 return;
             }
             const isNew = !editingTemplate;
@@ -2325,17 +2383,23 @@
             const onDays = n
                 ? ` The ${n === 1 ? 'day' : `${n} days`} it's on ${n === 1 ? 'keeps its' : 'keep their'} packing ${n === 1 ? 'list' : 'lists'} as ${n === 1 ? 'it is' : 'they are'} now.`
                 : '';
-            if (!confirm(`Delete ${template.name}?${onDays}`)) return;
+            const confirmed = await confirmModal({
+                title: 'Delete packing list template',
+                messageHtml: `Delete <strong>${escapeHtml(template.name)}</strong>?${escapeHtml(onDays)}`,
+                confirmLabel: 'Delete',
+            });
+            if (!confirmed) return;
             try {
                 await requestJson(`/api/packing-list-templates/${template.id}`, { method: 'DELETE' });
             } catch (error) {
-                alert('Failed to delete packing list template');
+                fail('Failed to delete packing list template');
                 return;
             }
             closeTemplateModal();
             await refresh();
         });
 
+        clearOnChange(templateForm, 'template-name-message', 'template-actions-message');
         document.getElementById('btn-add-template').addEventListener('click', () => openTemplateModal(null));
         document.getElementById('btn-cancel-template').addEventListener('click', closeTemplateModal);
         document.getElementById('template-modal-overlay').addEventListener('click', (e) => {

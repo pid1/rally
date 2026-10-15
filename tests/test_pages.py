@@ -108,7 +108,6 @@ NOT_YET_ON_SHARED_DIALOG = {
     "calendar.html",
     "meal_edit_modal.js",
     "meal_planner_previous.html",
-    "packing_lists.html",
     "settings.html",
     "shopping.html",
     "todo.html",
@@ -345,16 +344,32 @@ def test_the_event_modal_asks_what_to_pack(client):
     assert "checked" not in span
 
 
-def test_packing_lists_confirm_in_a_modal_that_can_bold(client):
-    """#270: Remove from day / Delete ask in a generic confirmation modal on the
-    shared chassis, not confirm(), so the list's name can be bold."""
+def test_packing_lists_asks_and_refuses_through_the_shared_dialog(client):
+    """#272: Packing Lists asks in the shared dialog, with the name in bold, and
+    its own page-level confirmation (#270) is gone. Its form checks read in a
+    `.form-message`; joinNames and the form-message helpers come from
+    dialogs.js rather than copies of their own."""
     html = client.get("/packing-lists").text
-    overlay = html[html.index('id="confirm-modal-overlay"') :]
-    assert 'class="modal-content modal-content--narrow"' in overlay[:200]
-    assert 'id="confirm-modal-title"' in overlay
-    assert 'id="btn-confirm-modal-cancel">Cancel</button>' in overlay
-    assert "openConfirmModal({" in html
+    assert 'id="confirm-modal-overlay"' not in html
+    assert "openConfirmModal" not in html
+    assert html.count('id="dialog-modal-overlay"') == 1
+    assert "function showFormMessage" not in html
+    assert "function clearFormMessage" not in html
+    assert "joinNames" not in (STATIC / "packing_lists.js").read_text()
+    assert html.count("confirmModal({") >= 10
     assert "Take ${day.name} off" not in html
+    for message_id in (
+        "day-add-actions-message",
+        "schedule-actions-message",
+        "template-name-message",
+        "template-actions-message",
+        "day-edit-actions-message",
+        "item-actions-message",
+        "bag-add-message",
+        "bag-edit-message",
+    ):
+        assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
+    assert 'id="list-bag-message-${bag.id}"' in html
 
 
 def test_a_template_already_on_a_date_is_refused_in_place(client):
