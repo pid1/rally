@@ -267,19 +267,19 @@ def test_remove_from_day_asks_with_the_name_in_bold(page):
     card.locator("details.disclosure > summary").first.click()
     card.locator("[data-remove-day]").click()
 
-    assert page.inner_text("#confirm-modal-title").lower() == "remove from day"
-    assert page.inner_text("#btn-confirm-modal-confirm") == "Remove"
-    assert page.inner_text("#confirm-modal-message strong") == template["name"]
-    assert page.inner_text("#confirm-modal-message").endswith(
+    assert page.inner_text("#dialog-modal-title").lower() == "remove from day"
+    assert page.inner_text("#btn-dialog-modal-confirm") == "Remove"
+    assert page.inner_text("#dialog-modal-message strong") == template["name"]
+    assert page.inner_text("#dialog-modal-message").endswith(
         f'It also comes off "{title}" on that day.'
     )
 
-    page.click("#btn-confirm-modal-cancel")
-    assert not page.is_visible("#confirm-modal-overlay")
+    page.click("#btn-dialog-modal-cancel")
+    assert not page.is_visible("#dialog-modal-overlay")
     assert len(_days_for(page, template["id"])) == 1
 
     card.locator("[data-remove-day]").click()
-    page.click("#btn-confirm-modal-confirm")
+    page.click("#btn-dialog-modal-confirm")
     page.wait_for_timeout(500)
     assert _days_for(page, template["id"]) == []
 

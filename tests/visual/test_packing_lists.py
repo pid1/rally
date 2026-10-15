@@ -133,20 +133,44 @@ def packing_list(live_server):
                 pass
 
 
-def open_page(browser, url, viewport=DESKTOP, dialogs=None):
-    """Open a page that accepts every dialog, recording each message in
-    dialogs when one is passed."""
+# The page asks and reports in Rally's own dialog (#272), not the browser's.
+# Answer it the way Playwright used to answer confirm(): keep what it said and
+# press its confirm button — unless a test sets `__answerDialogs` to false to
+# look at the dialog itself.
+ANSWER_DIALOGS_JS = """
+(() => {
+  window.__dialogs = [];
+  window.__answerDialogs = true;
+  document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('dialog-modal-overlay');
+    if (!overlay) return;
+    new MutationObserver(() => {
+      if (overlay.style.display !== 'flex') return;
+      window.__dialogs.push(document.getElementById('dialog-modal-message').textContent);
+      if (window.__answerDialogs) document.getElementById('btn-dialog-modal-confirm').click();
+    }).observe(overlay, { attributes: true, attributeFilter: ['style'] });
+  });
+})();
+"""
+
+
+def open_page(browser, url, viewport=DESKTOP):
+    """Open a page that answers every dialog with its confirm button."""
     context = browser.new_context(viewport=viewport)
     page = context.new_page()
-
-    def accept(dialog):
-        if dialogs is not None:
-            dialogs.append(dialog.message)
-        dialog.accept()
-
-    page.on("dialog", accept)
+    page.add_init_script(ANSWER_DIALOGS_JS)
     page.goto(url, wait_until="networkidle")
     return context, page
+
+
+def dialog_messages(page) -> list[str]:
+    """What the page's dialog has said since it loaded, in order."""
+    return page.evaluate("window.__dialogs")
+
+
+def look_at_dialogs(page):
+    """Leave the dialog open, to read it and answer it by hand."""
+    page.evaluate("window.__answerDialogs = false")
 
 
 def sections(root) -> dict[str, list[str]]:
@@ -526,8 +550,7 @@ def test_the_checkbox_hit_area_is_a_full_target_on_a_phone(browser, live_server,
 
 def test_check_all_sits_before_uncheck_all_and_asks_first(browser, live_server, packing_list):
     first, second = packing_list["days"]
-    dialogs = []
-    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         target = open_card(page, first["id"])
         buttons = target.locator(".packing-list-day-actions button").all_inner_texts()
@@ -537,9 +560,8 @@ def test_check_all_sits_before_uncheck_all_and_asks_first(browser, live_server, 
             f"""document.querySelector('[data-day-card="{first["id"]}"] .packing-list-progress')
                 .textContent === 'All 4 packed'"""
         )
-        assert dialogs == [dialogs[0]] and dialogs[0].startswith(
-            "Check everything on Browser test trip"
-        )
+        said = dialog_messages(page)
+        assert len(said) == 1 and said[0].startswith("Check everything on Browser test trip")
     finally:
         context.close()
 
@@ -566,10 +588,11 @@ def test_uncheck_all_and_remove_live_in_the_card(browser, live_server, packing_l
         # Re-rendering keeps the card open.
         assert card(page, first["id"]).get_by_label("Packed Towel").is_visible()
 
+        look_at_dialogs(page)
         card(page, first["id"]).get_by_role("button", name="Remove from day").click()
-        # Asked in the page's own modal, the list's name in bold.
-        assert page.inner_text("#confirm-modal-message strong") == "Browser test trip"
-        page.click("#btn-confirm-modal-confirm")
+        # Asked in Rally's own dialog, the list's name in bold.
+        assert page.inner_text("#dialog-modal-message strong") == "Browser test trip"
+        page.click("#btn-dialog-modal-confirm")
         card(page, first["id"]).wait_for(state="detached")
         assert card(page, second["id"]).count() == 1
     finally:
@@ -1402,8 +1425,7 @@ def test_unchecking_repeats_turns_the_button_into_remove_schedule(
     browser, live_server, packing_list
 ):
     _repeat_later(live_server, packing_list)
-    dialogs = []
-    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         open_schedule(page, packing_list["id"])
         page.uncheck("#schedule-repeats")
@@ -1416,7 +1438,7 @@ def test_unchecking_repeats_turns_the_button_into_remove_schedule(
             f"""!document.querySelector(
                 '[data-template-row="{packing_list["id"]}"] > .editable-item-content .title-indicator')"""
         )
-        assert any(m.startswith("Stop repeating Browser test trip?") for m in dialogs)
+        assert any(m.startswith("Stop repeating Browser test trip?") for m in dialog_messages(page))
     finally:
         context.close()
 
@@ -1482,8 +1504,7 @@ def test_a_deleted_templates_day_stays_and_says_it_has_no_template(browser, live
         "/api/packing-list-days",
         {"packing_list_template_id": gone["id"], "date": in_days(21)},
     )
-    dialogs: list[str] = []
-    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         title = card(page, day["id"]).locator(
             ":scope > .editable-item-content .editable-item-title"
@@ -1494,7 +1515,7 @@ def test_a_deleted_templates_day_stays_and_says_it_has_no_template(browser, live
         with page.expect_response("**/api/packing-list-templates/*"):
             page.click("#btn-delete-template")
         page.wait_for_load_state("networkidle")
-        assert dialogs[-1] == (
+        assert dialog_messages(page)[-1] == (
             "Delete Browser test gone? The day it's on keeps its packing list as it is now."
         )
 
@@ -1515,15 +1536,16 @@ def test_a_deleted_templates_day_stays_and_says_it_has_no_template(browser, live
         assert note.startswith('For "Browser test gone" on ') and "template" not in note
         page.click("#btn-cancel-item")
 
+        look_at_dialogs(page)
         kept.locator("[data-remove-day]").click()
-        assert page.inner_text("#confirm-modal-title").lower() == "delete packing list"
-        assert page.inner_text("#btn-confirm-modal-confirm") == "Delete"
-        assert page.inner_text("#confirm-modal-message") == (
+        assert page.inner_text("#dialog-modal-title").lower() == "delete packing list"
+        assert page.inner_text("#btn-dialog-modal-confirm") == "Delete"
+        assert page.inner_text("#dialog-modal-message") == (
             "Delete Browser test gone? Its items go with it."
         )
-        assert page.inner_text("#confirm-modal-message strong") == "Browser test gone"
+        assert page.inner_text("#dialog-modal-message strong") == "Browser test gone"
         with page.expect_response(f"**/api/packing-list-days/{day['id']}"):
-            page.click("#btn-confirm-modal-confirm")
+            page.click("#btn-dialog-modal-confirm")
         card(page, day["id"]).wait_for(state="detached")
     finally:
         context.close()
@@ -1614,7 +1636,7 @@ def open_groups_named(root) -> list[str]:
 
 def test_groups_start_folded_and_stay_as_left_while_on_the_page(browser, live_server, packing_list):
     day = packing_list["days"][0]
-    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=[])
+    context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         target = open_card(page, day["id"], groups=False)
         # Every group folded, each still saying how far along it is.
@@ -2301,17 +2323,23 @@ def test_template_start_from_is_hidden_with_no_templates(browser, live_server):
 
 
 def test_a_taken_name_is_refused_and_the_modal_stays(browser, live_server, packing_list):
-    dialogs = []
-    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         open_add_template(page)
         page.check('input[name="template-start"][value="template"]')
         page.select_option("#template-source", label="Browser test trip")
         page.fill("#template-name", "Browser test trip")
         page.click("#template-modal-overlay button[type=submit]")
-        page.wait_for_timeout(500)
-        assert dialogs == ["A packing list template with that name already exists."]
+        # Said under Name, with the modal kept open and nothing else asked.
+        message = page.locator("#template-name-message")
+        message.wait_for()
+        assert message.inner_text() == "A packing list template with that name already exists."
+        assert message.get_attribute("role") == "alert"
+        assert dialog_messages(page) == []
         assert page.locator("#template-modal-overlay").is_visible()
+        # The next change to the form clears it.
+        page.fill("#template-name", "Browser test trip 2")
+        assert not message.is_visible()
     finally:
         context.close()
 
@@ -2373,8 +2401,7 @@ def test_change_bags_removes_a_bag_from_one_day_and_keeps_its_items(
 ):
     _own_bag(live_server, packing_list)
     first, second = packing_list["days"]
-    dialogs = []
-    context, page = open_page(browser, f"{live_server}/packing-lists", dialogs=dialogs)
+    context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         target = open_card(page, first["id"])
         target.locator("[data-change-day-bags]").click()
@@ -2386,11 +2413,11 @@ def test_change_bags_removes_a_bag_from_one_day_and_keeps_its_items(
         # Remove only marks the bag; nothing is written until Save.
         modal.get_by_role("button", name="Remove from day").click()
         modal.get_by_text("Removed when you save.").wait_for()
-        assert dialogs == []
+        assert dialog_messages(page) == []
         with page.expect_response("**/remove"):
             modal.get_by_role("button", name="Save").click()
         modal.wait_for(state="hidden")
-        assert dialogs == [
+        assert dialog_messages(page) == [
             f'Remove {BAG} from this day? The 2 items in it move to "No bag" on this day'
             " only — nothing is taken off the list."
         ]
