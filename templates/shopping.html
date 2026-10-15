@@ -72,9 +72,9 @@
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="item-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
+                    <button type="submit" form="item-form" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-item">Cancel</button>
+                    <button type="button" class="btn modal-delete" id="btn-delete-item" style="display:none">Delete</button>
                 </div>
             </div>
             </div>
@@ -96,7 +96,7 @@
                 </form>
                 <div id="store-manage-list"></div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn--secondary" id="btn-close-stores">Done</button>
+                    <button type="button" class="btn" id="btn-close-stores">Done</button>
                 </div>
             </div>
             </div>
@@ -500,7 +500,7 @@
                 <div class="manage-row" data-id="${s.id}">
                     <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
                     <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
-                    <button type="button" class="btn btn--secondary btn--sm" data-action="delete">Delete</button>
+                    <button type="button" class="btn btn--sm" data-action="delete">Delete</button>
                 </div>
             `).join('');
         }
@@ -633,5 +633,4 @@
 
     </script>
 
-    <script src="/static/modal.js?v={{ css_version }}"></script>
 {% endblock %}

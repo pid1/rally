@@ -133,8 +133,8 @@
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="day-add-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-day-add">Cancel</button>
+                    <button type="submit" form="day-add-form" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-day-add">Cancel</button>
                 </div>
             </div>
             </div>
@@ -184,8 +184,8 @@
                          there is nothing to update or remove, so only Cancel
                          shows. -->
                     <div class="modal-actions" id="schedule-repeat-actions">
-                        <button type="submit" class="btn" id="btn-update-schedule">Update schedule</button>
-                        <button type="button" class="btn btn--secondary" data-cancel-schedule>Cancel</button>
+                        <button type="submit" class="btn btn--primary" id="btn-update-schedule">Update schedule</button>
+                        <button type="button" class="btn" data-cancel-schedule>Cancel</button>
                     </div>
                 </form>
             </div>
@@ -219,9 +219,9 @@
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="template-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-template">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-template" style="display:none">Delete</button>
+                    <button type="submit" form="template-form" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-template">Cancel</button>
+                    <button type="button" class="btn modal-delete" id="btn-delete-template" style="display:none">Delete</button>
                 </div>
             </div>
             </div>
@@ -263,8 +263,8 @@
                     </div>
                 </form>
                 <div class="modal-actions">
-                    <button type="submit" form="day-edit-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-day-edit">Cancel</button>
+                    <button type="submit" form="day-edit-form" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-day-edit">Cancel</button>
                 </div>
             </div>
             </div>
@@ -288,8 +288,8 @@
                     <small id="day-resync-modal-help"></small>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn" id="btn-day-resync-confirm" disabled>Resync</button>
-                    <button type="button" class="btn btn--secondary" id="btn-day-resync-cancel">Cancel</button>
+                    <button type="button" class="btn btn--primary" id="btn-day-resync-confirm" disabled>Resync</button>
+                    <button type="button" class="btn" id="btn-day-resync-cancel">Cancel</button>
                 </div>
             </div>
             </div>
@@ -308,7 +308,7 @@
                 <p id="confirm-modal-message"></p>
                 <div class="modal-actions">
                     <button type="button" class="btn" id="btn-confirm-modal-confirm"></button>
-                    <button type="button" class="btn btn--secondary" id="btn-confirm-modal-cancel">Cancel</button>
+                    <button type="button" class="btn" id="btn-confirm-modal-cancel">Cancel</button>
                 </div>
             </div>
             </div>
@@ -355,12 +355,12 @@
                         <textarea id="item-note" rows="2" placeholder="Which one, how many, where it's kept"></textarea>
                     </div>
                     <div class="modal-actions">
-                        <button type="submit" class="btn">Save</button>
+                        <button type="submit" class="btn btn--primary">Save</button>
                         <!-- Add mode only. A submit button, so the required-field
                              check runs for both; `submitter` tells them apart. -->
-                        <button type="submit" class="btn btn--secondary" id="btn-save-add-another">Save &amp; Add Another</button>
-                        <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
-                        <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
+                        <button type="submit" class="btn" id="btn-save-add-another">Save &amp; Add Another</button>
+                        <button type="button" class="btn" id="btn-cancel-item">Cancel</button>
+                        <button type="button" class="btn modal-delete" id="btn-delete-item" style="display:none">Delete</button>
                     </div>
                 </form>
             </div>
@@ -383,7 +383,7 @@
                 </form>
                 <div id="bag-manage-list"></div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn--secondary" id="btn-close-bags">Done</button>
+                    <button type="button" class="btn" id="btn-close-bags">Done</button>
                 </div>
             </div>
             </div>
@@ -402,8 +402,8 @@
                 <p class="page-note" id="list-bags-scope-note"></p>
                 <div id="list-bags-list"></div>
                 <div class="modal-actions">
-                    <button type="button" class="btn" id="btn-save-list-bags">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-close-list-bags">Cancel</button>
+                    <button type="button" class="btn btn--primary" id="btn-save-list-bags">Save</button>
+                    <button type="button" class="btn" id="btn-close-list-bags">Cancel</button>
                 </div>
             </div>
             </div>
@@ -718,7 +718,7 @@
                 : (ended ? '<span class="recurring-paused">Ended</span>' : '');
             const meta = [itemCount(c.item_count), packDaysLabel(c.pack_days_before)];
             const pause = s
-                ? `<button type="button" class="btn btn--sm btn--secondary" data-toggle-schedule="${c.id}">${s.active ? 'Pause' : 'Resume'}</button>`
+                ? `<button type="button" class="btn btn--sm" data-toggle-schedule="${c.id}">${s.active ? 'Pause' : 'Resume'}</button>`
                 : '';
             return `
                 <div class="editable-item template-item" data-template-row="${c.id}">
@@ -729,7 +729,7 @@
                         <div class="editable-item-meta">${escapeHtml(meta.join(' · '))}</div>
                     </div>
                     <div class="editable-item-actions">
-                        <button type="button" class="btn btn--sm btn--secondary" data-schedule="${c.id}">Schedule</button>
+                        <button type="button" class="btn btn--sm" data-schedule="${c.id}">Schedule</button>
                         ${pause}
                         <button type="button" class="btn btn--sm" data-edit-template="${c.id}">Edit</button>
                     </div>
@@ -738,7 +738,7 @@
                         <div class="disclosure-body">
                             ${renderTemplateItems(c)}
                             <div class="editable-item-actions packing-list-day-actions">
-                                <button type="button" class="btn btn--sm btn--secondary" data-add-item="${c.id}">Add Item</button>
+                                <button type="button" class="btn btn--sm" data-add-item="${c.id}">Add Item</button>
                                 ${changeBagsHtml('data-change-template-bags', c.id, c.bags || [])}
                             </div>
                         </div>
@@ -1651,8 +1651,8 @@
                     </div>
                     <div class="manage-row-actions">
                         <button type="button" class="btn btn--sm" data-action="save">Save</button>
-                        <button type="button" class="btn btn--sm btn--secondary" data-action="cancel">Cancel</button>
-                        <button type="button" class="btn btn--sm btn--secondary" data-action="delete">Delete</button>
+                        <button type="button" class="btn btn--sm" data-action="cancel">Cancel</button>
+                        <button type="button" class="btn btn--sm" data-action="delete">Delete</button>
                     </div>
                 </div>`;
             }).join('');
@@ -2356,5 +2356,4 @@
         }, 60000);
     </script>
 
-    <script src="/static/modal.js?v={{ css_version }}"></script>
 {% endblock %}

@@ -12,7 +12,7 @@
             <div class="page-header-row">
                 <h2>Inventory</h2>
                 <div class="page-header-actions">
-                    <button class="btn btn--secondary" id="btn-review" style="display:none">Review</button>
+                    <button class="btn" id="btn-review" style="display:none">Review</button>
                     <button class="btn" id="btn-add-item">Add Item</button>
                 </div>
             </div>
@@ -102,6 +102,7 @@
                     <div class="form-group" id="group-date" style="display:none">
                         <label for="item-date">Refresh on</label>
                         <input type="date" id="item-date">
+                        <div class="form-message" id="item-date-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group" id="group-interval" style="display:none">
                         <label for="item-interval">Every (months)</label>
@@ -118,10 +119,11 @@
                         <small>Blank uses the household default from Settings. 0 means the day itself.</small>
                     </div>
                 </form>
+                <div class="form-message" id="item-message" role="alert" hidden></div>
                 <div class="modal-actions">
-                    <button type="submit" form="item-form" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-item">Cancel</button>
-                    <button type="button" class="btn btn--secondary modal-delete" id="btn-delete-item" style="display:none">Delete</button>
+                    <button type="submit" form="item-form" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-item">Cancel</button>
+                    <button type="button" class="btn modal-delete" id="btn-delete-item" style="display:none">Delete</button>
                 </div>
             </div>
             </div>
@@ -141,17 +143,20 @@
                         <button type="submit" class="btn btn--sm">Add</button>
                     </div>
                     <small>Locations are listed in the order you walk them, not alphabetically.</small>
+                    <div class="form-message" id="location-add-message" role="alert" hidden></div>
                 </form>
                 <div id="location-manage-list"></div>
+                <!-- A rename is asked in a prompt, so its refusal has no field
+                     to sit under and reads above the button instead. -->
+                <div class="form-message" id="location-list-message" role="alert" hidden></div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn--secondary" id="btn-close-locations">Done</button>
+                    <button type="button" class="btn" id="btn-close-locations">Done</button>
                 </div>
             </div>
             </div>
         </div>
     </div>
 
-    <script src="/static/modal.js?v={{ css_version }}"></script>
     <script>
         // ── State ──
         let items = [];
@@ -207,7 +212,14 @@
             });
             if (!r.ok) {
                 const body = await r.json().catch(() => ({}));
-                throw new Error(body.detail || 'Could not save this item.');
+                const error = new Error('Could not save this item.');
+                // A refusal the form can show in place: a 409, or a 422 that
+                // says what is wrong (the refresh-mode checks). Anything else
+                // is a failure.
+                if ((r.status === 409 || r.status === 422) && typeof body.detail === 'string') {
+                    error.formCheck = body.detail;
+                }
+                throw error;
             }
             return r.json();
         }
@@ -376,6 +388,8 @@
             document.getElementById('item-mode').value = 'none';
             document.getElementById('item-interval').value = '6';
             document.getElementById('btn-delete-item').style.display = 'none';
+            clearFormMessage('item-message');
+            clearFormMessage('item-date-message');
             syncModeFields();
             showModalOverlay('item-modal-overlay');
         }
@@ -396,6 +410,8 @@
             document.getElementById('item-remind').value =
                 item.remind_days_before == null ? '' : item.remind_days_before;
             document.getElementById('btn-delete-item').style.display = '';
+            clearFormMessage('item-message');
+            clearFormMessage('item-date-message');
             syncModeFields();
             showModalOverlay('item-modal-overlay');
         }
@@ -447,18 +463,39 @@
             e.preventDefault();
             const data = readModal();
             if (!data.name) return;
+            clearFormMessage('item-message');
+            // A date schedule needs its date; ask for it here rather than
+            // sending a save the server can only refuse.
+            if (data.refresh_mode === 'date' && !data.next_refresh_date) {
+                showFormMessage('item-date-message', 'Enter the date to refresh on.');
+                document.getElementById('item-date').focus();
+                return;
+            }
             try {
                 await saveItem(data);
                 hideModalOverlay('item-modal-overlay');
                 await load();
             } catch (err) {
-                alert(err.message);
+                if (err.formCheck) showFormMessage('item-message', err.formCheck);
+                else await alertModal({ messageHtml: escapeHtml(err.message) });
             }
         });
+        // A check is about what the form holds, so any change to it clears it.
+        ['input', 'change'].forEach(type => document.getElementById('item-form')
+            .addEventListener(type, () => {
+                clearFormMessage('item-message');
+                clearFormMessage('item-date-message');
+            }));
 
         document.getElementById('btn-delete-item').addEventListener('click', async () => {
             if (!editingItemId) return;
-            if (!confirm('Delete this item?')) return;
+            const item = items.find(i => i.id === editingItemId);
+            const confirmed = await confirmModal({
+                title: 'Delete item',
+                messageHtml: `Delete <strong>${escapeHtml(item ? item.name : '')}</strong>?`,
+                confirmLabel: 'Delete',
+            });
+            if (!confirmed) return;
             await fetch(`/api/preparedness/items/${editingItemId}`, { method: 'DELETE' });
             hideModalOverlay('item-modal-overlay');
             await load();
@@ -507,6 +544,8 @@
         });
 
         document.getElementById('btn-manage-locations').addEventListener('click', () => {
+            clearFormMessage('location-add-message');
+            clearFormMessage('location-list-message');
             renderLocationManageList();
             showModalOverlay('location-modal-overlay');
         });
@@ -522,15 +561,22 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, sort_order: locations.length + 1 }),
             });
-            if (r.status === 409) { alert('A location with that name already exists.'); return; }
+            if (r.status === 409) {
+                showFormMessage('location-add-message', 'A location with that name already exists.');
+                return;
+            }
             input.value = '';
             await load();
             renderLocationManageList();
         });
 
+        document.getElementById('location-add-name').addEventListener('input',
+            () => clearFormMessage('location-add-message'));
+
         document.getElementById('location-manage-list').addEventListener('click', async (e) => {
             const rename = e.target.closest('[data-rename]');
             if (rename) {
+                clearFormMessage('location-list-message');
                 const next = prompt('Rename location', rename.dataset.name);
                 if (!next || !next.trim()) return;
                 const r = await fetch(`/api/preparedness/locations/${rename.dataset.rename}`, {
@@ -538,14 +584,24 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: next.trim() }),
                 });
-                if (r.status === 409) { alert('A location with that name already exists.'); return; }
+                if (r.status === 409) {
+                    showFormMessage('location-list-message', 'A location with that name already exists.');
+                    return;
+                }
                 await load();
                 renderLocationManageList();
                 return;
             }
             const remove = e.target.closest('[data-remove]');
             if (remove) {
-                if (!confirm('Delete this location? Its items move to Unassigned.')) return;
+                clearFormMessage('location-list-message');
+                const location = locations.find(l => l.id === parseInt(remove.dataset.remove, 10));
+                const confirmed = await confirmModal({
+                    title: 'Delete location',
+                    messageHtml: `Delete <strong>${escapeHtml(location ? location.name : '')}</strong>? Its items move to Unassigned.`,
+                    confirmLabel: 'Delete',
+                });
+                if (!confirmed) return;
                 await fetch(`/api/preparedness/locations/${remove.dataset.remove}`, { method: 'DELETE' });
                 await load();
                 renderLocationManageList();

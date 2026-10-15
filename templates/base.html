@@ -27,6 +27,10 @@
     <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
     <script src="/static/sidebar.js?v={{ css_version }}" defer></script>
     <script src="/static/inline_separators.js?v={{ css_version }}" defer></script>
+    {#- Not deferred: a page's own script may open a modal or ask a question
+        as it loads, and a deferred script would run after it. Both are small. -#}
+    <script src="/static/modal.js?v={{ css_version }}"></script>
+    <script src="/static/dialogs.js?v={{ css_version }}"></script>
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -45,6 +49,10 @@
     </header>
 
     {% block content %}{% endblock %}
+
+    {#- After the content, so it draws over any page modal: every overlay
+        shares one z-index, and the later one in the document is on top. -#}
+    {% include "_dialog_modal.html" %}
 
     {#- Catches the tap outside the sidebar so it closes the sidebar and
         nothing else, while wheel and touch scrolling pass through to the page:

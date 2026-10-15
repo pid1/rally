@@ -104,7 +104,7 @@
                 <input type="text" id="weather-nws-url" placeholder="https://forecast.weather.gov/MapClick.php?lat=33.085&lon=-97.0542&FcstType=dwml">
                 <small>Search your location at <a href="https://forecast.weather.gov" target="_blank">forecast.weather.gov</a>, then copy the page URL and append <code>&FcstType=dwml</code>.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
 
@@ -147,7 +147,7 @@
                 </div>
             </div>
             <div class="ai-field-actions">
-                <button type="submit" class="btn">Save</button>
+                <button type="submit" class="btn btn--primary">Save</button>
                 <button type="button" class="btn btn--quiet" onclick="openHistoryModal('llm_config')">Version History</button>
             </div>
         </form>
@@ -163,7 +163,7 @@
                 <label>Family Context</label>
                 <textarea id="ai-family-context" rows="12" placeholder="Describe your family, routines, values, and scheduling preferences..."></textarea>
                 <div class="ai-field-actions">
-                    <button type="button" class="btn" onclick="saveAiField('family_context')">Save</button>
+                    <button type="button" class="btn btn--primary" onclick="saveAiField('family_context')">Save</button>
                     <button type="button" class="btn btn--quiet" onclick="openHistoryModal('family_context')">Version History</button>
                 </div>
             </div>
@@ -171,7 +171,7 @@
                 <label>Agent Voice</label>
                 <textarea id="ai-agent-voice" rows="8" placeholder="Describe the tone and personality for Rally's summaries..."></textarea>
                 <div class="ai-field-actions">
-                    <button type="button" class="btn" onclick="saveAiField('agent_voice')">Save</button>
+                    <button type="button" class="btn btn--primary" onclick="saveAiField('agent_voice')">Save</button>
                     <button type="button" class="btn btn--quiet" onclick="openHistoryModal('agent_voice')">Version History</button>
                 </div>
             </div>
@@ -193,7 +193,7 @@
                     <option value="Snacks">Snacks</option>
                 </select>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
 
@@ -208,7 +208,7 @@
                 <input type="text" id="home-location" placeholder="e.g. Highland Village, TX">
                 <small>Where the family lives. Sent to the AI along with your family context, so the daily summary can reason about local conditions. Free text — a town and state is plenty.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
 
@@ -223,7 +223,7 @@
                 <input type="password" id="pushover-app-token" placeholder="Application token">
                 <small>Create an application at <code>pushover.net/apps/build</code>. This token identifies Rally; each person's own key goes on their family member below.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
 
         <div class="page-header-row">
@@ -247,7 +247,7 @@
                 </label>
                 <small>Sent once, when the task is created or handed to somebody new &mdash; to that person only, not the whole family. A task assigned to Everyone pushes to nobody, and recurring instances are never announced.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
 
@@ -264,7 +264,7 @@
                 </label>
                 <small>Add a family-friendly STEM concept to the daily summary, with super-easy, age-appropriate ways to explore it during your day.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
 
@@ -293,7 +293,7 @@
                 <input type="number" id="shopping-notify-settle" min="0" step="1" placeholder="5">
                 <small>Nine items added while walking the pantry is one push, not nine. Rally waits this long after the most recent addition before sending the batch.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
 
@@ -310,7 +310,7 @@
                 </label>
                 <small>When a packing list is on a day this week, The Briefing reminds you to pack it on its packing day and points out unpacked items that tend to run low or are hard to get at the last minute. Nothing is added on days when nothing is coming up.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
 
@@ -351,8 +351,8 @@
                 </label>
                 <small>Adds a <strong>Review</strong> button to the Preparedness page that asks your configured LLM what your kit is missing, using your family context, ages and home location. Off by default: it is a real LLM call, and it is only useful once you have entered a reasonable amount of stock.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
-            <button type="button" class="btn btn--secondary" id="btn-prep-preview">Preview what's due</button>
+            <button type="submit" class="btn btn--primary">Save</button>
+            <button type="button" class="btn" id="btn-prep-preview">Preview what's due</button>
         </form>
         <div id="prep-preview"></div>
     </div>
@@ -371,7 +371,7 @@
                 </label>
                 <small>Adds tonight's games and races with their TV channel and radio station, plus notable events in the next two weeks. Notable events are announced once, not every morning.</small>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
 
         <div class="list-container" id="followed-team-list">
@@ -391,7 +391,7 @@
                     <option value="">Select a timezone</option>
                 </select>
             </div>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn--primary">Save</button>
         </form>
     </div>
     </div>
@@ -436,9 +436,9 @@
                 </div>
 
                 <div class="modal-actions">
-                    <button type="submit" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-member">Cancel</button>
-                    <button type="button" class="btn btn--secondary" id="btn-test-member-pushover" style="display:none;">Send test push</button>
+                    <button type="submit" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-member">Cancel</button>
+                    <button type="button" class="btn" id="btn-test-member-pushover" style="display:none;">Send test push</button>
             </div>
             </form>
             </div>
@@ -495,8 +495,8 @@
                     </div>
                 </div>
                 <div class="modal-actions">
-                    <button type="submit" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-calendar">Cancel</button>
+                    <button type="submit" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-calendar">Cancel</button>
             </div>
             </form>
             </div>
@@ -546,8 +546,8 @@
                     </label>
                 </div>
                 <div class="modal-actions">
-                    <button type="submit" class="btn">Save</button>
-                    <button type="button" class="btn btn--secondary" id="btn-cancel-team">Cancel</button>
+                    <button type="submit" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-team">Cancel</button>
             </div>
             </form>
             </div>
@@ -563,8 +563,8 @@
             <div class="modal-body">
             <div class="history-list" id="history-list"></div>
             <div class="modal-actions">
-                <button type="button" class="btn" id="btn-change-version">Change Version</button>
-                <button type="button" class="btn btn--secondary" id="btn-cancel-history">Cancel</button>
+                <button type="button" class="btn btn--primary" id="btn-change-version">Change Version</button>
+                <button type="button" class="btn" id="btn-cancel-history">Cancel</button>
             </div>
             </div>
         </div>
@@ -671,7 +671,7 @@
                     </div>
                     <div class="editable-item-actions">
                         <button class="btn btn--sm" onclick="openEditMemberModal(${member.id})">Edit</button>
-                        <button class="btn btn--secondary btn--sm" onclick="confirmDeleteMember(${member.id})">Delete</button>
+                        <button class="btn btn--sm" onclick="confirmDeleteMember(${member.id})">Delete</button>
                     </div>
                 </div>
             `).join('');
@@ -881,7 +881,7 @@
                         <div class="assignee-label">${escapeHtml(deviceSummary(device))}</div>
                     </div>
                     <div class="editable-item-actions">
-                        <button class="btn btn--secondary btn--sm" onclick="confirmForgetDevice('${escapeHtml(device.id)}')">Forget</button>
+                        <button class="btn btn--sm" onclick="confirmForgetDevice('${escapeHtml(device.id)}')">Forget</button>
                     </div>
                 </div>`;
             }).join('');
@@ -1225,7 +1225,7 @@
                         </div>
                         <div class="editable-item-actions">
                             <button class="btn btn--sm" onclick="openEditCalendarModal(${cal.id})">Edit</button>
-                            <button class="btn btn--secondary btn--sm" onclick="confirmDeleteCalendar(${cal.id})">Delete</button>
+                            <button class="btn btn--sm" onclick="confirmDeleteCalendar(${cal.id})">Delete</button>
                         </div>
                     </div>
                 `;
@@ -1572,7 +1572,7 @@
                 + '<div class="verify-detail">' + escapeHtml(errorMessage) + '</div>'
                 + '</div>'
                 + '<div class="modal-actions" style="justify-content: center; margin-top: 20px;">'
-                + '<button class="btn btn--secondary" onclick="closeVerifyModal()">Close</button>'
+                + '<button class="btn" onclick="closeVerifyModal()">Close</button>'
                 + '</div>';
         }
 
@@ -1632,7 +1632,7 @@
                         <div class="editable-item-actions">
                             <button class="btn btn--sm" onclick="testFollowedTeam(${team.id})">Test</button>
                             <button class="btn btn--sm" onclick="openEditTeamModal(${team.id})">Edit</button>
-                            <button class="btn btn--secondary btn--sm" onclick="confirmDeleteTeam(${team.id})">Delete</button>
+                            <button class="btn btn--sm" onclick="confirmDeleteTeam(${team.id})">Delete</button>
                         </div>
                     </div>
                 `;
@@ -2141,5 +2141,4 @@
 
     </script>
 
-    <script src="/static/modal.js?v={{ css_version }}"></script>
 {% endblock %}

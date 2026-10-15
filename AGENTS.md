@@ -622,6 +622,7 @@ rally/
 ├── static/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide, and the page scroll lock behind an open modal
+│   ├── dialogs.js           # Rally's own confirm/alert (confirmModal, alertModal), in-place form messages and joinNames(); loaded by base.html
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── inline_separators.js # Marks a quiet button that starts a wrapped line, so the · between quiet buttons never opens a line
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists, optionally fenced to a `scope`
@@ -634,6 +635,7 @@ rally/
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
 ├── templates/
 │   ├── base.html            # The shared layout every page extends: <head>, header, menu button, sidebar
+│   ├── _dialog_modal.html   # The shared dialog (#dialog-modal-overlay), included once by base.html
 │   ├── dashboard.html       # Generated dashboard template
 │   ├── calendar.html        # Month and agenda calendar views
 │   ├── todo.html            # Todo management page
@@ -781,7 +783,7 @@ rally/
   - Scopes mirror overrides: `all` replaces the series' lists and keeps each occurrence's own (deleting ones it makes redundant); `this` writes the occurrence's differences; `following` copies the series' lists to the tail and moves occurrence rows and links on or after the split. The browser sends the occurrence's lists for `this` and applies the form's additions and removals to the series' for the other two (`seriesPackingIds()`), so a list added to one Tuesday never spreads
   - On `/packing-lists` an event-linked day shows ⚭ (`.title-indicator`, `From a calendar event`) and a `For:` line of event titles (`.inline-link` to `/calendar`, joined by ` · `), in the archive too. Its date is locked in Edit (`Set by "…". Change the date on the calendar.`; the API's `422` says the same). `Remove from day` unlinks it from every event (a removal on that occurrence, or the NULL-day link on an `Every day` one), and deleting a template unlinks its days (`unlink_template`)
   - Names in a sentence go through `join_names` / `joinNames()`: straight double quotes, Oxford comma
-  - `Remove from day` / `Delete` on a day entry asks in `#confirm-modal-overlay` (`openConfirmModal({title, messageHtml, confirmLabel})`, a Promise), so the list's name can be bold, which `confirm()` cannot do. Generic on purpose: moving Rally's other `confirm()`s to it (and promoting it to a shared `static/confirm_modal.js`) is follow-up work
+  - `Remove from day` / `Delete` on a day entry asks in `#confirm-modal-overlay` (`openConfirmModal({title, messageHtml, confirmLabel})`, a Promise), so the list's name can be bold, which `confirm()` cannot do. It is being replaced by the shared dialog in `static/dialogs.js` (#272); this page moves to it in its own PR
 - ✅ **Native calendaring** (`/calendar`) — Rally owns events, and shows them
   - One normalized `Occurrence` shape (`src/rally/calendars/`) produced by the native, ICS and CalDAV adapters and merged in one place. `generate.fetch_calendars()` is now a thin caller
   - Fixed four defects the old dict-based read path made unavoidable: events sorted lexicographically by a 12-hour clock string (so 9 AM sorted after 1 PM), all-day events rendered as midnight appointments (a `date` also has `strftime`), a `(date, title)` dedupe key that dropped the second same-named event of a day, and a 7-day window measured in UTC dates
@@ -1010,8 +1012,13 @@ When touching the UI:
 - **Block content that arrived as markup is `.rich-text`; a link inside a line of somebody else's text is `.inline-link` (or `.phone-link`).** `.rich-text` owns the spacing between paragraphs and lists and inherits its size and color, so it is right in a list row and a detail row alike; `.editable-item-multiline` is only the row's typography and goes on the same element. `.link-quiet` is a page-header control with a 44px box, not something that can sit in a sentence.
 - **Text is `--ink`, `--ink-muted` or `--ink-subtle`.** `--rule` and
   `--rule-subtle` are hairlines and fail WCAG AA as text.
-- **Buttons are `.btn` plus `--secondary`, `--quiet`, `--sm`.** Do not add a
-  new button class; Save must look the same everywhere it appears. A quiet
+- **Buttons are `.btn` plus `--primary`, `--quiet`, `--sm`.** Do not add a
+  new button class; Save must look the same everywhere it appears. Plain
+  `.btn` is the outlined button; `.btn--primary` (filled) marks the one
+  button that commits a form or a modal — every full-size Save, the modal
+  commits (`Resync`, `Update schedule`, `Change Version`, `Save Review`, the
+  calendar's scope confirm) and the dialog's confirm and `OK` — and nothing
+  else. `--secondary` is retired. A quiet
   button has no horizontal padding at any size (`.btn--sm.btn--quiet`), and
   two side by side get a `·` between them in a 16px space
   (`.btn--quiet + .btn--quiet`), drawn outside the hit area.
@@ -1021,6 +1028,18 @@ When touching the UI:
   and clipping the dot away would clip the button's focus ring too. In a
   packing list's action row, wrapped lines of quiet buttons stack at their
   44px target with no gap, while a bordered button keeps `--space-2` below it.
+- **Questions and failures go through `static/dialogs.js`, never `confirm()`
+  or `alert()`.** `confirmModal({title, messageHtml, confirmLabel})` asks in
+  the shared `#dialog-modal-overlay` (`templates/_dialog_modal.html`, which
+  `base.html` includes after the content so it draws over any page modal):
+  the action as the title, the thing it touches in bold, the verb and Cancel.
+  `alertModal({messageHtml})` reports a failure with no title and one `OK`.
+  Escape every name in `messageHtml`. A form check (browser-side, or a `409`
+  or string-`422` refusal) and a saved notice are not dialogs: they go in an
+  inline `.form-message` through `showFormMessage(id, text, role)` /
+  `clearFormMessage(id)`, `role` `"alert"` or `"status"`. `base.html` loads
+  `modal.js` and `dialogs.js` on every page, so a page never adds its own tag.
+  `tests/test_pages.py` keeps an allowlist of the pages not yet moved (#272)
 - **Never write `outline: none`.** One `:focus-visible` rule in the base layer
   covers everything.
 - **Every page extends `templates/base.html`.** Never write a `<head>`, a

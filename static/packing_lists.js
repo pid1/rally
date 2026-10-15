@@ -413,9 +413,9 @@
             }).join('');
         const actions = readOnly ? '' : `
             <div class="editable-item-actions packing-list-day-actions">
-                <button type="button" class="btn btn--sm btn--secondary" data-check-all-day="${day.id}">Check All</button>
-                <button type="button" class="btn btn--sm btn--secondary" data-reset-day="${day.id}">Uncheck All</button>
-                <button type="button" class="btn btn--sm btn--secondary" data-add-day-item="${day.id}">Add Item</button>
+                <button type="button" class="btn btn--sm" data-check-all-day="${day.id}">Check All</button>
+                <button type="button" class="btn btn--sm" data-reset-day="${day.id}">Uncheck All</button>
+                <button type="button" class="btn btn--sm" data-add-day-item="${day.id}">Add Item</button>
                 ${changeBagsHtml('data-change-day-bags', day.id, listBags)}
                 <button type="button" class="btn btn--sm btn--quiet" data-remove-day="${day.id}">${isTemplated(day) ? 'Remove from day' : 'Delete'}</button>
                 ${day.changed_count ? `<button type="button" class="btn btn--sm btn--quiet" data-resync-day="${day.id}">Resync with template</button>` : ''}

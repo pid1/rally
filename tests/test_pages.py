@@ -6,6 +6,7 @@ import re
 import pytest
 
 TEMPLATES = pathlib.Path(__file__).resolve().parents[1] / "templates"
+STATIC = TEMPLATES.parent / "static"
 
 
 @pytest.mark.parametrize(
@@ -98,6 +99,96 @@ def test_modals_are_opened_only_through_the_shared_helper():
     assert not offenders, (
         f"modals must open with showModalOverlay() and close with hideModalOverlay(): {offenders}"
     )
+
+
+# Files that still ask with the browser's confirm() or alert(). #272 moves
+# them to the shared dialog one page per PR, each taking its files off this
+# list; the last one deletes the list.
+NOT_YET_ON_SHARED_DIALOG = {
+    "calendar.html",
+    "meal_edit_modal.js",
+    "meal_planner_previous.html",
+    "packing_lists.html",
+    "settings.html",
+    "shopping.html",
+    "todo.html",
+}
+
+
+def _page_sources():
+    return sorted(TEMPLATES.glob("*.html")) + sorted(STATIC.glob("*.js"))
+
+
+def test_questions_and_failures_go_through_the_shared_dialog():
+    """#272 — confirm() and alert() are the browser's, in its font and chrome,
+    and take plain text only. Every question and failure goes through
+    confirmModal() / alertModal() in static/dialogs.js instead."""
+    # A call has an argument; prose about "confirm()" in a comment does not.
+    call = re.compile(r"(?<![\w.])(?:window\.)?(?:confirm|alert)\((?!\))")
+    offenders = sorted(
+        {
+            path.name
+            for path in _page_sources()
+            if path.name not in NOT_YET_ON_SHARED_DIALOG and call.search(path.read_text())
+        }
+    )
+    assert not offenders, f"use confirmModal() / alertModal(), not confirm() / alert(): {offenders}"
+    stale = sorted(
+        name
+        for name in NOT_YET_ON_SHARED_DIALOG
+        if not any(p.name == name and call.search(p.read_text()) for p in _page_sources())
+    )
+    assert not stale, f"moved to the shared dialog; take these off the list: {stale}"
+
+
+def test_every_page_carries_the_shared_dialog(client):
+    """The dialog is in base.html, after the content, so it draws over any page
+    modal, and modal.js and dialogs.js load on every page."""
+    html = client.get("/preparedness").text
+    overlay = html[html.index('id="dialog-modal-overlay"') :]
+    assert 'class="modal-content modal-content--narrow"' in overlay[:200]
+    assert 'class="btn btn--primary" id="btn-dialog-modal-confirm"' in overlay
+    assert 'class="btn" id="btn-dialog-modal-cancel">Cancel</button>' in overlay
+    # Last of the overlays: an overlay later in the document draws on top.
+    overlays = re.findall(r'class="modal-overlay" id="([^"]+)"', html)
+    assert len(overlays) > 1 and overlays[-1] == "dialog-modal-overlay"
+    assert html.count("/static/modal.js") == 1
+    assert html.count("/static/dialogs.js") == 1
+
+
+def test_no_button_is_secondary():
+    """#272 — plain `.btn` is the outlined button now; `--secondary` is retired."""
+    offenders = [p.name for p in _page_sources() if "btn--secondary" in p.read_text()]
+    assert not offenders, f"btn--secondary is retired; use plain btn: {offenders}"
+
+
+def test_every_full_size_save_is_primary():
+    """#272 — the button that commits a form or a modal is `.btn--primary`, so
+    Save looks the same on every page. A compact Save in a Manage row is not
+    the modal's commit and stays plain."""
+    save = re.compile(r'<button[^>]*class="([^"]*)"[^>]*>Save</button>')
+    offenders = [
+        f"{path.name}: {classes}"
+        for path in _page_sources()
+        for classes in save.findall(path.read_text())
+        if "btn--sm" not in classes.split() and "btn--primary" not in classes.split()
+    ]
+    assert not offenders, f"a full-size Save must be btn--primary: {offenders}"
+
+
+def test_preparedness_asks_and_refuses_in_place(client):
+    """#272 — Preparedness asks in the shared dialog with the name in bold, and
+    its form checks read in a `.form-message` rather than an alert."""
+    html = client.get("/preparedness").text
+    for message_id in (
+        "item-message",
+        "item-date-message",
+        "location-add-message",
+        "location-list-message",
+    ):
+        assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
+    assert html.count("confirmModal({") == 2
+    assert "Delete <strong>${escapeHtml(" in html
 
 
 def test_calendar_offers_view_mode_and_range_as_separate_controls():

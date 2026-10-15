@@ -428,10 +428,12 @@ footer {
 }
 
 /* ---- Buttons ----
-   One family, four roles. `.btn` is the outlined default that inverts on
-   hover; `--secondary` is the quieter partner for Cancel and Delete;
-   `--quiet` is borderless for resets and inline links. Size is a modifier,
-   never a new role: Save is the same control everywhere it appears. */
+   One family, three roles and a size. `.btn` is the outlined button every
+   action uses; `--primary` is filled, and marks the one button that commits
+   a form or a modal (Save, a dialog's confirm); `--quiet` is borderless for
+   resets and inline links. `--sm` is a size, never a new role: Save is the
+   same control everywhere it appears. A role is named by its modifier, never
+   by the absence of one. */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -453,17 +455,28 @@ footer {
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 
 .btn:hover:not(:disabled) {
-    background: var(--ink);
-    color: var(--inverse);
-}
-
-.btn--secondary:hover:not(:disabled) {
     background: var(--surface-sunken);
     color: var(--ink);
+}
+
+/* Filled, so the button that does the thing is the one that stands out at
+   rest. Hover keeps the fill and draws a ring a little way outside it — the
+   ring the chosen member color wears in Settings — which is lighter than the
+   keyboard focus ring, so the two stay distinguishable. */
+.btn--primary {
+    background: var(--ink);
+    color: var(--inverse);
+    border-color: var(--ink);
+}
+
+.btn--primary:hover:not(:disabled) {
+    background: var(--ink);
+    color: var(--inverse);
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--ink);
 }
 
 /* Reads as text, so it aligns like text: no horizontal padding, or its
@@ -536,6 +549,14 @@ footer {
     color: var(--ink-subtle);
     border-color: var(--rule);
     cursor: default;
+}
+
+/* A disabled primary keeps a faded fill rather than turning into an outlined
+   button: white on --ink-subtle is still AA (4.54:1). */
+.btn--primary:disabled {
+    background: var(--ink-subtle);
+    border-color: var(--ink-subtle);
+    color: var(--inverse);
 }
 
 /* A quiet link that behaves like `.btn--quiet` but is genuinely a link:
@@ -1071,7 +1092,13 @@ label.weekday-label,
    on top of the box's right edge, so with 4px there it sat over every control
    flush with that edge (Manage Bags' Edit buttons, a full-width field). The
    end padding is wide enough to clear it. A classic scrollbar takes its own
-   space, so there it only adds a little air. */
+   space, so there it only adds a little air.
+
+   The bottom needs a ring's room too. The modal's actions are its last row,
+   and both the focus ring (4px out) and a primary button's hover ring (3px
+   out) were cut off along their bottom edge. The block-end padding clears
+   them, and the matching negative margin gives the space back, so the modal
+   is no taller than before. */
 /* The page holds still behind an open modal: `modal.js` sets this class while
    any overlay is showing. `scrollbar-gutter` keeps the scrollbar's space, so
    on a system with a classic scrollbar the page does not jump sideways when it
@@ -1090,6 +1117,8 @@ html.modal-open {
     min-height: 0;
     padding-inline: var(--space-1) var(--space-3);
     margin-inline-start: calc(-1 * var(--space-1));
+    padding-block-end: var(--space-1);
+    margin-block-end: calc(-1 * var(--space-1));
 }
 
 .modal-scroll::before,

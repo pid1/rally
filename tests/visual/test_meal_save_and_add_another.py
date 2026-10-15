@@ -42,7 +42,7 @@ MEASURE_JS = r"""() => {
     addAnother: box(addAnother),
     addAnotherShown: getComputedStyle(addAnother).display !== 'none',
     actions: box(document.querySelector('.modal-actions')),
-    actionOrder: Array.from(document.querySelectorAll('.modal-actions .btn'))
+    actionOrder: Array.from(document.querySelectorAll('#modal-overlay .modal-actions .btn'))
       .filter((b) => getComputedStyle(b).display !== 'none')
       .map((b) => b.textContent.trim()),
     horizontalOverflow:
