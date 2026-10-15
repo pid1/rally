@@ -110,7 +110,6 @@ NOT_YET_ON_SHARED_DIALOG = {
     "meal_planner_previous.html",
     "settings.html",
     "shopping.html",
-    "todo.html",
 }
 
 
@@ -370,6 +369,35 @@ def test_packing_lists_asks_and_refuses_through_the_shared_dialog(client):
     ):
         assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
     assert 'id="list-bag-message-${bag.id}"' in html
+
+
+def test_tasks_ask_and_refuse_through_the_shared_dialog(client):
+    """#272: Tasks asks before a delete in the shared dialog, naming the task or
+    the recurring task in bold, and a recurring task's start-date refusal reads
+    under Starts rather than in an alert."""
+    html = client.get("/todo").text
+    assert html.count("confirmModal({") == 2
+    assert "title: 'Delete task'" in html
+    assert "title: 'Delete recurring task'" in html
+    assert "Existing generated tasks will remain." in html
+    assert "todos will remain" not in html
+    assert (
+        '<div class="form-message" id="recurring-start-message" role="alert" hidden></div>' in html
+    )
+    # A title of only spaces is refused in place under the title, on both
+    # forms, and the message is cleared every time a modal opens.
+    assert "A title can't be empty." in html
+    for form, message_id in (
+        ("todo", "todo-title-message"),
+        ("recurring", "recurring-title-message"),
+    ):
+        assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
+        assert f"refuseBlankTitle('{form}-title', '{message_id}')" in html
+        assert html.count(f"clearFormMessage('{message_id}');") == 2
+    assert "setCustomValidity" not in html
+    # An empty title is caught by `required`; its bubble gives way to the same
+    # inline message.
+    assert "input.addEventListener('invalid', (e) => {" in html
 
 
 def test_a_template_already_on_a_date_is_refused_in_place(client):

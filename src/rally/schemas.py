@@ -294,6 +294,15 @@ class LLMConfigHistoryResponse(BaseModel):
 # Todos
 
 
+def _refuse_blank_title(value: str | None) -> str | None:
+    """Refuse a title that is only spaces; ``required`` in the form lets one
+    through. Checked on the way in only, so a task already stored with one
+    still lists. The title is kept as typed."""
+    if value is not None and not value.strip():
+        raise ValueError("A title can't be empty.")
+    return value
+
+
 class TodoBase(BaseModel):
     title: str
     description: str | None = None
@@ -303,7 +312,7 @@ class TodoBase(BaseModel):
 
 
 class TodoCreate(TodoBase):
-    pass
+    _title = field_validator("title")(_refuse_blank_title)
 
 
 class TodoUpdate(BaseModel):
@@ -315,6 +324,8 @@ class TodoUpdate(BaseModel):
     assigned_to: int | None = UNSET  # family_members.id; None means "Everyone"
     remind_days_before: int | None = UNSET  # Days before due_date; None means "always"
     completed: bool | None = None
+
+    _title = field_validator("title")(_refuse_blank_title)
 
 
 class TodoResponse(TodoBase):
@@ -345,7 +356,7 @@ class RecurringTodoBase(BaseModel):
 
 
 class RecurringTodoCreate(RecurringTodoBase):
-    pass
+    _title = field_validator("title")(_refuse_blank_title)
 
 
 class RecurringTodoUpdate(BaseModel):
@@ -359,6 +370,8 @@ class RecurringTodoUpdate(BaseModel):
     active: bool | None = None
     custom_rule: dict | None = UNSET  # UNSET means not changing; None means clear
     start_date: str | None = UNSET  # UNSET means not changing; None means clear
+
+    _title = field_validator("title")(_refuse_blank_title)
 
 
 class RecurringTodoResponse(RecurringTodoBase):
