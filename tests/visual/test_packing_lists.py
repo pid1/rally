@@ -1947,13 +1947,14 @@ def test_enter_on_a_blank_name_says_so_and_saves_nothing(browser, live_server, p
         page.press("#item-name", "Enter")
 
         assert page.locator("#item-modal-overlay").is_visible()
-        assert page.evaluate("document.querySelector('#item-name').validationMessage") == (
-            "A name can't be empty."
-        )
+        # Said in place under the name (#272), not in the browser's bubble.
+        message = page.locator("#item-name-message")
+        assert message.is_visible()
+        assert message.inner_text() == "A name can't be empty."
         assert requests == []
         # Typing clears it, so the form can be sent again.
         page.fill("#item-name", "Sunscreen")
-        assert page.evaluate("document.querySelector('#item-name').validity.valid")
+        assert not message.is_visible()
     finally:
         context.close()
 
@@ -2155,9 +2156,7 @@ def test_enter_in_the_bag_on_a_blank_name_sends_you_to_the_name(browser, live_se
         page.fill("#item-bag", "Car")
         page.press("#item-bag", "Enter")
         assert page.evaluate("document.activeElement.id") == "item-name"
-        assert page.evaluate("document.querySelector('#item-name').validationMessage") == (
-            "A name can't be empty."
-        )
+        assert page.locator("#item-name-message").inner_text() == "A name can't be empty."
         assert requests == []
     finally:
         context.close()

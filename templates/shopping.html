@@ -418,28 +418,11 @@
             alertModal({ messageHtml: escapeHtml(message) });
         }
 
-        /* A missing name is refused in place under its field, with everything
-           entered kept, and cleared on the next keystroke in it. An empty one
-           is caught by `required`, whose `invalid` event is taken here in place
-           of the browser's bubble; one of only spaces passes `required`, so
-           the form refuses it itself. The server refuses both too. True when
-           the name is refused. */
+        // A missing name is refused under its field, never by the browser's
+        // bubble (`requireText()` in dialogs.js). The server refuses one too.
         const BLANK_NAME = "A name can't be empty.";
-        function refuseBlankName(input, messageId) {
-            if (input.value.trim()) return false;
-            showFormMessage(messageId, BLANK_NAME);
-            input.focus();
-            return true;
-        }
-        [['item-name', 'item-name-message'], ['store-add-name', 'store-add-message']]
-            .forEach(([inputId, messageId]) => {
-                const input = document.getElementById(inputId);
-                input.addEventListener('input', () => clearFormMessage(messageId));
-                input.addEventListener('invalid', (e) => {
-                    e.preventDefault();
-                    refuseBlankName(input, messageId);
-                });
-            });
+        const refuseBlankItemName = requireText('item-name', 'item-name-message', BLANK_NAME);
+        const refuseBlankStoreName = requireText('store-add-name', 'store-add-message', BLANK_NAME);
 
         // Store reads "Anywhere" on every open, whatever the chips say — matching
         // openAddModal() on /todo, which resets the assignee and ignores the
@@ -449,7 +432,7 @@
             editingItemId = null;
             document.getElementById('item-modal-title').textContent = 'Add Item';
             document.getElementById('item-form').reset();
-            clearFormMessage('item-name-message');
+            clearFormMessages('item-modal-overlay');
             storeSelect.value = '';
             document.getElementById('btn-delete-item').style.display = 'none';
             nameAutocomplete.close();
@@ -461,7 +444,7 @@
             const item = items.find(i => i.id === id);
             if (!item) return;
             editingItemId = id;
-            clearFormMessage('item-name-message');
+            clearFormMessages('item-modal-overlay');
             document.getElementById('item-modal-title').textContent = 'Edit Item';
             nameInput.value = item.name;
             document.getElementById('item-note').value = item.note || '';
@@ -481,7 +464,7 @@
         // it again — the same trade every other add button in Rally makes.
         document.getElementById('item-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (refuseBlankName(nameInput, 'item-name-message')) return;
+            if (refuseBlankItemName()) return;
             const name = nameInput.value.trim();
             const storeValue = storeSelect.value;
             const storeId = storeValue ? parseInt(storeValue, 10) : null;
@@ -554,7 +537,7 @@
             if (button.dataset.action === 'rename') {
                 const input = row.querySelector('input');
                 clearFormMessage(`store-message-${storeId}`);
-                if (refuseBlankName(input, `store-message-${storeId}`)) return;
+                if (refuseBlank(input, `store-message-${storeId}`, BLANK_NAME)) return;
                 const name = input.value.trim();
                 const response = await fetch(`/api/shopping/stores/${storeId}`, {
                     method: 'PUT',
@@ -577,6 +560,7 @@
                     confirmLabel: 'Delete',
                 });
                 if (!confirmed) return;
+                clearFormMessages('store-modal-overlay');
                 const response = await fetch(`/api/shopping/stores/${storeId}`, { method: 'DELETE' });
                 if (!response.ok) {
                     fail('Failed to delete store.');
@@ -599,7 +583,7 @@
         document.getElementById('store-add-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('store-add-name');
-            if (refuseBlankName(input, 'store-add-message')) return;
+            if (refuseBlankStoreName()) return;
             const name = input.value.trim();
             const response = await fetch('/api/shopping/stores', {
                 method: 'POST',
@@ -620,7 +604,7 @@
         });
 
         document.getElementById('btn-manage-stores').addEventListener('click', () => {
-            clearFormMessage('store-add-message');
+            clearFormMessages('store-modal-overlay');
             renderStoreManageList();
             showModalOverlay('store-modal-overlay');
         });

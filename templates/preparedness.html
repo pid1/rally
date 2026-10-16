@@ -75,6 +75,7 @@
                     <div class="form-group">
                         <label for="item-name">Name</label>
                         <input type="text" id="item-name" placeholder="What is it?" required>
+                        <div class="form-message" id="item-name-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group">
                         <label for="item-quantity">Quantity</label>
@@ -146,9 +147,6 @@
                     <div class="form-message" id="location-add-message" role="alert" hidden></div>
                 </form>
                 <div id="location-manage-list"></div>
-                <!-- A rename is asked in a prompt, so its refusal has no field
-                     to sit under and reads above the button instead. -->
-                <div class="form-message" id="location-list-message" role="alert" hidden></div>
                 <div class="modal-actions">
                     <button type="button" class="btn" id="btn-close-locations">Done</button>
                 </div>
@@ -388,8 +386,7 @@
             document.getElementById('item-mode').value = 'none';
             document.getElementById('item-interval').value = '6';
             document.getElementById('btn-delete-item').style.display = 'none';
-            clearFormMessage('item-message');
-            clearFormMessage('item-date-message');
+            clearFormMessages('item-modal-overlay');
             syncModeFields();
             showModalOverlay('item-modal-overlay');
         }
@@ -410,8 +407,7 @@
             document.getElementById('item-remind').value =
                 item.remind_days_before == null ? '' : item.remind_days_before;
             document.getElementById('btn-delete-item').style.display = '';
-            clearFormMessage('item-message');
-            clearFormMessage('item-date-message');
+            clearFormMessages('item-modal-overlay');
             syncModeFields();
             showModalOverlay('item-modal-overlay');
         }
@@ -441,15 +437,17 @@
         }
 
         // ── Location modal ──
+        // Renamed in place, as stores are on /shopping: each row is its name
+        // in a field, and a refusal reads under the row with the typed name
+        // kept.
         function renderLocationManageList() {
             const html = locations.map(l => `
-                <div class="prep-row">
-                    <div class="prep-main"><div class="prep-name">${escapeHtml(l.name)}</div></div>
-                    <div class="prep-actions">
-                        <button type="button" class="btn btn--quiet btn--sm" data-rename="${l.id}" data-name="${escapeAttr(l.name)}">Rename</button>
-                        <button type="button" class="btn btn--quiet btn--sm" data-remove="${l.id}">Delete</button>
-                    </div>
-                </div>`).join('');
+                <div class="manage-row" data-id="${l.id}">
+                    <input type="text" value="${escapeAttr(l.name)}" aria-label="Location name">
+                    <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
+                    <button type="button" class="btn btn--sm" data-action="delete">Delete</button>
+                </div>
+                <div class="form-message" id="location-message-${l.id}" role="alert" hidden></div>`).join('');
             document.getElementById('location-manage-list').innerHTML =
                 html || '<div class="container-empty-state">No locations yet.</div>';
         }
@@ -459,10 +457,16 @@
         document.getElementById('btn-cancel-item').addEventListener('click', () => hideModalOverlay('item-modal-overlay'));
         document.getElementById('item-mode').addEventListener('change', syncModeFields);
 
+        // A missing name is refused under its field, never by the browser's
+        // bubble (`requireText()` in dialogs.js). The server refuses one too.
+        const BLANK_NAME = "A name can't be empty.";
+        const refuseBlankItemName = requireText('item-name', 'item-name-message', BLANK_NAME);
+        const refuseBlankLocationName = requireText('location-add-name', 'location-add-message', BLANK_NAME);
+
         document.getElementById('item-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (refuseBlankItemName()) return;
             const data = readModal();
-            if (!data.name) return;
             clearFormMessage('item-message');
             // A date schedule needs its date; ask for it here rather than
             // sending a save the server can only refuse.
@@ -544,8 +548,7 @@
         });
 
         document.getElementById('btn-manage-locations').addEventListener('click', () => {
-            clearFormMessage('location-add-message');
-            clearFormMessage('location-list-message');
+            clearFormMessages('location-modal-overlay');
             renderLocationManageList();
             showModalOverlay('location-modal-overlay');
         });
@@ -553,9 +556,9 @@
 
         document.getElementById('location-add-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (refuseBlankLocationName()) return;
             const input = document.getElementById('location-add-name');
             const name = input.value.trim();
-            if (!name) return;
             const r = await fetch('/api/preparedness/locations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -570,42 +573,53 @@
             renderLocationManageList();
         });
 
-        document.getElementById('location-add-name').addEventListener('input',
-            () => clearFormMessage('location-add-message'));
-
         document.getElementById('location-manage-list').addEventListener('click', async (e) => {
-            const rename = e.target.closest('[data-rename]');
-            if (rename) {
-                clearFormMessage('location-list-message');
-                const next = prompt('Rename location', rename.dataset.name);
-                if (!next || !next.trim()) return;
-                const r = await fetch(`/api/preparedness/locations/${rename.dataset.rename}`, {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+            const row = button.closest('.manage-row');
+            const id = parseInt(row.dataset.id, 10);
+            const messageId = `location-message-${id}`;
+
+            if (button.dataset.action === 'rename') {
+                clearFormMessage(messageId);
+                const input = row.querySelector('input');
+                if (refuseBlank(input, messageId, BLANK_NAME)) return;
+                const r = await fetch(`/api/preparedness/locations/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: next.trim() }),
+                    body: JSON.stringify({ name: input.value.trim() }),
                 });
                 if (r.status === 409) {
-                    showFormMessage('location-list-message', 'A location with that name already exists.');
+                    showFormMessage(messageId, 'A location with that name already exists.');
                     return;
                 }
-                await load();
-                renderLocationManageList();
-                return;
-            }
-            const remove = e.target.closest('[data-remove]');
-            if (remove) {
-                clearFormMessage('location-list-message');
-                const location = locations.find(l => l.id === parseInt(remove.dataset.remove, 10));
+                if (!r.ok) {
+                    alertModal({ messageHtml: 'Could not rename the location.' });
+                    return;
+                }
+            } else {
+                const location = locations.find(l => l.id === id);
                 const confirmed = await confirmModal({
                     title: 'Delete location',
                     messageHtml: `Delete <strong>${escapeHtml(location ? location.name : '')}</strong>? Its items move to Unassigned.`,
                     confirmLabel: 'Delete',
                 });
                 if (!confirmed) return;
-                await fetch(`/api/preparedness/locations/${remove.dataset.remove}`, { method: 'DELETE' });
-                await load();
-                renderLocationManageList();
+                clearFormMessages('location-modal-overlay');
+                const r = await fetch(`/api/preparedness/locations/${id}`, { method: 'DELETE' });
+                if (!r.ok) {
+                    alertModal({ messageHtml: 'Could not delete the location.' });
+                    return;
+                }
             }
+            await load();
+            renderLocationManageList();
+        });
+
+        // A refusal clears on the next keystroke in the row it is about.
+        document.getElementById('location-manage-list').addEventListener('input', (e) => {
+            const row = e.target.closest('.manage-row');
+            if (row) clearFormMessage(`location-message-${row.dataset.id}`);
         });
 
         // ── AI review ──

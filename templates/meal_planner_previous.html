@@ -387,7 +387,7 @@
                 await refreshMeals();
             } catch (error) {
                 console.error('Error saving review:', error);
-                alert('Failed to save review');
+                alertModal({ messageHtml: 'Failed to save review' });
             }
         });
 

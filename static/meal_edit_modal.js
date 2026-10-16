@@ -53,6 +53,10 @@
             this.overlay = document.getElementById('modal-overlay');
             this.form = document.getElementById('plan-form');
             this.addAnotherBtn = document.getElementById('btn-save-add-another');
+            // A missing Meal Name is refused under it, never by the browser's
+            // bubble (`requireText()` in dialogs.js). The server refuses one too.
+            this.refuseBlankName = requireText('plan-text', 'plan-text-message', "A name can't be empty.");
+            requireDate('plan-date', 'plan-date-message');
             this._bindEvents();
         }
 
@@ -115,6 +119,7 @@
             this.editingPlan = null;
             document.getElementById('modal-title').textContent = 'Add Meal Plan';
             this.form.reset();
+            clearFormMessages('modal-overlay');
             document.getElementById('plan-edit-id').value = '';
             this.populateFamilyControls();
             this.populateMealTypeSelector();
@@ -132,6 +137,7 @@
             this.editingId = plan.id;
             this.editingPlan = plan;
             document.getElementById('modal-title').textContent = 'Edit Meal Plan';
+            clearFormMessages('modal-overlay');
             this.populateFamilyControls();
             this.populateMealTypeSelector();
             document.getElementById('plan-edit-id').value = plan.id;
@@ -161,6 +167,7 @@
         // closing it. Meals are planned in batches, and everything but the menu
         // text is usually the same from one to the next.
         async _submit(addAnother = false) {
+            if (this.refuseBlankName()) return;
             const date = document.getElementById('plan-date').value;
             const meal_type = document.getElementById('plan-meal-type').value;
             const plan = document.getElementById('plan-text').value;
@@ -169,13 +176,16 @@
             const cook_id = this._getSelectedCookId();
 
             // Moving a rated meal onto the planner (today or later) discards its
-            // rating and review. Warn and confirm before doing so.
+            // rating and review. Warn and confirm before doing so, over the
+            // modal, naming the meal as it was saved.
             if (this.editingPlan &&
                 (this.editingPlan.rating || this.editingPlan.review) &&
                 date >= todayLocal(this.getTimezone())) {
-                const ok = confirm(
-                    'Moving this meal to the planner will discard its rating and review. Continue?'
-                );
+                const ok = await confirmModal({
+                    title: 'Move to planner',
+                    messageHtml: `Moving <strong>${escapeHtml(this.editingPlan.plan)}</strong> to the planner will discard its rating and review. Continue?`,
+                    confirmLabel: 'Move',
+                });
                 if (!ok) return; // keep modal open for correction
             }
 
@@ -195,7 +205,7 @@
                 await this.onSaved();
             } catch (error) {
                 console.error('Error saving meal plan:', error);
-                alert('Failed to save meal plan');
+                alertModal({ messageHtml: 'Failed to save meal plan' });
             }
         }
 
@@ -215,7 +225,13 @@
 
         async _confirmDelete() {
             if (!this.editingId) return;
-            if (!confirm('Are you sure you want to delete this meal plan?')) return;
+            const name = this.editingPlan ? this.editingPlan.plan : '';
+            const confirmed = await confirmModal({
+                title: 'Delete meal',
+                messageHtml: `Delete <strong>${escapeHtml(name)}</strong>?`,
+                confirmLabel: 'Delete',
+            });
+            if (!confirmed) return;
             try {
                 const resp = await fetch(`/api/meal-planner/${this.editingId}`, { method: 'DELETE' });
                 if (!resp.ok) throw new Error('Failed to delete plan');
@@ -223,7 +239,7 @@
                 await this.onSaved();
             } catch (error) {
                 console.error('Error deleting meal plan:', error);
-                alert('Failed to delete meal plan');
+                alertModal({ messageHtml: 'Failed to delete meal plan' });
             }
         }
 

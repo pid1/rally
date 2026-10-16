@@ -17,6 +17,21 @@
  *   showFormMessage(id, text, role) / clearFormMessage(id)
  *       A form check ("alert") or a notice ("status") in a `.form-message`,
  *       next to what it is about, with the form left open.
+ *   clearFormMessages(scope)
+ *       Every `.form-message` inside a modal, cleared at once: what a
+ *       confirmed delete in a "Manage …" modal does, since it settles the
+ *       modal and no refusal in it still applies.
+ *   requireText(input, messageId, text)                 → () => boolean
+ *       A required text field that refuses a missing value in place, never
+ *       with the browser's bubble. Call once per field; call what it returns
+ *       first thing in the submit handler, and stop when it says true.
+ *   refuseBlank(input, messageId, text)                 → boolean
+ *       The same check for a field that is drawn later (a row in a "Manage …"
+ *       list), called in the handler that saves it.
+ *   requireDate(input, messageId)
+ *       A required date field: an empty one is refused in place with
+ *       REQUIRED_DATE, the one wording every date uses. A date cannot be only
+ *       spaces, so there is no check to call.
  *   joinNames(names)
  *       Names in a sentence, quoted, with the Oxford comma.
  *
@@ -95,6 +110,98 @@
         if (message) message.hidden = true;
     }
 
+    function clearFormMessages(scope) {
+        const root = field(scope);
+        if (!root) return;
+        root.querySelectorAll('.form-message').forEach((message) => {
+            message.hidden = true;
+        });
+    }
+
+    function field(input) {
+        return typeof input === 'string' ? part(input) : input;
+    }
+
+    /* Refuse a value that is empty or only spaces: say so in the field's
+       `.form-message` and put the cursor back in it. True when refused. */
+    // One Save can refuse several fields at once (the browser fires `invalid`
+    // on each, in order); the cursor goes to the first, as the browser's own
+    // check does, not the last.
+    let focusTaken = false;
+
+    function refuseBlank(input, messageId, text) {
+        const el = field(input);
+        if (el.value.trim()) return false;
+        showFormMessage(messageId, text);
+        if (!focusTaken) {
+            el.focus();
+            focusTaken = true;
+            setTimeout(() => { focusTaken = false; });
+        }
+        return true;
+    }
+
+    /* A required field whose missing value is refused in place, with
+       everything else entered kept. An empty one is caught by `required`,
+       whose `invalid` event is taken here in place of the browser's bubble.
+       Only a missing value is: a field refused for anything else (a date
+       before its `min`) keeps the browser's own message, since swallowing it
+       would leave Save doing nothing with nothing said. The message clears on
+       the next change to the field; clearing it when the form opens is the
+       page's, as for any message. */
+    function requireValue(el, messageId, text) {
+        el.addEventListener('input', () => clearFormMessage(messageId));
+        el.addEventListener('invalid', (e) => {
+            if (!el.validity.valueMissing) return;
+            e.preventDefault();
+            refuseBlank(el, messageId, text);
+        });
+    }
+
+    /* A required text field. One of only spaces passes `required`, so the
+       submit handler asks the returned check. */
+    function requireText(input, messageId, text) {
+        const el = field(input);
+        requireValue(el, messageId, text);
+        const check = () => refuseBlank(el, messageId, text);
+        if (el.form) textChecksOf(el.form).add({ el, check });
+        return check;
+    }
+
+    /* A Save the browser stops (a field missing, a date before its `min`)
+       never reaches the submit handler, so a text field of only spaces in the
+       same form would go unmentioned until the next try. Every refusal is said
+       at once instead: when any field in a form is invalid, each of its
+       requireText() fields runs its check too, once per Save. `invalid` does
+       not bubble, so the form listens in the capture phase. */
+    const textChecks = new WeakMap();
+    let checksRun = false;
+
+    function textChecksOf(form) {
+        if (!textChecks.has(form)) {
+            textChecks.set(form, new Set());
+            form.addEventListener('invalid', () => {
+                if (checksRun) return;
+                checksRun = true;
+                setTimeout(() => { checksRun = false; });
+                // After this field's own handler, so the first refused field
+                // keeps the cursor. A field the form is not using right now
+                // (hidden, disabled, read-only) is not asked.
+                setTimeout(() => textChecks.get(form).forEach(({ el, check }) => {
+                    if (el.disabled || el.readOnly || !el.getClientRects().length) return;
+                    check();
+                }));
+            }, true);
+        }
+        return textChecks.get(form);
+    }
+
+    const REQUIRED_DATE = 'Date is a required field.';
+
+    function requireDate(input, messageId) {
+        requireValue(field(input), messageId, REQUIRED_DATE);
+    }
+
     /* Names in a sentence, each in straight double quotes so a title with
        "and" in it never reads as two, joined with the Oxford comma. The
        server's `packing_lists.join_names` says the same thing. */
@@ -108,5 +215,9 @@
     window.alertModal = alertModal;
     window.showFormMessage = showFormMessage;
     window.clearFormMessage = clearFormMessage;
+    window.clearFormMessages = clearFormMessages;
+    window.requireText = requireText;
+    window.refuseBlank = refuseBlank;
+    window.requireDate = requireDate;
     window.joinNames = joinNames;
 })();
