@@ -161,16 +161,26 @@ def test_dashboard_without_a_snapshot_renders_the_error_state(client):
     assert '<div class="subtitle" id="current-date">' in html
 
 
-def test_dashboard_inserts_snapshot_html_unescaped(client, db_session):
-    """The cards are built as HTML strings; autoescaping them would show the
-    family raw tags. Values the LLM returned are inserted verbatim, as before."""
+def test_dashboard_escapes_snapshot_values(client, db_session):
+    """The cards are built as HTML, but every value the LLM returned is text.
+
+    The snapshot is LLM output over calendar feeds and other outside text, and
+    the prompt asks for plain text, so markup in it is escaped rather than
+    rendered. The Daily Note is the one card whose HTML is Rally's own
+    (``rally.markdown``), so its bold still renders."""
     db_session.add(
         DashboardSnapshot(
             date="2026-09-25",
             data={
                 "greeting": "Good <em>morning</em>",
                 "weather_summary": "Sunny, <strong>72°</strong>",
-                "schedule": [{"time": "9:00 AM", "title": "Standup", "notes": "Room <b>4</b>"}],
+                "schedule": [
+                    {
+                        "time": "9:00 AM",
+                        "title": "<img src=x onerror=alert(1)>",
+                        "notes": "Room <b>4</b>",
+                    }
+                ],
                 "briefing": "<p>Big day.</p>",
                 "stem_concept": {"title": "Levers", "field": "Physics"},
             },
@@ -181,13 +191,14 @@ def test_dashboard_inserts_snapshot_html_unescaped(client, db_session):
     db_session.commit()
 
     html = client.get("/dashboard").text
-    assert '<div class="greeting">Good <em>morning</em></div>' in html
-    assert "Sunny, <strong>72°</strong>" in html
-    assert '<div class="schedule-notes">Room <b>4</b></div>' in html
-    assert '<div class="briefing-title">The Briefing</div><p>Big day.</p>' in html
+    assert '<div class="greeting">Good &lt;em&gt;morning&lt;/em&gt;</div>' in html
+    assert "Sunny, &lt;strong&gt;72°&lt;/strong&gt;" in html
+    assert '<div class="schedule-title">&lt;img src=x onerror=alert(1)&gt;</div>' in html
+    assert '<div class="schedule-notes">Room &lt;b&gt;4&lt;/b&gt;</div>' in html
+    assert '<div class="briefing-title">The Briefing</div>&lt;p&gt;Big day.&lt;/p&gt;' in html
     assert '<div class="stem-title">Levers</div>' in html
     assert "<strong>Pack lunches</strong>" in html
-    assert "&lt;" not in html
+    assert "<img src=x" not in html
     # The ISO timestamp still lands inside the page script's string literal.
     assert re.search(r"const utcTimestamp = '\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ';", html)
     # The footer keeps only its timestamp.
