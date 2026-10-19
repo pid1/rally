@@ -5,19 +5,19 @@ description = "Your family command center—coordinate, work hard, and make the 
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
-    "openai>=2.21.0",
-    "anthropic>=0.52.0",
-    "fastapi[standard]>=0.129.0",
-    "requests>=2.32.5",
-    "ruff>=0.15.1",
-    "sqlalchemy>=2.0.46",
-    "pydantic>=2.12.5",
+    "openai>=3.35.1",
+    "anthropic>=1.15.0",
+    "fastapi[standard]>=0.148.0",
+    "requests>=2.34.2",
+    "ruff>=0.17.1",
+    "sqlalchemy>=2.1.5",
+    "pydantic>=2.14.1",
     "jinja2>=3.1.6",
-    "icalendar>=7.0.0",
+    "icalendar>=7.3.0",
     "markdown-it-py>=4.2.0",
-    "recurring-ical-events>=2.0.2",
-    "caldav>=1.4.0",
-    "fpdf2>=2.8.5",
+    "recurring-ical-events>=3.8.2",
+    "caldav>=3.5.0",
+    "fpdf2>=2.8.9",
 ]
 
 [project.scripts]
@@ -25,13 +25,13 @@ seed = "rally.cli:seed"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=5.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
 ]
 # Design-system regression tests. Kept out of `dev` so the ordinary test run
 # needs no browser download; tests/visual skips itself when this is absent.
 visual = [
-    "playwright>=1.48",
+    "playwright>=1.64.0",
 ]
 
 [tool.pytest.ini_options]
