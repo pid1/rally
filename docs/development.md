@@ -2,7 +2,7 @@
 
 Rally is a FastAPI application over SQLite, with server-rendered Jinja templates and vanilla JavaScript. There is no build step and no frontend framework.
 
-The development environment is reproducible through Nix and devenv, which is what pins Python 3.14 and every tool the project expects.
+The development environment is reproducible through Nix and devenv, which is what pins Python 3.15 and every tool the project expects.
 
 ## Setup
 

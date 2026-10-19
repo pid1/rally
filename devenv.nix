@@ -19,7 +19,7 @@ in
   # Language support
   languages.python = {
     enable = true;
-    version = "3.14";
+    version = "3.15";
     uv = {
       enable = true;
       sync.enable = true;
