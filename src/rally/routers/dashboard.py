@@ -18,25 +18,24 @@ from rally.utils.timezone import ensure_utc, now_utc
 router = APIRouter(tags=["dashboard"])
 
 
-def _build_stem_section(stem: dict | None) -> str:
+def _build_stem_section(stem: dict | None) -> Markup:
     """Render the optional STEM 'concept of the day' card, or '' when absent.
 
-    The LLM is instructed to emit plain text, but values are HTML-escaped here
-    to guarantee the dashboard never renders injected markup.
+    The LLM is instructed to emit plain text, but every value is HTML-escaped
+    here (``Markup.format`` escapes its arguments) to guarantee the dashboard
+    never renders injected markup.
     """
-    from html import escape
-
     if not isinstance(stem, dict):
-        return ""
+        return Markup("")
 
     title = str(stem.get("title", "")).strip()
     if not title:
-        return ""
+        return Markup("")
 
     field = str(stem.get("field", "")).strip()
     explanation = str(stem.get("explanation", "")).strip()
 
-    activities_html = ""
+    activities = []
     for activity in stem.get("activities", []) or []:
         if not isinstance(activity, dict):
             continue
@@ -45,22 +44,26 @@ def _build_stem_section(stem: dict | None) -> str:
             continue
         audience = str(activity.get("audience", "")).strip()
         audience_html = (
-            f'<span class="stem-audience">{escape(audience)}</span> ' if audience else ""
+            Markup('<span class="stem-audience">{}</span> ').format(audience)
+            if audience
+            else Markup("")
         )
-        activities_html += f"<li>{audience_html}{escape(idea)}</li>"
+        activities.append(Markup("<li>{}{}</li>").format(audience_html, idea))
 
-    parts = ['<section class="card">']
-    parts.append('<div class="card-header">STEM Concept of the Day</div>')
-    parts.append('<div class="card-content">')
+    parts = [Markup('<section class="card">')]
+    parts.append(Markup('<div class="card-header">STEM Concept of the Day</div>'))
+    parts.append(Markup('<div class="card-content">'))
     if field:
-        parts.append(f'<div class="stem-field">{escape(field)}</div>')
-    parts.append(f'<div class="stem-title">{escape(title)}</div>')
+        parts.append(Markup('<div class="stem-field">{}</div>').format(field))
+    parts.append(Markup('<div class="stem-title">{}</div>').format(title))
     if explanation:
-        parts.append(f"<p>{escape(explanation)}</p>")
-    if activities_html:
-        parts.append(f'<ul class="stem-activities">{activities_html}</ul>')
-    parts.append("</div></section>")
-    return "".join(parts)
+        parts.append(Markup("<p>{}</p>").format(explanation))
+    if activities:
+        parts.append(
+            Markup('<ul class="stem-activities">{}</ul>').format(Markup("").join(activities))
+        )
+    parts.append(Markup("</div></section>"))
+    return Markup("").join(parts)
 
 
 def _build_note_section(note_html: str) -> str:
@@ -81,13 +84,42 @@ def _build_note_section(note_html: str) -> str:
     )
 
 
+def _build_schedule(schedule: list) -> Markup:
+    """Render today's schedule items, escaping every value the LLM produced.
+
+    Titles and notes come from calendar feeds, sports schedules and the
+    family's own entries by way of the LLM, so none of it is trusted as HTML.
+    """
+    items = []
+    for item in schedule:
+        notes = (
+            Markup('<div class="schedule-notes">{}</div>').format(item["notes"])
+            if item.get("notes")
+            else Markup("")
+        )
+        items.append(
+            Markup(
+                '<div class="schedule-item">'
+                '<div class="schedule-time">{}</div>'
+                '<div class="schedule-title">{}</div>'
+                "{}"
+                "</div>"
+            ).format(item["time"], item["title"], notes)
+        )
+    if not items:
+        return Markup("<p>No events scheduled today.</p>")
+    return Markup("").join(items)
+
+
 def _dashboard_context(data: dict, date_str: str, timestamp: datetime, note_html: str = "") -> dict:
     """Build the template context for dashboard.html from snapshot data.
 
-    Every HTML-bearing value is wrapped in ``Markup`` so Jinja's autoescaping
-    leaves it as it was inserted before the Dashboard moved onto Jinja: the
-    schedule, briefing, note and STEM snippets are built as HTML here, and the
-    greeting and weather summary have always been inserted verbatim.
+    The schedule, briefing, note and STEM snippets are built here as ``Markup``
+    from literal templates, with every snapshot value escaped on the way in.
+    The greeting and weather summary are plain text and left to Jinja's
+    autoescaping. The snapshot is LLM output over calendar feeds and other
+    outside text, and the prompt asks for plain text, so none of it is
+    inserted as HTML.
     """
     # Ensure timestamp is timezone-aware and in UTC
     timestamp_utc_dt = ensure_utc(timestamp)
@@ -96,38 +128,23 @@ def _dashboard_context(data: dict, date_str: str, timestamp: datetime, note_html
     timestamp_str = timestamp_utc_dt.strftime("%Y-%m-%d %I:%M %p")
     timestamp_utc = timestamp_utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")  # ISO 8601 UTC
 
-    # Build schedule HTML
-    schedule_html = ""
-    for item in data.get("schedule", []):
-        notes = f'<div class="schedule-notes">{item["notes"]}</div>' if item.get("notes") else ""
-        schedule_html += (
-            f'<div class="schedule-item">'
-            f'<div class="schedule-time">{item["time"]}</div>'
-            f'<div class="schedule-title">{item["title"]}</div>'
-            f"{notes}"
-            f"</div>"
-        )
-
-    if not schedule_html:
-        schedule_html = "<p>No events scheduled today.</p>"
-
     # Build optional briefing section
     briefing = data.get("briefing", "")
     if briefing:
-        briefing_section = (
-            f'<div class="briefing"><div class="briefing-title">The Briefing</div>{briefing}</div>'
-        )
+        briefing_section = Markup(
+            '<div class="briefing"><div class="briefing-title">The Briefing</div>{}</div>'
+        ).format(briefing)
     else:
-        briefing_section = ""
+        briefing_section = Markup("")
 
     return {
         "date": date_str,
-        "greeting": Markup(data.get("greeting", "")),
-        "weather_summary": Markup(data.get("weather_summary", "")),
-        "schedule": Markup(schedule_html),
-        "briefing_section": Markup(briefing_section),
+        "greeting": data.get("greeting", ""),
+        "weather_summary": data.get("weather_summary", ""),
+        "schedule": _build_schedule(data.get("schedule", [])),
+        "briefing_section": briefing_section,
         # Optional STEM "concept of the day" card
-        "stem_section": Markup(_build_stem_section(data.get("stem_concept"))),
+        "stem_section": _build_stem_section(data.get("stem_concept")),
         "note_section": Markup(_build_note_section(note_html)),
         "timestamp": timestamp_str,  # Fallback for non-JS browsers
         "timestamp_utc": timestamp_utc,  # For JS timezone conversion
