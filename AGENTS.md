@@ -266,7 +266,7 @@ Workflow conventions:
 - Run the test suite before opening (see the testing note below); PR CI runs
   `pytest`, `ruff check`, and `ruff format --check` and must pass.
 
-> **Running the suite:** tests run under the project's Python 3.14 env, so use
+> **Running the suite:** tests run under the project's Python 3.15 env, so use
 > `uv run pytest` (or `.devenv/state/venv/bin/pytest`) — a bare `pytest` may be
 > shadowed by another interpreter on your `PATH` and fail to import.
 
@@ -706,7 +706,7 @@ rally/
 │   └── rally.db          # SQLite database
 ├── devenv.yaml           # devenv configuration
 ├── devenv.nix            # Development scripts
-├── pyproject.toml        # Python dependencies (Python 3.14)
+├── pyproject.toml        # Python dependencies (Python 3.15)
 ├── uv.lock               # Locked dependency versions
 ├── Dockerfile            # Production container
 ├── entrypoint.sh         # Docker entrypoint (migrations + scheduled generation + web server)

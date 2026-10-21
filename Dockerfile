@@ -1,6 +1,6 @@
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.1@sha256:4a1f3666816dafadd20ceb71eac9a7d56d7ef30279f7d64048519ab901ada336 /uv /usr/local/bin/uv
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
@@ -8,7 +8,7 @@ COPY src/ src/
 
 RUN uv sync --no-dev --frozen
 
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 COPY --from=builder /app/.venv .venv
