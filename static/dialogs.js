@@ -28,6 +28,9 @@
  *   refuseBlank(input, messageId, text)                 → boolean
  *       The same check for a field that is drawn later (a row in a "Manage …"
  *       list), called in the handler that saves it.
+ *   requireChoice(select, messageId, text)              → () => boolean
+ *       A required select with nothing chosen, refused in place the same way.
+ *       Its check is for the rare form that cannot rely on `required` alone.
  *   requireDate(input, messageId)
  *       A required date field: an empty one is refused in place with
  *       REQUIRED_DATE, the one wording every date uses. A date cannot be only
@@ -124,20 +127,27 @@
 
     /* Refuse a value that is empty or only spaces: say so in the field's
        `.form-message` and put the cursor back in it. True when refused. */
-    // One Save can refuse several fields at once (the browser fires `invalid`
-    // on each, in order); the cursor goes to the first, as the browser's own
-    // check does, not the last.
-    let focusTaken = false;
+    // One Save can refuse several fields at once, in whatever order their
+    // checks run (the browser's `invalid` events first, a field of only
+    // spaces after). The cursor goes to the one that comes first in the form,
+    // as the browser's own check does: a field takes it only when no field
+    // refused earlier in this Save sits above it.
+    let firstRefused = null;
+
+    function takeFocus(el) {
+        const above = firstRefused
+            && !(el.compareDocumentPosition(firstRefused) & Node.DOCUMENT_POSITION_FOLLOWING);
+        if (above) return;
+        if (!firstRefused) setTimeout(() => { firstRefused = null; });
+        firstRefused = el;
+        el.focus();
+    }
 
     function refuseBlank(input, messageId, text) {
         const el = field(input);
         if (el.value.trim()) return false;
         showFormMessage(messageId, text);
-        if (!focusTaken) {
-            el.focus();
-            focusTaken = true;
-            setTimeout(() => { focusTaken = false; });
-        }
+        takeFocus(el);
         return true;
     }
 
@@ -196,6 +206,12 @@
         return textChecks.get(form);
     }
 
+    function requireChoice(input, messageId, text) {
+        const el = field(input);
+        requireValue(el, messageId, text);
+        return () => refuseBlank(el, messageId, text);
+    }
+
     const REQUIRED_DATE = 'Date is a required field.';
 
     function requireDate(input, messageId) {
@@ -218,6 +234,7 @@
     window.clearFormMessages = clearFormMessages;
     window.requireText = requireText;
     window.refuseBlank = refuseBlank;
+    window.requireChoice = requireChoice;
     window.requireDate = requireDate;
     window.joinNames = joinNames;
 })();

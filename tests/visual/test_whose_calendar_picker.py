@@ -124,11 +124,12 @@ def test_a_series_asks_for_no_scope_until_a_calendar_is_chosen(calendar_page):
 
     result = page.evaluate(
         """async ({ eventId, occurrenceDate, windowStart, windowEnd }) => {
-            const alerts = [];
-            const realAlert = window.alert;
             const realFetch = window.fetch;
             const sent = [];
-            window.alert = (m) => alerts.push(m);
+            const said = () => {
+                const m = document.getElementById('event-calendar-message');
+                return m.hidden ? null : m.textContent;
+            };
             window.fetch = (url, options) => {
                 if (options && options.method === 'PUT') sent.push(String(url));
                 return realFetch(url, options);
@@ -149,12 +150,13 @@ def test_a_series_asks_for_no_scope_until_a_calendar_is_chosen(calendar_page):
 
                 document.getElementById('btn-save-event').click();
                 await new Promise(r => setTimeout(r, 200));
-                const nativeBlocked = { scopeOpen: scopeOpen(), alerts: alerts.length };
+                const nativeBlocked = { scopeOpen: scopeOpen(), said: said() };
+                document.getElementById('event-calendar-message').hidden = true;
 
                 select.required = false;
                 document.getElementById('btn-save-event').click();
                 await new Promise(r => setTimeout(r, 200));
-                const guardBlocked = { scopeOpen: scopeOpen(), alerts: [...alerts] };
+                const guardBlocked = { scopeOpen: scopeOpen(), said: said() };
 
                 // Confirming anyway must not reach the network either.
                 document.querySelector('input[name="event-scope"][value="following"]').click();
@@ -162,7 +164,6 @@ def test_a_series_asks_for_no_scope_until_a_calendar_is_chosen(calendar_page):
                 await new Promise(r => setTimeout(r, 400));
                 return { nativeBlocked, guardBlocked, sent };
             } finally {
-                window.alert = realAlert;
                 window.fetch = realFetch;
             }
         }""",
@@ -174,12 +175,17 @@ def test_a_series_asks_for_no_scope_until_a_calendar_is_chosen(calendar_page):
         },
     )
 
-    # `required` stops the submit before any script runs: no modal, no alert.
-    assert result["nativeBlocked"] == {"scopeOpen": False, "alerts": 0}
+    # `required` stops the submit before the save runs, and says so in place
+    # under the select (#272) rather than in the browser's bubble.
+    assert result["nativeBlocked"] == {
+        "scopeOpen": False,
+        "said": "Pick whose calendar this goes on",
+    }
     # With `required` out of the way, the script's own check still stops it.
-    assert result["guardBlocked"]["scopeOpen"] is False
-    assert result["guardBlocked"]["alerts"], "the scope modal opened without a calendar"
-    assert "calendar" in result["guardBlocked"]["alerts"][0].lower()
+    assert result["guardBlocked"] == {
+        "scopeOpen": False,
+        "said": "Pick whose calendar this goes on",
+    }, "the scope modal opened without a calendar"
     assert result["sent"] == [], f"a save reached the network anyway: {result['sent']}"
 
 

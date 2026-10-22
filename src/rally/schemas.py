@@ -703,7 +703,7 @@ class EventBase(BaseModel):
 
 
 class EventCreate(EventBase):
-    pass
+    _title = field_validator("title")(_refuse_blank_title)
 
 
 class EventUpdate(BaseModel):
@@ -724,6 +724,8 @@ class EventUpdate(BaseModel):
     # occurrence's own for `this`. None leaves them alone, as attendees do.
     packing_list_template_ids: list[int] | None = None
     packing_list_span: PackingListSpan | None = UNSET  # Always the series'
+
+    _title = field_validator("title")(_refuse_blank_title)
 
 
 class EventOverrideResponse(BaseModel):
