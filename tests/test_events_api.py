@@ -969,3 +969,26 @@ def test_all_day_form_values_are_the_inclusive_local_dates(client):
     occurrence = _occurrences(client)[0]
     assert occurrence["start_form"] == "2026-08-14"
     assert occurrence["end_form"] == "2026-08-16"
+
+
+# --- a title of only spaces (#272) ---------------------------------------------
+
+
+def test_create_refuses_a_title_of_only_spaces(client):
+    response = client.post(
+        "/api/events", json={"title": "   ", "start": "2026-08-11T09:00", "end": "2026-08-11T10:00"}
+    )
+    assert response.status_code == 422
+    assert "A title can't be empty." in response.text
+    assert _occurrences(client) == []
+
+
+@pytest.mark.parametrize("scope", ["all", "following", "this"])
+def test_an_edit_refuses_a_title_of_only_spaces_at_every_scope(client, scope):
+    created = _weekly(client)
+    params = {"scope": scope}
+    if scope != "all":
+        params["occurrence_date"] = "2026-09-15"
+    response = client.put(f"/api/events/{created['id']}", params=params, json={"title": " \t "})
+    assert response.status_code == 422
+    assert {o["title"] for o in _sept(client)} == {"Soccer practice"}

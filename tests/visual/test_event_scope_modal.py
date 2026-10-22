@@ -84,8 +84,6 @@ _STATE = """() => {
 # Records every write the page sends, and optionally fails them all.
 _WATCH = """(fail) => {
     window.__sent = [];
-    window.__alerts = [];
-    window.alert = m => window.__alerts.push(m);
     const realFetch = window.__realFetch || window.fetch;
     window.__realFetch = realFetch;
     window.fetch = (url, options) => {
@@ -213,7 +211,9 @@ def test_a_failed_save_leaves_the_edit_modal_open_with_the_edits(page):
     assert state["scopeOpen"] is False
     assert state["editOpen"] is True
     assert state["eventTitle"] == "Swim lesson — will fail"
-    assert page.evaluate("window.__alerts") == ["Server said no"]
+    # A failure, not a refusal the form can show (#272): the shared dialog.
+    assert page.is_visible("#dialog-modal-overlay")
+    assert page.inner_text("#dialog-modal-message") == "Failed to save the event"
 
 
 def test_an_event_that_does_not_repeat_never_asks(page):
@@ -229,19 +229,18 @@ def test_an_event_that_does_not_repeat_never_asks(page):
     assert page.evaluate(_STATE)["scopeOpen"] is False
 
 
-def test_deleting_an_event_that_does_not_repeat_still_uses_confirm(page):
+def test_deleting_an_event_that_does_not_repeat_asks_in_the_shared_dialog(page):
     _open(page, _create(page))
     page.evaluate(_WATCH, False)
-    asked = []
-
-    def answer(dialog):
-        asked.append(dialog.message)
-        dialog.dismiss()
-
-    page.on("dialog", answer)
     page.click("#btn-delete-event")
-    _settle(page)
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
 
-    assert asked == ["Delete this event?"]
+    title = page.input_value("#event-title")
+    assert page.inner_text("#dialog-modal-title").lower() == "delete event"
+    assert page.inner_text("#dialog-modal-message") == f"Delete {title}?"
+    assert page.inner_text("#dialog-modal-message strong") == title
     assert page.evaluate(_STATE)["scopeOpen"] is False
+
+    page.click("#btn-dialog-modal-cancel")
+    _settle(page)
     assert page.evaluate("window.__sent") == []

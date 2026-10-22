@@ -81,19 +81,6 @@ def _reload_templates(page):
     page.evaluate("async () => { await fetchPackingTemplates(); }")
 
 
-def _watch_dialogs(page):
-    """Answer every dialog with `answer` and keep its text."""
-    page.evaluate(
-        """() => {
-            window.__alerts = [];
-            window.__confirms = [];
-            window.__answer = false;
-            window.alert = m => window.__alerts.push(m);
-            window.confirm = m => { window.__confirms.push(m); return window.__answer; };
-        }"""
-    )
-
-
 def _pick(page, name):
     page.select_option("#event-packing-select", label=name)
 
@@ -155,9 +142,11 @@ def test_put_on_shows_for_a_multi_day_event_and_must_be_answered(page):
         ".every(r => !r.checked)"
     )
 
-    _watch_dialogs(page)
     page.click("#btn-save-event")
-    assert page.evaluate("window.__alerts") == ["Choose which days the packing lists go on"]
+    # Said in place under Put on (#272), with the form kept open.
+    message = page.locator("#event-packing-span-message")
+    message.wait_for()
+    assert message.inner_text() == "Choose which days the packing lists go on"
     assert _days_for(page, template["id"]) == []
 
     page.check('input[name="event-packing-span"][value="every"]')
@@ -190,27 +179,84 @@ def test_moving_onto_a_day_already_there_asks_first(page):
     )
     _reload_templates(page)
     page.evaluate("async o => { await openEditEventModal(o); }", _occurrence(page, event))
-    _watch_dialogs(page)
     page.fill("#event-start-date", NEXT.isoformat())
     page.dispatch_event("#event-start-date", "change")
 
+    # Asked in the shared dialog (#272), over the event modal, the list's name
+    # in bold. Cancel leaves everything as it was.
     page.click("#btn-save-event")
-    page.wait_for_timeout(500)
-    confirms = page.evaluate("window.__confirms")
-    assert len(confirms) == 1
-    assert confirms[0].startswith(f'"{template["name"]}" is already on ')
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+    assert page.inner_text("#dialog-modal-title").lower() == "move event"
+    assert page.inner_text("#dialog-modal-message").startswith(
+        f'"{template["name"]}" is already on '
+    )
+    assert page.inner_text("#dialog-modal-message strong") == template["name"]
+    page.click("#btn-dialog-modal-cancel")
+    page.wait_for_timeout(300)
     assert page.evaluate("document.getElementById('event-modal-overlay').style.display") == "flex"
     assert sorted(d["date"] for d in _days_for(page, template["id"])) == [
         DAY.isoformat(),
         NEXT.isoformat(),
     ]
 
-    page.evaluate("window.__answer = true")
     page.click("#btn-save-event")
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+    page.click("#btn-dialog-modal-confirm")
     page.wait_for_timeout(500)
     days = _days_for(page, template["id"])
     assert [d["date"] for d in days] == [NEXT.isoformat()]
     assert [e["event_id"] for e in days[0]["events"]] == [event["id"]]
+
+
+def test_adding_a_list_already_on_that_day_asks_to_use_it(page):
+    """A list only added moves nothing, so the question is titled for what it
+    does: the event uses the list already on that day."""
+    template = _template(page)
+    event = _event(page, [])
+    page.request.post(
+        _base(page) + "/api/packing-list-days",
+        data={"packing_list_template_id": template["id"], "date": DAY.isoformat()},
+    )
+    _reload_templates(page)
+    page.evaluate("async o => { await openEditEventModal(o); }", _occurrence(page, event))
+    _pick(page, template["name"])
+
+    page.click("#btn-save-event")
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+    assert page.inner_text("#dialog-modal-title").lower() == "use packing list"
+    assert page.inner_text("#dialog-modal-message strong") == template["name"]
+    page.click("#btn-dialog-modal-confirm")
+    page.wait_for_timeout(500)
+    days = _days_for(page, template["id"])
+    assert [d["date"] for d in days] == [DAY.isoformat()]
+    assert [e["event_id"] for e in days[0]["events"]] == [event["id"]]
+
+
+def test_adding_a_list_to_a_past_event_is_refused_under_what_to_pack(page):
+    template = _template(page)
+    past = date.today() - timedelta(days=3)
+    event = _event(page, [], start=past)
+    _reload_templates(page)
+    rows = page.request.get(
+        _base(page) + "/api/events", params={"start": past.isoformat(), "end": past.isoformat()}
+    ).json()["occurrences"]
+    occurrence = next(o for o in rows if o["event_id"] == event["id"])
+    page.evaluate("async o => { await openEditEventModal(o); }", occurrence)
+    _pick(page, template["name"])
+
+    page.click("#btn-save-event")
+    message = page.locator("#event-packing-message")
+    message.wait_for()
+    assert message.inner_text() == (
+        "This event has already passed, so a packing list can't be added to it."
+    )
+    assert not page.is_visible("#event-start-date-message")
+    assert page.evaluate("document.getElementById('event-modal-overlay').style.display") == "flex"
+    assert _days_for(page, template["id"]) == []
+
+    # Taking the list back off clears it.
+    page.click("[data-remove-packing]")
+    assert not message.is_visible()
 
 
 def test_custom_schedule_is_not_offered_on_a_new_event(page):

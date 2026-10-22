@@ -105,7 +105,6 @@ def test_modals_are_opened_only_through_the_shared_helper():
 # them to the shared dialog one page per PR, each taking its files off this
 # list; the last one deletes the list.
 NOT_YET_ON_SHARED_DIALOG = {
-    "calendar.html",
     "settings.html",
 }
 
@@ -546,7 +545,7 @@ def test_an_empty_required_date_is_refused_in_place(client, path, wiring):
     # keeps the browser's own message rather than failing silently.
     assert "if (!el.validity.valueMissing) return;" in js
     # Several fields refused by one Save: the cursor goes to the first.
-    assert "if (!focusTaken) {" in js
+    assert "function takeFocus(el) {" in js
     # A Save stopped by one field still says every other refusal in the form:
     # each requireText() field's spaces check runs, skipping fields not in use.
     assert "form.addEventListener('invalid', () => {" in js
@@ -565,6 +564,33 @@ def test_the_meal_modal_refuses_an_empty_date_in_place(client):
     assert "requireDate('plan-date', 'plan-date-message');" in js
     html = client.get("/meal-planner").text
     assert '<div class="form-message" id="plan-date-message" role="alert" hidden></div>' in html
+
+
+def test_calendar_asks_and_refuses_through_the_shared_dialog(client):
+    """#272: the calendar asks before deleting an event, and before a move
+    adopts a packing list already on the day, in the shared dialog with the
+    names in bold; its form checks read under the field they are about."""
+    html = client.get("/calendar").text
+    assert "title: 'Delete event'" in html
+    assert "moves ? 'Move event' : 'Use packing list'" in html
+    assert "function joinNames" not in html
+    for message_id in (
+        "event-title-message",
+        "event-start-time-message",
+        "event-start-date-message",
+        "event-calendar-message",
+        "event-packing-span-message",
+        "event-packing-message",
+        "event-form-message",
+    ):
+        assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
+    assert "requireText('event-title', 'event-title-message'," in html
+    assert "requireChoice('event-calendar', 'event-calendar-message'," in html
+    assert "requireDate('event-start-time', 'event-start-time-message');" in html
+    assert "requireDate('event-start-date', 'event-start-date-message');" in html
+    # The start that is showing is the required one.
+    assert "document.getElementById('event-start-time').required = !allDay;" in html
+    assert html.count("clearFormMessages('event-modal-overlay');") == 2
 
 
 def test_a_template_already_on_a_date_is_refused_in_place(client):

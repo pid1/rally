@@ -507,7 +507,7 @@ def create_event(
     event = Event(
         calendar_id=calendar.id,
         uid=f"rally-{uuid.uuid4().hex[:16]}@rally.local",
-        title=payload.title.strip() or "Untitled Event",
+        title=payload.title.strip(),
         description=payload.description,
         location=payload.location,
         rrule=rrule,
@@ -677,7 +677,7 @@ def update_event(
 def _apply_event_fields(db: Session, event: Event, payload: EventUpdate, tz_name: str) -> None:
     """Fold an update payload onto a series row."""
     if payload.title is not None:
-        event.title = payload.title.strip() or event.title
+        event.title = payload.title.strip()
     if payload.description is not UNSET:
         event.description = payload.description
     if payload.location is not UNSET:
@@ -729,7 +729,7 @@ def _update_single_occurrence(
             None if payload.calendar_id == event.calendar_id else payload.calendar_id
         )
     if payload.title is not None:
-        override.title = payload.title
+        override.title = payload.title.strip()
     if payload.description is not UNSET:
         override.description = payload.description
     if payload.location is not UNSET:

@@ -88,6 +88,7 @@
                     <div class="form-group" id="event-title-group">
                         <label for="event-title">Event</label>
                         <input type="text" id="event-title" placeholder="Event title" required>
+                        <div class="form-message" id="event-title-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group" id="event-description-group">
                         <label for="event-description">Notes (optional)</label>
@@ -106,12 +107,14 @@
                     <div class="form-group" id="event-timed-group">
                         <label for="event-start-time">Starts</label>
                         <input type="datetime-local" id="event-start-time">
+                        <div class="form-message" id="event-start-time-message" role="alert" hidden></div>
                         <label for="event-end-time">Ends</label>
                         <input type="datetime-local" id="event-end-time">
                     </div>
                     <div class="form-group" id="event-allday-group" style="display:none;">
                         <label for="event-start-date">First day</label>
                         <input type="date" id="event-start-date">
+                        <div class="form-message" id="event-start-date-message" role="alert" hidden></div>
                         <label for="event-end-date">Last day</label>
                         <input type="date" id="event-end-date">
                         <small>The last day is included — a one-day event has both the same.</small>
@@ -225,6 +228,7 @@
                         <label for="event-calendar">Whose calendar</label>
                         <select id="event-calendar" required></select>
                         <small id="event-calendar-help">Decides the color it draws in and who it belongs to.</small>
+                        <div class="form-message" id="event-calendar-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group" id="event-attendees-group">
                         <label id="event-attendees-label">Who's involved</label>
@@ -241,6 +245,7 @@
                             <select id="event-packing-select" aria-label="Packing list to add"></select>
                         </div>
                         <div class="container-empty-state" id="event-packing-empty" style="display:none">No packing list templates yet.</div>
+                        <div class="form-message" id="event-packing-message" role="alert" hidden></div>
                         <small>Packing lists follow this event when it moves, and go when it's deleted.</small>
                     </div>
                     <div class="form-group" id="event-packing-span-group" style="display:none">
@@ -249,6 +254,7 @@
                             <label><input type="radio" name="event-packing-span" value="first"> First day</label>
                             <label><input type="radio" name="event-packing-span" value="every"> Every day</label>
                         </div>
+                        <div class="form-message" id="event-packing-span-message" role="alert" hidden></div>
                     </div>
                     <div class="form-group" id="event-notify-group">
                         <label for="event-notify">Remind attendees</label>
@@ -264,6 +270,7 @@
                     </div>
                 </form>
 
+                <div class="form-message" id="event-form-message" role="alert" hidden></div>
                 <div class="modal-actions" id="event-modal-actions">
                     <button type="submit" form="event-form" class="btn btn--primary" id="btn-save-event">Save</button>
                     <button type="button" class="btn" id="btn-cancel-event">Cancel</button>
@@ -1165,6 +1172,10 @@
             const allDay = document.getElementById('event-all-day').checked;
             document.getElementById('event-timed-group').style.display = allDay ? 'none' : '';
             document.getElementById('event-allday-group').style.display = allDay ? '' : 'none';
+            // The start that is showing is the required one, so an empty one
+            // is refused under it (requireDate) like any required date.
+            document.getElementById('event-start-time').required = !allDay;
+            document.getElementById('event-start-date').required = allDay;
             renderPackingSpan();
         }
 
@@ -1173,15 +1184,6 @@
         function packingName(id) {
             const template = packingTemplates.find(t => t.id === id);
             return template ? template.name : '';
-        }
-
-        /* Names in a sentence, each in straight double quotes so a title with
-           "and" in it never reads as two, joined with the Oxford comma. The
-           server's `packing_lists.join_names` says the same thing. */
-        function joinNames(names) {
-            const quoted = names.map(name => `"${name}"`);
-            if (quoted.length <= 2) return quoted.join(' and ');
-            return `${quoted.slice(0, -1).join(', ')}, and ${quoted[quoted.length - 1]}`;
         }
 
         function renderPackingSection() {
@@ -1432,12 +1434,13 @@
             // Nothing to leave alone when adding: the API needs a start.
             originalTimes = null;
             updateNotifyHelp();
+            clearFormMessages('event-modal-overlay');
             showModalOverlay('event-modal-overlay');
         }
 
         async function openEditEventModal(occurrence) {
             const response = await fetch(`/api/events/${occurrence.event_id}`);
-            if (!response.ok) { alert('Could not load that event'); return; }
+            if (!response.ok) { fail('Could not load that event'); return; }
             editingEvent = await response.json();
             editingOccurrence = occurrence;
 
@@ -1496,6 +1499,7 @@
             // untouched form compares equal to what was actually shown.
             rememberOriginalTimes();
             updateNotifyHelp();
+            clearFormMessages('event-modal-overlay');
             showModalOverlay('event-modal-overlay');
         }
 
@@ -1971,15 +1975,15 @@
            submits the form, so `required` has already run by the time this
            does; these are the checks `required` cannot make. */
         function eventFormReady(payload, scope) {
-            if (!payload.title) return false;
-            if (!payload.start) { alert('A start date is required'); return false; }
-            if (!payload.calendar_id && nativeCalendars.length) {
-                alert('Pick whose calendar this goes on');
-                document.getElementById('event-calendar').focus();
+            clearFormMessage('event-form-message');
+            if (refuseBlankTitle()) return false;
+            if (!payload.start) {
+                showFormMessage(startMessageId(), 'Date is a required field.');
                 return false;
             }
+            if (nativeCalendars.length && refuseNoCalendar()) return false;
             if (packingSpanShown() && !chosenSpan()) {
-                alert('Choose which days the packing lists go on');
+                showFormMessage('event-packing-span-message', 'Choose which days the packing lists go on');
                 document.querySelector('input[name="event-packing-span"]').focus();
                 return false;
             }
@@ -1990,7 +1994,8 @@
             const hasLists = editingOccurrence && (editingOccurrence.packing_lists || []).length > 0;
             if (editingEvent && onePlace && hasLists && !timesUntouched()
                 && payload.start.slice(0, 10) < todayIso()) {
-                alert('This event has packing lists. Remove them before moving it to a day that has passed.');
+                showFormMessage(startMessageId(),
+                    'This event has packing lists. Remove them before moving it to a day that has passed.');
                 return false;
             }
             /* A list added to a one-time event, or one occurrence, whose day for
@@ -2002,7 +2007,8 @@
             const added = packingChosen.filter(id => !packingOpened.includes(id));
             const landsOn = (chosenSpan() === 'every' ? payload.end || payload.start : payload.start).slice(0, 10);
             if ((!repeats || scope === 'this') && added.length && landsOn < todayIso()) {
-                alert("This event has already passed, so a packing list can't be added to it.");
+                showFormMessage('event-packing-message',
+                    "This event has already passed, so a packing list can't be added to it.");
                 return false;
             }
             return true;
@@ -2047,15 +2053,31 @@
             });
             if (!response.ok) {
                 const detail = await response.json().catch(() => ({}));
-                /* The move would put a list on a date its template is already
+                /* The save would put a list on a date its template is already
                    on. Nothing was saved; asked first, it goes ahead and the
                    event uses the list already there. Cancel leaves the form as
                    it was, like any failed save. */
                 if (response.status === 409 && detail.detail && detail.detail.adopts) {
-                    if (confirm(detail.detail.message)) saveEvent(scope, true);
+                    // A list only added (no `from_date`) moves nothing: the
+                    // event simply uses the one already there.
+                    const moves = detail.detail.adopts.some(a => a.from_date !== null);
+                    const confirmed = await confirmModal({
+                        title: moves ? 'Move event' : 'Use packing list',
+                        // The server's own sentence, with each list's name in bold.
+                        messageHtml: escapeHtml(detail.detail.message)
+                            .replace(/"([^"]+)"/g, '"<strong>$1</strong>"'),
+                        confirmLabel: 'Continue',
+                    });
+                    if (confirmed) saveEvent(scope, true);
                     return;
                 }
-                alert((typeof detail.detail === 'string' && detail.detail) || 'Failed to save the event');
+                // A refusal the API explains (a 422 with words) reads above the
+                // buttons, with the form kept open. Anything else is a failure.
+                if (response.status === 422 && typeof detail.detail === 'string') {
+                    showFormMessage('event-form-message', detail.detail);
+                } else {
+                    fail('Failed to save the event');
+                }
                 return;
             }
             closeEventModal();
@@ -2066,12 +2088,13 @@
         /* Names the packing lists that come off with a one-time event, so the
            question says everything the answer does. */
         function deleteQuestion() {
+            const name = `<strong>${escapeHtml(editingEvent.title)}</strong>`;
             const lists = (editingOccurrence && editingOccurrence.packing_lists) || [];
-            if (!lists.length) return 'Delete this event?';
+            if (!lists.length) return `Delete ${name}?`;
             const day = parseIso(editingOccurrence.start_date)
                 .toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-            const names = joinNames(lists.map(p => p.name));
-            return `Delete this event? ${names} come${lists.length === 1 ? 's' : ''} off ${day} too.`;
+            const names = escapeHtml(joinNames(lists.map(p => p.name)));
+            return `Delete ${name}? ${names} come${lists.length === 1 ? 's' : ''} off ${escapeHtml(day)} too.`;
         }
 
         async function deleteEvent(scope) {
@@ -2080,7 +2103,7 @@
             const occurrenceDate = document.getElementById('event-occurrence-date').value;
             if (scope !== 'all' && occurrenceDate) params.set('occurrence_date', occurrenceDate);
             const response = await fetch(`/api/events/${editingEvent.id}?${params.toString()}`, { method: 'DELETE' });
-            if (!response.ok) { alert('Failed to delete the event'); return; }
+            if (!response.ok) { fail('Failed to delete the event'); return; }
             closeEventModal();
             load();
         }
@@ -2419,6 +2442,27 @@
 
         document.getElementById('event-calendar').addEventListener('change', checkCalendarOwner);
 
+        // Each refusal reads under the field it is about, never in the
+        // browser's bubble, and clears on the next change to it (dialogs.js).
+        function fail(message) {
+            alertModal({ messageHtml: escapeHtml(message) });
+        }
+        const refuseBlankTitle = requireText('event-title', 'event-title-message', "A title can't be empty.");
+        const refuseNoCalendar = requireChoice('event-calendar', 'event-calendar-message', 'Pick whose calendar this goes on');
+        requireDate('event-start-time', 'event-start-time-message');
+        requireDate('event-start-date', 'event-start-date-message');
+        function startMessageId() {
+            return document.getElementById('event-all-day').checked
+                ? 'event-start-date-message'
+                : 'event-start-time-message';
+        }
+        document.querySelectorAll('input[name="event-packing-span"]').forEach(radio =>
+            radio.addEventListener('change', () => clearFormMessage('event-packing-span-message')));
+        // A refusal the API gave is about the form as a whole: any change to
+        // it is a new attempt.
+        ['input', 'change'].forEach(type => document.getElementById('event-form')
+            .addEventListener(type, () => clearFormMessage('event-form-message')));
+
         /* Picking a template adds it. A pick that waited for a separate Add
            button was a pick Save silently dropped: the select reads like a
            field whose value is saved, so nobody thinks to press Add. */
@@ -2426,6 +2470,7 @@
             const id = Number(e.target.value);
             if (!id || packingChosen.includes(id)) return;
             packingChosen.push(id);
+            clearFormMessage('event-packing-message');
             renderPackingSection();
             const next = document.getElementById('event-packing-select');
             if (next.offsetParent) next.focus();
@@ -2435,10 +2480,13 @@
             if (!button) return;
             const id = Number(button.dataset.removePacking);
             packingChosen = packingChosen.filter(chosen => chosen !== id);
+            clearFormMessage('event-packing-message');
             renderPackingSection();
         });
         ['event-start-time', 'event-end-time', 'event-start-date', 'event-end-date'].forEach(id => {
             document.getElementById(id).addEventListener('change', renderPackingSpan);
+            // A new date may give an added list a day to go on.
+            document.getElementById(id).addEventListener('change', () => clearFormMessage('event-packing-message'));
         });
 
         document.getElementById('btn-delete-event').addEventListener('click', () => {
@@ -2447,7 +2495,8 @@
                 openScopeModal('delete');
                 return;
             }
-            if (confirm(deleteQuestion())) deleteEvent('all');
+            confirmModal({ title: 'Delete event', messageHtml: deleteQuestion(), confirmLabel: 'Delete' })
+                .then((confirmed) => { if (confirmed) deleteEvent('all'); });
         });
 
         document.querySelectorAll('input[name="event-scope"]').forEach(input => {
