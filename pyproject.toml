@@ -5,12 +5,12 @@ description = "Your family command center—coordinate, work hard, and make the 
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
-    "openai>=3.35.1",
-    "anthropic>=1.15.0",
-    "fastapi[standard]>=0.149.0",
+    "openai>=3.31.0",
+    "anthropic>=1.14.0",
+    "fastapi[standard]>=0.143.2",
     "requests>=2.34.2",
-    "ruff>=0.17.1",
-    "sqlalchemy>=2.1.5",
+    "ruff>=0.17.0",
+    "sqlalchemy>=2.1.4",
     "pydantic>=2.14.1",
     "jinja2>=3.1.6",
     "icalendar>=7.3.0",
@@ -33,6 +33,11 @@ dev = [
 visual = [
     "playwright>=1.64.0",
 ]
+
+[tool.uv]
+# Supply-chain cooldown: only resolve releases that have been public for a
+# week, so a hijacked or malicious upload is usually pulled before we see it.
+exclude-newer = "7 days"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
