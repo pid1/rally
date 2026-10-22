@@ -15,10 +15,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          # Pinned to a uv release over a week old (supply-chain cooldown),
+          # matching the Dockerfile; it understands relative exclude-newer.
+          version: "0.13.1"
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
 
       - name: Run tests
         run: uv run pytest --cov=rally --cov-report=term-missing --cov-report=xml
@@ -41,10 +44,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
+          # Pinned to a uv release over a week old (supply-chain cooldown),
+          # matching the Dockerfile; it understands relative exclude-newer.
+          version: "0.13.1"
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --group visual
+        run: uv sync --locked --group visual
 
       - name: Install Chromium
         run: uv run playwright install --with-deps chromium
