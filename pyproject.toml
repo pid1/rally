@@ -42,7 +42,7 @@ exclude-newer = "7 days"
 # distrusted "emSign ECC Root CA - G3" (Semgrep
 # ssc-5df0a6b6-da47-4290-9f7c-28111c57478b) and is under a week old.
 # Remove this line on the next factory run.
-exclude-newer-package = { certifi = false }
+exclude-newer-package = { certifi = "2026-10-21T00:00:00Z" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
