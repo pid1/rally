@@ -942,6 +942,79 @@ MOVED_INTO_PAST_MESSAGE = (
     "This event has packing lists. Remove them before moving it to a day that has passed."
 )
 
+ADDED_TO_PAST_MESSAGE = "This event has already passed, so a packing list can't be added to it."
+
+
+class AddedToPast(EventPackingListError):
+    """A list added to an occurrence with no date from today on for it to go on
+    (#290). It would be stored and never put on a day."""
+
+
+def series_lists(db: Session, event_id: int) -> set[int]:
+    """The templates the series itself brings, as stored now."""
+    return set(series_template_ids(_event_rows(db, event_id)))
+
+
+def occurrence_lists(db: Session, event_id: int, occurrence_date: str) -> set[int]:
+    """The templates one occurrence brings, as stored now."""
+    return occurrence_template_ids(_event_rows(db, event_id), occurrence_date)
+
+
+def refuse_lists_added_to_the_past(
+    db: Session,
+    event: Event,
+    added: set[int],
+    today: date,
+    tz: ZoneInfo,
+    occurrence_date: str | None = None,
+) -> None:
+    """Raise ``AddedToPast`` when lists are being added where they could never
+    land: to ``occurrence_date`` (one occurrence) or, without it, to a series or
+    one-time event with no occurrence left that has a date from today on.
+
+    "A date a list could go on" is the sync's own rule (``_wanted_dates``), so
+    a multi-day event already under way still takes a list on ``Every day`` and
+    refuses one on ``First day``. Lists the event already had are not checked:
+    keeping them is not adding them, and moving them is ``MovedIntoPast``'s.
+    """
+    if not added:
+        return
+    today_iso = today.isoformat()
+    overrides = db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
+    if occurrence_date is not None:
+        bounds = [date.fromisoformat(occurrence_date)]
+        for override in overrides:
+            if override.occurrence_date == occurrence_date and override.start_date:
+                bounds.append(date.fromisoformat(override.start_date))
+                bounds.append(date.fromisoformat(override.end_date or override.start_date))
+        span = date.fromisoformat(event.end_date) - date.fromisoformat(event.start_date)
+        found = [
+            occurrence
+            for occurrence in _expand(
+                event, overrides, min(bounds) - timedelta(days=1), max(bounds) + span, tz
+            )
+            if occurrence.occurrence_date == occurrence_date
+        ]
+    else:
+        # From a month back, so a long event already under way is seen, and
+        # far enough ahead to reach the event however far off it is: a
+        # one-time event through its own end, a series through a year and a
+        # bit past its own start.
+        start = today - timedelta(days=31)
+        end = today + timedelta(days=NEXT_OCCURRENCE_DAYS)
+        if event.rrule:
+            end = max(
+                end, date.fromisoformat(event.start_date) + timedelta(days=NEXT_OCCURRENCE_DAYS)
+            )
+        else:
+            start = min(start, date.fromisoformat(event.start_date))
+            end = max(end, date.fromisoformat(event.end_date))
+        found = _expand(event, overrides, start, end, tz)
+    if not any(
+        _wanted_dates(occurrence, event.packing_list_span, today_iso) for occurrence in found
+    ):
+        raise AddedToPast(ADDED_TO_PAST_MESSAGE)
+
 
 def _event_rows(db: Session, event_id: int) -> list[EventPackingList]:
     return (
@@ -1169,7 +1242,13 @@ def _occurrences_in_play(
 
 
 def sync_event_packing_lists(
-    db: Session, event: Event, today: date, *, tz: ZoneInfo, adopt: bool = False
+    db: Session,
+    event: Event,
+    today: date,
+    *,
+    tz: ZoneInfo,
+    adopt: bool = False,
+    ask_before_placing: bool = True,
 ) -> None:
     """Put an event's packing lists on its occurrences' days, and take them off
     the days its occurrences no longer have. Does not commit; idempotent.
@@ -1183,6 +1262,13 @@ def sync_event_packing_lists(
       moving day goes, which raises ``AdoptNeeded`` unless ``adopt``;
     * the day is shared with another event — it stays with that event, and
       this occurrence gets a day of its own on the new date.
+
+    A list newly added to the event that would land on a day its template is
+    already on asks too (``AdoptNeeded``, #291): joining somebody's day is a
+    decision, even with nothing checked to lose. "Newly added" means the event
+    has never had a link for that template, past or present, so a title edit
+    never asks about an occurrence that has merely come into the lookahead. The daily sync passes
+    ``ask_before_placing=False``: nobody is there to answer.
 
     Raises ``MovedIntoPast`` when an occurrence that still wants a list on a day
     from today on has been moved entirely before today. Both are raised before
@@ -1257,6 +1343,23 @@ def sync_event_packing_lists(
             target = _template_day(db, template_id, value)
             if target is not None and target.id != link.day_id:
                 adopts.append(_adopt_detail(db, link, target))
+    if ask_before_placing:
+        # Every link the event has ever had, past ones included: a series
+        # that brought this list last week still brings it once those days
+        # have passed, so its next occurrence is not "newly added".
+        linked = {
+            template_id
+            for (template_id,) in db.query(PackingListDayEvent.packing_list_template_id)
+            .filter(PackingListDayEvent.event_id == event.id)
+            .distinct()
+        }
+        for template_id, arriving in sorted(places.items()):
+            if template_id in linked:
+                continue
+            for _, value in sorted(arriving, key=lambda pair: pair[1]):
+                target = _template_day(db, template_id, value)
+                if target is not None:
+                    adopts.append(_place_adopt_detail(db, target))
     if adopts and not adopt:
         raise AdoptNeeded(adopts)
 
@@ -1322,14 +1425,34 @@ def _adopt_detail(db: Session, link: PackingListDayEvent, target: PackingListDay
     }
 
 
+def _place_adopt_detail(db: Session, target: PackingListDay) -> dict:
+    """A newly added list joining a day already there: nothing comes from an
+    earlier day, so nothing checked can be lost."""
+    template = (
+        db.query(PackingListTemplate)
+        .filter(PackingListTemplate.id == target.packing_list_template_id)
+        .first()
+    )
+    return {
+        "template_name": template.name if template else "",
+        "from_date": None,
+        "to_date": target.date,
+        "checked": False,
+    }
+
+
 def adopt_message(adopts: list[dict]) -> str:
-    """The calendar's confirmation before a move adopts a day already there."""
+    """The calendar's confirmation before an event joins a day already there.
+    A move uses that list *instead* of its own day; a newly added list (no
+    ``from_date``) simply uses it."""
     sentences = []
     for adopt in adopts:
         sentence = (
             f'"{adopt["template_name"]}" is already on {_long_date(adopt["to_date"])}. '
-            "This event will use that list instead"
+            "This event will use that list"
         )
+        if adopt["from_date"] is not None:
+            sentence += " instead"
         if adopt["checked"]:
             sentence += f", and what was checked on {_long_date(adopt['from_date'])} will be lost"
         sentences.append(sentence + ".")
@@ -1448,8 +1571,9 @@ def process_event_packing_lists(db: Session, today: date, tz: ZoneInfo) -> int:
             continue
         try:
             # A refusal is raised before anything is written, so there is
-            # nothing to roll back.
-            sync_event_packing_lists(db, event, today, tz=tz)
+            # nothing to roll back. Nobody is here to answer, so a list
+            # arriving on a day already there joins it without asking.
+            sync_event_packing_lists(db, event, today, tz=tz, ask_before_placing=False)
             synced += 1
         except EventPackingListError as exc:
             print(f"Packing lists for event {event_id} not synced: {exc}")

@@ -7,7 +7,8 @@ the adopt confirmation, a day shared by two events, deleting at every scope,
 taking a list off on the Packing Lists page, and never touching a past day.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -51,10 +52,12 @@ def nana(client):
     return _template(client, "Nana overnight", ["Pajamas"])
 
 
-def _event(client, **payload):
+def _event(client, adopt=False, **payload):
+    """Create an event. ``adopt`` answers yes to joining a day already there
+    (#291), the way the calendar does after asking."""
     body = {"title": "Trip", "all_day": True, "start": SATURDAY, "end": SATURDAY}
     body.update(payload)
-    response = client.post("/api/events", json=body)
+    response = client.post("/api/events?adopt=true" if adopt else "/api/events", json=body)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -137,7 +140,23 @@ def test_saving_adopts_a_day_already_there_with_its_checks(client, beach, db_ses
         f"/api/packing-list-days/{day['id']}/template-items/{item_id}", json={"checked": True}
     )
 
-    _event(client, packing_list_template_ids=[beach["id"]])
+    # Joining a day already there is asked first (#291), and nothing is
+    # written until it is answered.
+    body = {"title": "Trip", "all_day": True, "start": SATURDAY, "end": SATURDAY}
+    response = client.post("/api/events", json={**body, "packing_list_template_ids": [beach["id"]]})
+    assert response.status_code == 409
+    assert response.json()["detail"]["message"] == (
+        '"Beach day" is already on Saturday, October 10. This event will use that list. Continue?'
+    )
+    assert (
+        client.get("/api/events", params={"start": SATURDAY, "end": SATURDAY}).json()["occurrences"]
+        == []
+    )
+
+    response = client.post(
+        "/api/events?adopt=true", json={**body, "packing_list_template_ids": [beach["id"]]}
+    )
+    assert response.status_code == 201
 
     days = _days(client)
     assert [d["id"] for d in days] == [day["id"]]
@@ -217,7 +236,9 @@ def test_moving_onto_a_day_already_there_asks_first(client, beach, db_session):
 
 def test_a_shared_day_stays_with_the_other_event(client, beach):
     beach_trip = _event(client, title="Beach trip", packing_list_template_ids=[beach["id"]])
-    nana_trip = _event(client, title="Nana overnight", packing_list_template_ids=[beach["id"]])
+    nana_trip = _event(
+        client, adopt=True, title="Nana overnight", packing_list_template_ids=[beach["id"]]
+    )
     shared = _days(client)[0]
     assert [e["title"] for e in shared["events"]] == ["Beach trip", "Nana overnight"]
     client.post(f"/api/packing-list-days/{shared['id']}/check-all")
@@ -287,14 +308,14 @@ def test_deleting_takes_an_adopted_day_too(client, beach):
     client.post(
         "/api/packing-list-days", json={"packing_list_template_id": beach["id"], "date": SATURDAY}
     )
-    event = _event(client, packing_list_template_ids=[beach["id"]])
+    event = _event(client, adopt=True, packing_list_template_ids=[beach["id"]])
     client.delete(f"/api/events/{event['id']}")
     assert _days(client) == []
 
 
 def test_a_day_another_event_still_links_survives_a_delete(client, beach):
     first = _event(client, title="Beach trip", packing_list_template_ids=[beach["id"]])
-    _event(client, title="Nana overnight", packing_list_template_ids=[beach["id"]])
+    _event(client, adopt=True, title="Nana overnight", packing_list_template_ids=[beach["id"]])
     client.delete(f"/api/events/{first['id']}")
     days = _days(client)
     assert [e["title"] for e in days[0]["events"]] == ["Nana overnight"]
@@ -531,3 +552,169 @@ def test_a_day_with_checks_kept_by_its_template_check(client, beach, db_session)
 )
 def test_names_are_quoted_with_the_oxford_comma(names, expected):
     assert logic.join_names(names) == expected
+
+
+# --- Asking before a newly added list joins a day (#291) ------------------------
+
+
+def test_adding_a_list_on_a_day_it_is_already_on_asks_first(client, beach):
+    event = _event(client)
+    day = client.post(
+        "/api/packing-list-days", json={"packing_list_template_id": beach["id"], "date": SATURDAY}
+    ).json()
+
+    response = _put(client, event["id"], packing_list_template_ids=[beach["id"]])
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    # No "instead" and nothing lost: the event had no day of its own.
+    assert detail["message"] == (
+        '"Beach day" is already on Saturday, October 10. This event will use that list. Continue?'
+    )
+    assert detail["adopts"] == [
+        {"template_name": "Beach day", "from_date": None, "to_date": SATURDAY, "checked": False}
+    ]
+    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == []
+    assert _days(client)[0]["events"] == []
+
+    response = _put(client, event["id"], "?adopt=true", packing_list_template_ids=[beach["id"]])
+    assert response.status_code == 200
+    days = _days(client)
+    assert [d["id"] for d in days] == [day["id"]]
+    assert [e["event_id"] for e in days[0]["events"]] == [event["id"]]
+
+
+def test_adding_a_list_and_moving_in_one_save_asks_first(client, beach):
+    event = _event(client)
+    client.post(
+        "/api/packing-list-days",
+        json={"packing_list_template_id": beach["id"], "date": NEXT_SATURDAY},
+    )
+
+    response = _put(
+        client,
+        event["id"],
+        start=NEXT_SATURDAY,
+        end=NEXT_SATURDAY,
+        all_day=True,
+        packing_list_template_ids=[beach["id"]],
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["adopts"][0]["to_date"] == NEXT_SATURDAY
+    # Nothing was written: the event is still on its old date.
+    assert client.get(f"/api/events/{event['id']}").json()["start_date"] == SATURDAY
+
+
+def test_an_occurrence_coming_into_view_joins_a_day_without_asking(
+    client, beach, frozen_now, db_session
+):
+    """Only a list newly added to the event asks. A series that already brings
+    the list, whose next occurrence lands on a day already there because time
+    has passed, joins it silently: on an unrelated edit and in the daily sync."""
+    event = _event(client, rrule="FREQ=WEEKLY;BYDAY=SA", packing_list_template_ids=[beach["id"]])
+    later = "2026-10-24"
+    there = client.post(
+        "/api/packing-list-days", json={"packing_list_template_id": beach["id"], "date": later}
+    ).json()
+
+    # By the 18th, the 24th is inside the seven-day lookahead.
+    frozen_now(datetime(2026, 10, 18, 15, 0, tzinfo=UTC))
+    response = _put(client, event["id"], title="Saturday swim")
+    assert response.status_code == 200, response.text
+    joined = next(d for d in _days(client) if d["date"] == later)
+    assert joined["id"] == there["id"]
+    assert [e["event_id"] for e in joined["events"]] == [event["id"]]
+
+    # The daily sync never asks either.
+    assert (
+        logic.process_event_packing_lists(
+            db_session, date(2026, 10, 18), ZoneInfo("America/Chicago")
+        )
+        >= 1
+    )
+
+
+# --- Refusing a list added to the past (#290) -----------------------------------
+
+PAST_SATURDAY = "2026-10-03"
+ADDED_TO_PAST = "This event has already passed, so a packing list can't be added to it."
+
+
+def test_adding_a_list_to_a_past_event_is_refused(client, beach):
+    event = _event(client, start=PAST_SATURDAY, end=PAST_SATURDAY)
+    response = _put(client, event["id"], packing_list_template_ids=[beach["id"]])
+    assert response.status_code == 422
+    assert response.json()["detail"] == ADDED_TO_PAST
+    # Nothing was stored, and no day was made.
+    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == []
+    assert _days(client) == []
+
+
+def test_creating_a_past_event_with_a_list_is_refused(client, beach):
+    body = {"title": "Trip", "all_day": True, "start": PAST_SATURDAY, "end": PAST_SATURDAY}
+    response = client.post("/api/events", json={**body, "packing_list_template_ids": [beach["id"]]})
+    assert response.status_code == 422
+    assert response.json()["detail"] == ADDED_TO_PAST
+    assert (
+        client.get("/api/events", params={"start": PAST_SATURDAY, "end": PAST_SATURDAY}).json()[
+            "occurrences"
+        ]
+        == []
+    )
+
+
+def test_adding_a_list_to_one_past_occurrence_is_refused(client, beach):
+    series = _event(client, start="2026-09-26", end="2026-09-26", rrule="FREQ=WEEKLY;BYDAY=SA")
+    response = _put(
+        client,
+        series["id"],
+        f"?scope=this&occurrence_date={PAST_SATURDAY}",
+        packing_list_template_ids=[beach["id"]],
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == ADDED_TO_PAST
+
+
+def test_a_series_that_started_in_the_past_still_takes_a_list(client, beach):
+    """Its occurrences from today on are where the list goes."""
+    series = _event(client, start="2026-09-26", end="2026-09-26", rrule="FREQ=WEEKLY;BYDAY=SA")
+    response = _put(client, series["id"], packing_list_template_ids=[beach["id"]])
+    assert response.status_code == 200, response.text
+    assert [date for date, _ in _on(client, "Beach day")][:1] == [SATURDAY]
+
+
+def test_an_event_under_way_takes_a_list_on_every_day_but_not_its_first(client, beach, nana):
+    """The sync's own rule decides: `Every day` still has today, `First day` has
+    passed."""
+    under_way = {"start": "2026-10-06", "end": "2026-10-10"}
+    every = _event(client, packing_list_span="every", **under_way)
+    response = _put(client, every["id"], packing_list_template_ids=[beach["id"]])
+    assert response.status_code == 200, response.text
+
+    first = _event(client, packing_list_span="first", **under_way)
+    response = _put(client, first["id"], packing_list_template_ids=[nana["id"]])
+    assert response.status_code == 422
+    assert response.json()["detail"] == ADDED_TO_PAST
+
+
+def test_keeping_a_past_events_lists_is_not_adding_them(client, beach, frozen_now):
+    """An event that brought a list while it was upcoming can still be edited
+    after it has passed."""
+    event = _event(client, packing_list_template_ids=[beach["id"]])
+    frozen_now(datetime(2026, 10, 12, 15, 0, tzinfo=UTC))
+    response = _put(
+        client, event["id"], title="Beach trip", packing_list_template_ids=[beach["id"]]
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_a_far_off_event_or_series_still_takes_a_list(client, beach):
+    """However far ahead it is, an event that has not happened has a day for
+    the list."""
+    far = "2029-06-02"
+    one_time = _event(client, start=far, end=far)
+    response = _put(client, one_time["id"], packing_list_template_ids=[beach["id"]])
+    assert response.status_code == 200, response.text
+
+    series = _event(client, start=far, end=far, rrule="FREQ=WEEKLY;BYDAY=SA")
+    response = _put(client, series["id"], packing_list_template_ids=[beach["id"]])
+    assert response.status_code == 200, response.text
