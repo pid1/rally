@@ -1993,6 +1993,18 @@
                 alert('This event has packing lists. Remove them before moving it to a day that has passed.');
                 return false;
             }
+            /* A list added to a one-time event, or one occurrence, whose day for
+               it has passed (#290): the last day on `Every day`, the start
+               otherwise, the API's rule. The API refuses it for every scope,
+               a whole series included; this is the early answer where the page
+               can see it. */
+            const repeats = editingEvent ? editingEvent.rrule : payload.rrule;
+            const added = packingChosen.filter(id => !packingOpened.includes(id));
+            const landsOn = (chosenSpan() === 'every' ? payload.end || payload.start : payload.start).slice(0, 10);
+            if ((!repeats || scope === 'this') && added.length && landsOn < todayIso()) {
+                alert("This event has already passed, so a packing list can't be added to it.");
+                return false;
+            }
             return true;
         }
 
@@ -2015,7 +2027,9 @@
                 delete payload.end;
             }
 
-            let url = '/api/events';
+            // A new event can be asked the same question an edit can: a list
+            // it brings may land on a day its template is already on (#291).
+            let url = adopt ? '/api/events?adopt=true' : '/api/events';
             let method = 'POST';
             if (editingEvent) {
                 const params = new URLSearchParams({ scope: scope || 'all' });

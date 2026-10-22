@@ -284,15 +284,27 @@ def _require_templates(db: Session, template_ids: list[int] | None) -> list[int]
     return wanted
 
 
-def _sync_packing_lists(db: Session, event: Event, *, adopt: bool = False) -> None:
+def _sync_packing_lists(
+    db: Session,
+    event: Event,
+    *,
+    adopt: bool = False,
+    added: set[int] | None = None,
+    occurrence_date: str | None = None,
+) -> None:
     """Bring an event's packing list days in line with it, or refuse the write.
 
     Runs before the write is committed. A refusal rolls the whole write back,
     so the event and its packing lists change together or not at all.
+    ``added`` is what this write adds to the series, or to ``occurrence_date``
+    when it is set; adding a list where it could never land is a ``422``.
     """
     tz = _tz(db)
     today = now_utc().astimezone(tz).date()
     try:
+        packing_lists.refuse_lists_added_to_the_past(
+            db, event, added or set(), today, tz, occurrence_date
+        )
         packing_lists.sync_event_packing_lists(db, event, today, tz=tz, adopt=adopt)
     except packing_lists.AdoptNeeded as exc:
         db.rollback()
@@ -300,7 +312,7 @@ def _sync_packing_lists(db: Session, event: Event, *, adopt: bool = False) -> No
             status_code=409,
             detail={"message": packing_lists.adopt_message(exc.adopts), "adopts": exc.adopts},
         ) from exc
-    except packing_lists.MovedIntoPast as exc:
+    except (packing_lists.MovedIntoPast, packing_lists.AddedToPast) as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -474,7 +486,11 @@ def _reject_impossible_bound(event: Event) -> None:
 
 
 @router.post("", response_model=EventResponse, status_code=201)
-def create_event(payload: EventCreate, db: Session = Depends(get_db)):
+def create_event(
+    payload: EventCreate,
+    adopt: bool = Query(False, description="Go ahead when a list joins a day already there"),
+    db: Session = Depends(get_db),
+):
     """Create a single event or a recurring series."""
     tz_name = payload.tzid or local_timezone_name(db)
     calendar = _require_native_calendar(db, payload.calendar_id)
@@ -509,7 +525,7 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
     _set_attendees(db, event.id, payload.attendee_ids)
     if template_ids:
         packing_lists.set_series_lists(db, event.id, template_ids)
-        _sync_packing_lists(db, event)
+        _sync_packing_lists(db, event, adopt=adopt, added=set(template_ids))
     db.commit()
     db.refresh(event)
 
@@ -614,10 +630,14 @@ def update_event(
 
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
+        occurrence = split_day.isoformat()
+        added: set[int] = set()
+        if template_ids is not None:
+            added = set(template_ids) - packing_lists.occurrence_lists(db, event.id, occurrence)
         _update_single_occurrence(db, event, payload, split_day, tz_name)
         if template_ids is not None:
-            packing_lists.set_occurrence_lists(db, event.id, split_day.isoformat(), template_ids)
-        _sync_packing_lists(db, event, adopt=adopt)
+            packing_lists.set_occurrence_lists(db, event.id, occurrence, template_ids)
+        _sync_packing_lists(db, event, adopt=adopt, added=added, occurrence_date=occurrence)
         db.commit()
         db.refresh(event)
         notify_event_change(db, event, kind=KIND_UPDATED, occurrence_date=split_day.isoformat())
@@ -642,10 +662,12 @@ def update_event(
     except HTTPException:
         db.rollback()
         raise
+    added: set[int] = set()
     if template_ids is not None:
+        added = set(template_ids) - packing_lists.series_lists(db, event.id)
         packing_lists.set_series_lists(db, event.id, template_ids)
     db.flush()
-    _sync_packing_lists(db, event, adopt=adopt)
+    _sync_packing_lists(db, event, adopt=adopt, added=added)
     db.commit()
     db.refresh(event)
     notify_event_change(db, event, kind=KIND_UPDATED)
@@ -811,6 +833,9 @@ def _split_series(
         if override.occurrence_date >= split_day.isoformat():
             override.event_id = tail.id
 
+    added: set[int] = set()
+    if template_ids is not None:
+        added = set(template_ids) - packing_lists.series_lists(db, event.id)
     packing_lists.split_event_packing_lists(db, event.id, tail.id, split_day.isoformat())
     if template_ids is not None:
         packing_lists.set_series_lists(db, tail.id, template_ids)
@@ -818,7 +843,7 @@ def _split_series(
     _truncate_series(event, split_day)
     db.flush()
     _sync_packing_lists(db, event, adopt=adopt)
-    _sync_packing_lists(db, tail, adopt=adopt)
+    _sync_packing_lists(db, tail, adopt=adopt, added=added)
     db.commit()
     db.refresh(tail)
     return _event_response(db, tail)
