@@ -19,7 +19,11 @@ in
   # Language support
   languages.python = {
     enable = true;
-    version = "3.15";
+    # From nixpkgs rather than `version = "3.15"`, which builds through
+    # cachix/nixpkgs-python: that input lists 3.15 releases but ships no
+    # `patches/3.15-no-ldconfig.patch`, so evaluating it fails with
+    # "path ... does not exist". nixpkgs-unstable packages 3.15 directly.
+    package = pkgs.python315;
     uv = {
       enable = true;
       sync.enable = true;
