@@ -38,6 +38,11 @@ visual = [
 # Supply-chain cooldown: only resolve releases that have been public for a
 # week, so a hijacked or malicious upload is usually pulled before we see it.
 exclude-newer = "7 days"
+# Cooldown exception (factory 2026-10-22): certifi 2026.10.19 removes the
+# distrusted "emSign ECC Root CA - G3" (Semgrep
+# ssc-5df0a6b6-da47-4290-9f7c-28111c57478b) and is under a week old.
+# Remove this line on the next factory run.
+exclude-newer-package = { certifi = false }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
