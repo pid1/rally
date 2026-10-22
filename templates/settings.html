@@ -585,6 +585,7 @@
         // State
         let familyMembers = [];
         let calendars = [];
+        let calendarsLoaded = false;
         let editingMemberId = null;
         let editingCalendarId = null;
 
@@ -626,6 +627,9 @@
             renderDeviceMemberOptions();
             renderMemberPrefsLegend();
             renderMemberPrefs();
+            // Calendars load alongside members, and a calendar row names its
+            // owner: drawn before the members arrived, it named nobody.
+            if (calendarsLoaded) renderCalendars();
         }
 
         async function createMember(data) {
@@ -1148,6 +1152,7 @@
         async function fetchCalendars() {
             const response = await fetch('/api/calendars');
             calendars = await response.json();
+            calendarsLoaded = true;
             renderCalendars();
         }
 
