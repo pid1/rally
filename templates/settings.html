@@ -1189,6 +1189,7 @@
         }
 
         function calTypeLabel(type) {
+            if (type === 'native') return 'Rally';
             if (type === 'caldav_google') return 'Google CalDAV';
             if (type === 'caldav_apple') return 'Apple CalDAV';
             return 'ICS';

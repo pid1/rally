@@ -624,3 +624,10 @@ def test_only_the_save_button_saves_an_event(client):
     assert "event.key !== 'Enter'" in guard
     assert "field.tagName === 'INPUT' || field.tagName === 'SELECT'" in guard
     assert "event.preventDefault()" in guard
+
+
+def test_a_rally_calendar_is_not_labelled_as_a_feed(client):
+    """A Rally calendar's row reads [Rally], not the [ICS] every type without a
+    case of its own used to fall through to."""
+    html = client.get("/settings").text
+    assert "if (type === 'native') return 'Rally';" in html
