@@ -53,6 +53,24 @@ def _check_member_color(value: str | None) -> str | None:
     return value
 
 
+def _refuse_blank(message: str):
+    """A validator refusing a text field that is only spaces, with ``message``;
+    ``required`` in the form lets one through. Put it on the schemas that
+    write (create, update) only, so a row already stored with one still reads.
+    The value is kept as typed."""
+
+    def check(value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError(message)
+        return value
+
+    return check
+
+
+_refuse_blank_name = _refuse_blank("A name can't be empty.")
+_refuse_blank_label = _refuse_blank("A label can't be empty.")
+
+
 class FamilyMemberBase(BaseModel):
     name: str
     # Validated on the way *in* (see FamilyMemberCreate / FamilyMemberUpdate),
@@ -88,6 +106,8 @@ class FamilyMemberCreate(FamilyMemberBase):
     # Omitted means "the defaults" — everything on except shopping additions.
     notifications: dict[str, bool] | None = None
 
+    _name = field_validator("name")(_refuse_blank_name)
+
     @field_validator("color")
     @classmethod
     def check_color(cls, value):
@@ -107,6 +127,8 @@ class FamilyMemberUpdate(BaseModel):
     # A *partial* map: kinds left out keep whatever they resolve to today.
     # UNSET means "not provided", the same distinction the fields above draw.
     notifications: dict[str, bool] | None = UNSET
+
+    _name = field_validator("name")(_refuse_blank_name)
 
     @field_validator("color")
     @classmethod
@@ -146,7 +168,7 @@ class CalendarBase(BaseModel):
 
 
 class CalendarCreate(CalendarBase):
-    pass
+    _label = field_validator("label")(_refuse_blank_label)
 
 
 class CalendarUpdate(BaseModel):
@@ -157,6 +179,8 @@ class CalendarUpdate(BaseModel):
     cal_type: str | None = None
     username: str | None = None
     password: str | None = None
+
+    _label = field_validator("label")(_refuse_blank_label)
 
 
 class CalendarResponse(CalendarBase):
@@ -292,20 +316,6 @@ class LLMConfigHistoryResponse(BaseModel):
 
 
 # Todos
-
-
-def _refuse_blank(message: str):
-    """A validator refusing a text field that is only spaces, with ``message``;
-    ``required`` in the form lets one through. Put it on the schemas that
-    write (create, update) only, so a row already stored with one still reads.
-    The value is kept as typed."""
-
-    def check(value: str | None) -> str | None:
-        if value is not None and not value.strip():
-            raise ValueError(message)
-        return value
-
-    return check
 
 
 _refuse_blank_title = _refuse_blank("A title can't be empty.")
@@ -521,7 +531,7 @@ class MealPlanBase(BaseModel):
 
 
 class MealPlanCreate(MealPlanBase):
-    _plan = field_validator("plan")(_refuse_blank("A name can't be empty."))
+    _plan = field_validator("plan")(_refuse_blank_name)
 
 
 class MealPlanUpdate(BaseModel):
@@ -532,7 +542,7 @@ class MealPlanUpdate(BaseModel):
     attendee_ids: list[int] | None = UNSET  # None means "clear"; UNSET means "not provided"
     cook_id: int | None = UNSET  # None means "clear"; UNSET means "not provided"
 
-    _plan = field_validator("plan")(_refuse_blank("A name can't be empty."))
+    _plan = field_validator("plan")(_refuse_blank_name)
 
 
 class MealPlanReviewUpdate(BaseModel):
@@ -640,7 +650,7 @@ class FollowedTeamBase(BaseModel):
 
 
 class FollowedTeamCreate(FollowedTeamBase):
-    pass
+    _label = field_validator("label")(_refuse_blank_label)
 
 
 class FollowedTeamUpdate(BaseModel):
@@ -650,6 +660,8 @@ class FollowedTeamUpdate(BaseModel):
     label: str | None = None
     radio_station: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     active: bool | None = None
+
+    _label = field_validator("label")(_refuse_blank_label)
 
 
 class FollowedTeamResponse(FollowedTeamBase):

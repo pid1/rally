@@ -934,3 +934,30 @@ def test_a_scheduling_note_does_not_become_an_nfl_reason():
     notable, reason = evaluate(game, None, {}, set())
     assert notable is True
     assert reason == "Regular season"
+
+
+def test_a_team_needs_its_key_and_a_label(client):
+    """#272: a team without a key resolves to nothing for a whole season, so it
+    is refused; a racing series has no key to give."""
+    response = client.post(
+        "/api/followed-teams", json={"league": "hockey/nhl", "label": "Stars", "team_key": " "}
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "A team key can't be empty."
+    response = client.post("/api/followed-teams", json={"league": "hockey/nhl", "label": " "})
+    assert response.status_code == 422
+    assert "A label can't be empty." in response.text
+
+    racing = client.post(
+        "/api/followed-teams", json={"league": "racing/nascar-premier", "label": "Cup"}
+    )
+    assert racing.status_code == 201
+    team = client.post(
+        "/api/followed-teams", json={"league": "hockey/nhl", "label": "Stars", "team_key": "dal"}
+    ).json()
+    assert (
+        client.put(f"/api/followed-teams/{team['id']}", json={"team_key": None}).status_code == 422
+    )
+    assert (
+        client.put(f"/api/followed-teams/{team['id']}", json={"label": "Dallas"}).status_code == 200
+    )

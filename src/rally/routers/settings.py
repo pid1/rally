@@ -448,9 +448,29 @@ def list_calendars(db: Session = Depends(get_db)):
     return [CalendarResponse.from_calendar(c) for c in cals]
 
 
+CALDAV_TYPES = ("caldav_google", "caldav_apple")
+
+
+def _require_calendar_fields(
+    cal_type: str, url: str | None, username: str | None, password: str | None
+) -> None:
+    """Refuse a calendar missing what its type needs to connect, as it would
+    stand after the write: an ICS feed its URL, a CalDAV calendar its email
+    and app-specific password. The Settings form refuses the same in place;
+    this is the answer for any other caller."""
+    if cal_type == "ics" and not (url or "").strip():
+        raise HTTPException(status_code=422, detail="A URL can't be empty.")
+    if cal_type in CALDAV_TYPES:
+        if not (username or "").strip():
+            raise HTTPException(status_code=422, detail="An email can't be empty.")
+        if not (password or "").strip():
+            raise HTTPException(status_code=422, detail="A password can't be empty.")
+
+
 @router.post("/api/calendars", response_model=CalendarResponse, status_code=201)
 def create_calendar(cal: CalendarCreate, db: Session = Depends(get_db)):
     """Create a new calendar feed."""
+    _require_calendar_fields(cal.cal_type, cal.url, cal.username, cal.password)
     db_cal = Calendar(
         label=cal.label,
         url=cal.url,
@@ -485,6 +505,15 @@ def update_calendar(
     db_cal = db.query(Calendar).filter(Calendar.id == cal_id).first()
     if not db_cal:
         raise HTTPException(status_code=404, detail="Calendar not found")
+
+    # A password left out keeps the stored one, which is why editing never
+    # asks for it again.
+    _require_calendar_fields(
+        cal.cal_type if cal.cal_type is not None else (db_cal.cal_type or "ics"),
+        cal.url if cal.url is not None else db_cal.url,
+        cal.username if cal.username is not None else db_cal.username,
+        cal.password if cal.password else db_cal.password,
+    )
 
     if cal.label is not None:
         db_cal.label = cal.label
@@ -614,9 +643,16 @@ def list_followed_teams(db: Session = Depends(get_db)):
     return db.query(FollowedTeam).order_by(FollowedTeam.label.asc()).all()
 
 
+def _require_team_key(league: str, team_key: str | None) -> None:
+    """A team needs its key; a racing series has none to give."""
+    if not league.startswith("racing/") and not (team_key or "").strip():
+        raise HTTPException(status_code=422, detail="A team key can't be empty.")
+
+
 @router.post("/api/followed-teams", response_model=FollowedTeamResponse, status_code=201)
 def create_followed_team(team: FollowedTeamCreate, db: Session = Depends(get_db)):
     """Follow a team or racing series."""
+    _require_team_key(team.league, team.team_key)
     db_team = FollowedTeam(
         provider=team.provider,
         league=team.league,
@@ -637,6 +673,11 @@ def update_followed_team(team_id: int, team: FollowedTeamUpdate, db: Session = D
     db_team = db.query(FollowedTeam).filter(FollowedTeam.id == team_id).first()
     if not db_team:
         raise HTTPException(status_code=404, detail="Followed team not found")
+
+    _require_team_key(
+        team.league if team.league is not None else db_team.league,
+        team.team_key if team.team_key is not UNSET else db_team.team_key,
+    )
 
     if team.provider is not None:
         db_team.provider = team.provider

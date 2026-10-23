@@ -129,7 +129,7 @@
         // A new date is a new attempt: every message from the last Save goes.
         // On `input`, which comes before `change`, so the notice a taken date
         // shows (on `change`, below) is not cleared away with them.
-        dateField.addEventListener('input', () => clearFormMessages(form));
+        clearFormMessagesOn(dateField, form, 'input');
 
         function updateCounter() {
             const used = bodyField.value.length;
