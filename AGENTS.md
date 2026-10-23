@@ -1487,7 +1487,7 @@ docker run -d -p 8000:8000 -v $(pwd)/data:/data -v $(pwd)/output:/output --name 
 - `devenv` is not needed to run these commands. Sadr runs them with `uv` directly.
 
 ### Toolchain
-- Python 3.15 and uv. The Dockerfile pins uv 0.13.1 and the Tests workflow installs the newest uv through `astral-sh/setup-uv`.
+- Python 3.15 and uv. The Dockerfile pins uv 0.13.1 by digest.
 - The Semgrep workflow runs `semgrep ci` in the `semgrep/semgrep` container, pinned by digest.
 
 ### Deploys outside CI
