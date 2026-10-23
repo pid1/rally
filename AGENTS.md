@@ -1478,3 +1478,16 @@ docker run -d -p 8000:8000 -v $(pwd)/data:/data -v $(pwd)/output:/output --name 
 - [Ruff Documentation](https://docs.astral.sh/ruff/)
 - [uv Documentation](https://docs.astral.sh/uv/)
 - [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
+
+## Sadr
+
+### Holds
+- Cooldown exception: certifi 2026.10.19 for the emSign ECC Root CA - G3 distrust (Semgrep finding 1031860857), capped at 2026.10.19. Removes the distrusted root certificate. Added 2026-10-23T00:07Z, expires 2026-10-27T02:24Z.
+- Already merged: pillow 13.0.0, capped at 13.0.0 until it clears the cooldown. The cooldown setting landed while it was 6 days old. Added 2026-10-23T00:07Z, expires 2026-10-23T22:17Z.
+- Already merged: sqlalchemy 2.1.5, capped at 2.1.5 until it clears the cooldown. The cooldown setting landed while it was 6 days old. Added 2026-10-23T00:07Z, expires 2026-10-23T20:52Z.
+- Already merged: openai 3.35.1, capped at 3.35.1 until it clears the cooldown. The cooldown setting landed while it was 5 days old. Added 2026-10-23T00:07Z, expires 2026-10-25T01:06Z.
+- Already merged: httpcore2 2.14.0, capped at 2.14.0 until it clears the cooldown. The cooldown setting landed while it was 4 days old. Added 2026-10-23T00:07Z, expires 2026-10-25T16:29Z.
+- Already merged: httpx2 2.14.0, capped at 2.14.0 until it clears the cooldown. The cooldown setting landed while it was 4 days old. Added 2026-10-23T00:07Z, expires 2026-10-25T16:29Z.
+- Already merged: starlette 1.9.0, capped at 1.9.0 until it clears the cooldown. The cooldown setting landed while it was 4 days old. Added 2026-10-23T00:07Z, expires 2026-10-25T15:50Z.
+- Already merged: fastapi 0.149.0, capped at 0.149.0 until it clears the cooldown. The cooldown setting landed while it was 3 days old. Added 2026-10-23T00:07Z, expires 2026-10-26T17:22Z.
+- Already merged: websockets 17.3, capped at 17.3 until it clears the cooldown. The cooldown setting landed while it was 3 days old. Added 2026-10-23T00:07Z, expires 2026-10-26T16:56Z.
