@@ -245,10 +245,14 @@ def test_forgetting_a_device_clears_what_it_remembered(browser, live_server):
 
         page = _settings(context, live_server)
         page.wait_for_selector("#device-list .editable-item")
-        page.on("dialog", lambda dialog: dialog.accept())
         page.locator("#device-list .editable-item", has_text="this device").locator(
             "button", has_text="Forget"
         ).click()
+        # Asked in the shared dialog (#272), the device's name in bold.
+        page.wait_for_selector("#dialog-modal-overlay", state="visible")
+        assert page.inner_text("#dialog-modal-title").lower() == "forget device"
+        assert page.inner_text("#dialog-modal-message strong")
+        page.click("#btn-dialog-modal-confirm")
         page.wait_for_selector("#member-prefs-list select[data-pref-key][data-saved='auto']")
         page.close()
 
