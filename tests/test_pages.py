@@ -101,38 +101,19 @@ def test_modals_are_opened_only_through_the_shared_helper():
     )
 
 
-# Files that still ask with the browser's confirm() or alert(). #272 moves
-# them to the shared dialog one page per PR, each taking its files off this
-# list; the last one deletes the list.
-NOT_YET_ON_SHARED_DIALOG = {
-    "settings.html",
-}
-
-
 def _page_sources():
     return sorted(TEMPLATES.glob("*.html")) + sorted(STATIC.glob("*.js"))
 
 
 def test_questions_and_failures_go_through_the_shared_dialog():
-    """#272 — confirm() and alert() are the browser's, in its font and chrome,
-    and take plain text only. Every question and failure goes through
-    confirmModal() / alertModal() in static/dialogs.js instead."""
+    """#272 — confirm(), alert() and prompt() are the browser's, in its font
+    and chrome, and take plain text only. Every question and failure goes
+    through confirmModal() / alertModal() in static/dialogs.js instead, and a
+    form check or a saved notice reads in place in a `.form-message`."""
     # A call has an argument; prose about "confirm()" in a comment does not.
-    call = re.compile(r"(?<![\w.])(?:window\.)?(?:confirm|alert)\((?!\))")
-    offenders = sorted(
-        {
-            path.name
-            for path in _page_sources()
-            if path.name not in NOT_YET_ON_SHARED_DIALOG and call.search(path.read_text())
-        }
-    )
-    assert not offenders, f"use confirmModal() / alertModal(), not confirm() / alert(): {offenders}"
-    stale = sorted(
-        name
-        for name in NOT_YET_ON_SHARED_DIALOG
-        if not any(p.name == name and call.search(p.read_text()) for p in _page_sources())
-    )
-    assert not stale, f"moved to the shared dialog; take these off the list: {stale}"
+    call = re.compile(r"(?<![\w.])(?:window\.)?(?:confirm|alert|prompt)\((?!\))")
+    offenders = sorted(path.name for path in _page_sources() if call.search(path.read_text()))
+    assert not offenders, f"use confirmModal() / alertModal(), not the browser's: {offenders}"
 
 
 def test_every_page_carries_the_shared_dialog(client):
@@ -549,14 +530,17 @@ def test_an_empty_required_date_is_refused_in_place(client, path, wiring):
     # A Save stopped by one field still says every other refusal in the form:
     # each requireText() field's spaces check runs, skipping fields not in use.
     assert "form.addEventListener('invalid', () => {" in js
-    assert "if (el.disabled || el.readOnly || !el.getClientRects().length) return;" in js
+    assert (
+        "if (el.disabled || el.readOnly || !el.required || !el.getClientRects().length) return;"
+        in js
+    )
 
 
 def test_changing_a_notes_date_clears_its_messages(client):
     """A new date on Notes is a new attempt: every message from the last Save
     clears, on `input` so the taken-date notice (on `change`) still shows."""
     html = client.get("/notes").text
-    assert "dateField.addEventListener('input', () => clearFormMessages(form));" in html
+    assert "clearFormMessagesOn(dateField, form, 'input');" in html
 
 
 def test_the_meal_modal_refuses_an_empty_date_in_place(client):
@@ -631,3 +615,54 @@ def test_a_rally_calendar_is_not_labelled_as_a_feed(client):
     case of its own used to fall through to."""
     html = client.get("/settings").text
     assert "if (type === 'native') return 'Rally';" in html
+
+
+def test_settings_asks_and_reports_in_place(client):
+    """#272: Settings asks in the shared dialog with the name in bold, says a
+    section saved under its Save button, and refuses a modal's missing fields
+    under them."""
+    html = client.get("/settings").text
+    for title in ("Forget device", "Delete family member", "Delete calendar", "Stop following"):
+        assert f"title: '{title}'" in html
+    # A new calendar type or league is a new attempt: its messages all go.
+    assert "clearFormMessagesOn('calendar-type', 'calendar-modal-overlay');" in html
+    assert "clearFormMessagesOn('team-league', 'team-modal-overlay');" in html
+
+    for form in (
+        "meal-planner",
+        "home",
+        "tasks",
+        "learning",
+        "shopping",
+        "packing-lists",
+        "preparedness",
+        "sports",
+        "general",
+    ):
+        assert (
+            f'<div class="form-message" id="{form}-form-message" role="status" hidden></div>'
+            in html
+        )
+    for message_id in (
+        "member-name-message",
+        "calendar-label-message",
+        "calendar-url-message",
+        "calendar-member-message",
+        "calendar-username-message",
+        "calendar-password-message",
+        "calendar-form-message",
+        "team-label-message",
+        "team-key-message",
+        "team-form-message",
+    ):
+        assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
+
+
+def test_a_new_packing_list_date_clears_the_modal(client):
+    """#272: Add and Edit Packing List clear every message when the date,
+    template or start changes, through the shared helper."""
+    html = client.get("/packing-lists").text
+    assert "clearFormMessagesOn('day-edit-date', 'day-edit-modal-overlay');" in html
+    assert "'day-add-modal-overlay');" in html
+    assert "clearFormMessage('day-add-message')" not in html
+    assert "clearFormMessage('day-edit-message')" not in html

@@ -21,6 +21,11 @@
  *       Every `.form-message` inside a modal, cleared at once: what a
  *       confirmed delete in a "Manage …" modal does, since it settles the
  *       modal and no refusal in it still applies.
+ *   clearFormMessagesOn(controls, scope, type = 'change')
+ *       A control that changes what the form is asking (a calendar's Type, a
+ *       team's league, a note's date): changing it clears every
+ *       `.form-message` in `scope`, since the form is a new attempt and no
+ *       refusal from the last Save still applies.
  *   requireText(input, messageId, text)                 → () => boolean
  *       A required text field that refuses a missing value in place, never
  *       with the browser's bubble. Call once per field; call what it returns
@@ -121,6 +126,12 @@
         });
     }
 
+    function clearFormMessagesOn(controls, scope, type = 'change') {
+        [].concat(controls).forEach((control) => {
+            field(control).addEventListener(type, () => clearFormMessages(scope));
+        });
+    }
+
     function field(input) {
         return typeof input === 'string' ? part(input) : input;
     }
@@ -196,9 +207,10 @@
                 setTimeout(() => { checksRun = false; });
                 // After this field's own handler, so the first refused field
                 // keeps the cursor. A field the form is not using right now
-                // (hidden, disabled, read-only) is not asked.
+                // (hidden, disabled, read-only, or not required just now, like
+                // a password editing leaves as stored) is not asked.
                 setTimeout(() => textChecks.get(form).forEach(({ el, check }) => {
-                    if (el.disabled || el.readOnly || !el.getClientRects().length) return;
+                    if (el.disabled || el.readOnly || !el.required || !el.getClientRects().length) return;
                     check();
                 }));
             }, true);
@@ -232,6 +244,7 @@
     window.showFormMessage = showFormMessage;
     window.clearFormMessage = clearFormMessage;
     window.clearFormMessages = clearFormMessages;
+    window.clearFormMessagesOn = clearFormMessagesOn;
     window.requireText = requireText;
     window.refuseBlank = refuseBlank;
     window.requireChoice = requireChoice;
