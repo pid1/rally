@@ -66,3 +66,10 @@ ignore = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.uv]
+# Nothing is installed until it has been public for 7 days. The caps below keep
+# versions that were already locked inside that window from moving back. Remove
+# each cap once its version is 7 days old.
+exclude-newer = "7 days"
+exclude-newer-package = { fastapi = "2026-10-19T17:23:00Z", websockets = "2026-10-19T16:59:00Z", certifi = "2026-10-20T02:25:00Z", httpcore2 = "2026-10-18T16:30:00Z", httpx2 = "2026-10-18T16:30:00Z", starlette = "2026-10-18T15:51:00Z", openai = "2026-10-18T01:07:00Z", pillow = "2026-10-16T22:19:00Z", sqlalchemy = "2026-10-16T23:29:00Z" }
