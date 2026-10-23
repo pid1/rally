@@ -1221,7 +1221,8 @@
             await loadDays();
         });
 
-        document.getElementById('day-edit-date').addEventListener('change', () => clearFormMessage('day-edit-message'));
+        // A new date is a new attempt: nothing refused for the old one applies.
+        clearFormMessagesOn('day-edit-date', 'day-edit-modal-overlay');
         clearOnChange(document.getElementById('day-edit-form'), 'day-edit-actions-message');
         document.getElementById('btn-cancel-day-edit').addEventListener('click', closeDayEditModal);
         document.getElementById('day-edit-modal-overlay').addEventListener('click', (e) => {
@@ -2246,10 +2247,11 @@
             if (!addName.readOnly) typedName = addName.value;
         });
         addDate.addEventListener('change', updatePackHint);
-        addDate.addEventListener('change', () => clearFormMessage('day-add-message'));
-        sourceSelect.addEventListener('change', () => clearFormMessage('day-add-message'));
-        addForm.querySelectorAll('input[name="day-add-mode"], input[name="day-add-start"]').forEach(radio =>
-            radio.addEventListener('change', () => clearFormMessage('day-add-message')));
+        // A new date, template or start is a new attempt: nothing refused for
+        // the old one applies.
+        clearFormMessagesOn(
+            [addDate, sourceSelect, ...addForm.querySelectorAll('input[name="day-add-mode"], input[name="day-add-start"]')],
+            'day-add-modal-overlay');
         addPackDays.addEventListener('input', updatePackHint);
         clearOnChange(addForm, 'day-add-actions-message');
 

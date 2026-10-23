@@ -184,11 +184,16 @@ def test_calendar_test_caldav_success(client, make_member, mock_caldav):
     assert "1 calendar" in body["message"]  # FakePrincipal returns one calendar
 
 
-def test_calendar_test_caldav_missing_credentials(client, make_member):
-    member = make_member("Dad")
-    cal = _make_calendar(client, member.id, cal_type="caldav_apple")  # no username/password
+def test_calendar_test_caldav_missing_credentials(client, db_session, make_member):
+    # The API refuses to save one now, so this is a row stored before it did.
+    from rally.models import Calendar
 
-    body = client.post(f"/api/calendars/{cal['id']}/test").json()
+    member = make_member("Dad")
+    cal = Calendar(label="Cal", url="", family_member_id=member.id, cal_type="caldav_apple")
+    db_session.add(cal)
+    db_session.commit()
+
+    body = client.post(f"/api/calendars/{cal.id}/test").json()
 
     assert body["success"] is False
     assert "credentials" in body["error"].lower()
