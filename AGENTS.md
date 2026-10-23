@@ -1478,3 +1478,9 @@ docker run -d -p 8000:8000 -v $(pwd)/data:/data -v $(pwd)/output:/output --name 
 - [Ruff Documentation](https://docs.astral.sh/ruff/)
 - [uv Documentation](https://docs.astral.sh/uv/)
 - [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
+
+## Sadr
+
+### Settings
+
+Don't auto-merge. Facts, upkeep and issue PRs all need review.
