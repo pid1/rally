@@ -1121,11 +1121,15 @@ html.modal-open {
     margin-block-end: calc(-1 * var(--space-1));
 }
 
+/* The fade covers .modal-body's box, not this wrapper's: the body reaches
+   var(--space-1) past the wrapper on the left and at the bottom (the focus-ring
+   room above), and a fade drawn to the wrapper's edge left that strip of a
+   field showing beneath it, its side borders poking out under the fade. */
 .modal-scroll::before,
 .modal-scroll::after {
     content: "";
     position: absolute;
-    left: 0;
+    left: calc(-1 * var(--space-1));
     right: 0;
     height: var(--space-6);
     pointer-events: none;
@@ -1140,7 +1144,7 @@ html.modal-open {
 }
 
 .modal-scroll::after {
-    bottom: 0;
+    bottom: calc(-1 * var(--space-1));
     background: linear-gradient(to top, var(--surface), transparent);
 }
 
