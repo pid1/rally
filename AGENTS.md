@@ -1478,3 +1478,17 @@ docker run -d -p 8000:8000 -v $(pwd)/data:/data -v $(pwd)/output:/output --name 
 - [Ruff Documentation](https://docs.astral.sh/ruff/)
 - [uv Documentation](https://docs.astral.sh/uv/)
 - [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
+
+## Sadr
+
+### Build and test
+- Install with `uv sync`. Run the tests with `uv run pytest`: 1931 passed and 1 skipped on 2026-10-23, in about 90 seconds. The visual suite in `tests/visual` skips itself without Playwright.
+- Check style with `uv run ruff check .` and `uv run ruff format --check .`. Both pass on the default branch. CI runs these three commands.
+- `devenv` is not needed to run these commands. Sadr runs them with `uv` directly.
+
+### Toolchain
+- Python 3.15 and uv. The Dockerfile pins uv 0.13.1 and the Tests workflow installs the newest uv through `astral-sh/setup-uv`.
+- The Semgrep workflow runs `semgrep ci` in the `semgrep/semgrep` container, pinned by digest.
+
+### Deploys outside CI
+- The container workflow builds the Dockerfile on every push to `main`. The Dockerfile runs `uv sync --no-dev --frozen`, so the image installs exactly what `uv.lock` pins.
