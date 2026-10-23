@@ -8,6 +8,8 @@ are covered separately in Phase 5 with the external-boundary stubs.
 import json
 from datetime import UTC, datetime
 
+import pytest
+
 from rally import member_prefs
 from rally.member_prefs import CALENDAR_DEFAULT_VIEW
 from rally.models import AISettingsHistory, Calendar, LLMSettingsHistory
@@ -356,6 +358,7 @@ def test_calendar_update_all_fields(client, make_member):
             "owner_email": "owner@example.com",
             "cal_type": "caldav_google",
             "username": "user2",
+            "password": "app-pass",
         },
     ).json()
 
@@ -493,3 +496,79 @@ def test_every_setting_defaults_to_auto_over_the_wire(client):
 def test_the_catalog_reads_nothing_and_needs_no_family(client):
     """Configuration, not state: it answers on a brand new install."""
     assert client.get("/api/preferences/catalog").status_code == 200
+
+
+# --- what a calendar, a member and a team need (#272) --------------------------
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"cal_type": "ics", "url": "  "}, "A URL can't be empty."),
+        (
+            {"cal_type": "caldav_apple", "url": "https://caldav.icloud.com/", "password": "p"},
+            "An email can't be empty.",
+        ),
+        (
+            {"cal_type": "caldav_google", "url": "https://x/", "username": "a@b.c"},
+            "A password can't be empty.",
+        ),
+    ],
+)
+def test_a_calendar_missing_what_its_type_needs_is_refused(client, make_member, payload, message):
+    member = make_member("Dad")
+    response = client.post(
+        "/api/calendars", json={"label": "Cal", "family_member_id": member.id, **payload}
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == message
+    assert client.get("/api/calendars").json() == []
+
+
+def test_a_native_calendar_needs_no_url(client, make_member):
+    member = make_member("Dad")
+    response = client.post(
+        "/api/calendars",
+        json={"label": "Dad", "family_member_id": member.id, "cal_type": "native"},
+    )
+    assert response.status_code == 201
+
+
+def test_editing_a_caldav_calendar_keeps_the_stored_password(client, make_member):
+    member = make_member("Dad")
+    cal = client.post(
+        "/api/calendars",
+        json={
+            "label": "iCloud",
+            "family_member_id": member.id,
+            "cal_type": "caldav_apple",
+            "url": "https://caldav.icloud.com/",
+            "username": "dad@icloud.com",
+            "password": "app-pass",
+        },
+    ).json()
+    response = client.put(f"/api/calendars/{cal['id']}", json={"label": "Dad's iCloud"})
+    assert response.status_code == 200
+    response = client.put(f"/api/calendars/{cal['id']}", json={"username": " "})
+    assert response.status_code == 422
+    assert response.json()["detail"] == "An email can't be empty."
+
+
+def test_a_blank_calendar_label_is_refused(client, make_member):
+    member = make_member("Dad")
+    cal = _make_calendar(client, member.id)
+    assert client.put(f"/api/calendars/{cal['id']}", json={"label": "  "}).status_code == 422
+    response = client.post(
+        "/api/calendars",
+        json={"label": " ", "url": "https://ex/c.ics", "family_member_id": member.id},
+    )
+    assert response.status_code == 422
+    assert "A label can't be empty." in response.text
+
+
+def test_a_blank_member_name_is_refused(client, make_member):
+    member = make_member("Dad")
+    response = client.post("/api/family", json={"name": "   "})
+    assert response.status_code == 422
+    assert "A name can't be empty." in response.text
+    assert client.put(f"/api/family/{member.id}", json={"name": " "}).status_code == 422
