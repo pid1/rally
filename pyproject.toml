@@ -66,3 +66,27 @@ ignore = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.uv]
+# sadr: nothing is installed until it has been public for 7 days
+exclude-newer = "7 days"
+
+[tool.uv.exclude-newer-package]
+# sadr: cooldown exception GHSA-6q48-6c7w-9gw2, lift when certifi 2026.10.19 clears the cooldown
+certifi = "2026-10-20T02:25:00Z"
+# sadr: already merged inside the cooldown
+fastapi = "2026-10-19T17:23:00Z"
+# sadr: already merged inside the cooldown
+websockets = "2026-10-19T16:59:00Z"
+# sadr: already merged inside the cooldown
+httpcore2 = "2026-10-18T16:30:00Z"
+# sadr: already merged inside the cooldown
+httpx2 = "2026-10-18T16:30:00Z"
+# sadr: already merged inside the cooldown
+starlette = "2026-10-18T15:51:00Z"
+# sadr: already merged inside the cooldown
+openai = "2026-10-18T01:07:00Z"
+# sadr: already merged inside the cooldown
+pillow = "2026-10-16T22:19:00Z"
+# sadr: already merged inside the cooldown
+sqlalchemy = "2026-10-16T23:29:00Z"
