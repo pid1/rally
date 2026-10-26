@@ -133,6 +133,47 @@ docker exec rally python migrations/run_migrations.py
 
 To add one: write `migrations/migrate_XXX_description.py`, test it locally, and register it in the list in `run_migrations.py`. The template, the SQLite-specific patterns and the list of existing migrations live in [AGENTS.md](../AGENTS.md#database-migrations).
 
+## The audit log
+
+Every read and write is recorded by the data layer, so routes don't log by
+hand — but a new endpoint, MCP tool or data path still has to be built so the
+audit layer sees it, and has to ship with a test. Before opening a PR:
+
+- [ ] The data goes through the SQLAlchemy ORM session (`Depends(get_db)` in a
+      route, `SessionLocal()` in a job). No raw `sqlite3`, no `engine.connect()`
+      writes, no `text()` `UPDATE`/`DELETE` — those bypass the audit hooks.
+- [ ] A job wraps its work in `rally.audit.context.job_context("<name>")`, or
+      runs as a `python -m` module so it is recorded under its module name.
+- [ ] A new column that holds a credential has a name the redactor recognises
+      (`password`, `secret`, `token`, `api_key`, `jwt`, `credential`, …), or the
+      pattern in `rally/audit/recorder.py` is extended to cover it.
+- [ ] A setting with its own semantics (like `mcp_enabled`) gets a dedicated
+      endpoint that writes an explicit `recorder.record(...)` event, and its key
+      goes in `RESERVED_SETTING_KEYS` so the generic `/api/settings` refuses it.
+- [ ] If rally-mcp must call it, it is added to `MCP_ALLOWED_ROUTES` in
+      `rally/audit/middleware.py` — nothing else is reachable with an MCP identity.
+- [ ] A test asserts the events it produces (see `tests/test_audit.py`).
+      `tests/test_audit_coverage.py` already calls every registered route and
+      fails if one leaves no audit event; it needs no edit, but it must pass.
+- [ ] A new MCP tool gets an entry in `SAMPLE_ARGS` in
+      `mcp/tests/test_tool_coverage.py` (that test fails until it does), the
+      right `readOnlyHint`/`destructiveHint`, and wraps any outside-sourced
+      text with `untrusted(...)`.
+
+What the log records and why: [audit-log.md](audit-log.md).
+
+## The MCP server
+
+`mcp/` is rally-mcp, a separate uv project with its own lockfile and tests:
+
+```bash
+cd mcp
+uv sync
+uv run pytest
+```
+
+Deploying it and connecting Claude: [mcp.md](mcp.md).
+
 ## Project layout
 
 ```

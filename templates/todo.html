@@ -153,6 +153,7 @@
                     <button type="submit" form="todo-form" class="btn btn--primary">Save</button>
                     <button type="button" class="btn" id="btn-cancel">Cancel</button>
                     <button type="button" class="btn modal-delete" id="btn-delete-todo" style="display:none" onclick="confirmDeleteFromModal()">Delete</button>
+                    <a class="link-quiet" id="todo-history-link" href="/audit" hidden>Change history</a>
                 </div>
             </div>
             </div>
@@ -434,6 +435,7 @@
             document.getElementById('todo-assigned-to').value = '';
             document.getElementById('todo-remind-days').value = '';
             document.getElementById('btn-delete-todo').style.display = 'none';
+            document.getElementById('todo-history-link').hidden = true;
             toggleRemindGroup();
             clearFormMessages('modal-overlay');
             showModalOverlay('modal-overlay');
@@ -452,6 +454,10 @@
             document.getElementById('todo-due-date').value = todo.due_date || '';
             document.getElementById('todo-remind-days').value = todo.remind_days_before != null ? todo.remind_days_before : '';
             document.getElementById('btn-delete-todo').style.display = '';
+            // Every change to this task, from any source, on the Audit Log page.
+            const historyLink = document.getElementById('todo-history-link');
+            historyLink.href = `/audit?entity_type=todos&entity_id=${id}&include_reads=false`;
+            historyLink.hidden = false;
             toggleRemindGroup();
             clearFormMessages('modal-overlay');
             showModalOverlay('modal-overlay');

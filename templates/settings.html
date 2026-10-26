@@ -238,6 +238,48 @@
         </div>
     </div>
 
+    <!-- Claude (MCP) Section -->
+    <!--
+        The MCP server lets Claude read and update Rally from outside the
+        tailnet, through Cloudflare Access. It is off on every install until
+        someone switches it on here, and switching it is itself an audit
+        event. The alert list is who hears, by Pushover, about every new MCP
+        connection and every refused MCP request.
+    -->
+    <div class="border-container stack" id="mcp-settings">
+        <div class="page-header-row">
+            <h3>Claude (MCP)</h3>
+        </div>
+        <form id="mcp-form">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="mcp-enabled">
+                    <span>Let Claude read and update Rally through the MCP server</span>
+                </label>
+                <small>Off until you turn it on. While off, every MCP request is refused and logged, even if the connector is set up. Each call is recorded under the family member whose sign-in email matches.</small>
+            </div>
+            <div class="form-group">
+                <label id="audit-alert-label">Send access alerts to</label>
+                <div id="audit-alert-members" role="group" aria-labelledby="audit-alert-label"></div>
+                <small>A Pushover alert for every new MCP connection and every denied MCP request, sent to each person&rsquo;s own Pushover key.</small>
+            </div>
+            <div class="form-group">
+                <label for="rally-base-url">Rally address for alert links</label>
+                <input type="text" id="rally-base-url" placeholder="e.g. http://rally.example.ts.net:8000">
+                <small>Alerts link to the matching events on the Audit Log page at this address.</small>
+            </div>
+            <button type="submit" class="btn btn--primary">Save</button>
+            <div class="form-message" id="mcp-form-message" role="status" hidden></div>
+        </form>
+
+        <div class="page-header-row">
+            <h3>MCP connections</h3>
+        </div>
+        <div class="list-container" id="mcp-connections">
+            <div class="container-loading-state">Loading connections&hellip;</div>
+        </div>
+    </div>
+
     <!-- Tasks Section -->
     <div class="border-container stack">
         <div class="page-header-row">
@@ -440,6 +482,11 @@
                 <div class="form-group">
                     <label>Pushover Device (optional)</label>
                     <input type="text" id="member-pushover-device" placeholder="Leave blank for all devices">
+                </div>
+                <div class="form-group">
+                    <label for="member-email">Sign-in email (optional)</label>
+                    <input type="email" id="member-email" placeholder="e.g. jon@example.com" autocomplete="off">
+                    <small>The address this person signs in to Claude&rsquo;s Rally connector with (their GitHub primary email) and their Tailscale login. It is how the Audit Log knows an MCP call or a tailnet request was theirs &mdash; leave it blank and nothing is attributed to them by name.</small>
                 </div>
                 <div class="form-group">
                     <label id="member-notify-label">Notify about</label>
@@ -1148,6 +1195,7 @@
             document.getElementById('member-name').value = member.name;
             document.getElementById('member-pushover-key').value = member.pushover_user_key || '';
             document.getElementById('member-pushover-device').value = member.pushover_device || '';
+            document.getElementById('member-email').value = member.email || '';
             document.getElementById('btn-test-member-pushover').style.display =
                 member.pushover_user_key ? '' : 'none';
             selectMemberColor(member.color);
@@ -1843,6 +1891,7 @@
                 color: selectedMemberColor(),
                 pushover_user_key: document.getElementById('member-pushover-key').value.trim() || null,
                 pushover_device: document.getElementById('member-pushover-device').value.trim() || null,
+                email: document.getElementById('member-email').value.trim() || null,
                 notifications: collectMemberNotifications()
             };
 
@@ -2249,12 +2298,66 @@
             }
         });
 
+        // ── Claude (MCP) ──
+        async function fetchMcpSettings() {
+            const [mcp, alerts] = await Promise.all([
+                fetch('/api/mcp/settings').then(r => r.json()),
+                fetch('/api/audit/alerts').then(r => r.json()),
+            ]);
+            document.getElementById('mcp-enabled').checked = mcp.enabled;
+            document.getElementById('rally-base-url').value = alerts.base_url || '';
+            const chosen = new Set(alerts.member_ids);
+            document.getElementById('audit-alert-members').innerHTML = familyMembers.length
+                ? familyMembers.map(m => `
+                    <label class="checkbox-label">
+                        <input type="checkbox" data-audit-alert-member value="${m.id}" ${chosen.has(m.id) ? 'checked' : ''}>
+                        <span>${escapeHtml(m.name)}${m.pushover_user_key ? '' : ' (no Pushover key)'}</span>
+                    </label>`).join('')
+                : '<div class="container-empty-state">Add a family member first.</div>';
+            const list = document.getElementById('mcp-connections');
+            list.innerHTML = mcp.connections.length
+                ? mcp.connections.map(c => `
+                    <div class="editable-item">
+                        <div class="editable-item-content">
+                            <div class="editable-item-title">${escapeHtml(c.member || c.email)} &mdash; ${escapeHtml(c.client || 'unknown client')}</div>
+                            <div class="editable-item-description">First seen ${new Date(c.first_seen_at).toLocaleString()} from ${escapeHtml(c.first_ip || '?')} &middot; last seen ${new Date(c.last_seen_at).toLocaleString()}</div>
+                            <a class="link-quiet" href="/audit?entity_type=mcp_connections&entity_id=${encodeURIComponent(c.id)}">Audit log</a>
+                        </div>
+                    </div>`).join('')
+                : '<div class="container-empty-state">No MCP connections yet. Revoke a connection in Cloudflare Zero Trust.</div>';
+        }
+
+        document.getElementById('mcp-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const memberIds = [...document.querySelectorAll("[data-audit-alert-member]:checked")].map(el => Number(el.value));
+                const responses = await Promise.all([
+                    fetch('/api/mcp/settings', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({enabled: document.getElementById('mcp-enabled').checked}),
+                    }),
+                    fetch('/api/audit/alerts', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({member_ids: memberIds, base_url: document.getElementById('rally-base-url').value.trim()}),
+                    }),
+                ]);
+                if (responses.some(r => !r.ok)) throw new Error('save failed');
+                await fetchMcpSettings();
+                sectionSaved('mcp-form-message', 'Claude (MCP) settings saved.');
+            } catch (error) {
+                console.error('Error saving MCP settings:', error);
+                alertModal({ messageHtml: 'Failed to save Claude (MCP) settings' });
+            }
+        });
+
         // ── Initialize ──
         // The device announces itself after the list is in hand, so the
         // announce knows whether this device already has a name it must not
         // overwrite. Everything else is independent and runs alongside.
         Promise.all([
-            fetchMembers(),
+            fetchMembers().then(fetchMcpSettings),
             fetchCalendars(),
             fetchFollowedTeams(),
             fetchSettings(),

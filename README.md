@@ -1,12 +1,61 @@
-# Rally
+<p align="center"><img src="assets/banner.png" alt="Rally: your family's command center" width="880"></p>
 
-**Your family's command center: one shared plan for the day, on every screen in the house.**
+> [!IMPORTANT]
+> **Asset to create: `assets/banner.png`.** 1760×440 PNG (shown at 880 wide), on Rally's paper-white background. Show the RALLY wordmark in Playfair Display, letterspaced as in the app header, with the tagline "Your family's command center" in Crimson Text italic below it. Behind it, use a faint grayscale strip of the dashboard: briefing, weather and schedule. Grayscale only, so it matches the e-ink-friendly design. Also export `assets/logo.svg` (wordmark only) for social previews. Delete this callout once it's in.
 
-Rally is a self-hosted app for family logistics. Who is going where, what has to get done, what needs buying, and what is in the emergency kit. Every morning it reads your calendars, the weather forecast and your lists, and writes one short briefing for the whole family. The rest of the day it is the shared calendar, the task list, the shopping list and the stock inventory that the briefing was built from.
+<p align="center">
+  <a href="LICENSE"><img alt="license: BSD 3-Clause" src="https://img.shields.io/badge/license-BSD%203--Clause-15191f"></a>
+  <a href="https://github.com/pid1/rally/actions/workflows/tests.yml"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/pid1/rally/tests.yml?branch=main&label=tests&color=15191f"></a>
+  <a href="https://github.com/pid1/rally/pkgs/container/rally"><img alt="container: ghcr.io/pid1/rally" src="https://img.shields.io/badge/container-ghcr.io%2Fpid1%2Frally-15191f"></a>
+  <a href="docs/mcp.md"><img alt="works with Claude" src="https://img.shields.io/badge/works%20with-Claude-15191f"></a>
+</p>
 
-It runs on your own hardware. Your family's schedule stays in the house, apart from what goes to the AI provider you choose.
+<p align="center">
+  <a href="docs/features.md">Tour</a> •
+  <a href="docs/installation.md">Install</a> •
+  <a href="docs/configuration.md">Configure</a> •
+  <a href="docs/mcp.md">Claude (MCP)</a> •
+  <a href="docs/audit-log.md">Audit log</a> •
+  <a href="docs/development.md">Develop</a>
+</p>
+
+<p align="center"><em>One shared plan for the day, on every screen in the house.</em></p>
+
+## What is Rally?
+
+Rally is the family command center you host yourself. It keeps one calendar, one task list, one shopping list, tonight's dinner, the packing lists and the emergency kit for the whole household. Every morning it turns all of that, plus the weather, into a short plain-language briefing.
+
+It runs on your own hardware, and your family's schedule stays in the house. Ask Claude about your day and it answers from Rally, under your own sign-in, and every call is on the record.
 
 ![The Rally dashboard: a morning briefing, the weather, and today's schedule](docs/screenshots/readme-dashboard.png)
+
+## A day with Rally
+
+1. **4 AM.** Rally reads every calendar, the forecast, what's due and what's for dinner, and writes the family's briefing.
+2. **Breakfast.** The kitchen display shows it. A note for the day ("bag packed before school") sits between the weather and the schedule.
+3. **During the day.** Hand a task to someone and only their phone buzzes. Move the dentist and only the people going hear about it.
+4. **On the way home.** "Hey Siri, add milk to Rally." Or ask Claude what's left on the list.
+5. **Evening.** Tomorrow's packing lists are already on tomorrow, sorted by who packs what and which bag it goes in.
+
+## What it does
+
+- **Writes the morning briefing** from your calendars, forecast, tasks, dinner and anything overdue, with the AI provider you choose.
+- **Shares one calendar** beside Google, iCloud and any ICS feed: color-coded by person, with recurring events and per-occurrence edits.
+- **Notifies only the people involved**, by Pushover. Assignees hear about their tasks, attendees about their events.
+- **Runs the shopping list**, grouped by shop, autocompleted from what you've bought before, and addable by voice.
+- **Plans dinners** and remembers how they went.
+- **Packs for you**: templates, bags inside bags, items per person, and lists that ride along with calendar events.
+- **Tracks the emergency kit**: what's where, what expires when, a daily digest, and a printable go list.
+- **Works with Claude** through a remote MCP connector behind Cloudflare Access, so the whole household can use Rally from claude.ai and Claude Code.
+- **Records everything.** Every read and write, from the web, the API, Claude or a background job, goes in an append-only audit log with who did it.
+
+| | |
+|---|---|
+| ![Calendar in month view, color-coded by family member](docs/screenshots/readme-calendar.png) | ![Task list with assignees, due dates and recurring tasks](docs/screenshots/readme-tasks.png) |
+| ![Shopping list grouped by store](docs/screenshots/readme-shopping.png) | ![Packing list grouped by owner, bags first](docs/screenshots/readme-packing-lists.png) |
+| ![Notes: one per day, the week planned out](docs/screenshots/readme-notes.png) | ![Emergency stock by location, with refresh status](docs/screenshots/readme-preparedness.png) |
+
+The full tour, feature by feature: **[docs/features.md](docs/features.md)**.
 
 ## Watch the tour
 
@@ -16,65 +65,20 @@ A ten-minute walk through the whole app, recorded against a seeded demo instance
   <a href="https://github.com/pid1/rally/releases/download/demo-2026-08-17/rally-demo.mp4"><img src="docs/screenshots/demo-poster.png" alt="Watch the Rally walkthrough"></a>
 </video>
 
-You can run the same demo instance yourself in about a minute: see [docs/development.md](docs/development.md#the-demo-instance).
+You can run the same demo yourself in about a minute: see [docs/development.md](docs/development.md#the-demo-instance).
 
-## What Rally does
+## Works with Claude
 
-### One briefing, every morning
+Connect Rally to Claude once, and anyone in the household can ask "what's on today?", "add sunscreen to the beach-day list" or "move Thursday's dentist to 3". That works from claude.ai on the web, the desktop and mobile apps, voice, and Claude Code. Each person signs in with their own GitHub account through Cloudflare Access. Only the people you list get in, Rally itself never leaves your network, and each call is in the audit log under the person who made it.
 
-At 4 AM Rally gathers the day's events, the forecast, the tasks that are due and tonight's dinner, then asks the AI model of your choosing to write the family a short plan in plain language. The page is served from a cache, so the kitchen display never sits waiting on an API.
+![Claude answering "what's on today?" from Rally, with the Rally connector's tool call shown](docs/screenshots/readme-claude.png)
 
-You can fold in more if you want it: your open shopping list, the packing lists you need to pack this week, anything overdue in your emergency stock, tonight's games for the teams you follow, a STEM idea for the kids. Each one is a toggle in Settings.
+> [!IMPORTANT]
+> **Asset to create: `docs/screenshots/readme-claude.png`.** 1600×1000 PNG of claude.ai (light theme) with the Rally connector enabled. Show a short exchange: "What's on for the family today?", with the expanded Rally tool call (`list_events` and `list_todos`), and Claude's answer listing two or three events and a to-do. Use the seeded demo data (`demo`), never the real household. Crop to the conversation and blur the account name. Delete this callout once it's in.
 
-### A calendar the whole family shares
+Setup takes about half an hour and is done once. **[docs/mcp.md](docs/mcp.md)** has the step-by-step guide, troubleshooting, and a prompt you can hand to an agent to do it for you.
 
-Rally holds your family's own events and shows them beside the calendars you already use, whether that's Google, iCloud, or any ICS feed. There are day, week, month and agenda views, color-coded by person, with recurring events and per-occurrence edits (just this Tuesday, or every Tuesday from now on).
-
-Each person can say which of those the calendar should open on, **per device** — the kitchen display and the laptop are the same width and want opposite things. Rally has no logins, so a browser simply says who is using it and remembers its own answers; a shared screen says nobody and keeps the defaults. See [Personal defaults](docs/configuration.md#personal-defaults).
-
-![The Rally calendar in month view, color-coded by family member](docs/screenshots/readme-calendar.png)
-
-When somebody adds, moves or cancels an event, the people on that event get a push notification. The household doesn't. Reminders work the same way: put a lead time on an event and only its attendees hear about it.
-
-### Tasks and shopping
-
-Tasks can belong to a person, carry a due date, and repeat daily, weekly or monthly. Hand one to somebody and their phone gets a push — theirs alone, once, when it becomes theirs. Completed ones stay on the page until midnight, so nobody has to wonder whether the bins went out.
-
-![The Rally task list with assignees, due dates and recurring tasks](docs/screenshots/readme-tasks.png)
-
-The shopping list is built for fast entry. It autocompletes from what the family has bought before, remembers which shop each thing comes from, and groups the list by shop so one trip fits on one screen. You can add to it by voice through Siri: see **[docs/voice-shortcuts.md](docs/voice-shortcuts.md)**.
-
-![The Rally shopping list grouped by store](docs/screenshots/readme-shopping.png)
-
-### A note for the day
-
-Some things aren't a task, an event or a meal — they're a heads-up. *Soccer practice is at 5, so the bag needs packing before school.* Write one note per day, days ahead if you like, and it appears on the dashboard that morning between the weather and the schedule. Days without a note show nothing at all.
-
-Notes take a little formatting — **bold**, *italic* and lists — and the dashboard reads them live, so a note added at breakfast is there on the next refresh rather than tomorrow. Past days move to a searchable archive and stop being editable.
-
-![The Rally notes page: one note per day, with the coming week planned out](docs/screenshots/readme-notes.png)
-
-### Packing lists for the things you pack again and again
-
-Swim at Nana's, a beach day, the school backpacks, Dad's work bag: keep each packing list once as a template and put it on a day whenever you need it. Packing for something that only happens once, like a concert or a day at a theme park? Add a list just for that day, blank or started from a copy of a template. Every item can belong to someone and go in a bag, so you can read any list by who's packing what or by what goes in each bag. Bags can belong to someone too, and go inside other bags (the toiletries bag in the suitcase), so each person's part of the list starts with the bags they need to grab on the way out the door, and you can tick those off as well. Rally remembers what you've packed before so items fill themselves in, with the things you pack most suggested first. Checking things off for Saturday never touches next week's list, and anything you add to the template shows up on every day it's on. Need something extra just this once, skipping the swimsuit this time, or packing in a different order? Change that day's list and the template stays as it was. Adding an event to the calendar? Bring its packing lists along right there: they go on the event's day, move when the event moves, and come off when it's canceled, even one Tuesday of a repeating event. A list you pack on a routine, like the school backpack every weekday, can also repeat on its own schedule, and past days stay in a read-only archive, even after you delete the template they came from.
-
-The morning briefing reminds you on the packing day (as many days ahead as each list needs), names who still has what to pack and which bag it goes in, and points out what might need restocking or be hard to find at the last minute, like a nearly empty bottle of sunscreen.
-
-![The Swim at Nana's packing list in Saturday's day box, opened with View more and grouped by owner: each person's bags to grab first, then their items with the bag each goes in, partly packed](docs/screenshots/readme-packing-lists.png)
-
-### Emergency stock
-
-Track what is in the kit, where it lives, and when it needs replacing. A replacement date can be fixed (this case is stamped 2027-01-01) or a rotation (swap the water every six months). Rally pushes one digest a day covering everything due, keeps mentioning anything overdue in the morning briefing, and prints a go list grouped by location in the order you walk it.
-
-![The Rally preparedness inventory, grouped by location with refresh status](docs/screenshots/readme-preparedness.png)
-
-### On a phone
-
-Every page is built for a phone first and scales up to a wall display. The design is grayscale and typographic, so it also reads well on e-ink. A phone number written into a task, a note or an event is a link: tap it and the phone dials.
-
-<img src="docs/screenshots/readme-mobile.png" alt="Rally on a phone" width="320">
-
-## Getting started
+## Install
 
 Rally ships as a Docker container:
 
@@ -87,16 +91,37 @@ docker run -d \
   ghcr.io/pid1/rally:latest
 ```
 
-Open `http://localhost:8000/settings` and fill in your timezone, your family members, an AI provider key and a weather forecast URL. Everything else is optional and can be added later.
+Open `http://localhost:8000/settings` and add your timezone, your family, an AI provider key and a weather forecast URL. Everything else can wait.
 
-Full instructions, including what you need before you start: **[docs/installation.md](docs/installation.md)**.
+Requirements, upgrades, environment variables and remote access are in **[docs/installation.md](docs/installation.md)**. Backups (scheduled, client-side encrypted, offsite) are in [docs/backup.md](docs/backup.md).
+
+## Who did what
+
+![The Audit Log: a reverse-chronological feed with filters, and a tool call expanded to show who, which client, and what changed](docs/screenshots/readme-audit-log.png)
+
+> [!IMPORTANT]
+> **Asset to create: `docs/screenshots/readme-audit-log.png`.** 1600×1000 PNG of `/audit` on the seeded demo instance, desktop width. Filter to source MCP with reads hidden, and expand one `todo.update` event so its before/after diff and client details show. It can be generated: add an `/audit` capture to `scripts/capture_screenshots.py` after seeding a few MCP calls, then run `screenshots`. Delete this callout once it's in.
+
+Rally has no logins, but it still knows who did what. Every read and write is recorded with the person, device or Claude connection behind it, append-only, with secrets redacted. You can filter it, see a request's every effect, follow one to-do's history, or export it. See [docs/audit-log.md](docs/audit-log.md).
+
+## Design principles
+
+- **The house is the boundary.** Self-hosted, on your LAN or tailnet. Nothing leaves except what you send your AI provider, and what Claude asks for on your behalf.
+- **No logins, still accountable.** A shared kitchen screen shouldn't need a password. Every action is still attributed and kept.
+- **Tell only who it concerns.** Notifications go to the assignee or the attendees, never the whole family.
+- **One screen, many sizes.** Phone first, up to a wall display, and grayscale and typographic so it reads on e-ink.
+- **Off until you turn it on.** Optional features, the Claude connector included, are switches in Settings that start off.
+- **Encouraging, not nagging.** The briefing frames a full day as a good one.
 
 ## Documentation
 
 | Guide | What's in it |
 |---|---|
+| [A tour of Rally](docs/features.md) | Every feature, with screenshots |
 | [Installation](docs/installation.md) | Requirements, Docker deployment, upgrades, environment variables |
 | [Configuration](docs/configuration.md) | Settings UI, AI providers, weather, calendars, Pushover notifications |
+| [Claude (MCP)](docs/mcp.md) | Connecting Claude through Cloudflare Access: setup, tools, alerts, troubleshooting |
+| [Audit log](docs/audit-log.md) | Every read and write, who made it, and how to investigate |
 | [Voice shortcuts](docs/voice-shortcuts.md) | Adding shopping items with Siri and Apple Shortcuts |
 | [Backups](docs/backup.md) | Scheduled, client-side-encrypted offsite backup |
 | [Development](docs/development.md) | Local setup, commands, tests, database migrations, the demo instance |
@@ -104,9 +129,7 @@ Full instructions, including what you need before you start: **[docs/installatio
 
 ## Contributing
 
-Pull requests are welcome. Run `check` and the test suite before submitting, as described in [docs/development.md](docs/development.md).
-
-If you are an AI agent working in this repository, read **[AGENTS.md](AGENTS.md)** first.
+Pull requests are welcome. Run `check` and the test suite before submitting, as described in [docs/development.md](docs/development.md). If you are an AI agent working in this repository, read **[AGENTS.md](AGENTS.md)** first.
 
 ## License
 

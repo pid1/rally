@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% set nav_active = "audit" %}
+{% block title %}Audit Log{% endblock %}
+{% block subtitle %}Audit Log{% endblock %}
+
+{% block content %}
+    {#- Every read and write of Rally's data, from every source, newest first.
+        The filters are also the page's URL, so an alert's link (request_id=…)
+        and an entity's "Change history" link (entity_type=…&entity_id=…) land
+        on exactly the events they mean. Viewing and exporting are audited
+        like any other read. -#}
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Audit Log</h2>
+            </div>
+            <div class="page-header-meta" id="audit-scope"></div>
+        </header>
+
+        <form class="toolbar" id="audit-filters">
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-start">From</label>
+                <input type="date" id="f-start" name="start" class="toolbar-control">
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-end">Until</label>
+                <input type="date" id="f-end" name="end" class="toolbar-control">
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-actor">Actor</label>
+                <select id="f-actor" name="actor" class="select toolbar-control"><option value="">Anyone</option></select>
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-source">Source</label>
+                <select id="f-source" name="source" class="select toolbar-control">
+                    <option value="">Any</option>
+                    <option value="web">Web</option>
+                    <option value="api">API</option>
+                    <option value="mcp">MCP</option>
+                    <option value="job">Job</option>
+                </select>
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-action">Action</label>
+                <select id="f-action" name="action" class="select toolbar-control"><option value="">Any</option></select>
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-entity-type">Entity</label>
+                <select id="f-entity-type" name="entity_type" class="select toolbar-control"><option value="">Any</option></select>
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-entity-id">Entity ID</label>
+                <input type="text" id="f-entity-id" name="entity_id" class="toolbar-control" size="8">
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-outcome">Outcome</label>
+                <select id="f-outcome" name="outcome" class="select toolbar-control">
+                    <option value="">Any</option>
+                    <option value="success">Success</option>
+                    <option value="failure">Failure</option>
+                    <option value="denied">Denied</option>
+                </select>
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label" for="f-request-id">Request</label>
+                <input type="text" id="f-request-id" name="request_id" class="toolbar-control" size="12">
+            </div>
+            <div class="toolbar-group">
+                <label class="toolbar-label"><input type="checkbox" id="f-reads" name="include_reads" checked> Include reads</label>
+                <label class="toolbar-label"><input type="checkbox" id="f-flagged" name="flagged"> Unknown identity only</label>
+            </div>
+            <div class="toolbar-reset">
+                <button type="submit" class="btn btn--primary">Apply</button>
+                <button type="button" class="btn btn--quiet" id="filter-clear">Clear Filters</button>
+                <button type="button" class="btn" id="export-csv">Export CSV</button>
+                <button type="button" class="btn" id="export-json">Export JSON</button>
+            </div>
+        </form>
+
+        <div class="search-results-count" id="audit-count"></div>
+
+        <div class="list-container" id="audit-list">
+            <div class="container-loading-state">Loading audit events&hellip;</div>
+        </div>
+
+        <div class="load-more-container" id="load-more-container" style="display:none;">
+            <button type="button" class="btn" id="btn-load-more">Load more</button>
+        </div>
+    </div>
+
+    <script>
+        const PAGE = 50;
+        const FIELDS = ['start', 'end', 'actor', 'source', 'action', 'entity_type', 'entity_id', 'outcome', 'request_id'];
+        let offset = 0;
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+
+        function currentParams() {
+            const form = document.getElementById('audit-filters');
+            const params = new URLSearchParams();
+            FIELDS.forEach(name => {
+                const value = form.elements[name].value.trim();
+                if (value) params.set(name, value);
+            });
+            if (!document.getElementById('f-reads').checked) params.set('include_reads', 'false');
+            if (document.getElementById('f-flagged').checked) params.set('flagged', 'true');
+            return params;
+        }
+
+        function applyUrlParams() {
+            const params = new URLSearchParams(location.search);
+            const form = document.getElementById('audit-filters');
+            FIELDS.forEach(name => {
+                if (params.has(name)) {
+                    const el = form.elements[name];
+                    if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === params.get(name))) {
+                        el.add(new Option(params.get(name), params.get(name)));
+                    }
+                    el.value = params.get(name);
+                }
+            });
+            document.getElementById('f-reads').checked = params.get('include_reads') !== 'false';
+            document.getElementById('f-flagged').checked = params.get('flagged') === 'true';
+        }
+
+        async function loadFacets() {
+            const facets = await (await fetch('/api/audit/facets')).json();
+            const fill = (id, values) => {
+                const select = document.getElementById(id);
+                const keep = select.value;
+                values.forEach(v => { if (![...select.options].some(o => o.value === v)) select.add(new Option(v, v)); });
+                select.value = keep;
+            };
+            fill('f-actor', facets.actors);
+            fill('f-action', facets.actions);
+            fill('f-entity-type', facets.entity_types);
+        }
+
+        function when(iso) {
+            const date = new Date(iso);
+            return isNaN(date) ? iso : date.toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', second: '2-digit',
+            });
+        }
+
+        function linkFor(params) {
+            return '/audit?' + new URLSearchParams(params).toString();
+        }
+
+        function jsonBlock(label, value) {
+            if (value == null) return '';
+            return `<div><strong>${label}</strong><pre class="audit-json">${escapeHtml(JSON.stringify(value, null, 2))}</pre></div>`;
+        }
+
+        function renderEvent(e) {
+            const actor = e.actor_name ? `${escapeHtml(e.actor_name)} <span class="assignee-label">(${escapeHtml(e.actor_id)})</span>` : escapeHtml(e.actor_id);
+            const flagged = e.flagged ? ' <span class="audit-badge" title="Rally could not tell who this was">unknown identity</span>' : '';
+            const outcome = e.outcome === 'success' ? ''
+                : e.outcome === 'denied' ? ' <span class="audit-badge audit-badge--strong">denied</span>'
+                : ' <span class="audit-badge">failure</span>';
+            const entity = e.entity_type
+                ? `<a class="link-quiet" href="${linkFor({entity_type: e.entity_type, ...(e.entity_id ? {entity_id: e.entity_id, include_reads: 'false'} : {})})}">${escapeHtml(e.entity_type)}${e.entity_id ? ' #' + escapeHtml(e.entity_id) : ''}</a>`
+                : '';
+            const tool = e.mcp_tool ? ` · tool <code>${escapeHtml(e.mcp_tool)}</code>` : '';
+            return `
+                <div class="editable-item">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title"><code>${escapeHtml(e.action)}</code>${outcome}${flagged}</div>
+                        <div class="editable-item-description">
+                            ${when(e.occurred_at)} · ${actor} · ${escapeHtml(e.source)}${entity ? ' · ' + entity : ''}${tool}
+                        </div>
+                        ${e.error ? `<div class="editable-item-description">${escapeHtml(e.error)}</div>` : ''}
+                        <details>
+                            <summary>Details · request <a class="link-quiet" href="${linkFor({request_id: e.request_id})}">${escapeHtml(e.request_id.slice(0, 8))}…</a></summary>
+                            ${jsonBlock('Before', e.before)}
+                            ${jsonBlock('After', e.after)}
+                            ${jsonBlock('MCP arguments', e.mcp_arguments)}
+                            ${jsonBlock('Client', e.client_info)}
+                            <div class="assignee-label">Event ${escapeHtml(e.id)} · request ${escapeHtml(e.request_id)}</div>
+                        </details>
+                    </div>
+                </div>`;
+        }
+
+        async function load(reset) {
+            const list = document.getElementById('audit-list');
+            if (reset) {
+                offset = 0;
+                list.innerHTML = '<div class="container-loading-state">Loading audit events&hellip;</div>';
+            }
+            const params = currentParams();
+            params.set('limit', PAGE);
+            params.set('offset', offset);
+            const response = await fetch('/api/audit/events?' + params.toString());
+            if (!response.ok) {
+                list.innerHTML = '<div class="container-empty-state">Could not load the audit log. Check the filters and try again.</div>';
+                return;
+            }
+            const page = await response.json();
+            const html = page.events.map(renderEvent).join('');
+            if (reset) list.innerHTML = html || '<div class="container-empty-state">No events match these filters.</div>';
+            else list.insertAdjacentHTML('beforeend', html);
+            offset += page.events.length;
+            document.getElementById('audit-count').textContent = `${page.total} event${page.total === 1 ? '' : 's'}`;
+            document.getElementById('load-more-container').style.display = offset < page.total ? '' : 'none';
+            const scope = currentParams();
+            history.replaceState(null, '', scope.toString() ? '/audit?' + scope.toString() : '/audit');
+        }
+
+        function exportAs(format) {
+            const params = currentParams();
+            params.set('format', format);
+            location.href = '/api/audit/export?' + params.toString();
+        }
+
+        document.getElementById('audit-filters').addEventListener('submit', (e) => { e.preventDefault(); load(true); });
+        document.getElementById('filter-clear').addEventListener('click', () => {
+            document.getElementById('audit-filters').reset();
+            load(true);
+        });
+        document.getElementById('btn-load-more').addEventListener('click', () => load(false));
+        document.getElementById('export-csv').addEventListener('click', () => exportAs('csv'));
+        document.getElementById('export-json').addEventListener('click', () => exportAs('json'));
+
+        applyUrlParams();
+        loadFacets().then(() => { applyUrlParams(); load(true); });
+    </script>
+{% endblock %}

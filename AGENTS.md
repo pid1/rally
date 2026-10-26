@@ -371,6 +371,42 @@ logs-tail
 down
 ```
 
+## Audit Log
+
+Rally records every read and write of its data, from every source, in
+`audit_events` — see [docs/audit-log.md](docs/audit-log.md). The recording is
+done by the data layer (`src/rally/audit/recorder.py`, SQLAlchemy session
+hooks) and the request middleware (`src/rally/audit/middleware.py`), so a
+route never logs by hand. **Every new endpoint, MCP tool or data access path
+must go through the audit layer and ship with an audit test.** Never write an
+`UPDATE` or `DELETE` against `audit_events`: triggers refuse them.
+
+### Checklist for adding an endpoint, tool or data path
+
+- [ ] The data goes through the SQLAlchemy ORM session (`Depends(get_db)` in a
+      route, `SessionLocal()` in a job). No raw `sqlite3`, no `engine.connect()`
+      writes, no `text()` `UPDATE`/`DELETE` — those bypass the audit hooks.
+- [ ] A job wraps its work in `rally.audit.context.job_context("<name>")`, or
+      runs as a `python -m` module so it is recorded under its module name.
+- [ ] A new column that holds a credential has a name the redactor recognises
+      (`password`, `secret`, `token`, `api_key`, `jwt`, `credential`, …), or the
+      pattern in `rally/audit/recorder.py` is extended to cover it.
+- [ ] A setting with its own semantics (like `mcp_enabled`) gets a dedicated
+      endpoint that writes an explicit `recorder.record(...)` event, and its key
+      goes in `RESERVED_SETTING_KEYS` so the generic `/api/settings` refuses it.
+- [ ] If rally-mcp must call it, it is added to `MCP_ALLOWED_ROUTES` in
+      `rally/audit/middleware.py` — nothing else is reachable with an MCP identity.
+- [ ] A test asserts the events it produces (see `tests/test_audit.py`).
+      `tests/test_audit_coverage.py` already calls every registered route and
+      fails if one leaves no audit event; it needs no edit, but it must pass.
+- [ ] A new MCP tool gets an entry in `SAMPLE_ARGS` in
+      `mcp/tests/test_tool_coverage.py` (that test fails until it does), the
+      right `readOnlyHint`/`destructiveHint`, and wraps any outside-sourced
+      text with `untrusted(...)`.
+
+The MCP server lives in `mcp/` as its own uv project (own `pyproject.toml`,
+lockfile and tests): `cd mcp && uv run pytest`. See [docs/mcp.md](docs/mcp.md).
+
 ## Database Migrations
 
 Rally uses a simple, file-based migration system. All migrations live in the `migrations/` directory and are **idempotent** (safe to run multiple times).
@@ -429,6 +465,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `038_remove_llm_max_tokens` - Delete the `llm_anthropic_max_tokens`, `llm_anthropic_max_tokens_mode` and `llm_local_max_tokens` settings rows. Rally no longer caps LLM output (Anthropic uses the model's own maximum, looked up at run time; local sends no `max_tokens`), so nothing reads them. `llm_settings_history` snapshots are left as they are — older ones still carry `max_tokens`/`max_tokens_mode` in their JSON, which the app ignores
 - `039_add_event_packing_lists` - Add `events.packing_list_span` (`first` / `every`; NULL reads as `first`) and the `event_packing_lists` and `packing_list_day_events` tables plus their indexes. The unique index on `event_packing_lists` is over `(event_id, packing_list_template_id, IFNULL(occurrence_date, ''))` because SQLite treats NULLs as distinct and the series' own row has to count once; the one on `packing_list_day_events` is `(event_id, occurrence_date, packing_list_template_id, date)`. The tables are created even where `events` does not exist yet. Purely additive and writes **no rows**: no event brings a packing list until somebody adds one
 - `040_add_meal_notes` - Add `dinner_plans.notes`: optional detail on a meal (who wants what, substitutions), kept separate from `plan`, which is the meal's name (`Meal Name` in the UI). Purely additive and writes **no rows**: every existing meal gets `notes = NULL` and its `plan` text is untouched
+- `041_add_audit_log` - Add `family_members.email` (sign-in address used to attribute MCP and tailnet requests) and create `audit_events` (with its indexes and the append-only `UPDATE`/`DELETE` triggers) and `mcp_connections`. Created here rather than left to `init_db()` because the data layer refuses to write anything it cannot audit
 
 ### Running Migrations
 
@@ -688,6 +725,7 @@ rally/
 │   ├── migrate_038_remove_llm_max_tokens.py # Migration 038: delete the removed LLM max tokens settings keys
 │   ├── migrate_039_add_event_packing_lists.py # Migration 039: packing lists on calendar events, and the days they put them on
 │   ├── migrate_040_add_meal_notes.py # Migration 040: add dinner_plans.notes
+│   ├── migrate_041_add_audit_log.py # Migration 041: audit log tables, member email
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium

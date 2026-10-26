@@ -156,8 +156,9 @@ def test_one_reading_and_one_check_per_bag_per_list(db_path, statement):
             conn.execute(statement)
 
 
-def test_the_orm_can_use_what_it_made(db_path):
+def test_the_orm_can_use_what_it_made(db_path, apply_audit_migration):
     _migrate_to_models()
+    assert apply_audit_migration() is True
     engine = create_engine(f"sqlite:///{db_path}")
     with Session(engine) as session:
         suitcase = PackingListBag(name="Duffel", owner_id=4)

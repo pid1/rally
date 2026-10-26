@@ -27,6 +27,7 @@ SIDEBAR_ORDER = [
     ("/packing-lists", "Packing Lists"),
     ("/preparedness", "Preparedness"),
     ("/settings", "Settings"),
+    ("/audit", "Audit Log"),
 ]
 
 # path -> (title after "Rally — ", sidebar href marked current or None)
@@ -45,6 +46,7 @@ PAGES = {
     "/preparedness": ("Preparedness", "/preparedness"),
     "/go-list": ("Go List", "/preparedness"),
     "/settings": ("Settings", "/settings"),
+    "/audit": ("Audit Log", "/audit"),
     "/styleguide": ("Style Guide", None),
 }
 
@@ -68,20 +70,22 @@ def _links(sidebar: str) -> list[tuple[str, str, bool]]:
 @pytest.mark.parametrize("path", ALL_PATHS)
 def test_every_page_carries_the_sidebar_in_order(client, path):
     """Every page link in the order they had across the row and the dropdown,
-    with Packing Lists after Meal Planner and Settings moved up from the footer
-    to the end."""
+    with Packing Lists after Meal Planner, then Settings and the Audit Log at
+    the end."""
     html = client.get(path).text
     links = _links(_sidebar(html))
     assert [(href, label) for href, label, _ in links] == SIDEBAR_ORDER, path
 
 
 @pytest.mark.parametrize("path", ALL_PATHS)
-def test_settings_sits_alone_below_the_divider(client, path):
+def test_settings_and_the_audit_log_sit_below_the_divider(client, path):
+    """The "other" group: places you go to look after Rally, not to use it."""
     sidebar = _sidebar(client.get(path).text)
     lists = sidebar.split('<ul class="sidebar-list">')[1:]
     assert len(lists) == 2
     assert 'href="/settings"' in lists[1]
-    assert lists[1].count("<a ") == 1
+    assert 'href="/audit"' in lists[1]
+    assert lists[1].count("<a ") == 2
 
 
 @pytest.mark.parametrize("path", ALL_PATHS)

@@ -275,6 +275,7 @@
                     <button type="submit" form="event-form" class="btn btn--primary" id="btn-save-event">Save</button>
                     <button type="button" class="btn" id="btn-cancel-event">Cancel</button>
                     <button type="button" class="btn modal-delete" id="btn-delete-event" style="display:none">Delete</button>
+                    <a class="link-quiet" id="event-history-link" href="/audit" hidden>Change history</a>
                 </div>
             </div>
             </div>
@@ -1409,6 +1410,7 @@
             editingEvent = null;
             editingOccurrence = null;
             document.getElementById('event-modal-title').textContent = 'Add Event';
+            document.getElementById('event-history-link').hidden = true;
             document.getElementById('event-form').reset();
             document.getElementById('event-id').value = '';
             document.getElementById('event-occurrence-date').value = '';
@@ -1445,6 +1447,10 @@
             editingOccurrence = occurrence;
 
             document.getElementById('event-modal-title').textContent = 'Edit Event';
+            // Every change to this event, from any source, on the Audit Log page.
+            const historyLink = document.getElementById('event-history-link');
+            historyLink.href = `/audit?entity_type=events&entity_id=${editingEvent.id}&include_reads=false`;
+            historyLink.hidden = false;
             document.getElementById('event-id').value = editingEvent.id;
             document.getElementById('event-occurrence-date').value = occurrence.occurrence_date || '';
             document.getElementById('event-title').value = editingEvent.title;

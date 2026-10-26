@@ -57,6 +57,7 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
         color=color,
         pushover_user_key=(member.pushover_user_key or None),
         pushover_device=(member.pushover_device or None),
+        email=_clean_email(member.email),
     )
     db.add(db_member)
     db.commit()
@@ -80,6 +81,10 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
     if member.notifications:
         notification_prefs.set_preferences(db, db_member.id, member.notifications)
     return _response(db, db_member)
+
+
+def _clean_email(value: str | None) -> str | None:
+    return (value or "").strip().lower() or None
 
 
 @router.get("/{member_id}", response_model=FamilyMemberResponse)
@@ -110,6 +115,8 @@ def update_family_member(
         db_member.pushover_user_key = (member.pushover_user_key or "").strip() or None
     if member.pushover_device is not UNSET:
         db_member.pushover_device = (member.pushover_device or "").strip() or None
+    if member.email is not UNSET:
+        db_member.email = _clean_email(member.email)
 
     db.commit()
     db.refresh(db_member)

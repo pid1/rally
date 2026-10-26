@@ -190,6 +190,29 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "dashboard.html", context)
 
 
+@router.get("/api/dashboard/summary")
+def get_dashboard_summary(db: Session = Depends(get_db)):
+    """Today's generated summary and the live Daily Note, as data.
+
+    The same content the dashboard page renders, for API and MCP callers. The
+    summary is written by the LLM from the family's calendars — including
+    external feeds — so callers should treat its prose as untrusted.
+    """
+    note = db.query(Note).filter(Note.date == today_local_str(db)).first()
+    snapshot = (
+        db.query(DashboardSnapshot)
+        .filter(DashboardSnapshot.is_active == True)  # noqa: E712
+        .order_by(DashboardSnapshot.timestamp.desc())
+        .first()
+    )
+    return {
+        "date": today_local_str(db),
+        "generated_at": ensure_utc(snapshot.timestamp).isoformat() if snapshot else None,
+        "summary": snapshot.data if snapshot else None,
+        "daily_note": note.body if note else None,
+    }
+
+
 @router.get("/api/dashboard/regenerate")
 async def regenerate_dashboard():
     """Trigger dashboard regeneration."""

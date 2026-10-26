@@ -1,0 +1,67 @@
+# rally-mcp and its Cloudflare Tunnel, for the Unraid NAS.
+#
+#   cp .env.example .env    # fill in the four secrets (never commit .env)
+#   docker compose up -d
+#
+# Networks are the security boundary (spec: "Tunnel hygiene"):
+#
+# - `rally_mcp_edge`: cloudflared <-> rally-mcp, with internet egress so
+#   cloudflared can reach Cloudflare and rally-mcp can fetch Access's signing
+#   keys. Nothing else is on it, so the tunnel can reach rally-mcp and nothing
+#   else on the NAS.
+# - `rally_mcp_backend`: rally-mcp <-> Rally only, `internal: true` (no egress).
+#   Rally keeps its own bridge network for the web UI and its outbound calls,
+#   and joins this one as a second network. On Unraid, put this in the Rally
+#   template's "Extra Parameters" so it survives the container being recreated
+#   (Unraid drops the template's own network once Extra Parameters names one,
+#   and Docker will not mix the default bridge with user-defined networks, so
+#   Rally needs a bridge of its own too: `docker network create rally_net`):
+#       --network=rally_net --network=rally_mcp_backend
+#   and set Settings > Docker > "Preserve user defined networks" to Yes, or
+#   Unraid deletes the network whenever Docker restarts. rally-mcp then reaches
+#   Rally's API at http://rally:8000 (the container name) and no other container.
+#
+# The tunnel's routing lives in Cloudflare (remotely managed): the only public
+# hostname (RALLY_MCP_PUBLIC_HOST) -> http://rally-mcp:8080, and
+# everything else answers 404. See deploy/cloudflare/README.md.
+
+name: rally-mcp
+
+services:
+  rally-mcp:
+    # RALLY_MCP_IMAGE overrides it, e.g. with a local build of a branch.
+    image: ${RALLY_MCP_IMAGE:-ghcr.io/pid1/rally-mcp:latest}
+    container_name: rally-mcp
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RALLY_URL: http://rally:8000
+    networks:
+      - rally_mcp_edge
+      - rally_mcp_backend
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.1@sha256:a15a3b50b8dabd57ac2090e9484c0247dba9dfa1f0df4d298d4317f9d69eb2d5
+    container_name: rally-mcp-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Remotely managed tunnel "rally-mcp"; the token is the only credential.
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+    networks:
+      - rally_mcp_edge
+    depends_on:
+      - rally-mcp
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  rally_mcp_edge:
+    name: rally_mcp_edge
+  rally_mcp_backend:
+    name: rally_mcp_backend
+    internal: true

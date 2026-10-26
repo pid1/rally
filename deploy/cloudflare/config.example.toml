@@ -1,0 +1,17 @@
+# Copy to config.toml (gitignored) and fill in your deployment's values.
+# configure.py reads it; nothing here is a secret, but it is yours, so it stays
+# out of the repository.
+
+# Cloudflare dashboard → your account: the 32-hex id in the URL.
+account_id = "0123456789abcdef0123456789abcdef"
+# Domain overview → API → Zone ID. The zone must be on this account.
+zone_id = "fedcba9876543210fedcba9876543210"
+# The public hostname for the MCP server, inside that zone.
+hostname = "rally-mcp.example.com"
+# Zero Trust → Settings → Team name and domain, e.g. "myteam.cloudflareaccess.com".
+team_domain = "myteam.cloudflareaccess.com"
+# Exactly the people allowed to sign in: their verified primary GitHub emails.
+household_emails = ["parent.one@example.com", "parent.two@example.com"]
+# The GitHub OAuth App's client id (not the secret). Optional here: it can
+# also be passed as --github-client-id.
+github_client_id = ""

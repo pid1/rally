@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 DB_PATH = os.environ.get(
     "RALLY_DB_PATH",
@@ -11,7 +11,25 @@ DB_PATH = os.environ.get(
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+class AuditedSession(Session):
+    """A session that writes its pending audit reads before it closes.
+
+    A job that only reads (the generator assembling a summary, say) never
+    commits, so its reads would otherwise vanish with the session. Requests
+    don't need this — the audit middleware flushes their reads — but every
+    ``SessionLocal()`` gets it, so no job can forget.
+    """
+
+    def close(self) -> None:
+        from rally.audit.recorder import flush_job_reads
+
+        flush_job_reads(self)
+        super().close()
+
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, class_=AuditedSession)
 
 
 class Base(DeclarativeBase):

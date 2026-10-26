@@ -54,6 +54,27 @@ def _clear_anthropic_model_max_cache():
     generate._ANTHROPIC_MODEL_MAX_TOKENS.clear()
 
 
+# --- Audit schema for migration tests -------------------------------------------
+
+
+@pytest.fixture
+def apply_audit_migration():
+    """Run migration 041 against ``RALLY_DB_PATH``.
+
+    A migration test that builds a database from one old migration and then
+    writes through the ORM needs the audit table too: every ORM write is
+    audited, and in a real install 041 always runs after the older ones.
+    """
+    import importlib.util
+    import pathlib
+
+    path = pathlib.Path(__file__).parent.parent / "migrations" / "migrate_041_add_audit_log.py"
+    spec = importlib.util.spec_from_file_location("migrate_041_add_audit_log", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.migrate
+
+
 # --- Database + client ---------------------------------------------------------
 
 

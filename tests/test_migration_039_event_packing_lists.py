@@ -94,8 +94,9 @@ def test_agrees_with_the_models(db_path, tmp_path):
     assert "packing_list_span" in _columns(fresh, "events")
 
 
-def test_leaves_a_database_the_orm_can_use(db_path):
+def test_leaves_a_database_the_orm_can_use(db_path, apply_audit_migration):
     assert _migrate() is True
+    assert apply_audit_migration() is True
     engine = create_engine(f"sqlite:///{db_path}")
     with Session(engine) as session:
         session.add(EventPackingList(event_id=1, packing_list_template_id=1))
