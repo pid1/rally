@@ -69,7 +69,7 @@ You can run the same demo yourself in about a minute: see [docs/development.md](
 
 ## Works with Claude
 
-Connect Rally to Claude once, and anyone in the household can ask "what's on today?", "add sunscreen to the beach-day list" or "move Thursday's dentist to 3". That works from claude.ai on the web, the desktop and mobile apps, voice, and Claude Code. Each person signs in with their own GitHub account through Cloudflare Access. Only the people you list get in, Rally itself never leaves your network, and each call is in the audit log under the person who made it.
+Connect Rally to Claude once, and anyone in the household can ask "what's on today?", "add sunscreen to the beach-day list", "what in the emergency kit expires this month?" or "plan dinners for next week". Claude can do nearly everything you can in Rally. That works from claude.ai on the web, the desktop and mobile apps, voice, and Claude Code. Each person signs in with their own GitHub account through Cloudflare Access. Only the people you list get in, Rally itself never leaves your network, and each call is in the audit log under the person who made it.
 
 ![Claude answering "what's on today?" from Rally, with the Rally connector's tool call shown](docs/screenshots/readme-claude.png)
 

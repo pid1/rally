@@ -20,7 +20,8 @@ import socket
 import pytest
 from fastapi.testclient import TestClient
 
-from rally.audit.middleware import MCP_ALLOWED_ROUTES, MCP_SERVICE_ROUTES, iter_routes
+from rally.audit import mcp_policy
+from rally.audit.middleware import MCP_SERVICE_ROUTES, iter_routes
 from rally.database import get_db
 from rally.main import app
 from rally.models import AuditEvent
@@ -53,8 +54,9 @@ def test_the_route_list_is_not_empty():
 
 
 def test_every_mcp_route_exists():
-    """The MCP allowlist names only real routes, so a rename cannot silently widen it."""
-    assert (MCP_ALLOWED_ROUTES | MCP_SERVICE_ROUTES) <= set(ENDPOINTS)
+    """The service routes and hand-written tools name only real routes."""
+    assert (mcp_policy.HAND_WRITTEN | MCP_SERVICE_ROUTES) <= set(ENDPOINTS)
+    assert mcp_policy.HAND_WRITTEN <= mcp_policy.allowed_routes(app)
 
 
 @pytest.fixture

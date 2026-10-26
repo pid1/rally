@@ -43,26 +43,16 @@ from rally.utils.timezone import now_utc
 
 MCP_ENABLED_KEY = "mcp_enabled"
 
-# The only routes rally-mcp may call on someone's behalf. Everything else is
-# refused even with a valid service secret, so a compromised rally-mcp cannot
-# reach settings, calendars' credentials or anything outside its tools.
-MCP_ALLOWED_ROUTES = {
-    ("GET", "/api/todos"),
-    ("POST", "/api/todos"),
-    ("GET", "/api/todos/{todo_id}"),
-    ("PUT", "/api/todos/{todo_id}"),
-    ("DELETE", "/api/todos/{todo_id}"),
-    ("GET", "/api/events"),
-    ("POST", "/api/events"),
-    ("GET", "/api/family"),
-    ("GET", "/api/dashboard/summary"),
-}
+# Which routes rally-mcp may call on someone's behalf is decided by
+# ``rally.audit.mcp_policy``: every /api route except a short, reasoned
+# denylist (secrets, identity, the audit log, MCP's own switch).
 # rally-mcp's own plumbing: allowed with the service secret alone, even while
 # MCP is disabled, because that is how rally-mcp learns it is disabled and
 # reports what it refused.
 MCP_SERVICE_ROUTES = {
     ("GET", "/api/mcp/status"),
     ("POST", "/api/mcp/auth-events"),
+    ("GET", "/api/mcp/openapi"),
 }
 
 SKIP_PREFIXES = ("/static/", "/favicon")
@@ -247,7 +237,9 @@ class AuditMiddleware:
                 return None
             if not mcp_enabled(db):
                 return 403, "mcp.disabled", "MCP is disabled in Rally's settings"
-            if (method, route) not in MCP_ALLOWED_ROUTES:
+            from rally.audit import mcp_policy
+
+            if (method, route) not in mcp_policy.allowed_routes(self.fastapi_app):
                 return (
                     403,
                     "mcp.route_not_allowed",

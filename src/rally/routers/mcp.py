@@ -6,12 +6,12 @@ request and rally-mcp refuses every tool call (it asks ``/api/mcp/status``).
 Switching it either way is an explicit audit event on top of the settings-row
 change the data layer records anyway.
 
-The two service routes (``status`` and ``auth-events``) are reachable only
+The service routes (``status``, ``openapi`` and ``auth-events``) are reachable only
 with rally-mcp's service secret; the middleware enforces that before these
 handlers run, so they can trust ``request`` came from rally-mcp.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -38,6 +38,20 @@ def _require_rally_mcp() -> None:
     ctx = audit_context.current()
     if ctx.client_info.get("via") != "rally-mcp":
         raise HTTPException(status_code=403, detail="rally-mcp service credential required")
+
+
+@router.get("/api/mcp/openapi")
+def mcp_openapi(request: Request):
+    """The OpenAPI document rally-mcp generates its tools from. Service credential required.
+
+    Exactly the routes ``rally.audit.mcp_policy`` allows MCP, minus those
+    rally-mcp serves with hand-written tools, each with its tool name,
+    annotations and an untrusted-content flag.
+    """
+    from rally.audit import mcp_policy
+
+    _require_rally_mcp()
+    return mcp_policy.openapi_for_mcp(request.app)
 
 
 @router.get("/api/mcp/status")
