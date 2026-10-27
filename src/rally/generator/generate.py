@@ -15,6 +15,7 @@ import requests
 from rally.calendars import collect_occurrences, default_window
 from rally.database import SessionLocal, init_db
 from rally.models import AISettingsHistory, DashboardSnapshot, FamilyMember, Setting
+from rally.utils.settings import resolve_timezone_name
 from rally.utils.timezone import now_utc, today_utc
 
 # A specific STEM concept should not repeat within this many days. Different
@@ -283,7 +284,7 @@ class SummaryGenerator:
                 )
 
         # Get local timezone: DB setting > config.toml > UTC
-        tz_name = db_settings.get("local_timezone", self.config.get("local_timezone", "UTC"))
+        tz_name = resolve_timezone_name(db_settings.get("local_timezone"), self.config)
         self.local_tz_name = tz_name
         self.local_tz = ZoneInfo(tz_name)
 

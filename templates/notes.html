@@ -30,7 +30,7 @@
     <script>
         // State
         let notes = [];
-        let localTimezone = 'UTC';
+        const localTimezone = {{ local_timezone | tojson }};
 
         const BODY_LIMIT = 2000;
 
@@ -65,15 +65,6 @@
             return date.toLocaleDateString('en-US', opts);
         }
 
-        async function fetchSettings() {
-            try {
-                const response = await fetch('/api/settings');
-                const data = await response.json();
-                localTimezone = (data.settings || {}).local_timezone || 'UTC';
-            } catch (_) {
-                localTimezone = 'UTC';
-            }
-        }
 
         async function fetchNotes() {
             const response = await fetch('/api/notes');
@@ -299,9 +290,6 @@
         form.addEventListener('submit', saveNote);
 
         // Init
-        (async function () {
-            await fetchSettings();
-            await fetchNotes();
-        })();
+        fetchNotes();
     </script>
 {% endblock %}

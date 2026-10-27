@@ -397,9 +397,10 @@
         <form id="general-form">
             <div class="form-group">
                 <label>Timezone</label>
-                <select id="general-timezone">
+                <select id="general-timezone" required>
                     <option value="">Select a timezone</option>
                 </select>
+                <div class="form-message" id="general-timezone-message" role="alert" hidden></div>
             </div>
             <button type="submit" class="btn btn--primary">Save</button>
             <div class="form-message" id="general-form-message" role="status" hidden></div>
@@ -2236,8 +2237,11 @@
         });
 
         // General form
+        const refuseNoTimezone = requireChoice('general-timezone', 'general-timezone-message', 'Timezone is a required field.');
+
         document.getElementById('general-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (refuseNoTimezone()) return;
             try {
                 await saveSettings({
                     local_timezone: document.getElementById('general-timezone').value
