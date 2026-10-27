@@ -125,27 +125,35 @@ def shopping_purchased_page(request: Request):
 
 
 @app.get("/notes", response_class=HTMLResponse)
-def notes_page(request: Request):
+def notes_page(request: Request, db: Session = Depends(get_db)):
     """Serve the Notes page: one Daily Note per day, from today onward."""
-    return templates.TemplateResponse(request, "notes.html")
+    return templates.TemplateResponse(
+        request, "notes.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/notes/previous", response_class=HTMLResponse)
-def notes_previous_page(request: Request):
+def notes_previous_page(request: Request, db: Session = Depends(get_db)):
     """Serve the read-only page of notes for days that have passed."""
-    return templates.TemplateResponse(request, "notes_previous.html")
+    return templates.TemplateResponse(
+        request, "notes_previous.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/meal-planner", response_class=HTMLResponse)
-def meal_planner_page(request: Request):
+def meal_planner_page(request: Request, db: Session = Depends(get_db)):
     """Serve the meal planner page."""
-    return templates.TemplateResponse(request, "meal_planner.html")
+    return templates.TemplateResponse(
+        request, "meal_planner.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/meal-planner/previous", response_class=HTMLResponse)
-def meal_planner_previous_page(request: Request):
+def meal_planner_previous_page(request: Request, db: Session = Depends(get_db)):
     """Serve the page of meals from days that have passed, with their reviews."""
-    return templates.TemplateResponse(request, "meal_planner_previous.html")
+    return templates.TemplateResponse(
+        request, "meal_planner_previous.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/packing-lists", response_class=HTMLResponse)
