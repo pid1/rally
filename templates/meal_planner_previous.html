@@ -109,7 +109,7 @@
         let currentMinRating = '';
         let selectedMealTypes = new Set();
         let defaultMealType = 'Dinner';
-        let localTimezone = 'UTC';
+        const localTimezone = {{ local_timezone | tojson }};
         let mealModal = null;  // shared MealEditModal instance
 
         // Star rating state
@@ -121,15 +121,15 @@
             familyMembers = await response.json();
         }
 
-        // Settings — needed by the shared edit modal (default meal type, and the
-        // timezone that decides whether an edited date lands on the planner).
+        // Settings — the default meal type the shared edit modal needs. The
+        // timezone that decides whether an edited date lands on the planner is
+        // rendered into the page.
         async function fetchSettings() {
             try {
                 const response = await fetch('/api/settings');
                 const data = await response.json();
                 const s = data.settings || {};
                 defaultMealType = s.meal_default_type || 'Dinner';
-                localTimezone = s.local_timezone || 'UTC';
             } catch (_) {
                 defaultMealType = 'Dinner';
             }

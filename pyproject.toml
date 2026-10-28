@@ -84,9 +84,3 @@ httpcore2 = "2026-10-18T16:30:00Z"
 httpx2 = "2026-10-18T16:30:00Z"
 # sadr: already merged inside the cooldown
 starlette = "2026-10-18T15:51:00Z"
-# sadr: already merged inside the cooldown
-openai = "2026-10-18T01:07:00Z"
-# sadr: already merged inside the cooldown
-pillow = "2026-10-16T22:19:00Z"
-# sadr: already merged inside the cooldown
-sqlalchemy = "2026-10-16T23:29:00Z"

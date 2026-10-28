@@ -1,6 +1,7 @@
 """Settings and calendars router for Rally."""
 
 import json
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -58,6 +59,10 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
 
     MCP enablement and the audit alert list have their own endpoints, which
     validate and audit the change explicitly; this generic one refuses them.
+
+    The timezone cannot be saved empty or as a zone Rally does not know: every
+    "today" in Rally is asked of it, and with no row the family falls back to
+    ``config.toml`` or UTC, which is what greyed out today in the evening (#279).
     """
     reserved = sorted(set(payload.settings) & RESERVED_SETTING_KEYS)
     if reserved:
@@ -65,6 +70,17 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
             status_code=422,
             detail=f"Set {', '.join(reserved)} through its own endpoint, not /api/settings",
         )
+    if "local_timezone" in payload.settings:
+        tz_name = payload.settings["local_timezone"].strip()
+        if not tz_name:
+            raise HTTPException(status_code=422, detail="Timezone is a required field.")
+        try:
+            ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError, ValueError:
+            raise HTTPException(
+                status_code=422, detail=f'"{tz_name}" is not a timezone Rally knows.'
+            ) from None
+        payload.settings["local_timezone"] = tz_name
     for key, value in payload.settings.items():
         _upsert_setting(db, key, value)
     db.commit()
@@ -735,7 +751,6 @@ def test_followed_team(team_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Followed team not found")
 
     from datetime import timedelta
-    from zoneinfo import ZoneInfo
 
     from rally.sports import WINDOW_DAYS, espn, mlb
     from rally.utils.settings import local_timezone_name

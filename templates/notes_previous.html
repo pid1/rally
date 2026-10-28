@@ -41,17 +41,8 @@
 
     <script src="/static/archive_list.js?v={{ css_version }}"></script>
     <script>
-        let localTimezone = 'UTC';
+        const localTimezone = {{ local_timezone | tojson }};
 
-        async function fetchSettings() {
-            try {
-                const response = await fetch('/api/settings');
-                const data = await response.json();
-                localTimezone = (data.settings || {}).local_timezone || 'UTC';
-            } catch (_) {
-                localTimezone = 'UTC';
-            }
-        }
 
         // Past dates only here, so there is no Today/Tomorrow case to handle —
         // but the year still matters once the archive is more than a year old.
@@ -94,9 +85,6 @@
         });
 
         // Init
-        (async function () {
-            await fetchSettings();
-            await archive.reload();
-        })();
+        archive.reload();
     </script>
 {% endblock %}
