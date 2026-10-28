@@ -21,9 +21,6 @@
     'use strict';
 
     const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const WEEKDAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
-        'August', 'September', 'October', 'November', 'December'];
 
     const $ = id => document.getElementById(id);
 
@@ -36,16 +33,10 @@
     let previewSequence = 0;
     let previewTimer = null;
 
-    function ordinal(n) {
-        const s = ['th', 'st', 'nd', 'rd'];
-        const v = n % 100;
-        return n + (s[(v - 20) % 10] || s[v] || s[0]);
-    }
-
-    function formatLongDate(value, withWeekday) {
-        const date = new Date(value + 'T00:00:00');
-        const long = `${MONTHS_LONG[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-        return withWeekday ? `${WEEKDAYS_LONG[date.getDay()]}, ${long}` : long;
+    // The read-back's dates: "Friday, January 1, 2027" for the first, then
+    // "January 1, 2027". `ordinal()` and `formatDate()` are static/dates.js's.
+    function readBackDate(value, weekday) {
+        return formatDate(value, { weekday, month: 'long', year: 'always' });
     }
 
     function describeCustomRule(rule) {
@@ -297,9 +288,9 @@
                 box.innerHTML = `<div class="recurrence-preview-lead">Nothing falls between ${from} and the end date.</div>`;
                 return;
             }
-            const rest = shown.slice(1).map(o => formatLongDate(o, false)).join(', ');
+            const rest = shown.slice(1).map(o => readBackDate(o, false)).join(', ');
             box.innerHTML = `
-                <div class="recurrence-preview-lead">${options.leadLabel()}: ${formatLongDate(shown[0], true)}</div>
+                <div class="recurrence-preview-lead">${options.leadLabel()}: ${readBackDate(shown[0], true)}</div>
                 ${rest ? `<div class="recurrence-preview-rest">then ${rest}</div>` : ''}
             `;
         } catch (error) {
@@ -338,7 +329,6 @@
         load,
         values,
         describe,
-        ordinal,
         updateCustomSubGroups,
         refreshPreview,
     };

@@ -322,7 +322,7 @@ def test_next_3_days_is_a_three_column_grid_that_steps_by_three(browser, live_se
         page.click("#btn-next")
         page.wait_for_timeout(400)
         moved = page.evaluate(
-            "(iso) => (parseIso(isoDate(anchor)) - parseIso(iso)) / 86400000", first
+            "(iso) => (parseIsoDate(isoDate(anchor)) - parseIsoDate(iso)) / 86400000", first
         )
         assert moved == 3, f"Next must step three days, stepped {moved}"
         page.click("#btn-today")

@@ -98,7 +98,7 @@ All commands should be run inside `devenv shell`.
 
 | Command | Description | Blocking |
 |---------|-------------|----------|
-| `install-deps` | Install dependencies with uv | No |
+| `install-deps` | Install dependencies with uv, including Playwright and Chromium for `tests/visual` | No |
 
 ## For AI Agents
 
@@ -310,18 +310,26 @@ test-generate
 ```
 
 The design-system regression suite needs a browser and is **not** part of the
-default run — `tests/visual/` skips itself when Playwright is absent, and CI
-runs it as a separate job. To run it locally:
+default `pytest` run in CI — `tests/visual/` skips itself when Playwright is
+absent, and CI runs it as a separate job. Locally, devenv keeps it installed:
+whenever `devenv shell` re-syncs (after `pyproject.toml` or the interpreter
+changes) it includes the `visual` group (`languages.python.uv.sync.groups` in
+`devenv.nix`), and `install-deps` (so `setup`) installs Chromium too. So in a devenv checkout it simply runs:
+
+```bash
+uv run pytest tests/visual -v
+```
+
+A bare `uv sync` by hand **removes** Playwright, because it syncs only the
+default groups; use `install-deps` (or `uv sync --group visual`) instead. Read
+the summary line, not the exit code: a missing Playwright reports
+`Skipped: Playwright is not installed` and exits 0. Outside devenv:
 
 ```bash
 uv sync --group visual
 uv run playwright install chromium
 uv run pytest tests/visual -v
 ```
-
-Note that `uv sync --group visual` drops the editable `rally` install. Tests
-still work (pytest puts `src/` on the path), but a bare `uvicorn rally.main:app`
-will then need `PYTHONPATH=src`. Re-run plain `uv sync` to restore it.
 
 ### Starting Development Server
 
@@ -661,11 +669,12 @@ rally/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide, and the page scroll lock behind an open modal
 │   ├── dialogs.js           # Rally's own confirm/alert (confirmModal, alertModal), in-place form messages and joinNames(); loaded by base.html
+│   ├── dates.js             # How every page reads, steps and writes dates: parseIsoDate, isoDate, addDays, shiftIsoDate, todayLocal(zone), ordinal, the name lists and formatDate(value, options); reads no clock for "today" (the page hands it in); loaded by base.html
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── inline_separators.js # Marks a quiet button that starts a wrapped line, so the · between quiet buttons never opens a line
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists, optionally fenced to a `scope`
 │   ├── list_group.js        # listGroupHtml(): the markup for one titled group of rows (.list-group), with optional lead rows (.list-group-lead)
-│   ├── packing_lists.js        # What the packing list pages share: date, pack-day and progress wording, grouping by owner or bag, a day box and its entries, a JSON fetch helper
+│   ├── packing_lists.js        # What the packing list pages share: pack-day and progress wording (dates through dates.js), grouping by owner or bag, a day box and its entries, a JSON fetch helper
 │   ├── autocomplete.js      # attachAutocomplete(): a text field's suggestion menu (Shopping item names; packing list item names and bags)
 │   ├── recurrence_form.js   # The shared repeat controls (Daily/Weekly/Monthly/Custom): rule in, rule out, read-back line
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
@@ -1097,7 +1106,19 @@ When touching the UI:
   a note's date, a packing list's date, template or start) clears them all when it changes, through
   `clearFormMessagesOn(controls, scope)`, never a page's own listener.
   `base.html` loads
-  `modal.js` and `dialogs.js` on every page, so a page never adds its own tag.
+  `modal.js`, `dialogs.js` and `dates.js` on every page, so a page never adds its own tag.
+- **Dates in the browser go through `static/dates.js` (#305), never a page's own
+  helper.** A `YYYY-MM-DD` is read with `parseIsoDate()` (local midnight, never
+  `new Date(value)` or a `T00:00:00` suffix), stepped with `addDays()` (a `Date`)
+  or `shiftIsoDate()` (a string), and written with one `formatDate(value,
+  {weekday, month: 'long'|'short', year: 'always'|'unlessThisYear'|'never',
+  ordinal, relative: 'upcoming'|'past', today})`. `formatDate()` reads no clock:
+  `relative` and `unlessThisYear` need `today` handed in, and each page decides
+  which clock that is. Notes, the Meal Planner, Packing Lists and their archives
+  pass `todayLocal(<Settings zone>)`; Calendar and Tasks still use the device's
+  date (`isoDate(new Date())`), as do Packing Lists' dialogs and form notes —
+  one "today" for every page is a follow-up. `tests/test_pages.py` refuses a
+  page that defines a helper of the same name again.
   A required field only some states of a form use (a calendar's URL for an ICS
   feed, a team's key outside racing) is marked `required` only while it is
   used; the shared checks skip a field that is not `required` just then.

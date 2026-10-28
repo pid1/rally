@@ -139,15 +139,9 @@
             return familyMembers.find(m => m.id === id);
         }
 
-        // Format date for display
-        function formatDate(dateStr) {
-            const date = new Date(dateStr + 'T00:00:00');
-            return date.toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-            });
+        // "Friday, Oct 30, 2026": always with the year, in an archive.
+        function mealDateLabel(dateStr) {
+            return formatDate(dateStr, { weekday: true, month: 'short', year: 'always' });
         }
 
         function escapeHtml(text) {
@@ -238,7 +232,7 @@
                     <div class="history-card" data-id="${plan.id}">
                         <div class="history-card-header">
                             <div class="history-card-title"><strong>${escapeHtml(mealType)}:</strong> ${escapeHtml(plan.plan)}</div>
-                            <div class="date-label">${escapeHtml(formatDate(plan.date))}</div>
+                            <div class="date-label">${escapeHtml(mealDateLabel(plan.date))}</div>
                         </div>
                         ${notesHtml}
                         ${ratingRow}

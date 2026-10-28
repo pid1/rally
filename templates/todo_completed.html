@@ -150,8 +150,7 @@
         // style — no overdue emphasis.
         function formatDueDate(dateStr) {
             if (!dateStr) return '';
-            const date = new Date(dateStr + 'T00:00:00');
-            return `<div class="todo-due-date">Due ${formatDayMonth(date)}</div>`;
+            return `<div class="todo-due-date">Due ${formatDayMonth(dateStr)}</div>`;
         }
 
         function formatCompletedDate(value) {
@@ -161,10 +160,10 @@
             return `<div class="todo-completed-date">Completed ${formatDayMonth(date)}</div>`;
         }
 
-        function formatDayMonth(date) {
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
+        // "Friday, Oct 30": a due date (`YYYY-MM-DD`) or a completion (an
+        // instant, read in the device's zone).
+        function formatDayMonth(value) {
+            return formatDate(value, { weekday: true, month: 'short', year: 'never' });
         }
 
         function escapeHtml(text) {
