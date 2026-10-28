@@ -75,6 +75,22 @@ def apply_audit_migration():
     return module.migrate
 
 
+@pytest.fixture(autouse=True)
+def config_toml(monkeypatch, tmp_path):
+    """Point Rally's ``config.toml`` lookup at a file no test has written.
+
+    The timezone falls back to ``config.toml`` when Settings has no row, and a
+    developer's checkout usually has one, so without this a test's "today"
+    would depend on whose machine runs it. A test that wants the fallback
+    writes the returned path.
+    """
+    from rally.utils import settings
+
+    path = tmp_path / "config.toml"
+    monkeypatch.setattr(settings, "config_toml_path", lambda: path)
+    return path
+
+
 # --- Database + client ---------------------------------------------------------
 
 

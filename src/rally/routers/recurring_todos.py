@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import RecurringTodo, Setting, Todo
+from rally.models import RecurringTodo, Todo
 from rally.recurrence import get_first_recurrence_date, get_next_recurrence_date
 from rally.schemas import (
     UNSET,
@@ -18,6 +18,7 @@ from rally.schemas import (
     RecurringTodoResponse,
     RecurringTodoUpdate,
 )
+from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import ensure_utc, now_utc, today_utc
 
 router = APIRouter(prefix="/api/recurring-todos", tags=["recurring-todos"])
@@ -118,8 +119,7 @@ def list_recurring_todos(db: Session = Depends(get_db)):
         .all()
     )
 
-    tz_row = db.query(Setting).filter(Setting.key == "local_timezone").first()
-    local_tz = ZoneInfo(tz_row.value if tz_row and tz_row.value else "UTC")
+    local_tz = ZoneInfo(local_timezone_name(db))
 
     last_completed_map: dict[int, datetime] = {}
     last_completed_date_map: dict[int, str] = {}
