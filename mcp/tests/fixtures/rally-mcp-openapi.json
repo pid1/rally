@@ -2614,6 +2614,12 @@
       "title": "Recurring",
       "type": "boolean"
      },
+     "reminder_display": {
+      "description": "``1 hour before``; empty when the event has no reminder.\n\nEmpty only for ``None``: a reminder of ``0`` still fires, at the start,\nand says so.",
+      "readOnly": true,
+      "title": "Reminder Display",
+      "type": "string"
+     },
      "rrule": {
       "anyOf": [
        {
@@ -2638,6 +2644,12 @@
       "title": "Start Date",
       "type": "string"
      },
+     "start_date_display": {
+      "description": "The first local date, ``Saturday, Oct 31, 2026``.\n\nThe day a one-time event's packing lists come off, as the ``Delete\nevent`` dialog names it.",
+      "readOnly": true,
+      "title": "Start Date Display",
+      "type": "string"
+     },
      "start_form": {
       "title": "Start Form",
       "type": "string"
@@ -2652,6 +2664,12 @@
      },
      "uid": {
       "title": "Uid",
+      "type": "string"
+     },
+     "when_display": {
+      "description": "The detail view's ``When`` row, without a zone.\n\n``Friday, Oct 30, 2026 \u00b7 4:00 PM \u2013 4:30 PM`` for a timed event within\none day; ``Friday, Oct 30 \u2013 Sunday, Nov 1, 2026 \u00b7 All day`` for an\nall-day one; and a date on each end for a timed one that crosses\nmidnight, ``Friday, Oct 30 10:30 PM \u2013 Saturday, Oct 31, 2026 6:15 AM``.\nThe notice's ``When:`` line (``notifications.when_label``) has the same\nshapes and names its zone; this row never has.",
+      "readOnly": true,
+      "title": "When Display",
       "type": "string"
      }
     },
@@ -2669,7 +2687,10 @@
      "start_form",
      "end_form",
      "dates",
-     "description_html"
+     "description_html",
+     "when_display",
+     "start_date_display",
+     "reminder_display"
     ],
     "title": "OccurrenceResponse",
     "type": "object"
