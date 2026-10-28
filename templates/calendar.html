@@ -2097,8 +2097,9 @@
             const name = `<strong>${escapeHtml(editingEvent.title)}</strong>`;
             const lists = (editingOccurrence && editingOccurrence.packing_lists) || [];
             if (!lists.length) return `Delete ${name}?`;
-            const day = parseIso(editingOccurrence.start_date)
-                .toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+            // The server's label, so this day reads the way the detail view
+            // and the notices on everybody's phone write it.
+            const day = editingOccurrence.start_date_display;
             const names = escapeHtml(joinNames(lists.map(p => p.name)));
             return `Delete ${name}? ${names} come${lists.length === 1 ? 's' : ''} off ${escapeHtml(day)} too.`;
         }
@@ -2134,17 +2135,16 @@
             document.getElementById('detail-modal-title').textContent = occurrence.title;
             document.getElementById('detail-notify-result').innerHTML = '';
 
-            const when = occurrence.all_day
-                ? (occurrence.start_date === occurrence.end_date ? 'All day' : `All day, ${occurrence.start_date} – ${occurrence.end_date}`)
-                : `${occurrence.time_label} – ${occurrence.end_time_label}`;
-
             /* Each row carries a stable key as well as its label. The key is
                what the row *is*; the label is display copy that will be
                reworded eventually, and an id derived from it would move when it
                was. The key becomes `detail-row-<key>` / `detail-value-<key>`,
                which is how a test names one row without matching on its text. */
             const rows = [
-                ['when', 'When', `${occurrence.start_date} · ${when}`],
+                /* Dates and lead times are worded by the server
+                   (`rally.utils.display`), never here, so the rule exists once
+                   and matches the notices. */
+                ['when', 'When', occurrence.when_display],
             ];
             /* "Is this the one Tuesday or every Tuesday?" is asked here, and
                until now could only be answered by opening the edit form. Every
@@ -2182,8 +2182,8 @@
                    value here is text. */
                 ['notes', 'Notes', occurrence.description_html || '—', true]
             );
-            if (occurrence.notify_minutes_before) {
-                rows.push(['reminder', 'Reminder', `${occurrence.notify_minutes_before} minutes before`]);
+            if (occurrence.reminder_display) {
+                rows.push(['reminder', 'Reminder', occurrence.reminder_display]);
             }
             if (!occurrence.editable) {
                 // Answering "why can't I change this?" on the screen where it
