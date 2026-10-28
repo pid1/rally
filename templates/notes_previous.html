@@ -46,13 +46,10 @@
 
         // Past dates only here, so there is no Today/Tomorrow case to handle —
         // but the year still matters once the archive is more than a year old.
-        function formatDate(dateStr) {
-            const date = new Date(dateStr + 'T00:00:00');
-            const thisYear = new Intl.DateTimeFormat('en-CA', { timeZone: localTimezone })
-                .format(new Date()).slice(0, 4);
-            const opts = { weekday: 'long', month: 'short', day: 'numeric' };
-            if (dateStr.slice(0, 4) !== thisYear) opts.year = 'numeric';
-            return date.toLocaleDateString('en-US', opts);
+        function noteDateLabel(dateStr) {
+            return formatDate(dateStr, {
+                weekday: true, month: 'short', year: 'unlessThisYear', today: todayLocal(localTimezone),
+            });
         }
 
         function escapeHtml(text) {
@@ -78,7 +75,7 @@
                 <div class="editable-item" data-id="${note.id}">
                     <div class="editable-item-content">
                         <div class="rich-text editable-item-multiline">${note.body_html}</div>
-                        <div class="date-label">${escapeHtml(formatDate(note.date))}</div>
+                        <div class="date-label">${escapeHtml(noteDateLabel(note.date))}</div>
                     </div>
                 </div>
             `).join(''),

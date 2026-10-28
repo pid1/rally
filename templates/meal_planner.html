@@ -53,39 +53,15 @@
 
         const MEAL_TYPE_ORDER = { 'Breakfast': 0, 'Lunch': 1, 'Dinner': 2, 'Snacks': 3 };
 
-        // Today's date (YYYY-MM-DD) in the configured local timezone.
-        // Mirrors the backend's today_local() so Current & Upcoming and
-        // Previous Meals agree on the day boundary.
-        function todayLocal() {
-            return new Intl.DateTimeFormat('en-CA', { timeZone: localTimezone }).format(new Date());
-        }
-
-        // Get date N days from today (YYYY-MM-DD) in the configured local timezone.
-        function getDateInDays(days) {
-            // Anchor to local calendar midnight so day arithmetic isn't skewed by UTC.
-            const base = new Date(todayLocal() + 'T00:00:00');
-            base.setDate(base.getDate() + days);
-            const y = base.getFullYear();
-            const m = String(base.getMonth() + 1).padStart(2, '0');
-            const d = String(base.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
-
-        // Format date for display
-        function formatDate(dateStr) {
-            const date = new Date(dateStr + 'T00:00:00');
-            const today = todayLocal();
-            const tomorrow = getDateInDays(1);
-
-            if (dateStr === today) return 'Today';
-            if (dateStr === tomorrow) return 'Tomorrow';
-
-            // The planner runs to the end of the plan list, so a meal can land in
-            // a later year — show the year when it isn't the current one.
-            const opts = { weekday: 'long', month: 'short', day: 'numeric' };
-            if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = 'numeric';
-
-            return date.toLocaleDateString('en-US', opts);
+        // Today, Tomorrow, or "Friday, Oct 30". "Today" is the configured
+        // zone's, mirroring the backend's today_local() so Current & Upcoming
+        // and Previous Meals agree on the day boundary. The planner runs to the
+        // end of the plan list, so a meal can land in a later year — the year
+        // shows when it isn't the current one.
+        function mealDateLabel(dateStr) {
+            return formatDate(dateStr, {
+                weekday: true, month: 'short', year: 'unlessThisYear', relative: 'upcoming', today: todayLocal(localTimezone),
+            });
         }
 
         // Family member helpers
@@ -117,7 +93,7 @@
 
             // Keep every meal from today onward (no upper bound — the planner
             // shows the whole future), then sort by date then meal type order.
-            const today = todayLocal();
+            const today = todayLocal(localTimezone);
             plans = allPlans
                 .filter(p => p.date >= today)
                 .sort((a, b) => {
@@ -162,7 +138,7 @@
             container.innerHTML = days.map(day => `
                 <section class="day-box">
                     ${day.meals.map(renderMeal).join('')}
-                    <div class="date-label">${escapeHtml(formatDate(day.date))}</div>
+                    <div class="date-label">${escapeHtml(mealDateLabel(day.date))}</div>
                 </section>
             `).join('');
         }

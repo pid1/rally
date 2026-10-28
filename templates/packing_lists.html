@@ -406,12 +406,16 @@
     <script src="/static/autocomplete.js?v={{ css_version }}"></script>
     <script src="/static/packing_lists.js?v={{ css_version }}"></script>
     <script>
-        const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, formatLongDate, addDays, weekdayOf, itemCount,
+        const { EVERYONE, NO_BAG, escapeHtml, escapeAttr, itemCount,
             packDaysLabel, viewSections, templateSectionCountLabel, bagRowHtml, changeBagsHtml,
             otherDimension, keyToId, noteHtml, isTemplated, dayRowId,
             dayBoxesHtml, updateDayCardCounts, groupIsOpen, requestJson } = PackingLists;
         const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
-        const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // "Saturday, October 31", the year only when it is not this one: the
+        // day boxes' long date, in the page's questions and form notes. Those
+        // decide "this year" by the device's clock (`isoDate(new Date())`),
+        // not the Settings zone the day boxes use.
+        const LONG_DATE = { weekday: true, month: 'long', year: 'unlessThisYear' };
 
         let days = [];
         let templates = [];
@@ -442,15 +446,6 @@
         // Held while a check is in flight, so a refetch cannot paint over a
         // box somebody has just ticked with the state from before it.
         let pending = 0;
-
-        function todayLocal() {
-            return new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIMEZONE }).format(new Date());
-        }
-
-        function formatShortDate(value) {
-            const [y, m, d] = value.split('-').map(Number);
-            return `${MONTHS_SHORT[m - 1]} ${d}, ${y}`;
-        }
 
         function templateById(id) {
             return templates.find(c => c.id === id);
@@ -554,7 +549,7 @@
         }
 
         function renderDays() {
-            const today = todayLocal();
+            const today = todayLocal(LOCAL_TIMEZONE);
             const shown = visibleDays();
             document.getElementById('days-error').hidden = true;
             DAY_SECTIONS.forEach(section => {
@@ -645,8 +640,8 @@
 
         function describeSchedule(s) {
             const parts = [RecurrenceForm.describe(s)];
-            if (s.start_date && s.start_date > todayLocal()) parts.push(`starts ${formatShortDate(s.start_date)}`);
-            if (s.end_date) parts.push(`until ${formatShortDate(s.end_date)}`);
+            if (s.start_date && s.start_date > todayLocal(LOCAL_TIMEZONE)) parts.push(`starts ${formatDate(s.start_date, { month: 'short', year: 'always' })}`);
+            if (s.end_date) parts.push(`until ${formatDate(s.end_date, { month: 'short', year: 'always' })}`);
             return parts.join(' · ');
         }
 
@@ -702,7 +697,7 @@
 
         function renderTemplateRow(c) {
             const s = c.schedule;
-            const ended = s && s.end_date && s.end_date < todayLocal();
+            const ended = s && s.end_date && s.end_date < todayLocal(LOCAL_TIMEZONE);
             const repeats = s ? ' <span class="title-indicator" title="Repeats on a schedule">↻</span>' : '';
             const status = s && !s.active
                 ? '<span class="recurring-paused">Paused</span>'
@@ -1009,7 +1004,7 @@
                     || (day.checked === day.total && day.bags_checked === day.bags_total)) return;
                 const confirmed = await confirmModal({
                     title: 'Check all',
-                    messageHtml: `Check everything on <strong>${escapeHtml(day.name)}</strong> for ${escapeHtml(formatLongDate(day.date))}?`,
+                    messageHtml: `Check everything on <strong>${escapeHtml(day.name)}</strong> for ${escapeHtml(formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) }))}?`,
                     confirmLabel: 'Check',
                 });
                 if (!confirmed) return;
@@ -1032,7 +1027,7 @@
                 if (day.checked === 0 && !day.bags_checked) return;
                 const confirmed = await confirmModal({
                     title: 'Uncheck all',
-                    messageHtml: `Uncheck everything on <strong>${escapeHtml(day.name)}</strong> for ${escapeHtml(formatLongDate(day.date))}?`,
+                    messageHtml: `Uncheck everything on <strong>${escapeHtml(day.name)}</strong> for ${escapeHtml(formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) }))}?`,
                     confirmLabel: 'Uncheck',
                 });
                 if (!confirmed) return;
@@ -1058,7 +1053,7 @@
             const confirmed = isTemplated(day)
                 ? await confirmModal({
                     title: 'Remove from day',
-                    messageHtml: `Take ${name} off ${escapeHtml(formatLongDate(day.date))}? The packing list template itself stays.${alsoOff}`,
+                    messageHtml: `Take ${name} off ${escapeHtml(formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) }))}? The packing list template itself stays.${alsoOff}`,
                     confirmLabel: 'Remove',
                 })
                 : await confirmModal({
@@ -1097,7 +1092,7 @@
             resyncingDay = day;
             document.getElementById('day-resync-modal-title').textContent = `Resync with template: ${day.name}`;
             document.getElementById('day-resync-modal-help').textContent =
-                `${formatLongDate(day.date)}. This can't be undone.`;
+                `${formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) })}. This can't be undone.`;
             document.querySelectorAll('input[name="day-resync-scope"]').forEach(input => {
                 input.checked = false;
             });
@@ -1162,7 +1157,7 @@
             description.textContent = day.description || '';
             description.style.display = day.description ? '' : 'none';
             const date = document.getElementById('day-edit-date');
-            date.min = todayLocal();
+            date.min = todayLocal(LOCAL_TIMEZONE);
             date.value = day.date;
             /* A day a calendar event put here moves with the event. The field
                keeps the day's date, so the submit below leaves it out. */
@@ -1344,9 +1339,9 @@
             if (scope !== 'day') {
                 scopeNote = `Changes show up on every day ${context.template.name} is on, except where a day has changed this item.`;
             } else if (isTemplated(context.day)) {
-                scopeNote = `For "${context.day.name}" on ${formatLongDate(context.day.date)} only. The packing list template stays as it is.`;
+                scopeNote = `For "${context.day.name}" on ${formatDate(context.day.date, { ...LONG_DATE, today: isoDate(new Date()) })} only. The packing list template stays as it is.`;
             } else {
-                scopeNote = `For "${context.day.name}" on ${formatLongDate(context.day.date)}.`;
+                scopeNote = `For "${context.day.name}" on ${formatDate(context.day.date, { ...LONG_DATE, today: isoDate(new Date()) })}.`;
             }
             document.getElementById('item-scope-note').textContent = scopeNote;
             document.getElementById('item-name').value = item ? item.name : '';
@@ -1434,7 +1429,7 @@
             try {
                 if (scope === 'day') {
                     const day = itemContext.day;
-                    const date = escapeHtml(formatLongDate(day.date));
+                    const date = escapeHtml(formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) }));
                     const confirmed = item.source === 'template'
                         ? await confirmModal({
                             title: 'Remove item',
@@ -1828,9 +1823,9 @@
             if (scope === 'template') {
                 note = `Changes show up on every day ${list.name} is on, except where a day has changed this bag.`;
             } else if (isTemplated(list)) {
-                note = `For "${list.name}" on ${formatLongDate(list.date)} only. The packing list template stays as it is.`;
+                note = `For "${list.name}" on ${formatDate(list.date, { ...LONG_DATE, today: isoDate(new Date()) })} only. The packing list template stays as it is.`;
             } else {
-                note = `For "${list.name}" on ${formatLongDate(list.date)}.`;
+                note = `For "${list.name}" on ${formatDate(list.date, { ...LONG_DATE, today: isoDate(new Date()) })}.`;
             }
             document.getElementById('list-bags-scope-note').textContent = note;
             const container = document.getElementById('list-bags-list');
@@ -2191,14 +2186,14 @@
                 hint.textContent = '';
                 return;
             }
-            const packOn = addDays(date, -lead);
+            const packOn = shiftIsoDate(date, -lead);
             const before = lead === 1 ? 'the day before' : `${lead} days before`;
             if (lead === 0) {
                 hint.textContent = 'Pack it the day of.';
-            } else if (packOn < todayLocal()) {
+            } else if (packOn < todayLocal(LOCAL_TIMEZONE)) {
                 hint.textContent = `It packs ${before}, so pack it today.`;
             } else {
-                hint.textContent = `Pack it ${formatLongDate(packOn)}, ${before}.`;
+                hint.textContent = `Pack it ${formatDate(packOn, { ...LONG_DATE, today: isoDate(new Date()) })}, ${before}.`;
             }
         }
 
@@ -2217,7 +2212,7 @@
         }
 
         function alreadyOnMessage(name, date) {
-            return `${joinNames([name])} is already on ${formatLongDate(date)}.`;
+            return `${joinNames([name])} is already on ${formatDate(date, { ...LONG_DATE, today: isoDate(new Date()) })}.`;
         }
 
         function openAddDayModal() {
@@ -2226,7 +2221,7 @@
             typedName = '';
             sourceSelect.innerHTML = templateOptionsHtml();
             document.getElementById('day-add-source-group').style.display = templates.length ? '' : 'none';
-            addDate.min = todayLocal();
+            addDate.min = todayLocal(LOCAL_TIMEZONE);
             showAddMode();
             showModalOverlay('day-add-modal-overlay');
             addName.focus();
