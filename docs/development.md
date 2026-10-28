@@ -70,7 +70,13 @@ uv run pytest tests/test_events_api.py -q
 
 Every test gets an isolated in-memory database, so the suite never touches your local `rally.db`.
 
-The design-system suite in `tests/visual/` drives a real browser and is skipped unless Playwright and Chromium are installed:
+The design-system suite in `tests/visual/` drives a real browser and is skipped unless Playwright and Chromium are installed. In `devenv shell` they are: whenever the shell re-syncs dependencies it includes the `visual` group along with the default ones, and `install-deps` (which `setup` runs) installs Chromium. So it runs as it is:
+
+```bash
+uv run pytest tests/visual -v
+```
+
+A plain `uv sync` run by hand removes Playwright again, since it installs only the default groups. Use `install-deps`, or `uv sync --group visual`, instead. Outside devenv:
 
 ```bash
 uv sync --group visual

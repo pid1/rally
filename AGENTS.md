@@ -98,7 +98,7 @@ All commands should be run inside `devenv shell`.
 
 | Command | Description | Blocking |
 |---------|-------------|----------|
-| `install-deps` | Install dependencies with uv | No |
+| `install-deps` | Install dependencies with uv, including Playwright and Chromium for `tests/visual` | No |
 
 ## For AI Agents
 
@@ -310,18 +310,26 @@ test-generate
 ```
 
 The design-system regression suite needs a browser and is **not** part of the
-default run — `tests/visual/` skips itself when Playwright is absent, and CI
-runs it as a separate job. To run it locally:
+default `pytest` run in CI — `tests/visual/` skips itself when Playwright is
+absent, and CI runs it as a separate job. Locally, devenv keeps it installed:
+whenever `devenv shell` re-syncs (after `pyproject.toml` or the interpreter
+changes) it includes the `visual` group (`languages.python.uv.sync.groups` in
+`devenv.nix`), and `install-deps` (so `setup`) installs Chromium too. So in a devenv checkout it simply runs:
+
+```bash
+uv run pytest tests/visual -v
+```
+
+A bare `uv sync` by hand **removes** Playwright, because it syncs only the
+default groups; use `install-deps` (or `uv sync --group visual`) instead. Read
+the summary line, not the exit code: a missing Playwright reports
+`Skipped: Playwright is not installed` and exits 0. Outside devenv:
 
 ```bash
 uv sync --group visual
 uv run playwright install chromium
 uv run pytest tests/visual -v
 ```
-
-Note that `uv sync --group visual` drops the editable `rally` install. Tests
-still work (pytest puts `src/` on the path), but a bare `uvicorn rally.main:app`
-will then need `PYTHONPATH=src`. Re-run plain `uv sync` to restore it.
 
 ### Starting Development Server
 
