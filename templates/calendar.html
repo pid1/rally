@@ -2075,7 +2075,9 @@
             const name = `<strong>${escapeHtml(editingEvent.title)}</strong>`;
             const lists = (editingOccurrence && editingOccurrence.packing_lists) || [];
             if (!lists.length) return `Delete ${name}?`;
-            const day = formatDate(editingOccurrence.start_date, { weekday: true, month: 'short' });
+            // The server's label, so this day reads the way the detail view
+            // and the notices on everybody's phone write it.
+            const day = editingOccurrence.start_date_display;
             const names = escapeHtml(joinNames(lists.map(p => p.name)));
             return `Delete ${name}? ${names} come${lists.length === 1 ? 's' : ''} off ${escapeHtml(day)} too.`;
         }
