@@ -381,24 +381,13 @@
             }
         }
 
+        // "Due Friday, Oct 30", in the overdue style once the day is past by
+        // the device's clock (`YYYY-MM-DD` strings compare as dates).
         function formatDueDate(dateStr) {
             if (!dateStr) return '';
-            
-            const date = new Date(dateStr + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            
-            const dayName = dayNames[date.getDay()];
-            const month = monthNames[date.getMonth()];
-            const day = date.getDate();
-            
-            const isOverdue = date < today;
-            const overdueClass = isOverdue ? ' overdue' : '';
-            
-            return `<div class="todo-due-date${overdueClass}">Due ${dayName}, ${month} ${day}</div>`;
+            const overdueClass = dateStr < isoDate(new Date()) ? ' overdue' : '';
+            const due = formatDate(dateStr, { weekday: true, month: 'short', year: 'never' });
+            return `<div class="todo-due-date${overdueClass}">Due ${due}</div>`;
         }
 
         function escapeHtml(text) {
@@ -558,7 +547,6 @@
 
         let recurringTodos = [];
         let editingRecurringId = null;
-        const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const START_HINT = 'Leave blank to start on the next occurrence from today.';
         const LOCKED_HINT = 'This series has completed tasks, so its next due date is driven by the '
             + 'last completion and the start date can no longer be moved.';
@@ -572,39 +560,26 @@
         // A series that has not begun has nothing on the task list, so its row is
         // the only place it is visible. Once it has started the date is history
         // and the schedule already says everything.
+        // "Oct 30, 2026": a series' start date.
+        const SHORT_DATE = { month: 'short', year: 'always' };
+
         function describeStart(startDate) {
             if (!startDate) return '';
-            const start = parseLocalDate(startDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            if (start <= today) return '';
-            return ` · starts ${formatShortDate(start)}`;
+            if (startDate <= isoDate(new Date())) return '';
+            return ` · starts ${formatDate(startDate, SHORT_DATE)}`;
         }
 
-        function parseLocalDate(value) {
-            return new Date(value + 'T00:00:00');
-        }
-
-        function formatShortDate(date) {
-            return `${MONTHS_SHORT[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-        }
-
+        // Today, Yesterday, or "Oct 30th, 2026", by the device's clock. A
+        // completion arrives as an instant (`last_completed_at`) or, from
+        // before those were kept, as a date.
         function formatLastCompleted(value) {
             if (!value) return 'Never';
-            const completed = value.includes('T') ? new Date(value) : new Date(value + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const yesterday = new Date(today);
-            yesterday.setDate(today.getDate() - 1);
-            const completedDay = new Date(completed);
-            completedDay.setHours(0, 0, 0, 0);
-            if (completedDay.getTime() === today.getTime()) return 'Today';
-            if (completedDay.getTime() === yesterday.getTime()) return 'Yesterday';
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            return `${months[completed.getMonth()]} ${ordinal(completed.getDate())}, ${completed.getFullYear()}`;
+            const completed = value.includes('T') ? new Date(value) : value;
+            return formatDate(completed, {
+                month: 'short', ordinal: true, year: 'always', relative: 'past', today: isoDate(new Date()),
+            });
         }
 
-        const ordinal = RecurrenceForm.ordinal;
         // A series with a completion is driven by it, so its read-back is the
         // next task rather than the first one.
         let startDateLocked = false;
@@ -623,7 +598,7 @@
             input.value = (rt && rt.start_date) || '';
             input.disabled = startDateLocked;
             const started = startDateLocked && rt.start_date
-                ? `Started ${formatShortDate(parseLocalDate(rt.start_date))}. `
+                ? `Started ${formatDate(rt.start_date, SHORT_DATE)}. `
                 : '';
             hint.textContent = startDateLocked ? `${started}${LOCKED_HINT}` : START_HINT;
         }

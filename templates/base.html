@@ -27,10 +27,12 @@
     <link href="/static/styles.css?v={{ css_version }}" rel="stylesheet">
     <script src="/static/sidebar.js?v={{ css_version }}" defer></script>
     <script src="/static/inline_separators.js?v={{ css_version }}" defer></script>
-    {#- Not deferred: a page's own script may open a modal or ask a question
-        as it loads, and a deferred script would run after it. Both are small. -#}
+    {#- Not deferred: a page's own script may open a modal, ask a question or
+        write a date as it loads, and a deferred script would run after it.
+        All three are small. -#}
     <script src="/static/modal.js?v={{ css_version }}"></script>
     <script src="/static/dialogs.js?v={{ css_version }}"></script>
+    <script src="/static/dates.js?v={{ css_version }}"></script>
     {% block head %}{% endblock %}
 </head>
 <body>
