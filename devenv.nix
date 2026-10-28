@@ -26,7 +26,14 @@ in
     package = pkgs.python315;
     uv = {
       enable = true;
-      sync.enable = true;
+      # A shell re-runs `uv sync` whenever pyproject.toml or the interpreter
+      # changes, and a sync removes whatever its groups leave out. Without
+      # `visual` here, the next shell after a dependency update uninstalled
+      # Playwright, and tests/visual went back to skipping itself silently.
+      sync = {
+        enable = true;
+        groups = [ "visual" ];
+      };
     };
   };
 
@@ -131,7 +138,13 @@ in
     '';
 
     # Dependency management
-    install-deps.exec = "uv sync";
+    # The visual group as well as the default ones, the same set the shell
+    # syncs, and the browser tests/visual drives. Chromium lands in the user's
+    # Playwright cache, so this is a no-op once it is there.
+    install-deps.exec = ''
+      uv sync --group visual
+      uv run playwright install chromium
+    '';
 
     # Database initialization
     db-init.exec = "cd ${config.env.DEVENV_ROOT} && uv run --directory . python -c 'from rally.database import init_db; init_db()' && echo '✓ Database initialized'";
@@ -209,7 +222,7 @@ in
     echo "  restart          - Restart Docker containers"
     echo ""
     echo "Other commands:"
-    echo "  install-deps     - Install dependencies with uv"
+    echo "  install-deps     - Install dependencies with uv, plus Playwright and Chromium"
     echo ""
   '';
 }
