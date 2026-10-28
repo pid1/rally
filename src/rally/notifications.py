@@ -39,6 +39,7 @@ from rally.models import (
     FamilyMember,
     Setting,
 )
+from rally.utils.display import display_date, display_date_range, display_dated_times
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc
 
@@ -206,26 +207,29 @@ def when_label(occurrence, tz: ZoneInfo) -> str:
     Times are rendered in the install's configured local zone — the same clock
     the calendar screens use — and name that zone, because a bare "5:30 PM" is
     only unambiguous to somebody who already knows which zone the server keeps.
+
+    The dates themselves read the way they do everywhere else in Rally
+    (``rally.utils.display``): ``Friday, Aug 14, 2026``.
     """
     if occurrence.all_day:
-        when = occurrence.start_local_date
-        if occurrence.spans_days():
-            when = f"{when} – {occurrence.end_local_date}"
-        return f"{when} · All day"
+        dates = display_date_range(occurrence.start_local_date, occurrence.end_local_date)
+        return f"{dates} · All day"
 
     start = occurrence.local_start(tz)
     end = occurrence.local_end(tz)
     zone = start.strftime("%Z") or getattr(tz, "key", "")
 
     if occurrence.spans_days():
-        # Each time needs its own date or the range is a riddle: "2026-08-14 –
-        # 2026-08-16 · 5:30 PM to 9:00 AM" does not say which end is which.
-        return (
-            f"{occurrence.start_local_date} {_clock(start)} – "
-            f"{occurrence.end_local_date} {_clock(end)} {zone}"
-        ).strip()
+        # Each time needs its own date or the range is a riddle: "Friday, Aug 14
+        # – Sunday, Aug 16, 2026 · 5:30 PM to 9:00 AM" does not say which end is
+        # which.
+        spans = display_dated_times(
+            occurrence.start_local_date, _clock(start), occurrence.end_local_date, _clock(end)
+        )
+        return f"{spans} {zone}".strip()
 
-    return f"{occurrence.start_local_date} · {_time_range(start, end)} {zone}".strip()
+    day = display_date(occurrence.start_local_date)
+    return f"{day} · {_time_range(start, end)} {zone}".strip()
 
 
 def change_title(event_title: str, kind: str) -> str:
