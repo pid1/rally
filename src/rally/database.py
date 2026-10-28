@@ -31,6 +31,14 @@ def init_db():
 
     This is safe to call on every startup - it won't overwrite or delete existing data.
     SQLAlchemy's create_all() is idempotent and only creates missing tables.
+
+    The models are imported here because create_all() only knows the tables
+    that have been registered on Base. Called on its own (as `resetdb`,
+    `db-init` and the Docker entrypoint do), nothing else has imported them,
+    and it would create an empty database file that the migrations then fail
+    against.
     """
+    import rally.models  # noqa: F401
+
     engine.dispose()
     Base.metadata.create_all(bind=engine)
