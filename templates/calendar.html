@@ -365,7 +365,6 @@
         // The date the now tick last saw, so it can notice midnight passing.
         let tickDate = todayIso();
 
-        const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         // The rolling ranges: a window of N days from the anchor, not a slice
         // of a week or month.
         const ROLLING_RANGE_DAYS = { rolling3: 3, rolling30: 30 };
@@ -390,26 +389,11 @@
 
         // --- Date helpers. Everything is a local YYYY-MM-DD string; the API
         // speaks the same language, so no timezone maths happens in the browser.
+        // isoDate(), addDays(), parseIsoDate() and WEEKDAYS_SHORT are
+        // static/dates.js's; the grid steps `Date`s with addDays() throughout.
 
         function startOfMonth(date) {
             return new Date(date.getFullYear(), date.getMonth(), 1);
-        }
-
-        function isoDate(date) {
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${date.getFullYear()}-${month}-${day}`;
-        }
-
-        function addDays(date, days) {
-            const next = new Date(date);
-            next.setDate(next.getDate() + days);
-            return next;
-        }
-
-        function parseIso(value) {
-            const [y, m, d] = value.split('-').map(Number);
-            return new Date(y, m - 1, d);
         }
 
         function todayIso() {
@@ -606,7 +590,7 @@
                     // left alone — drilling in from a grid should keep you in
                     // the grid, and from a list, in the list.
                     setRange('day');
-                    anchor = parseIso(node.dataset.agendaDate);
+                    anchor = parseIsoDate(node.dataset.agendaDate);
                     load();
                 });
             });
@@ -674,7 +658,7 @@
             const month = anchor.getMonth();
 
             let html = '<div class="calendar-grid-scroll"><div class="calendar-grid">';
-            WEEKDAYS.forEach(day => { html += `<div class="calendar-weekday">${day}</div>`; });
+            WEEKDAYS_SHORT.forEach(day => { html += `<div class="calendar-weekday">${day}</div>`; });
 
             for (let i = 0; i < 42; i++) {
                 const day = addDays(start, i);
@@ -878,7 +862,7 @@
             days.forEach(day => {
                 const iso = isoDate(day);
                 head += `<div class="calendar-timegrid-daylabel${iso === today ? ' is-today' : ''}">`
-                    + `<span>${WEEKDAYS[day.getDay()]}</span>`
+                    + `<span>${WEEKDAYS_SHORT[day.getDay()]}</span>`
                     + `<span class="calendar-timegrid-daynum">${day.getDate()}</span></div>`;
             });
             head += '</div>';
@@ -1021,7 +1005,7 @@
                `Next 3 days` is anchored to a single date too, and starts on
                it. Week, Month and `Next 30 days` keep the window they are on. */
             tickDate = today;
-            if (range === 'day' || range === 'rolling3') anchor = parseIso(today);
+            if (range === 'day' || range === 'rolling3') anchor = parseIsoDate(today);
             load();
         }
 
@@ -1324,10 +1308,10 @@
 
             let span = 0;
             if (oldStart && endField.value) {
-                const days = Math.round((parseIso(endField.value) - parseIso(oldStart)) / 86400000);
+                const days = Math.round((parseIsoDate(endField.value) - parseIsoDate(oldStart)) / 86400000);
                 if (days >= 0) span = days;
             }
-            endField.value = isoDate(addDays(parseIso(startField.value), span));
+            endField.value = isoDate(addDays(parseIsoDate(startField.value), span));
         }
 
         function localDateTimeValue(date) {
@@ -1507,7 +1491,7 @@
            is deliberately small — anything more expressive should be typed as
            an RRULE, not grown into a second recurrence vocabulary. */
         function rruleFor(choice, startIso) {
-            const day = parseIso(startIso.slice(0, 10));
+            const day = parseIsoDate(startIso.slice(0, 10));
             const byday = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][day.getDay()];
             switch (choice) {
                 case 'daily': return 'FREQ=DAILY';
@@ -2091,7 +2075,7 @@
             const name = `<strong>${escapeHtml(editingEvent.title)}</strong>`;
             const lists = (editingOccurrence && editingOccurrence.packing_lists) || [];
             if (!lists.length) return `Delete ${name}?`;
-            const day = parseIso(editingOccurrence.start_date)
+            const day = parseIsoDate(editingOccurrence.start_date)
                 .toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
             const names = escapeHtml(joinNames(lists.map(p => p.name)));
             return `Delete ${name}? ${names} come${lists.length === 1 ? 's' : ''} off ${escapeHtml(day)} too.`;

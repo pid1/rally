@@ -666,3 +666,146 @@ def test_a_new_packing_list_date_clears_the_modal(client):
     assert "'day-add-modal-overlay');" in html
     assert "clearFormMessage('day-add-message')" not in html
     assert "clearFormMessage('day-edit-message')" not in html
+
+
+DATE_PAGES = [
+    "/dashboard",
+    "/todo",
+    "/todo/completed",
+    "/shopping",
+    "/shopping/purchased",
+    "/calendar",
+    "/notes",
+    "/notes/previous",
+    "/meal-planner",
+    "/meal-planner/previous",
+    "/packing-lists",
+    "/packing-lists/previous",
+    "/preparedness",
+    "/go-list",
+    "/settings",
+    "/styleguide",
+]
+
+
+@pytest.mark.parametrize("path", DATE_PAGES)
+def test_every_page_carries_the_shared_date_helpers(client, path):
+    """#305: static/dates.js loads once on every page, from base.html, next to
+    dialogs.js and not deferred, so the shared scripts and a page's own script
+    can write a date as they load."""
+    html = client.get(path).text
+    assert html.count("/static/dates.js") == 1
+    tag = re.search(r"<script[^>]*/static/dates\.js[^>]*>", html).group(0)
+    assert "defer" not in tag
+    assert html.index("/static/dialogs.js") < html.index("/static/dates.js")
+
+
+# Every page and script that had a date helper of its own before #305, and the
+# copies that must not come back. `formatDate` is dates.js's now, so a page that
+# defines its own would quietly shadow it.
+OLD_DATE_HELPERS = {
+    "static/packing_lists.js": [
+        "function parseDay",
+        "function formatLongDate",
+        "function addDays",
+        "const WEEKDAYS",
+        "const MONTHS",
+        "formatLongDate,",
+        "addDays,",
+    ],
+    "static/recurrence_form.js": [
+        "function ordinal",
+        "function formatLongDate",
+        "WEEKDAYS_LONG",
+        "MONTHS_LONG",
+        "ordinal,",
+        "T00:00:00",
+    ],
+    "static/meal_edit_modal.js": ["function todayLocal", "mealTodayLocal", "Intl.DateTimeFormat"],
+    "templates/calendar.html": [
+        "function parseIso(",
+        "function isoDate",
+        "function addDays",
+        "const WEEKDAYS",
+    ],
+    "templates/todo.html": [
+        "function parseLocalDate",
+        "function formatShortDate",
+        "MONTHS_SHORT = [",
+        "RecurrenceForm.ordinal",
+        "monthNames",
+        "dayNames",
+        "T00:00:00",
+    ],
+    "templates/todo_completed.html": ["monthNames", "dayNames", "T00:00:00"],
+    "templates/notes.html": [
+        "function todayLocal",
+        "function getDateInDays",
+        "function formatDate",
+        "T00:00:00",
+        "toLocaleDateString",
+        "Intl.DateTimeFormat",
+    ],
+    "templates/notes_previous.html": [
+        "function formatDate",
+        "T00:00:00",
+        "toLocaleDateString",
+        "Intl.DateTimeFormat",
+    ],
+    "templates/meal_planner.html": [
+        "function todayLocal",
+        "function getDateInDays",
+        "function formatDate",
+        "T00:00:00",
+        "toLocaleDateString",
+        "Intl.DateTimeFormat",
+    ],
+    "templates/meal_planner_previous.html": [
+        "function formatDate",
+        "T00:00:00",
+        "toLocaleDateString",
+    ],
+    "templates/packing_lists.html": [
+        "function todayLocal",
+        "function formatShortDate",
+        "formatLongDate",
+        "MONTHS_SHORT = [",
+        "Intl.DateTimeFormat",
+    ],
+    "templates/packing_lists_previous.html": ["Intl.DateTimeFormat"],
+}
+
+
+@pytest.mark.parametrize("path", sorted(OLD_DATE_HELPERS))
+def test_date_helpers_are_not_copied_onto_pages(path):
+    """#305: the per-page date helpers are gone; each page reads, steps and
+    writes dates through static/dates.js."""
+    source = (TEMPLATES.parent / path).read_text()
+    left = [needle for needle in OLD_DATE_HELPERS[path] if needle in source]
+    assert not left, f"{path} still has its own date helpers: {left}"
+
+
+def test_no_page_defines_a_shared_date_helper():
+    """#305: no page or script but dates.js defines a function or list by a
+    shared helper's name, which would shadow the shared one."""
+    # `ordinal` only as a function: the calendar's custom-rule form keeps a
+    # local `const ordinal` for a position ("first"), which is not a date.
+    functions = "parseIsoDate|isoDate|addDays|shiftIsoDate|todayLocal|ordinal|formatDate"
+    names = "parseIsoDate|isoDate|addDays|shiftIsoDate|todayLocal|formatDate"
+    names += "|WEEKDAYS|WEEKDAYS_SHORT|MONTHS|MONTHS_SHORT"
+    definition = re.compile(rf"function\s+(?:{functions})\s*\(|(?:const|let|var)\s+(?:{names})\s*=")
+    offenders = [
+        path.name
+        for path in _page_sources()
+        if path.name != "dates.js" and definition.search(path.read_text())
+    ]
+    assert not offenders, f"use static/dates.js rather than a copy: {offenders}"
+
+
+def test_dates_js_reads_no_clock_of_its_own():
+    """#305: formatDate() never decides what today is; a page hands it in.
+    The only clock in dates.js is todayLocal(), in the zone it is handed."""
+    source = (STATIC / "dates.js").read_text()
+    assert source.count("new Date()") == 1
+    body = source[source.index("function todayLocal") :]
+    assert "new Date()" in body[: body.index("\n    }")]

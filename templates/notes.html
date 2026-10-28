@@ -34,35 +34,15 @@
 
         const BODY_LIMIT = 2000;
 
-        // Today's date (YYYY-MM-DD) in the configured local timezone. Mirrors
-        // the backend's today_local_str() so this page and Previous Notes agree
-        // on the day boundary.
-        function todayLocal() {
-            return new Intl.DateTimeFormat('en-CA', { timeZone: localTimezone }).format(new Date());
-        }
-
-        function getDateInDays(days) {
-            // Anchor to local calendar midnight so day arithmetic isn't skewed by UTC.
-            const base = new Date(todayLocal() + 'T00:00:00');
-            base.setDate(base.getDate() + days);
-            const y = base.getFullYear();
-            const m = String(base.getMonth() + 1).padStart(2, '0');
-            const d = String(base.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
-
-        // Same wording the Meal Planner uses, so a date reads the same on both.
-        function formatDate(dateStr) {
-            const date = new Date(dateStr + 'T00:00:00');
-            const today = todayLocal();
-
-            if (dateStr === today) return 'Today';
-            if (dateStr === getDateInDays(1)) return 'Tomorrow';
-
-            const opts = { weekday: 'long', month: 'short', day: 'numeric' };
-            if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = 'numeric';
-
-            return date.toLocaleDateString('en-US', opts);
+        // Same wording the Meal Planner uses, so a date reads the same on both:
+        // Today, Tomorrow, or "Friday, Oct 30", the year only when it is not
+        // this one. "Today" is the configured zone's (`todayLocal`), matching
+        // the backend's today_local_str() so this page and Previous Notes
+        // agree on the day boundary.
+        function noteDateLabel(dateStr) {
+            return formatDate(dateStr, {
+                weekday: true, month: 'short', year: 'unlessThisYear', relative: 'upcoming', today: todayLocal(localTimezone),
+            });
         }
 
 
@@ -84,7 +64,7 @@
                 <div class="editable-item" data-id="${note.id}">
                     <div class="editable-item-content">
                         <div class="rich-text editable-item-multiline">${note.body_html}</div>
-                        <div class="date-label">${escapeHtml(formatDate(note.date))}</div>
+                        <div class="date-label">${escapeHtml(noteDateLabel(note.date))}</div>
                     </div>
                     <div class="editable-item-actions">
                         <button class="btn btn--sm" onclick="openEditModal(${note.id})">Edit</button>
@@ -164,8 +144,8 @@
             clearFormMessages('note-modal-overlay');
             idField.value = '';
             document.getElementById('note-modal-title').textContent = 'Add Note';
-            dateField.value = todayLocal();
-            dateField.min = todayLocal();  // past days are read-only
+            dateField.value = todayLocal(localTimezone);
+            dateField.min = todayLocal(localTimezone);  // past days are read-only
             deleteBtn.style.display = 'none';
             updateCounter();
             showModalOverlay(OVERLAY_ID);
@@ -180,7 +160,7 @@
             idField.value = note.id;
             document.getElementById('note-modal-title').textContent = 'Edit Note';
             dateField.value = note.date;
-            dateField.min = todayLocal();
+            dateField.min = todayLocal(localTimezone);
             bodyField.value = note.body;
             deleteBtn.style.display = '';
             updateCounter();
