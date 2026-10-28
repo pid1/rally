@@ -13,6 +13,7 @@ import pytest
 from rally.audit import mcp_policy
 from rally.main import app
 from rally.models import Setting
+from rally.utils.settings import today_local_str
 
 SERVICE_TOKEN = "test-service-token-0123456789"
 JON = "jon@example.com"
@@ -117,8 +118,10 @@ def test_the_spec_needs_the_service_credential(client, mcp_on):
 
 
 def test_mcp_can_use_a_household_route(client, db_session, mcp_on):
+    # Today, not a fixed date: notes for past days are read-only.
+    today = today_local_str(db_session)
     created = client.post(
-        "/api/notes", json={"date": "2026-10-27", "body": "Pack swim bag"}, headers=as_mcp()
+        "/api/notes", json={"date": today, "body": "Pack swim bag"}, headers=as_mcp()
     )
     assert created.status_code in (200, 201), created.text
 
