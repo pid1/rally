@@ -19,29 +19,11 @@ from rally.schemas import (
     RecurringTodoUpdate,
 )
 from rally.utils.settings import local_timezone_name
-from rally.utils.timezone import ensure_utc, now_utc, today_utc
+from rally.utils.timezone import ensure_utc, today_utc
 
 router = APIRouter(prefix="/api/recurring-todos", tags=["recurring-todos"])
 
 PREVIEW_OCCURRENCES = 3  # What the modal's read-back line shows: this one, then two
-
-
-def format_local_completion(completed_at: datetime, local_tz: ZoneInfo) -> str:
-    local_dt = completed_at.astimezone(local_tz)
-    today = now_utc().astimezone(local_tz).date()
-    if local_dt.date() == today:
-        date_label = "Today"
-    elif local_dt.date() == today.replace(day=today.day) - __import__("datetime").timedelta(days=1):
-        date_label = "Yesterday"
-    else:
-        suffix = (
-            "th"
-            if 11 <= local_dt.day % 100 <= 13
-            else {1: "st", 2: "nd", 3: "rd"}.get(local_dt.day % 10, "th")
-        )
-        date_label = f"{local_dt.strftime('%b')} {local_dt.day}{suffix}, {local_dt.year}"
-    time_label = local_dt.strftime("%I:%M %p").lstrip("0")
-    return f"{date_label} at {time_label}"
 
 
 def normalize_start_date(value: str | None) -> str | None:

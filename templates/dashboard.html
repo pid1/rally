@@ -46,19 +46,6 @@
     </footer>
 
     <script>
-        // Format current date in user's local timezone
-        (function() {
-            const dateElement = document.getElementById('current-date');
-            const today = new Date();
-            const formatted = today.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            dateElement.textContent = formatted;
-        })();
-        
         // Format timestamp in user's local timezone
         (function() {
             const timestampElement = document.getElementById('timestamp');

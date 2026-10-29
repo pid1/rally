@@ -821,8 +821,6 @@ def test_no_page_defines_a_shared_date_helper():
 LOCALE_CALLS_ALLOWED = {
     # A character count is a number, not a date.
     "notes.html": ["used.toLocaleString(", "BODY_LIMIT.toLocaleString("],
-    # The header date; #311 moves it to the server and removes this.
-    "dashboard.html": ["today.toLocaleDateString('en-US'"],
 }
 
 

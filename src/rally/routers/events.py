@@ -69,6 +69,7 @@ from rally.schemas import (
     RecurrenceDescribeRequest,
     RecurrenceDescribeResponse,
 )
+from rally.utils.display import display_time
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc
 
@@ -230,9 +231,7 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         start_date=occurrence.start_local_date,
         end_date=occurrence.end_local_date,
         time_label=occurrence.time_label(tz),
-        end_time_label=(
-            "" if occurrence.all_day else occurrence.local_end(tz).strftime("%I:%M %p").lstrip("0")
-        ),
+        end_time_label=("" if occurrence.all_day else display_time(occurrence.local_end(tz))),
         start_form=start_form,
         end_form=end_form,
         dates=dates_covered(occurrence),

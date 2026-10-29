@@ -1,5 +1,7 @@
 """Tests for the dashboard router: snapshot rendering and the STEM card builder."""
 
+from datetime import UTC, datetime
+
 from rally.models import DashboardSnapshot
 from rally.routers.dashboard import _build_stem_section
 
@@ -22,6 +24,27 @@ def test_dashboard_renders_most_recent_active_snapshot(client, db_session):
 
     assert resp.status_code == 200
     assert "Hello Fam" in resp.text
+
+
+def test_the_header_date_is_today_in_the_settings_zone(client, frozen_now, local_timezone):
+    """#311: 7 PM Central on October 28 is already the 29th in UTC. The header
+    and the tab title both read the household's date, with no leading zero."""
+    local_timezone("America/Chicago")
+    frozen_now(datetime(2026, 10, 29, 0, 30, tzinfo=UTC))
+
+    html = client.get("/dashboard").text
+
+    assert '<div class="subtitle" id="current-date">Wednesday, October 28, 2026</div>' in html
+    assert "<title>Rally — Wednesday, October 28, 2026</title>" in html
+    assert "Thursday" not in html
+    assert "toLocaleDateString" not in html
+
+
+def test_the_header_day_has_no_leading_zero(client, frozen_now, local_timezone):
+    local_timezone("America/Chicago")
+    frozen_now(datetime(2026, 10, 5, 15, 0, tzinfo=UTC))
+
+    assert "Monday, October 5, 2026" in client.get("/dashboard").text
 
 
 def test_build_stem_section_empty_without_dict_or_title():
