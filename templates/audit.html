@@ -140,12 +140,13 @@
             fill('f-entity-type', facets.entity_types);
         }
 
+        // Written by static/dates.js so it reads the same on every device;
+        // an audit line keeps its seconds: "Oct 28, 2026, 3:04:05 PM".
         function when(iso) {
-            const date = new Date(iso);
-            return isNaN(date) ? iso : date.toLocaleString(undefined, {
-                year: 'numeric', month: 'short', day: 'numeric',
-                hour: 'numeric', minute: '2-digit', second: '2-digit',
-            });
+            const date = parseTimestamp(iso);
+            if (isNaN(date)) return iso;
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${formatDate(date, { month: 'short' })}, ${formatTime(date).replace(' ', `:${seconds} `)}`;
         }
 
         function linkFor(params) {

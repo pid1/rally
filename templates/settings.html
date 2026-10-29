@@ -2294,6 +2294,12 @@
         });
 
         // ── Claude (MCP) ──
+        // When a connector was first and last seen, as dates.js writes it.
+        function seenAt(value) {
+            const date = parseTimestamp(value);
+            return `${formatDate(date, { month: 'short' })} ${formatTime(date)}`;
+        }
+
         async function fetchMcpSettings() {
             const [mcp, alerts] = await Promise.all([
                 fetch('/api/mcp/settings').then(r => r.json()),
@@ -2315,7 +2321,7 @@
                     <div class="editable-item">
                         <div class="editable-item-content">
                             <div class="editable-item-title">${escapeHtml(c.member || c.email)} &mdash; ${escapeHtml(c.client || 'unknown client')}</div>
-                            <div class="editable-item-description">First seen ${new Date(c.first_seen_at).toLocaleString()} from ${escapeHtml(c.first_ip || '?')} &middot; last seen ${new Date(c.last_seen_at).toLocaleString()}</div>
+                            <div class="editable-item-description">First seen ${seenAt(c.first_seen_at)} from ${escapeHtml(c.first_ip || '?')} &middot; last seen ${seenAt(c.last_seen_at)}</div>
                             <a class="link-quiet" href="/audit?entity_type=mcp_connections&entity_id=${encodeURIComponent(c.id)}">Audit log</a>
                         </div>
                     </div>`).join('')
