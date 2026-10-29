@@ -632,7 +632,7 @@ rally/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide, and the page scroll lock behind an open modal
 │   ├── dialogs.js           # Rally's own confirm/alert (confirmModal, alertModal), in-place form messages and joinNames(); loaded by base.html
-│   ├── dates.js             # How every page reads, steps and writes dates: parseIsoDate, isoDate, addDays, shiftIsoDate, todayLocal(zone), ordinal, the name lists and formatDate(value, options); reads no clock for "today" (the page hands it in); loaded by base.html
+│   ├── dates.js             # How every page reads, steps and writes dates: parseIsoDate, isoDate, addDays, shiftIsoDate, todayLocal(zone), ordinal, the name lists, formatDate(value, options), formatDateRange, formatTime, parseTimestamp and formatUtcTimestamp; reads no clock for "today" (the page hands it in); loaded by base.html
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── inline_separators.js # Marks a quiet button that starts a wrapped line, so the · between quiet buttons never opens a line
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists, optionally fenced to a `scope`
@@ -1077,13 +1077,24 @@ When touching the UI:
   `new Date(value)` or a `T00:00:00` suffix), stepped with `addDays()` (a `Date`)
   or `shiftIsoDate()` (a string), and written with one `formatDate(value,
   {weekday, month: 'long'|'short', year: 'always'|'unlessThisYear'|'never',
-  ordinal, relative: 'upcoming'|'past', today})`. `formatDate()` reads no clock:
+  day, ordinal, relative: 'upcoming'|'past', today})` (`day: false` is `October
+  2026`). A span is `formatDateRange(start, end, options)` — the year once when
+  both ends share it, on both ends when they do not, and the month once when
+  it stays in one month (`August 9 – 15, 2026`, `December 28, 2026 – January 3,
+  2027`). A time of day is `formatTime(date)` (`4:00 AM`). A stored timestamp
+  is read with `parseTimestamp()`, which takes one with no zone as UTC, never a
+  page's own `+ 'Z'`; `formatUtcTimestamp()` writes the one exact UTC time
+  Rally shows (Settings' version history). `formatDate()` reads no clock:
   `relative` and `unlessThisYear` need `today` handed in, and each page decides
   which clock that is. Notes, the Meal Planner, Packing Lists and their archives
   pass `todayLocal(<Settings zone>)`; Calendar and Tasks still use the device's
   date (`isoDate(new Date())`), as do Packing Lists' dialogs and form notes —
   one "today" for every page is a follow-up. `tests/test_pages.py` refuses a
-  page that defines a helper of the same name again.
+  page that defines a helper of the same name again, and (#310) any
+  `toLocaleDateString` / `toLocaleTimeString` / `toLocaleString` outside
+  `dates.js` but the notes character counter (a number) and the Dashboard's
+  header date, which #311 moves to the server — a date asked of the device
+  reads in the device's language (`28. Oktober`, `10/28/2026`).
   A required field only some states of a form use (a calendar's URL for an ICS
   feed, a team's key outside racing) is marked `required` only while it is
   used; the shared checks skip a field that is not `required` just then.

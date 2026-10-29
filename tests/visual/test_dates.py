@@ -247,3 +247,129 @@ def test_format_date_never_falls_back_to_the_device_clock(page, options):
         options,
     )
     assert error and "today" in error
+
+
+# #310: what the stragglers #305 missed needed from dates.js.
+
+
+def test_day_false_leaves_the_day_out(page):
+    """Calendar's Month title."""
+    got = page.evaluate(
+        """() => [
+            formatDate('2026-10-28', { month: 'long', day: false }),
+            formatDate('2026-10-28', { month: 'short', day: false, year: 'never' }),
+            formatDate('2027-01-05', { month: 'long', day: false, year: 'unlessThisYear', today: '2026-10-28' }),
+        ]"""
+    )
+    assert got == ["October 2026", "Oct", "January 2027"]
+
+
+def test_day_false_refuses_what_needs_a_day(page):
+    error = page.evaluate(
+        """() => { try { formatDate('2026-10-28', { weekday: true, day: false }); return null; }
+                   catch (e) { return e.message; } }"""
+    )
+    assert error and "day: false" in error
+
+
+# (start, end, options, what it writes)
+RANGES = [
+    # Calendar's Week and `Next 3 days`: the month once in one month
+    ("2026-08-09", "2026-08-15", {"month": "long"}, "August 9 – 15, 2026"),
+    ("2026-10-28", "2026-10-30", {"month": "long"}, "October 28 – 30, 2026"),
+    # Across two months, and `Next 30 days`
+    ("2026-10-28", "2026-11-03", {"month": "long"}, "October 28 – November 3, 2026"),
+    ("2026-10-28", "2026-11-26", {"month": "long"}, "October 28 – November 26, 2026"),
+    ("2026-10-01", "2026-10-30", {"month": "long"}, "October 1 – 30, 2026"),
+    # Across New Year: both years
+    ("2026-12-28", "2027-01-03", {"month": "long"}, "December 28, 2026 – January 3, 2027"),
+    # One day is just that day
+    ("2026-10-28", "2026-10-28", {"month": "long"}, "October 28, 2026"),
+    # A weekday on each end keeps both months
+    (
+        "2026-10-28",
+        "2026-10-30",
+        {"weekday": True, "month": "short"},
+        "Wednesday, Oct 28 – Friday, Oct 30, 2026",
+    ),
+    ("2026-10-28", "2026-11-03", {"month": "short", "year": "never"}, "Oct 28 – Nov 3"),
+    (
+        "2026-10-28",
+        "2026-11-03",
+        {"month": "short", "year": "unlessThisYear", "today": TODAY},
+        "Oct 28 – Nov 3",
+    ),
+    (
+        "2026-12-28",
+        "2027-01-03",
+        {"month": "short", "year": "unlessThisYear", "today": TODAY},
+        "Dec 28, 2026 – Jan 3, 2027",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "options", "expected"), RANGES, ids=[f"{r[0]}..{r[1]}" for r in RANGES]
+)
+def test_format_date_range(page, start, end, options, expected):
+    got = page.evaluate(
+        "([start, end, options]) => formatDateRange(start, end, options)", [start, end, options]
+    )
+    assert got == expected
+
+
+def test_format_date_range_takes_dates_too(page):
+    got = page.evaluate(
+        """() => formatDateRange(parseIsoDate('2026-12-28'), parseIsoDate('2027-01-03'), { month: 'long' })"""
+    )
+    assert got == "December 28, 2026 – January 3, 2027"
+
+
+def test_format_time(page):
+    got = page.evaluate(
+        """() => [[0, 0], [0, 5], [9, 5], [11, 59], [12, 0], [15, 52], [23, 59]]
+            .map(([h, m]) => formatTime(new Date(2026, 9, 28, h, m)))"""
+    )
+    assert got == ["12:00 AM", "12:05 AM", "9:05 AM", "11:59 AM", "12:00 PM", "3:52 PM", "11:59 PM"]
+
+
+def test_parse_timestamp_reads_a_naive_value_as_utc(page):
+    got = page.evaluate(
+        """() => ['2026-10-28T15:52:30', '2026-10-28T15:52:30Z', '2026-10-28T15:52:30+00:00',
+                  '2026-10-28T10:52:30-05:00', '2026-10-28T15:52:30.123456']
+            .map(value => parseTimestamp(value).toISOString())"""
+    )
+    assert got == [
+        "2026-10-28T15:52:30.000Z",
+        "2026-10-28T15:52:30.000Z",
+        "2026-10-28T15:52:30.000Z",
+        "2026-10-28T15:52:30.000Z",
+        "2026-10-28T15:52:30.123Z",
+    ]
+
+
+def test_parse_timestamp_of_nonsense_is_an_invalid_date(page):
+    assert page.evaluate("() => isNaN(parseTimestamp('not a time'))")
+
+
+def test_a_naive_timestamp_reads_in_the_devices_zone(page):
+    """Dashboard's `Last updated` and Preparedness's review time: 04:00 UTC is
+    11 PM the day before in Chicago."""
+    got = page.evaluate(
+        """() => { const d = parseTimestamp('2026-10-29T04:00:00');
+                   return `${formatDate(d, { month: 'short' })}, ${formatTime(d)}`; }"""
+    )
+    assert got == "Oct 28, 2026, 11:00 PM"
+
+
+def test_format_utc_timestamp(page):
+    """Settings' version history, as it read before it moved."""
+    got = page.evaluate(
+        """() => ['2026-10-28T15:52:30', '2026-10-28T10:52:30-05:00', '2026-01-02T03:04:05Z']
+            .map(formatUtcTimestamp)"""
+    )
+    assert got == [
+        "2026-10-28 15:52:30 UTC",
+        "2026-10-28 15:52:30 UTC",
+        "2026-01-02 03:04:05 UTC",
+    ]

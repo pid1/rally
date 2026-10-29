@@ -355,12 +355,10 @@
             `;
         }
 
-        // completed_at serializes without a "Z" for values SQLite hands back
-        // naive, and new Date("2026-08-07T18:00:00") is parsed as *local* time by
-        // JS — so append the zone when it's missing.
+        // completed_at can arrive with no zone; parseTimestamp() reads it as UTC.
         function formatCompletedAgo(value) {
             if (!value) return '';
-            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
+            const date = parseTimestamp(value);
             if (isNaN(date)) return '';
             const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
             if (minutes < 1) return 'Completed just now';
