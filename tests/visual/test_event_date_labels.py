@@ -121,5 +121,6 @@ def test_the_delete_dialog_names_the_packing_list_day_in_the_same_words(page):
     page.click("#btn-delete-event")
     page.wait_for_selector("#dialog-modal-overlay", state="visible")
     message = page.inner_text("#dialog-modal-message")
-    assert message.endswith(f"off {display_date(DAY.isoformat())} too.")
+    # The Keep or Remove question (#313) words the day as the server does.
+    assert message.endswith(f'"{template["name"]}" is on {display_date(DAY.isoformat())}.')
     page.click("#btn-dialog-modal-cancel")

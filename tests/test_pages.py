@@ -314,8 +314,8 @@ def test_the_event_modal_asks_what_to_pack(client):
     assert '<div class="manage-row" id="event-packing-add-row">' in html
     assert ">What to pack</label>" in html
     assert (
-        "Packing lists follow this event when it moves, and go when it&#39;s deleted." in html
-        or ("Packing lists follow this event when it moves, and go when it's deleted." in html)
+        "Packing lists follow this event when it moves. Removing one, or deleting the event, "
+        "asks whether to keep the list on its day." in html
     )
     span = html[html.index('id="event-packing-span-group"') :]
     span = span[: span.index("</div>\n                    </div>")]
