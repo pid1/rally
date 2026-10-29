@@ -1,4 +1,4 @@
-"""How a date and a reminder lead time read to a person.
+"""How a date, a time of day and a reminder lead time read to a person.
 
 One rule, decided here and nowhere else. The calendar's detail view and
 ``Delete event`` dialog show labels the server sends (``OccurrenceResponse``),
@@ -11,22 +11,33 @@ together the year is stated once if both share it and on both ends if they do
 not — ``Friday, Oct 30 – Sunday, Nov 1, 2026`` but ``Thursday, Dec 31, 2026 –
 Saturday, Jan 2, 2027``.
 
-Everything here takes a local ISO date (``YYYY-MM-DD``), never an instant. An
+``display_date`` takes options for the places that read a date more briefly
+or more fully, the same options the browser's ``formatDate()`` takes (#305):
+``Due Sep 30`` on a task push, ``Wednesday, October 28, 2026`` on the
+Dashboard. A time of day reads ``4:00 PM`` (``display_time``).
+
+Every date here is a local ISO date (``YYYY-MM-DD``), never an instant. An
 occurrence's dates are its own ``start_local_date`` / ``end_local_date``;
 re-deriving one from a UTC instant is what puts an all-day event on the day
 before.
 
 The names are spelled out rather than taken from ``strftime``: ``%A`` and
 ``%b`` follow the process locale, and a label that changes with the
-container's ``LANG`` is not one rule.
+container's ``LANG`` is not one rule. ``%p`` and ``%I`` likewise: the
+meridiem is spelled out and the hour has no leading zero to trim.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from typing import Literal
 
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+MONTHS_LONG = (
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)  # fmt: skip
 
 RANGE_SEPARATOR = " – "
 
@@ -50,9 +61,63 @@ def _with_year(day: date) -> str:
     return f"{_without_year(day)}, {day.year}"
 
 
-def display_date(iso: str) -> str:
-    """``2026-10-30`` -> ``Friday, Oct 30, 2026``."""
-    return _with_year(_parse(iso))
+def display_date(
+    iso: str,
+    *,
+    weekday: bool = True,
+    month: Literal["short", "long"] = "short",
+    year: Literal["always", "unless_this_year", "never"] = "always",
+    today: date | None = None,
+) -> str:
+    """``2026-10-30`` -> ``Friday, Oct 30, 2026``, or a part of it.
+
+    ``weekday=False`` drops the weekday (``Oct 30, 2026``), ``month="long"``
+    spells the month out (``Friday, October 30, 2026``), and ``year`` is
+    ``"always"``, ``"never"`` or ``"unless_this_year"`` — which needs ``today``
+    handed in, because this reads no clock: whose today it is (the Settings
+    zone, a test's frozen one) is the caller's to say.
+    """
+    day = _parse(iso)
+    if year == "unless_this_year":
+        if today is None:
+            raise ValueError('year="unless_this_year" needs today')
+        show_year = day.year != today.year
+    else:
+        show_year = year == "always"
+    names = MONTHS_LONG if month == "long" else MONTHS
+    label = f"{names[day.month - 1]} {day.day}"
+    if weekday:
+        label = f"{WEEKDAYS[day.weekday()]}, {label}"
+    return f"{label}, {day.year}" if show_year else label
+
+
+def display_time(
+    moment: datetime,
+    *,
+    meridiem: bool = True,
+    minutes: Literal["always", "unless_zero"] = "always",
+) -> str:
+    """A time of day as ``4:00 PM``: 12-hour, no leading zero.
+
+    ``moment`` is already in the zone to show; nothing here converts.
+    ``meridiem=False`` leaves ``AM`` / ``PM`` off, for the first end of a range
+    that states it once (``5:30 to 6:30 PM``), and ``minutes="unless_zero"``
+    drops ``:00`` on the hour (``7 PM``), as the sports listings read.
+    """
+    hour = moment.hour % 12 or 12
+    label = (
+        str(hour)
+        if minutes == "unless_zero" and moment.minute == 0
+        else f"{hour}:{moment.minute:02d}"
+    )
+    if meridiem:
+        label += " AM" if is_morning(moment) else " PM"
+    return label
+
+
+def is_morning(moment: datetime) -> bool:
+    """Whether a time reads ``AM``: midnight through 11:59."""
+    return moment.hour < 12
 
 
 def display_date_ends(start_iso: str, end_iso: str) -> tuple[str, str]:

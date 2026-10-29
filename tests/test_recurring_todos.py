@@ -6,10 +6,8 @@ endpoint's per-template "last completed" rollup and timezone handling.
 """
 
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
 
 from rally.models import RecurringTodo, Todo
-from rally.routers.recurring_todos import format_local_completion
 
 
 def _create(client, **fields):
@@ -196,33 +194,6 @@ def test_delete_and_404(client, db_session, make_recurring_todo):
     assert db_session.get(RecurringTodo, rt.id) is None
 
     assert client.delete("/api/recurring-todos/9999").status_code == 404
-
-
-# --- format_local_completion (module helper) -----------------------------------
-
-
-def test_format_local_completion_today(frozen_now):
-    frozen_now(datetime(2026, 3, 15, 15, 0, tzinfo=UTC))
-    out = format_local_completion(datetime(2026, 3, 15, 14, 30, tzinfo=UTC), ZoneInfo("UTC"))
-    assert out == "Today at 2:30 PM"
-
-
-def test_format_local_completion_yesterday(frozen_now):
-    frozen_now(datetime(2026, 3, 15, 15, 0, tzinfo=UTC))
-    out = format_local_completion(datetime(2026, 3, 14, 9, 5, tzinfo=UTC), ZoneInfo("UTC"))
-    assert out == "Yesterday at 9:05 AM"
-
-
-def test_format_local_completion_older_date_ordinal(frozen_now):
-    frozen_now(datetime(2026, 3, 15, 15, 0, tzinfo=UTC))
-    out = format_local_completion(datetime(2026, 3, 3, 10, 0, tzinfo=UTC), ZoneInfo("UTC"))
-    assert out == "Mar 3rd, 2026 at 10:00 AM"
-
-
-def test_format_local_completion_teens_ordinal(frozen_now):
-    frozen_now(datetime(2026, 3, 20, 15, 0, tzinfo=UTC))
-    out = format_local_completion(datetime(2026, 3, 12, 13, 0, tzinfo=UTC), ZoneInfo("UTC"))
-    assert out == "Mar 12th, 2026 at 1:00 PM"
 
 
 # --- start date ----------------------------------------------------------------
