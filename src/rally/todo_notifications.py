@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 
 from rally import notification_prefs
 from rally.models import FamilyMember, Setting, Todo
+from rally.utils.display import WEEKDAYS, display_date
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import today_local
 
@@ -67,8 +68,7 @@ def notifications_enabled(db: Session) -> bool:
 
 def _date_words(due: date, today: date) -> str:
     """A date as "Aug 28", carrying the year only when it is not this one."""
-    stem = f"{due.strftime('%b')} {due.day}"
-    return stem if due.year == today.year else f"{stem}, {due.year}"
+    return display_date(due.isoformat(), weekday=False, year="unless_this_year", today=today)
 
 
 def due_label(due_date: str | None, today: date) -> str | None:
@@ -95,7 +95,7 @@ def due_label(due_date: str | None, today: date) -> str | None:
     if delta == 1:
         return "Due tomorrow"
     if delta < WEEKDAY_HORIZON_DAYS:
-        return f"Due {due.strftime('%A')}"
+        return f"Due {WEEKDAYS[due.weekday()]}"
     return f"Due {_date_words(due, today)}"
 
 

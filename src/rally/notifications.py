@@ -39,7 +39,14 @@ from rally.models import (
     FamilyMember,
     Setting,
 )
-from rally.utils.display import display_date, display_date_range, display_dated_times
+from rally.utils.display import (
+    WEEKDAYS,
+    display_date,
+    display_date_range,
+    display_dated_times,
+    display_time,
+    is_morning,
+)
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc
 
@@ -172,7 +179,7 @@ def format_message(event: Event, occurrence, tz: ZoneInfo) -> str:
         when = "All day today" if occurrence.start_local_date else "All day"
     else:
         local = occurrence.start.astimezone(tz)
-        when = local.strftime("%A %I:%M %p").replace(" 0", " ")
+        when = f"{WEEKDAYS[local.weekday()]} {display_time(local)}"
     parts = [when]
     if event.location:
         parts.append(f"at {event.location}")
@@ -181,7 +188,7 @@ def format_message(event: Event, occurrence, tz: ZoneInfo) -> str:
 
 def _clock(moment: datetime) -> str:
     """A local time as "5:30 PM"."""
-    return moment.strftime("%I:%M %p").lstrip("0")
+    return display_time(moment)
 
 
 def _time_range(start: datetime, end: datetime) -> str:
@@ -194,8 +201,8 @@ def _time_range(start: datetime, end: datetime) -> str:
     """
     if end <= start:
         return _clock(start)
-    if start.strftime("%p") == end.strftime("%p"):
-        return f"{start.strftime('%I:%M').lstrip('0')} to {_clock(end)}"
+    if is_morning(start) == is_morning(end):
+        return f"{display_time(start, meridiem=False)} to {_clock(end)}"
     return f"{_clock(start)} to {_clock(end)}"
 
 

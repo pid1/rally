@@ -21,10 +21,13 @@
  *   ordinal(n)                   → string    30 → "30th"
  *   WEEKDAYS, WEEKDAYS_SHORT     Sunday … / Sun …
  *   MONTHS, MONTHS_SHORT         January … / Jan … (Sep for September)
+ *   parseTimestamp(value)        → Date      a stored timestamp; one with no
+ *                                            zone is UTC (Invalid Date if unreadable)
  *   formatDate(value, options)   → string
  *       value: `YYYY-MM-DD` or a Date (an instant is read in the device's zone)
  *       weekday:  true writes "Friday, " first                (default false)
  *       month:    'long' (October) | 'short' (Oct)            (default 'long')
+ *       day:      false leaves the day out: "October 2026"    (default true)
  *       year:     'always' | 'unlessThisYear' | 'never'       (default 'always')
  *       ordinal:  true writes the day as "30th"               (default false)
  *       relative: 'upcoming' → Today / Tomorrow,
@@ -32,8 +35,18 @@
  *       today:    today as `YYYY-MM-DD`; required by `relative` and
  *                 `year: 'unlessThisYear'`
  *
+ *   formatDateRange(start, end, options) → string
+ *       Two dates as one span, each end written by formatDate() with `options`
+ *       (not `relative` or `day`). The year is stated once when both ends share
+ *       it and on both ends when they do not; without `weekday`, the month is
+ *       stated once when the span stays in one month.
+ *   formatTime(date)             → string    "4:00 AM", in the device's zone
+ *   formatUtcTimestamp(value)    → string    "2026-10-28 15:52:30 UTC"
+ *
  *   e.g. formatDate('2026-10-30', { weekday: true, month: 'short', year: 'never' })
  *        → "Friday, Oct 30"
+ *        formatDateRange('2026-12-28', '2027-01-03', { month: 'long' })
+ *        → "December 28, 2026 – January 3, 2027"
  */
 (function () {
     'use strict';
@@ -88,10 +101,24 @@
         return n + (s[(v - 20) % 10] || s[v] || s[0]);
     }
 
+    // Stored timestamps come back naive when SQLite hands them over without a
+    // zone, and `new Date('2026-08-07T18:00:00')` reads that as local time.
+    // Rally stores UTC, so a value with no zone is tagged as UTC.
+    function parseTimestamp(value) {
+        if (value instanceof Date) return value;
+        const text = String(value);
+        return new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(text) ? text : `${text}Z`);
+    }
+
+    function asDate(value) {
+        return value instanceof Date ? value : parseIsoDate(value);
+    }
+
     function formatDate(value, options = {}) {
         const {
             weekday = false,
             month = 'long',
+            day = true,
             year = 'always',
             ordinal: asOrdinal = false,
             relative = null,
@@ -104,21 +131,63 @@
         if ((relative || year === 'unlessThisYear') && !today) {
             throw new Error('formatDate(): pass `today` with `relative` or `year: \'unlessThisYear\'`');
         }
+        if (!day && (weekday || asOrdinal || relative)) {
+            throw new Error('formatDate(): `day: false` leaves no day for `weekday`, `ordinal` or `relative`');
+        }
 
-        const date = value instanceof Date ? value : parseIsoDate(value);
+        const date = asDate(value);
+        const withYear = year === 'always'
+            || (year === 'unlessThisYear' && date.getFullYear() !== parseIsoDate(today).getFullYear());
+        if (!day) return withYear ? `${months[date.getMonth()]} ${date.getFullYear()}` : months[date.getMonth()];
         if (relative) {
-            const day = isoDate(date);
-            if (day === today) return 'Today';
+            const iso = isoDate(date);
+            if (iso === today) return 'Today';
             const { step, word } = RELATIVE[relative];
-            if (day === shiftIsoDate(today, step)) return word;
+            if (iso === shiftIsoDate(today, step)) return word;
         }
 
         const dayOfMonth = asOrdinal ? ordinal(date.getDate()) : date.getDate();
         let text = `${months[date.getMonth()]} ${dayOfMonth}`;
         if (weekday) text = `${WEEKDAYS[date.getDay()]}, ${text}`;
-        const withYear = year === 'always'
-            || (year === 'unlessThisYear' && date.getFullYear() !== parseIsoDate(today).getFullYear());
         return withYear ? `${text}, ${date.getFullYear()}` : text;
+    }
+
+    function formatDateRange(start, end, options = {}) {
+        if (options.relative || options.day === false) {
+            throw new Error('formatDateRange(): a span takes neither `relative` nor `day: false`');
+        }
+        const { weekday = false, year = 'always', ordinal: asOrdinal = false, today = null } = options;
+        const from = asDate(start);
+        const to = asDate(end);
+        if (isoDate(from) === isoDate(to)) return formatDate(from, options);
+
+        const sameYear = from.getFullYear() === to.getFullYear();
+        // Whether the span says its year at all; `formatDate()` checks `today`.
+        let showYear = year === 'always';
+        if (year === 'unlessThisYear') {
+            if (!today) throw new Error('formatDateRange(): pass `today` with `year: \'unlessThisYear\'`');
+            const thisYear = parseIsoDate(today).getFullYear();
+            showYear = from.getFullYear() !== thisYear || to.getFullYear() !== thisYear;
+        }
+        const left = formatDate(from, { ...options, year: showYear && !sameYear ? 'always' : 'never' });
+        const rightYear = showYear ? 'always' : 'never';
+        if (!weekday && sameYear && from.getMonth() === to.getMonth()) {
+            const dayOfMonth = asOrdinal ? ordinal(to.getDate()) : to.getDate();
+            return `${left} – ${rightYear === 'always' ? `${dayOfMonth}, ${to.getFullYear()}` : dayOfMonth}`;
+        }
+        return `${left} – ${formatDate(to, { ...options, year: rightYear })}`;
+    }
+
+    function formatTime(date) {
+        const hours = date.getHours();
+        return `${hours % 12 || 12}:${pad(date.getMinutes())} ${hours < 12 ? 'AM' : 'PM'}`;
+    }
+
+    // The one place Rally shows an exact UTC time (Settings' version history).
+    function formatUtcTimestamp(value) {
+        const d = parseTimestamp(value);
+        return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} `
+            + `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
     }
 
     window.WEEKDAYS = WEEKDAYS;
@@ -131,5 +200,9 @@
     window.shiftIsoDate = shiftIsoDate;
     window.todayLocal = todayLocal;
     window.ordinal = ordinal;
+    window.parseTimestamp = parseTimestamp;
     window.formatDate = formatDate;
+    window.formatDateRange = formatDateRange;
+    window.formatTime = formatTime;
+    window.formatUtcTimestamp = formatUtcTimestamp;
 })();

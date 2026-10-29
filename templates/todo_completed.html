@@ -155,7 +155,7 @@
 
         function formatCompletedDate(value) {
             if (!value) return '';
-            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
+            const date = parseTimestamp(value);
             if (isNaN(date)) return '';
             return `<div class="todo-completed-date">Completed ${formatDayMonth(date)}</div>`;
         }

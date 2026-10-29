@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from rally.utils.display import display_time
+
 # One short budget for the whole fan-out, so a dozen third-party endpoints
 # cannot collectively delay the 4:00 AM run.
 PER_REQUEST_TIMEOUT_SECONDS = 8
@@ -146,7 +148,7 @@ def local_date_of(start_utc: datetime, tz: ZoneInfo) -> date:
 
 def local_time_of(start_utc: datetime, tz: ZoneInfo) -> str:
     local = start_utc.astimezone(tz)
-    return local.strftime("%-I:%M %p") if local.minute else local.strftime("%-I %p")
+    return display_time(local, minutes="unless_zero")
 
 
 def fetch_json(url: str, params: dict | None = None) -> dict | None:

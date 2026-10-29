@@ -246,7 +246,7 @@
                         </div>
                         <div class="container-empty-state" id="event-packing-empty" style="display:none">No packing list templates yet.</div>
                         <div class="form-message" id="event-packing-message" role="alert" hidden></div>
-                        <small>Packing lists follow this event when it moves, and go when it's deleted.</small>
+                        <small>Packing lists follow this event when it moves. Removing one, or deleting the event, asks whether to keep the list on its day.</small>
                     </div>
                     <div class="form-group" id="event-packing-span-group" style="display:none">
                         <label id="event-packing-span-label">Put on</label>
@@ -604,32 +604,24 @@
                 return spanLabel(start, addDays(start, ROLLING_RANGE_DAYS.rolling3 - 1));
             }
             if (range === 'rolling30') {
-                const end = addDays(startOfDay(anchor), ROLLING_RANGE_DAYS.rolling30 - 1);
-                return `${anchor.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
+                const start = startOfDay(anchor);
+                return spanLabel(start, addDays(start, ROLLING_RANGE_DAYS.rolling30 - 1));
             }
             if (range === 'day') {
-                return startOfDay(anchor).toLocaleDateString(undefined, {
-                    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-                });
+                return formatDate(startOfDay(anchor), { weekday: true, month: 'long' });
             }
             if (range === 'week') {
                 const start = startOfWeek(anchor);
                 return spanLabel(start, addDays(start, 6));
             }
-            return anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            return formatDate(anchor, { month: 'long', day: false });
         }
 
-        /* A span of days as one title. One that stays in one month reads
-           "August 9 – 15, 2026"; one that straddles repeats the month. Built by
-           hand because toLocaleDateString has no {day, year} format and
-           silently produces "2026 (day: 15)" if you ask for one. Week and
-           `Next 3 days` both name a span and share it. */
+        /* A span of days as one title: "August 9 – 15, 2026", "October 28 –
+           November 3, 2026", "December 28, 2026 – January 3, 2027". Week and
+           both rolling ranges name a span and share it. */
         function spanLabel(start, end) {
-            const left = start.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
-            const right = start.getMonth() === end.getMonth()
-                ? `${end.getDate()}, ${end.getFullYear()}`
-                : end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-            return `${left} – ${right}`;
+            return formatDateRange(start, end, { month: 'long' });
         }
 
         function occurrencesOn(dateIso) {
@@ -1021,7 +1013,7 @@
 
                 // One day in the window means the range title has already said
                 // which day it is; a heading here would repeat it an inch below.
-                const heading = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+                const heading = formatDate(day, { weekday: true, month: 'long', year: 'never' });
                 const headingHtml = range === 'day'
                     ? ''
                     : `<div class="agenda-heading">${escapeHtml(heading)}${iso === todayIso() ? ' · Today' : ''}</div>`;
@@ -1360,7 +1352,7 @@
             const chosen = document.querySelector('input[name="event-scope"]:checked');
             if (!chosen) return;
             hideModalOverlay('event-scope-modal-overlay');
-            if (scopeAction === 'delete') deleteEvent(chosen.value);
+            if (scopeAction === 'delete') askDelete(chosen.value);
             else saveEvent(chosen.value);
         }
 
@@ -2004,7 +1996,33 @@
             return true;
         }
 
-        async function saveEvent(scope, adopt = false) {
+        /* The server's sentence with each list's name in bold. Names arrive in
+           straight double quotes, so they are found after escaping. */
+        function boldNames(text) {
+            return escapeHtml(text).replace(/"([^"]+)"/g, '"<strong>$1</strong>"');
+        }
+
+        /* Lists this would take off days nobody else uses (#313): whether
+           they stay there as ordinary lists or go. The server words it;
+           resolves to "keep", "remove", or false on Cancel. */
+        function askRelease(detail, { title, confirmLabel, lead = '' }) {
+            return confirmModal({
+                title,
+                messageHtml: lead + boldNames(detail.message),
+                confirmLabel,
+                choices: [
+                    { value: 'keep', labelHtml: boldNames(detail.keep_label) },
+                    { value: 'remove', labelHtml: boldNames(detail.remove_label) },
+                ],
+            });
+        }
+
+        function releaseTitle(releases) {
+            const names = new Set(releases.map(r => r.name));
+            return names.size === 1 ? 'Remove packing list' : 'Remove packing lists';
+        }
+
+        async function saveEvent(scope, adopt = false, release = null) {
             const payload = formPayload();
             if (!eventFormReady(payload, scope)) return;
             if (editingEvent && scope !== 'this' && payload.packing_list_template_ids) {
@@ -2032,6 +2050,7 @@
                 const occurrenceDate = document.getElementById('event-occurrence-date').value;
                 if (scope && scope !== 'all' && occurrenceDate) params.set('occurrence_date', occurrenceDate);
                 if (adopt) params.set('adopt', 'true');
+                if (release) params.set('release', release);
                 url = `/api/events/${editingEvent.id}?${params.toString()}`;
                 method = 'PUT';
             }
@@ -2047,6 +2066,18 @@
                    on. Nothing was saved; asked first, it goes ahead and the
                    event uses the list already there. Cancel leaves the form as
                    it was, like any failed save. */
+                /* The save would take a list off a day nobody else uses: keep
+                   it there or let it go. A join the same save makes is in the
+                   same question, so answering goes ahead with both. */
+                if (response.status === 409 && detail.detail && detail.detail.releases) {
+                    const joins = detail.detail.adopts.length > 0;
+                    const answer = await askRelease(detail.detail, {
+                        title: joins ? 'Save event' : releaseTitle(detail.detail.releases),
+                        confirmLabel: 'Save',
+                    });
+                    if (answer) saveEvent(scope, adopt || joins, answer);
+                    return;
+                }
                 if (response.status === 409 && detail.detail && detail.detail.adopts) {
                     // A list only added (no `from_date`) moves nothing: the
                     // event simply uses the one already there.
@@ -2054,11 +2085,10 @@
                     const confirmed = await confirmModal({
                         title: moves ? 'Move event' : 'Use packing list',
                         // The server's own sentence, with each list's name in bold.
-                        messageHtml: escapeHtml(detail.detail.message)
-                            .replace(/"([^"]+)"/g, '"<strong>$1</strong>"'),
+                        messageHtml: boldNames(detail.detail.message),
                         confirmLabel: 'Continue',
                     });
-                    if (confirmed) saveEvent(scope, true);
+                    if (confirmed) saveEvent(scope, true, release);
                     return;
                 }
                 // A refusal the API explains (a 422 with words) reads above the
@@ -2075,25 +2105,49 @@
             load();
         }
 
-        /* Names the packing lists that come off with a one-time event, so the
-           question says everything the answer does. */
-        function deleteQuestion() {
-            const name = `<strong>${escapeHtml(editingEvent.title)}</strong>`;
-            const lists = (editingOccurrence && editingOccurrence.packing_lists) || [];
-            if (!lists.length) return `Delete ${name}?`;
-            // The server's label, so this day reads the way the detail view
-            // and the notices on everybody's phone write it.
-            const day = editingOccurrence.start_date_display;
-            const names = escapeHtml(joinNames(lists.map(p => p.name)));
-            return `Delete ${name}? ${names} come${lists.length === 1 ? 's' : ''} off ${escapeHtml(day)} too.`;
-        }
-
-        async function deleteEvent(scope) {
-            if (!editingEvent) return;
+        function deleteParams(scope) {
             const params = new URLSearchParams({ scope });
             const occurrenceDate = document.getElementById('event-occurrence-date').value;
             if (scope !== 'all' && occurrenceDate) params.set('occurrence_date', occurrenceDate);
+            return params;
+        }
+
+        /* Asked once the scope is known (a one-time event's is "all"). The
+           server says which packing lists the delete would take off days
+           nobody else uses (#313); with any, the question offers keeping
+           them. With none, a one-time event still asks, and a series has been
+           asked already by the scope modal. */
+        async function askDelete(scope) {
+            if (!editingEvent) return;
+            const params = deleteParams(scope);
+            const response = await fetch(
+                `/api/events/${editingEvent.id}/delete-question?${params.toString()}`);
+            if (!response.ok) { fail('Failed to delete the event'); return; }
+            const question = await response.json();
+            const lead = `Delete <strong>${escapeHtml(editingEvent.title)}</strong>? `;
+            if (question.releases.length) {
+                const answer = await askRelease(question, {
+                    title: 'Delete event', confirmLabel: 'Delete', lead,
+                });
+                if (answer) deleteEvent(scope, answer);
+                return;
+            }
+            if (!editingEvent.rrule) {
+                const confirmed = await confirmModal({
+                    title: 'Delete event', messageHtml: lead.trim(), confirmLabel: 'Delete',
+                });
+                if (!confirmed) return;
+            }
+            deleteEvent(scope);
+        }
+
+        async function deleteEvent(scope, release = null) {
+            if (!editingEvent) return;
+            const params = deleteParams(scope);
+            if (release) params.set('release', release);
             const response = await fetch(`/api/events/${editingEvent.id}?${params.toString()}`, { method: 'DELETE' });
+            // Something changed between the question and the answer: ask again.
+            if (response.status === 409) { askDelete(scope); return; }
             if (!response.ok) { fail('Failed to delete the event'); return; }
             closeEventModal();
             load();
@@ -2485,8 +2539,7 @@
                 openScopeModal('delete');
                 return;
             }
-            confirmModal({ title: 'Delete event', messageHtml: deleteQuestion(), confirmLabel: 'Delete' })
-                .then((confirmed) => { if (confirmed) deleteEvent('all'); });
+            askDelete('all');
         });
 
         document.querySelectorAll('input[name="event-scope"]').forEach(input => {

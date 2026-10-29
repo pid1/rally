@@ -645,7 +645,7 @@
             const high = gaps.filter(g => g.priority === 'high').length;
             const parts = [`${gaps.length} suggestion${gaps.length === 1 ? '' : 's'}`];
             if (high) parts.push(`${high} high priority`);
-            parts.push(new Date(payload.created_at).toLocaleDateString());
+            parts.push(formatDate(parseTimestamp(payload.created_at), { weekday: true, month: 'short' }));
             return parts.join(' · ');
         }
 
@@ -665,7 +665,8 @@
             if (!payload) { panel.innerHTML = ''; return; }
 
             const r = payload.review || {};
-            const when = new Date(payload.created_at).toLocaleString();
+            const reviewed = parseTimestamp(payload.created_at);
+            const when = `${formatDate(reviewed, { weekday: true, month: 'short' })} at ${formatTime(reviewed)}`;
             const stale = payload.stale
                 ? `<p class="page-note">Reviewed when you had ${payload.item_count} items; you now have ${payload.current_item_count}. Run it again for an up-to-date answer.</p>`
                 : '';

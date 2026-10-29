@@ -244,3 +244,58 @@ def test_deleting_an_event_that_does_not_repeat_asks_in_the_shared_dialog(page):
     page.click("#btn-dialog-modal-cancel")
     _settle(page)
     assert page.evaluate("window.__sent") == []
+
+
+def test_deleting_a_series_with_lists_asks_keep_or_remove_after_the_scope(page):
+    """#313: after the scope, a delete that takes packing lists off their days
+    asks whether they stay. Cancel deletes nothing."""
+    base = page.url.split("/calendar")[0]
+    template = page.request.post(
+        base + "/api/packing-list-templates", data={"name": f"Swim bag {uuid4().hex[:8]}"}
+    ).json()
+    # Soon, unlike the other tests here: a series only puts its lists on
+    # days within reach, and a day is what the question is about.
+    soon = date.today() + timedelta(days=1)
+    soon += timedelta(days=(1 - soon.weekday()) % 7)
+    title = f"Swim lesson {uuid4().hex[:8]}"
+    created = page.request.post(
+        base + "/api/events",
+        data={
+            "title": title,
+            "start": f"{soon.isoformat()}T16:00",
+            "end": f"{soon.isoformat()}T17:00",
+            "rrule": "FREQ=WEEKLY;BYDAY=TU",
+            "packing_list_template_ids": [template["id"]],
+        },
+    )
+    assert created.ok, created.text()
+    rows = page.request.get(
+        base + "/api/events", params={"start": soon.isoformat(), "end": soon.isoformat()}
+    ).json()["occurrences"]
+    occurrence = next(o for o in rows if o["title"] == title)
+    _open(page, occurrence)
+    page.evaluate(_WATCH, False)
+    page.click("#btn-delete-event")
+    page.check('input[name="event-scope"][value="all"]')
+    page.click("#btn-scope-confirm")
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+
+    assert page.inner_text("#dialog-modal-title").lower() == "delete event"
+    assert page.inner_text("#dialog-modal-message") == (
+        f'Delete {title}? "{template["name"]}" is on its upcoming days.'
+    )
+    assert page.inner_text("#btn-dialog-modal-confirm") == "Delete"
+    page.click("#btn-dialog-modal-cancel")
+    _settle(page)
+    assert page.evaluate("window.__sent") == []
+
+    page.click("#btn-delete-event")
+    page.check('input[name="event-scope"][value="all"]')
+    page.click("#btn-scope-confirm")
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+    page.check('#dialog-modal-choices input[value="keep"]')
+    page.click("#btn-dialog-modal-confirm")
+    _settle(page)
+    sent = page.evaluate("window.__sent")
+    assert [s["method"] for s in sent] == ["DELETE"]
+    assert "release=keep" in sent[0]["url"]
