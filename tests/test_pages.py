@@ -314,8 +314,8 @@ def test_the_event_modal_asks_what_to_pack(client):
     assert '<div class="manage-row" id="event-packing-add-row">' in html
     assert ">What to pack</label>" in html
     assert (
-        "Packing lists follow this event when it moves, and go when it&#39;s deleted." in html
-        or ("Packing lists follow this event when it moves, and go when it's deleted." in html)
+        "Packing lists follow this event when it moves. Removing one, or deleting the event, "
+        "asks whether to keep the list on its day." in html
     )
     span = html[html.index('id="event-packing-span-group"') :]
     span = span[: span.index("</div>\n                    </div>")]
@@ -727,6 +727,7 @@ OLD_DATE_HELPERS = {
         "function isoDate",
         "function addDays",
         "const WEEKDAYS",
+        "toLocaleDateString",
     ],
     "templates/todo.html": [
         "function parseLocalDate",
@@ -737,7 +738,18 @@ OLD_DATE_HELPERS = {
         "dayNames",
         "T00:00:00",
     ],
-    "templates/todo_completed.html": ["monthNames", "dayNames", "T00:00:00"],
+    "templates/todo_completed.html": ["monthNames", "dayNames", "T00:00:00", "+ 'Z'"],
+    # #310: the stragglers #305 missed.
+    "templates/shopping_purchased.html": [
+        "monthNames",
+        "dayNames",
+        "function formatDayMonth",
+        "+ 'Z'",
+    ],
+    "templates/shopping.html": ["+ 'Z'"],
+    "templates/settings.html": ["+ 'Z'", "getUTCFullYear"],
+    "templates/preparedness.html": ["toLocaleDateString", "toLocaleString"],
+    "templates/dashboard.html": ["toLocaleString", "hour12"],
     "templates/notes.html": [
         "function todayLocal",
         "function getDateInDays",
@@ -791,6 +803,7 @@ def test_no_page_defines_a_shared_date_helper():
     # `ordinal` only as a function: the calendar's custom-rule form keeps a
     # local `const ordinal` for a position ("first"), which is not a date.
     functions = "parseIsoDate|isoDate|addDays|shiftIsoDate|todayLocal|ordinal|formatDate"
+    functions += "|formatDateRange|formatTime|parseTimestamp|formatUtcTimestamp"
     names = "parseIsoDate|isoDate|addDays|shiftIsoDate|todayLocal|formatDate"
     names += "|WEEKDAYS|WEEKDAYS_SHORT|MONTHS|MONTHS_SHORT"
     definition = re.compile(rf"function\s+(?:{functions})\s*\(|(?:const|let|var)\s+(?:{names})\s*=")
@@ -800,6 +813,31 @@ def test_no_page_defines_a_shared_date_helper():
         if path.name != "dates.js" and definition.search(path.read_text())
     ]
     assert not offenders, f"use static/dates.js rather than a copy: {offenders}"
+
+
+# The toLocale* calls outside dates.js that do not write a date, each as the
+# test reads it (receiver, call, first argument), so another call beside one is
+# still caught.
+LOCALE_CALLS_ALLOWED = {
+    # A character count is a number, not a date.
+    "notes.html": ["used.toLocaleString(", "BODY_LIMIT.toLocaleString("],
+}
+
+
+def test_no_page_asks_the_device_how_to_write_a_date():
+    """#310: a date asked of the device reads in the device's language and
+    format (`28. Oktober`, `10/28/2026`); Rally's are written by dates.js."""
+    call = re.compile(r"[\w.]*\.toLocale(?:Date|Time)?String\([^,)]*")
+    offenders = {}
+    for path in _page_sources():
+        if path.name == "dates.js":
+            continue
+        allowed = LOCALE_CALLS_ALLOWED.get(path.name, [])
+        found = [m.group(0) for m in call.finditer(path.read_text())]
+        left = [snippet for snippet in found if snippet not in allowed]
+        if left:
+            offenders[path.name] = left
+    assert not offenders, f"write dates with static/dates.js: {offenders}"
 
 
 def test_dates_js_reads_no_clock_of_its_own():

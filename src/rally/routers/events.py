@@ -69,6 +69,7 @@ from rally.schemas import (
     RecurrenceDescribeRequest,
     RecurrenceDescribeResponse,
 )
+from rally.utils.display import display_time
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc
 
@@ -230,9 +231,7 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         start_date=occurrence.start_local_date,
         end_date=occurrence.end_local_date,
         time_label=occurrence.time_label(tz),
-        end_time_label=(
-            "" if occurrence.all_day else occurrence.local_end(tz).strftime("%I:%M %p").lstrip("0")
-        ),
+        end_time_label=("" if occurrence.all_day else display_time(occurrence.local_end(tz))),
         start_form=start_form,
         end_form=end_form,
         dates=dates_covered(occurrence),
@@ -291,6 +290,9 @@ def _sync_packing_lists(
     adopt: bool = False,
     added: set[int] | None = None,
     occurrence_date: str | None = None,
+    asking=None,
+    release: str | None = None,
+    dated: bool = True,
 ) -> None:
     """Bring an event's packing list days in line with it, or refuse the write.
 
@@ -298,6 +300,9 @@ def _sync_packing_lists(
     so the event and its packing lists change together or not at all.
     ``added`` is what this write adds to the series, or to ``occurrence_date``
     when it is set; adding a list where it could never land is a ``422``.
+    ``asking`` picks out the links this write itself takes off a day; one whose
+    day would go is a ``409`` with ``releases`` until ``release`` says whether
+    the day stays (#313). ``dated`` words that question by date.
     """
     tz = _tz(db)
     today = now_utc().astimezone(tz).date()
@@ -305,7 +310,12 @@ def _sync_packing_lists(
         packing_lists.refuse_lists_added_to_the_past(
             db, event, added or set(), today, tz, occurrence_date
         )
-        packing_lists.sync_event_packing_lists(db, event, today, tz=tz, adopt=adopt)
+        packing_lists.sync_event_packing_lists(
+            db, event, today, tz=tz, adopt=adopt, asking=asking, release=release
+        )
+    except packing_lists.ReleaseNeeded as exc:
+        db.rollback()
+        raise _release_needed(exc, dated=dated) from exc
     except packing_lists.AdoptNeeded as exc:
         db.rollback()
         raise HTTPException(
@@ -315,6 +325,33 @@ def _sync_packing_lists(
     except (packing_lists.MovedIntoPast, packing_lists.AddedToPast) as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _release_needed(exc: packing_lists.ReleaseNeeded, *, dated: bool = True) -> HTTPException:
+    """The ``409`` that asks whether lists an event lets go stay on their days.
+    A join the same save makes is said first, and then the choices name the
+    lists, since "it" could mean either."""
+    question = packing_lists.release_question(exc.releases, dated=dated, named=bool(exc.adopts))
+    message = question["message"]
+    if exc.adopts:
+        message = packing_lists.adopt_sentences(exc.adopts) + " " + message
+    return HTTPException(
+        status_code=409,
+        detail={
+            "message": message,
+            "keep_label": question["keep_label"],
+            "remove_label": question["remove_label"],
+            "releases": exc.releases,
+            "adopts": exc.adopts,
+        },
+    )
+
+
+RELEASE_QUERY = Query(
+    None,
+    pattern="^(keep|remove)$",
+    description="Whether a list this takes off a day stays there (keep) or goes (remove)",
+)
 
 
 def _load_event(db: Session, event_id: int) -> Event:
@@ -597,6 +634,7 @@ def update_event(
     scope: str = Query(SCOPE_ALL, pattern="^(this|following|all)$"),
     occurrence_date: str | None = None,
     adopt: bool = Query(False, description="Go ahead when a move adopts a packing list day"),
+    release: str | None = RELEASE_QUERY,
     db: Session = Depends(get_db),
 ):
     """Edit an event at one of three scopes.
@@ -620,7 +658,9 @@ def update_event(
     ``set_occurrence_lists``), and the event's packing list days are synced
     before anything is committed. A move that would adopt a day already there
     is a ``409`` unless ``adopt``; a move of an occurrence with packing lists
-    into the past is a ``422``. Either way nothing is written.
+    into the past is a ``422``. Taking a list off a day nobody else uses is a
+    ``409`` with ``releases`` until ``release`` says whether the day stays.
+    Either way nothing is written.
     """
     event = _load_event(db, event_id)
     tz_name = payload.tzid or event.tzid or local_timezone_name(db)
@@ -632,12 +672,25 @@ def update_event(
         split_day = _require_occurrence_date(event, scope, occurrence_date)
         occurrence = split_day.isoformat()
         added: set[int] = set()
+        removed: set[int] = set()
         if template_ids is not None:
-            added = set(template_ids) - packing_lists.occurrence_lists(db, event.id, occurrence)
+            before = packing_lists.occurrence_lists(db, event.id, occurrence)
+            added = set(template_ids) - before
+            removed = before - set(template_ids)
         _update_single_occurrence(db, event, payload, split_day, tz_name)
         if template_ids is not None:
             packing_lists.set_occurrence_lists(db, event.id, occurrence, template_ids)
-        _sync_packing_lists(db, event, adopt=adopt, added=added, occurrence_date=occurrence)
+        _sync_packing_lists(
+            db,
+            event,
+            adopt=adopt,
+            added=added,
+            occurrence_date=occurrence,
+            asking=lambda link: (
+                link.occurrence_date == occurrence and link.packing_list_template_id in removed
+            ),
+            release=release,
+        )
         db.commit()
         db.refresh(event)
         notify_event_change(db, event, kind=KIND_UPDATED, occurrence_date=split_day.isoformat())
@@ -645,7 +698,9 @@ def update_event(
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        response = _split_series(db, event, payload, split_day, tz_name, template_ids, adopt)
+        response = _split_series(
+            db, event, payload, split_day, tz_name, template_ids, adopt, release
+        )
         # The edit now lives on the tail series, so that is what gets described.
         tail = db.query(Event).filter(Event.id == response.id).first()
         if tail is not None:
@@ -663,11 +718,21 @@ def update_event(
         db.rollback()
         raise
     added: set[int] = set()
+    removed: set[int] = set()
     if template_ids is not None:
-        added = set(template_ids) - packing_lists.series_lists(db, event.id)
+        before = packing_lists.series_lists(db, event.id)
+        added = set(template_ids) - before
+        removed = before - set(template_ids)
         packing_lists.set_series_lists(db, event.id, template_ids)
     db.flush()
-    _sync_packing_lists(db, event, adopt=adopt, added=added)
+    _sync_packing_lists(
+        db,
+        event,
+        adopt=adopt,
+        added=added,
+        asking=lambda link: link.packing_list_template_id in removed,
+        release=release,
+    )
     db.commit()
     db.refresh(event)
     notify_event_change(db, event, kind=KIND_UPDATED)
@@ -762,6 +827,7 @@ def _split_series(
     tz_name: str,
     template_ids: list[int] | None = None,
     adopt: bool = False,
+    release: str | None = None,
 ) -> EventResponse:
     """Truncate the original series and carry the edit forward on a new one.
 
@@ -834,8 +900,11 @@ def _split_series(
             override.event_id = tail.id
 
     added: set[int] = set()
+    removed: set[int] = set()
     if template_ids is not None:
-        added = set(template_ids) - packing_lists.series_lists(db, event.id)
+        before = packing_lists.series_lists(db, event.id)
+        added = set(template_ids) - before
+        removed = before - set(template_ids)
     packing_lists.split_event_packing_lists(db, event.id, tail.id, split_day.isoformat())
     if template_ids is not None:
         packing_lists.set_series_lists(db, tail.id, template_ids)
@@ -843,10 +912,40 @@ def _split_series(
     _truncate_series(event, split_day)
     db.flush()
     _sync_packing_lists(db, event, adopt=adopt)
-    _sync_packing_lists(db, tail, adopt=adopt, added=added)
+    _sync_packing_lists(
+        db,
+        tail,
+        adopt=adopt,
+        added=added,
+        asking=lambda link: link.packing_list_template_id in removed,
+        release=release,
+    )
     db.commit()
     db.refresh(tail)
     return _event_response(db, tail)
+
+
+@router.get("/{event_id}/delete-question")
+def delete_question(
+    event_id: int,
+    scope: str = Query(SCOPE_ALL, pattern="^(this|following|all)$"),
+    occurrence_date: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """What deleting at this scope would ask: the packing lists it would take
+    off days nobody else uses, and the Keep or Remove question about them
+    (#313). ``releases`` is empty when it would ask nothing. Writes nothing:
+    the delete is tried and rolled back, so the answer is the delete's own."""
+    event = _load_event(db, event_id)
+    try:
+        _delete(db, event, scope, occurrence_date, release=None)
+    except HTTPException as exc:
+        db.rollback()
+        if exc.status_code == 409 and isinstance(exc.detail, dict):
+            return exc.detail
+        raise
+    db.rollback()
+    return {"message": "", "keep_label": "", "remove_label": "", "releases": [], "adopts": []}
 
 
 @router.delete("/{event_id}", status_code=204)
@@ -854,6 +953,7 @@ def delete_event(
     event_id: int,
     scope: str = Query(SCOPE_ALL, pattern="^(this|following|all)$"),
     occurrence_date: str | None = None,
+    release: str | None = RELEASE_QUERY,
     db: Session = Depends(get_db),
 ):
     """Delete one occurrence, the tail of a series, or the whole event.
@@ -863,53 +963,71 @@ def delete_event(
     attendee list and sometimes the event row, so there is nothing left to build
     a message from afterwards — and announcing it beforehand would risk naming a
     deletion that then failed.
+
+    A delete that would take a packing list off a day nobody else uses is a
+    ``409`` with ``releases`` until ``release`` says whether the day stays
+    (#313); ``GET /delete-question`` asks the same without writing.
     """
     event = _load_event(db, event_id)
+    notice = _delete(db, event, scope, occurrence_date, release=release)
+    db.commit()
+    send_change_notice(db, notice)
+    return None
 
+
+def _delete(db: Session, event: Event, scope: str, occurrence_date: str | None, *, release):
+    """Everything a delete writes, short of the commit. Returns the notice."""
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        notice = plan_change_notice(
-            db, event, kind=KIND_DELETED, occurrence_date=split_day.isoformat()
-        )
+        occurrence = split_day.isoformat()
+        notice = plan_change_notice(db, event, kind=KIND_DELETED, occurrence_date=occurrence)
         override = (
             db.query(EventOverride)
             .filter(
                 EventOverride.event_id == event.id,
-                EventOverride.occurrence_date == split_day.isoformat(),
+                EventOverride.occurrence_date == occurrence,
             )
             .first()
         )
         if override is None:
-            override = EventOverride(event_id=event.id, occurrence_date=split_day.isoformat())
+            override = EventOverride(event_id=event.id, occurrence_date=occurrence)
             db.add(override)
         override.cancelled = True
         db.flush()
-        _sync_packing_lists(db, event)
-        db.commit()
-        send_change_notice(db, notice)
-        return None
+        _sync_packing_lists(
+            db,
+            event,
+            asking=lambda link: link.occurrence_date == occurrence,
+            release=release,
+        )
+        return notice
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
+        split = split_day.isoformat()
         # The first occurrence being removed is the one worth naming: everything
         # from here on is going, and that is the date people had in their heads.
-        notice = plan_change_notice(
-            db, event, kind=KIND_DELETED, occurrence_date=split_day.isoformat()
-        )
+        notice = plan_change_notice(db, event, kind=KIND_DELETED, occurrence_date=split)
         _truncate_series(event, split_day)
         db.query(EventOverride).filter(
             EventOverride.event_id == event.id,
-            EventOverride.occurrence_date >= split_day.isoformat(),
+            EventOverride.occurrence_date >= split,
         ).delete(synchronize_session=False)
         db.query(EventPackingList).filter(
             EventPackingList.event_id == event.id,
-            EventPackingList.occurrence_date >= split_day.isoformat(),
+            EventPackingList.occurrence_date >= split,
         ).delete(synchronize_session=False)
         db.flush()
-        _sync_packing_lists(db, event)
-        db.commit()
-        send_change_notice(db, notice)
-        return None
+        # A series' days are many and far off, so the question names the
+        # lists rather than every date.
+        _sync_packing_lists(
+            db,
+            event,
+            asking=lambda link: link.occurrence_date >= split,
+            release=release,
+            dated=False,
+        )
+        return notice
 
     # ``record=False``: the notification rows for this event are about to be
     # cascaded away, so writing another would leave an orphan behind.
@@ -928,11 +1046,15 @@ def delete_event(
     )
     # Its packing lists come off every day from today on; past days stay.
     tz = _tz(db)
-    packing_lists.release_event_packing_lists(db, event.id, now_utc().astimezone(tz).date())
+    try:
+        packing_lists.release_event_packing_lists(
+            db, event.id, now_utc().astimezone(tz).date(), release=release
+        )
+    except packing_lists.ReleaseNeeded as exc:
+        db.rollback()
+        raise _release_needed(exc, dated=not event.rrule) from exc
     db.delete(event)
-    db.commit()
-    send_change_notice(db, notice)
-    return None
+    return notice
 
 
 # --- Notifications ---------------------------------------------------------

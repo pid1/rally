@@ -1571,15 +1571,6 @@
             historyField = null;
         }
 
-        function formatUtcTimestamp(isoString) {
-            // Timestamps are stored as naive UTC; tag them so Date parses correctly
-            const hasZone = isoString.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(isoString);
-            const d = new Date(hasZone ? isoString : isoString + 'Z');
-            const pad = n => String(n).padStart(2, '0');
-            return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} `
-                + `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
-        }
-
         function renderHistoryList() {
             const container = document.getElementById('history-list');
 

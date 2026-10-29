@@ -7,7 +7,9 @@ file pins the helpers themselves, the response's labels, and that the API sends
 them. The notices' ``When:`` lines are pinned in ``tests/test_notifications.py``.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -19,6 +21,7 @@ from rally.utils.display import (
     display_date,
     display_date_range,
     display_dated_times,
+    display_time,
     lead_time_label,
 )
 
@@ -55,6 +58,73 @@ def test_every_month_is_three_letters_and_september_is_sep():
 def test_the_day_has_no_leading_zero():
     assert display_date("2026-11-01") == "Sunday, Nov 1, 2026"
     assert "01" not in display_date("2026-11-01")
+
+
+# --- One date, with options (#311) --------------------------------------------------
+
+
+def test_a_date_without_its_weekday():
+    assert display_date("2026-11-14", weekday=False) == "Nov 14, 2026"
+
+
+def test_a_date_with_its_month_spelled_out():
+    assert display_date("2026-10-28", month="long") == "Wednesday, October 28, 2026"
+    assert display_date("2026-10-05", month="long") == "Monday, October 5, 2026"
+    months = [
+        display_date(f"2026-{month:02d}-01", weekday=False, month="long", year="never")
+        for month in range(1, 13)
+    ]
+    assert months == [
+        "January 1", "February 1", "March 1", "April 1", "May 1", "June 1",
+        "July 1", "August 1", "September 1", "October 1", "November 1", "December 1",
+    ]  # fmt: skip
+
+
+def test_a_date_without_its_year():
+    assert display_date("2026-10-10", month="long", year="never") == "Saturday, October 10"
+
+
+@pytest.mark.parametrize(
+    ("iso", "label"),
+    [("2026-09-30", "Sep 30"), ("2027-09-30", "Sep 30, 2027"), ("2025-12-31", "Dec 31, 2025")],
+)
+def test_the_year_unless_it_is_this_one(iso, label):
+    today = datetime(2026, 10, 28).date()
+    assert display_date(iso, weekday=False, year="unless_this_year", today=today) == label
+
+
+def test_unless_this_year_needs_today_handed_in():
+    with pytest.raises(ValueError):
+        display_date("2026-09-30", year="unless_this_year")
+
+
+# --- A time of day (#311) --------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("hour", "minute", "label", "bare", "on_the_hour"),
+    [
+        (0, 0, "12:00 AM", "12:00", "12 AM"),
+        (0, 5, "12:05 AM", "12:05", "12:05 AM"),
+        (7, 5, "7:05 AM", "7:05", "7:05 AM"),
+        (9, 0, "9:00 AM", "9:00", "9 AM"),
+        (11, 59, "11:59 AM", "11:59", "11:59 AM"),
+        (12, 0, "12:00 PM", "12:00", "12 PM"),
+        (13, 30, "1:30 PM", "1:30", "1:30 PM"),
+        (19, 0, "7:00 PM", "7:00", "7 PM"),
+        (23, 45, "11:45 PM", "11:45", "11:45 PM"),
+    ],
+)
+def test_a_time_of_day(hour, minute, label, bare, on_the_hour):
+    moment = datetime(2026, 10, 28, hour, minute, tzinfo=CHICAGO)
+    assert display_time(moment) == label
+    assert display_time(moment, meridiem=False) == bare
+    assert display_time(moment, minutes="unless_zero") == on_the_hour
+
+
+def test_a_time_converts_nothing():
+    """The moment is already in the zone to show: 21:00 UTC reads 9:00 PM."""
+    assert display_time(datetime(2026, 10, 28, 21, 0, tzinfo=UTC)) == "9:00 PM"
 
 
 # --- Two dates ---------------------------------------------------------------------
@@ -332,3 +402,43 @@ def test_the_api_labels_an_overnight_and_an_all_day_event(client):
     assert _occurrence(client, "New Year trip")["when_display"] == (
         "Thursday, Dec 31, 2026 – Saturday, Jan 2, 2027 · All day"
     )
+
+
+# --- Nothing else words a date or a time (#311) ---------------------------------------
+
+SRC = Path(__file__).resolve().parent.parent / "src" / "rally"
+
+# What may still word a date or a time with ``strftime`` outside display.py, as
+# the test reads it. The daily summary's prompt is its own issue (changing it
+# changes the eval), and the Dashboard's fallback timestamp is replaced in the
+# browser on load.
+STRFTIME_ALLOWED = {
+    "generator/generate.py": None,  # every call: the summary prompt
+    "packing_lists.py": [
+        "day.strftime('%A')",  # _long_date(), for summary_text()'s headings
+        "day.strftime('%B')",
+    ],
+    "routers/dashboard.py": ['timestamp_utc_dt.strftime("%Y-%m-%d %I:%M %p")'],
+}
+
+
+def test_no_module_words_a_date_with_strftime_or_the_calendar_module():
+    """``%a``, ``%A``, ``%b``, ``%B``, ``%I`` and ``%p`` follow the process
+    locale (or need a leading zero trimmed); ``calendar.month_abbr`` and
+    ``day_name`` likewise. Rally's words come from ``rally.utils.display``."""
+    call = re.compile(r"[\w.()]*\.strftime\(\s*(['\"])[^'\"]*%-?[aAbBIp][^'\"]*\1\s*\)")
+    names = re.compile(r"\b(?:month_abbr|month_name|day_abbr|day_name)\[")
+    offenders = {}
+    for path in sorted(SRC.rglob("*.py")):
+        relative = path.relative_to(SRC).as_posix()
+        if relative == "utils/display.py":
+            continue
+        allowed = STRFTIME_ALLOWED.get(relative, [])
+        if allowed is None:
+            continue
+        source = path.read_text()
+        found = [m.group(0) for m in call.finditer(source)] + names.findall(source)
+        left = [snippet for snippet in found if snippet not in allowed]
+        if left:
+            offenders[relative] = left
+    assert not offenders, f"word dates and times with rally.utils.display: {offenders}"
