@@ -47,6 +47,7 @@ processing, and the summary's text.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from zoneinfo import ZoneInfo
@@ -76,6 +77,7 @@ from rally.models import (
     ShoppingItem,
 )
 from rally.recurrence import get_first_recurrence_date, get_next_recurrence_date
+from rally.utils.display import WEEKDAYS, display_date
 from rally.utils.timezone import now_utc
 
 # What an item with no owner, and one in no bag, are grouped under.
@@ -933,6 +935,23 @@ class AdoptNeeded(EventPackingListError):
         self.adopts = adopts
 
 
+class ReleaseNeeded(EventPackingListError):
+    """A write or a delete would take a list off a day nobody else uses, so
+    somebody has to say whether the list stays on the day or goes with it.
+    ``releases`` says which lists and days, for the question the calendar asks
+    before trying again with ``release`` set; ``adopts`` carries any join the
+    same save would make, so one question covers both."""
+
+    def __init__(self, releases: list[dict], adopts: list[dict] | None = None):
+        super().__init__("release needed")
+        self.releases = releases
+        self.adopts = adopts or []
+
+
+RELEASE_KEEP = "keep"
+RELEASE_REMOVE = "remove"
+
+
 class MovedIntoPast(EventPackingListError):
     """An occurrence with packing lists on a day from today on was moved to a
     day that has passed."""
@@ -1144,12 +1163,13 @@ def _links_on_day(db: Session, day_id: int) -> int:
     return db.query(PackingListDayEvent).filter(PackingListDayEvent.day_id == day_id).count()
 
 
-def _release(db: Session, link: PackingListDayEvent) -> None:
-    """Drop one link, and its day with it once no event is left linked to it."""
+def _release(db: Session, link: PackingListDayEvent, keep: bool = False) -> None:
+    """Drop one link, and its day with it once no event is left linked to it.
+    With ``keep`` the day stays, as an ordinary day nothing moves or removes."""
     day_id = link.day_id
     db.delete(link)
     db.flush()
-    if day_id is None or _links_on_day(db, day_id):
+    if keep or day_id is None or _links_on_day(db, day_id):
         return
     day = db.query(PackingListDay).filter(PackingListDay.id == day_id).first()
     if day is not None:
@@ -1249,6 +1269,8 @@ def sync_event_packing_lists(
     tz: ZoneInfo,
     adopt: bool = False,
     ask_before_placing: bool = True,
+    asking: Callable[[PackingListDayEvent], bool] | None = None,
+    release: str | None = None,
 ) -> None:
     """Put an event's packing lists on its occurrences' days, and take them off
     the days its occurrences no longer have. Does not commit; idempotent.
@@ -1269,6 +1291,12 @@ def sync_event_packing_lists(
     has never had a link for that template, past or present, so a title edit
     never asks about an occurrence that has merely come into the lookahead. The daily sync passes
     ``ask_before_placing=False``: nobody is there to answer.
+
+    Taking a list off a day nobody else uses asks too (``ReleaseNeeded``, #313),
+    for the links ``asking`` picks out: what this write itself takes off (a list
+    removed, an occurrence deleted). ``release`` answers it — ``keep`` leaves
+    those days as ordinary days, ``remove`` deletes them. A link let go for any
+    other reason, and every link in the daily sync, goes without asking.
 
     Raises ``MovedIntoPast`` when an occurrence that still wants a list on a day
     from today on has been moved entirely before today. Both are raised before
@@ -1360,11 +1388,15 @@ def sync_event_packing_lists(
                 target = _template_day(db, template_id, value)
                 if target is not None:
                     adopts.append(_place_adopt_detail(db, target))
+    asked = _asked_releases(db, releases, asking)
+    if asked and release is None:
+        raise ReleaseNeeded(release_details(db, asked), [] if adopt else adopts)
     if adopts and not adopt:
         raise AdoptNeeded(adopts)
 
+    keeping = {link.id for link in asked} if release == RELEASE_KEEP else set()
     for link in releases:
-        _release(db, link)
+        _release(db, link, keep=link.id in keeping)
     for link, template_id, occurrence_date, value in moves:
         link.occurrence_date = occurrence_date
         _move(db, link, template_id, value)
@@ -1408,21 +1440,24 @@ def _adopt_detail(db: Session, link: PackingListDayEvent, target: PackingListDay
         .filter(PackingListTemplate.id == target.packing_list_template_id)
         .first()
     )
-    checked = (
-        db.query(PackingListDayCheck).filter(PackingListDayCheck.day_id == link.day_id).count()
-        + db.query(PackingListDayItem)
-        .filter(PackingListDayItem.day_id == link.day_id, PackingListDayItem.checked == True)  # noqa: E712
-        .count()
-        + db.query(PackingListDayBagCheck)
-        .filter(PackingListDayBagCheck.day_id == link.day_id)
-        .count()
-    )
     return {
         "template_name": template.name if template else "",
         "from_date": link.date,
         "to_date": target.date,
-        "checked": checked > 0,
+        "checked": _day_checked(db, link.day_id),
     }
+
+
+def _day_checked(db: Session, day_id: int) -> bool:
+    """Whether anything on a day is checked: an item, its own item or a bag."""
+    checked = (
+        db.query(PackingListDayCheck).filter(PackingListDayCheck.day_id == day_id).count()
+        + db.query(PackingListDayItem)
+        .filter(PackingListDayItem.day_id == day_id, PackingListDayItem.checked == True)  # noqa: E712
+        .count()
+        + db.query(PackingListDayBagCheck).filter(PackingListDayBagCheck.day_id == day_id).count()
+    )
+    return checked > 0
 
 
 def _place_adopt_detail(db: Session, target: PackingListDay) -> dict:
@@ -1445,31 +1480,151 @@ def adopt_message(adopts: list[dict]) -> str:
     """The calendar's confirmation before an event joins a day already there.
     A move uses that list *instead* of its own day; a newly added list (no
     ``from_date``) simply uses it."""
+    return adopt_sentences(adopts) + " Continue?"
+
+
+def adopt_sentences(adopts: list[dict]) -> str:
+    """``adopt_message`` without its question, for a question that asks more."""
     sentences = []
     for adopt in adopts:
         sentence = (
-            f'"{adopt["template_name"]}" is already on {_long_date(adopt["to_date"])}. '
+            f'"{adopt["template_name"]}" is already on {display_date(adopt["to_date"])}. '
             "This event will use that list"
         )
         if adopt["from_date"] is not None:
             sentence += " instead"
         if adopt["checked"]:
-            sentence += f", and what was checked on {_long_date(adopt['from_date'])} will be lost"
+            sentence += f", and what was checked on {display_date(adopt['from_date'])} will be lost"
         sentences.append(sentence + ".")
-    return " ".join(sentences) + " Continue?"
+    return " ".join(sentences)
 
 
-def release_event_packing_lists(db: Session, event_id: int, today: date) -> None:
+def _asked_releases(
+    db: Session,
+    releases: list[PackingListDayEvent],
+    asking: Callable[[PackingListDayEvent], bool] | None,
+) -> list[PackingListDayEvent]:
+    """The releases that would delete a day, among those ``asking`` picks out.
+    A link with no day, or one whose day another link keeps, loses nothing."""
+    if asking is None:
+        return []
+    going = {link.id for link in releases}
+    asked = []
+    for link in releases:
+        if link.day_id is None or not asking(link):
+            continue
+        others = (
+            db.query(PackingListDayEvent.id).filter(PackingListDayEvent.day_id == link.day_id).all()
+        )
+        if all(other_id in going for (other_id,) in others):
+            asked.append(link)
+    return asked
+
+
+def release_details(db: Session, links: list[PackingListDayEvent]) -> list[dict]:
+    """What each day a release would delete is: its list's name, its date,
+    whether anything on it is checked, and whether a schedule made it (which
+    will not make it again). One entry per day, soonest first."""
+    details = {}
+    for link in links:
+        if link.day_id in details:
+            continue
+        day = db.query(PackingListDay).filter(PackingListDay.id == link.day_id).first()
+        if day is None:
+            continue
+        template = (
+            db.query(PackingListTemplate)
+            .filter(PackingListTemplate.id == day.packing_list_template_id)
+            .first()
+        )
+        details[day.id] = {
+            "day_id": day.id,
+            "name": day_name(day, template),
+            "date": day.date,
+            "checked": _day_checked(db, day.id),
+            "scheduled": day.schedule_id is not None,
+        }
+    return sorted(details.values(), key=lambda detail: (detail["date"], detail["name"].lower()))
+
+
+def _join_words(words: list[str]) -> str:
+    if len(words) <= 2:
+        return " and ".join(words)
+    return ", ".join(words[:-1]) + ", and " + words[-1]
+
+
+def release_question(releases: list[dict], *, dated: bool = True, named: bool = False) -> dict:
+    """The words of the Keep or Remove question (#313): ``message`` says which
+    lists are on which days, and ``keep_label`` / ``remove_label`` are its two
+    choices. ``dated=False`` speaks of a series' upcoming days without listing
+    them; ``named`` names the lists in the choices rather than saying "it",
+    for a question that is also about another list."""
+    names: list[str] = []
+    dates_by_name: dict[str, list[str]] = {}
+    for release in releases:
+        if release["name"] not in dates_by_name:
+            names.append(release["name"])
+        dates_by_name.setdefault(release["name"], []).append(release["date"])
+    one = len(names) == 1
+    if dated:
+        # Lists on the same days share a sentence.
+        groups: dict[tuple[str, ...], list[str]] = {}
+        for name in names:
+            groups.setdefault(tuple(sorted(set(dates_by_name[name]))), []).append(name)
+        message = " ".join(
+            f"{join_names(group)} {'is' if len(group) == 1 else 'are'} on "
+            f"{_join_words([display_date(value) for value in dates])}."
+            for dates, group in groups.items()
+        )
+    else:
+        message = f"{join_names(names)} {'is' if one else 'are'} on its upcoming days."
+    # A schedule's day does not come back once it is removed (its high-water
+    # mark is past it), so the question says which lists one made.
+    scheduled = [
+        name for name in names if any(r["scheduled"] for r in releases if r["name"] == name)
+    ]
+    if one and scheduled:
+        message += " Its schedule put it there, and won't put it back if it's removed."
+    elif scheduled:
+        message += (
+            f" {join_names(scheduled)} was put there by its schedule."
+            if len(scheduled) == 1
+            else f" {join_names(scheduled)} were put there by their schedules."
+        )
+    all_dates = {release["date"] for release in releases}
+    if dated and len(all_dates) == 1:
+        place = f"on {WEEKDAYS[date.fromisoformat(all_dates.pop()).weekday()]}"
+    else:
+        place = "on its days" if one else "on their days"
+    subject = join_names(names) if named else ("it" if one else "them")
+    pronoun = "it" if one else "them"
+    return {
+        "message": message,
+        "keep_label": f"Keep {subject} {place}",
+        "remove_label": f"Remove {subject}, with what was checked on {pronoun}",
+    }
+
+
+def release_event_packing_lists(
+    db: Session, event_id: int, today: date, release: str | None = None
+) -> None:
     """An event is being deleted: take its lists off every day from today on
     (each day going once no event is left linked to it), then drop everything
-    the event kept. Past days stay, as ordinary days. Does not commit."""
+    the event kept. Past days stay, as ordinary days. Does not commit.
+
+    A day nobody else uses is a question (``ReleaseNeeded``) until ``release``
+    answers it: ``keep`` leaves it as an ordinary day, ``remove`` deletes it."""
     today_iso = today.isoformat()
-    for link in (
+    links = (
         db.query(PackingListDayEvent)
         .filter(PackingListDayEvent.event_id == event_id, PackingListDayEvent.date >= today_iso)
         .all()
-    ):
-        _release(db, link)
+    )
+    asked = _asked_releases(db, links, lambda link: True)
+    if asked and release is None:
+        raise ReleaseNeeded(release_details(db, asked))
+    for link in links:
+        _release(db, link, keep=release == RELEASE_KEEP)
     db.query(PackingListDayEvent).filter(PackingListDayEvent.event_id == event_id).delete(
         synchronize_session=False
     )
