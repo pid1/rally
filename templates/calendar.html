@@ -235,26 +235,19 @@
                         <div class="weekday-checkboxes" id="event-attendees" role="group" aria-labelledby="event-attendees-label"></div>
                         <small>Attendees decide who a reminder reaches.</small>
                     </div>
-                    <!-- Packing lists the event brings: a row per list, then a
-                         select that adds whatever is picked in it. Nothing is
-                         written until Save. -->
+                    <!-- Packing lists the event brings (#281): a row per list,
+                         then a select that adds whatever is picked in it — a
+                         template, which brings a list named after it, or "New
+                         packing list…", a list with its own name that
+                         includes templates. Nothing is written until Save. -->
                     <div class="form-group" id="event-packing-group">
                         <label for="event-packing-select">What to pack</label>
                         <div class="picked-list" id="event-packing-list"></div>
                         <div class="manage-row" id="event-packing-add-row">
                             <select id="event-packing-select" aria-label="Packing list to add"></select>
                         </div>
-                        <div class="container-empty-state" id="event-packing-empty" style="display:none">No packing list templates yet.</div>
                         <div class="form-message" id="event-packing-message" role="alert" hidden></div>
-                        <small>Packing lists follow this event when it moves. Removing one, or deleting the event, asks whether to keep the list on its day.</small>
-                    </div>
-                    <div class="form-group" id="event-packing-span-group" style="display:none">
-                        <label id="event-packing-span-label">Put on</label>
-                        <div class="radio-options" role="radiogroup" aria-labelledby="event-packing-span-label">
-                            <label><input type="radio" name="event-packing-span" value="first"> First day</label>
-                            <label><input type="radio" name="event-packing-span" value="every"> Every day</label>
-                        </div>
-                        <div class="form-message" id="event-packing-span-message" role="alert" hidden></div>
+                        <small>Packing lists go on the event's first day and follow it when it moves. Removing one, or deleting the event, asks whether to keep the list on its day. Add the trip's own items on the Packing Lists page.</small>
                     </div>
                     <div class="form-group" id="event-notify-group">
                         <label for="event-notify">Remind attendees</label>
@@ -357,12 +350,14 @@
         let editingOccurrence = null; // The occurrence that was clicked
         let scopeAction = 'save';     // What the scope modal confirms: 'save' or 'delete'
         let detailOccurrence = null;
-        // What to pack: every template, the ones this form has added, and what
-        // it opened with, so a save only sends packing lists when they changed.
+        // What to pack: every template, the lists this form has, and what it
+        // opened with, so a save only sends packing lists when they changed.
+        // A list is `{ key, name, template_ids, fresh }`: `key` is its identity
+        // on the event (none yet for one added here), `fresh` one added since
+        // the form opened, whose name and templates can still be changed.
         let packingTemplates = [];
         let packingChosen = [];
         let packingOpened = [];
-        let spanOpened = null;
         // The date the now tick last saw, so it can notice midnight passing.
         let tickDate = todayIso();
 
@@ -467,6 +462,11 @@
             const div = document.createElement('div');
             div.textContent = text == null ? '' : text;
             return div.innerHTML;
+        }
+
+        // For a value inside a double-quoted attribute.
+        function escapeAttr(text) {
+            return escapeHtml(text).replace(/"/g, '&quot;');
         }
 
         /* Open a fragment in upper case without touching the rest of it.
@@ -1201,7 +1201,6 @@
             // is refused under it (requireDate) like any required date.
             document.getElementById('event-start-time').required = !allDay;
             document.getElementById('event-start-date').required = allDay;
-            renderPackingSpan();
         }
 
         // --- What to pack
@@ -1211,70 +1210,99 @@
             return template ? template.name : '';
         }
 
-        function renderPackingSection() {
-            const chosen = packingChosen
-                .filter(id => packingName(id))
-                .sort((a, b) => packingName(a).localeCompare(packingName(b), undefined, { sensitivity: 'base' }));
-            document.getElementById('event-packing-list').innerHTML = chosen.map(id => `
+        // A list's identity on the event: the server's `key`, else its name
+        // as the server would key it (trimmed, ignoring case).
+        function packingKey(list) {
+            return list.key || list.name.trim().toLowerCase();
+        }
+
+        /* One row per list. A list the event already has reads as its name,
+           and the templates it includes; one added since the form opened has
+           a Name field and its own Includes select, until Save. */
+        function packingRowHtml(list, index) {
+            const included = list.template_ids.filter(id => packingName(id));
+            if (!list.fresh) {
+                const includes = included.length && !(included.length === 1 && packingName(included[0]) === list.name)
+                    ? `<div class="editable-item-description">Includes ${escapeHtml(included.map(packingName).join(' · '))}</div>`
+                    : '';
+                return `
                 <div class="manage-row">
-                    <div class="manage-row-text">${escapeHtml(packingName(id))}</div>
-                    <button type="button" class="btn btn--sm btn--quiet" data-remove-packing="${id}">Remove</button>
-                </div>`).join('');
-            const left = packingTemplates.filter(t => !packingChosen.includes(t.id));
+                    <div class="manage-row-text">${escapeHtml(list.name)}${includes}</div>
+                    <button type="button" class="btn btn--sm btn--quiet" data-remove-packing="${index}">Remove</button>
+                </div>`;
+            }
+            const left = packingTemplates.filter(t => !list.template_ids.includes(t.id));
+            const chips = included.map(id => `
+                    <div class="manage-row">
+                        <div class="manage-row-text">${escapeHtml(packingName(id))}</div>
+                        <button type="button" class="btn btn--sm btn--quiet" data-uninclude-packing="${index}:${id}"
+                                aria-label="Remove ${escapeAttr(packingName(id))}">Remove</button>
+                    </div>`).join('');
+            return `
+                <div class="manage-row manage-row--editing" data-packing-row="${index}">
+                    <div class="form-group">
+                        <label for="event-packing-name-${index}">Name</label>
+                        <input type="text" id="event-packing-name-${index}" data-packing-name="${index}" maxlength="100"
+                               value="${escapeAttr(list.name)}" placeholder="e.g. Dad Goes to South Carolina">
+                    </div>
+                    <div class="form-group">
+                        <label for="event-packing-include-${index}">Includes</label>
+                        <div class="picked-list">${chips}</div>
+                        ${left.length ? `<select id="event-packing-include-${index}" data-include-packing="${index}">
+                            <option value="">Include a template…</option>
+                            ${left.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}
+                        </select>` : ''}
+                    </div>
+                    <div class="manage-row-actions">
+                        <button type="button" class="btn btn--sm btn--quiet" data-remove-packing="${index}">Remove</button>
+                    </div>
+                </div>`;
+        }
+
+        function renderPackingSection(focusId = null) {
+            document.getElementById('event-packing-list').innerHTML =
+                packingChosen.map((list, index) => packingRowHtml(list, index)).join('');
+            // A template already brought as a list of its own is not offered
+            // again; it can still be included in a new list.
+            const taken = new Set(packingChosen.map(packingKey));
+            const left = packingTemplates.filter(t => !taken.has(t.name.trim().toLowerCase()));
             document.getElementById('event-packing-select').innerHTML =
                 '<option value="">Add a packing list…</option>' +
+                '<option value="new">New packing list…</option>' +
                 left.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-            const none = packingTemplates.length === 0;
-            document.getElementById('event-packing-add-row').style.display = none || !left.length ? 'none' : '';
-            document.getElementById('event-packing-empty').style.display = none ? '' : 'none';
-            renderPackingSpan();
+            if (focusId) {
+                const target = document.getElementById(focusId);
+                if (target) target.focus();
+            }
         }
 
-        /* `Put on` only means something for an event that covers more than one
-           date and brings a list. */
-        function eventSpansDays() {
-            const allDay = document.getElementById('event-all-day').checked;
-            const start = allDay
-                ? document.getElementById('event-start-date').value
-                : document.getElementById('event-start-time').value.slice(0, 10);
-            const end = allDay
-                ? document.getElementById('event-end-date').value
-                : document.getElementById('event-end-time').value.slice(0, 10);
-            return Boolean(start && end && end > start);
+        function packingAsSent(list) {
+            const sent = { name: list.name.trim(), packing_list_template_ids: list.template_ids.slice() };
+            if (list.key) sent.key = list.key;
+            return sent;
         }
 
-        function renderPackingSpan() {
-            const shown = packingChosen.length > 0 && eventSpansDays();
-            document.getElementById('event-packing-span-group').style.display = shown ? '' : 'none';
-        }
-
-        function packingSpanShown() {
-            return document.getElementById('event-packing-span-group').style.display !== 'none';
-        }
-
-        function chosenSpan() {
-            const checked = document.querySelector('input[name="event-packing-span"]:checked');
-            return checked ? checked.value : null;
-        }
-
-        function sameIds(a, b) {
-            return a.length === b.length && a.every(id => b.includes(id));
+        function sameLists(a, b) {
+            const shape = lists => JSON.stringify(lists.map(packingAsSent)
+                .sort((x, y) => packingKey(x).localeCompare(packingKey(y))));
+            return shape(a) === shape(b);
         }
 
         /* Opens on the occurrence's own lists, so Tuesday shows its gym bag
-           and Wednesday does not; the span is the series'. */
-        function setPackingForm(lists, span) {
-            packingChosen = lists.slice();
-            packingOpened = lists.slice();
-            spanOpened = span || null;
-            document.querySelectorAll('input[name="event-packing-span"]').forEach(radio => {
-                radio.checked = radio.value === span;
-            });
+           and Wednesday does not. */
+        function setPackingForm(lists) {
+            packingChosen = lists.map(list => ({ ...list, template_ids: list.template_ids.slice() }));
+            packingOpened = lists.map(list => ({ ...list }));
             renderPackingSection();
         }
 
-        function spanChanged() {
-            return packingSpanShown() && chosenSpan() !== spanOpened;
+        function occurrencePackingLists(occurrence) {
+            return (occurrence.packing_lists || []).map(p => ({
+                key: p.key,
+                name: p.name,
+                template_ids: p.packing_list_template_ids || [],
+                fresh: false,
+            }));
         }
 
         /* Moving an event to another day means moving it, not restating how
@@ -1387,7 +1415,6 @@
             } else {
                 const moved = editingEvent.overrides.filter(o => !o.cancelled).length;
                 if (moved) help = `${moved} occurrence(s) have their own changes. "All events" keeps them.`;
-                if (spanChanged()) help = `${help} "Put on" applies to every event in the series.`.trim();
             }
             document.getElementById('event-scope-modal-help').textContent = help;
             showModalOverlay('event-scope-modal-overlay');
@@ -1452,7 +1479,7 @@
             document.getElementById('event-end-date').value = day;
 
             applyRuleToForm(null, day);
-            setPackingForm([], null);
+            setPackingForm([]);
 
             document.getElementById('btn-delete-event').style.display = 'none';
             rememberStartValues();
@@ -1517,10 +1544,7 @@
             document.getElementById('event-calendar').value =
                 String(occurrence.calendar_id || editingEvent.calendar_id || '');
 
-            setPackingForm(
-                (occurrence.packing_lists || []).map(p => p.template_id),
-                editingEvent.packing_list_span
-            );
+            setPackingForm(occurrencePackingLists(occurrence));
 
             document.getElementById('btn-delete-event').style.display = '';
 
@@ -1983,21 +2007,28 @@
            occurrence lists. These are the occurrence's lists as the form shows
            them; `saveEvent()` turns them into the series' for a series scope. */
         function packingChange() {
-            const change = {};
-            if (!sameIds(packingChosen, packingOpened)) change.packing_list_template_ids = packingChosen.slice();
-            if (spanChanged()) change.packing_list_span = chosenSpan();
-            return change;
+            return sameLists(packingChosen, packingOpened)
+                ? {}
+                : { packing_lists: packingChosen.map(packingAsSent) };
         }
 
         /* `All events` and `This and following` change the series, and the form
            shows one occurrence. Apply what the form added and removed to the
            series' own lists, so Tuesday's extra gym bag does not become every
            day's because the series was edited from Tuesday. */
-        function seriesPackingIds() {
-            const series = editingEvent.packing_list_template_ids || [];
-            const added = packingChosen.filter(id => !packingOpened.includes(id));
-            const removed = packingOpened.filter(id => !packingChosen.includes(id));
-            return [...series.filter(id => !removed.includes(id)), ...added.filter(id => !series.includes(id))];
+        function seriesPackingLists() {
+            const series = (editingEvent.packing_lists || []).map(p => ({
+                key: p.key, name: p.name, template_ids: p.packing_list_template_ids || [],
+            }));
+            const opened = new Set(packingOpened.map(packingKey));
+            const chosen = new Set(packingChosen.map(packingKey));
+            const added = packingChosen.filter(list => !opened.has(packingKey(list)));
+            const removed = new Set(packingOpened.filter(list => !chosen.has(packingKey(list))).map(packingKey));
+            const inSeries = new Set(series.map(packingKey));
+            return [
+                ...series.filter(list => !removed.has(packingKey(list))),
+                ...added.filter(list => !inSeries.has(packingKey(list))),
+            ].map(packingAsSent);
         }
 
         /* Run before the scope modal opens, so nobody picks which events a
@@ -2012,9 +2043,12 @@
                 return false;
             }
             if (nativeCalendars.length && refuseNoCalendar()) return false;
-            if (packingSpanShown() && !chosenSpan()) {
-                showFormMessage('event-packing-span-message', 'Choose which days the packing lists go on');
-                document.querySelector('input[name="event-packing-span"]').focus();
+            // A new list needs a name, or a template to be named after.
+            const unnamed = packingChosen.findIndex(list => list.fresh && !list.name.trim() && !list.template_ids.length);
+            if (unnamed >= 0) {
+                showFormMessage('event-packing-message', 'Give the new packing list a name, or include a template.');
+                const field = document.getElementById(`event-packing-name-${unnamed}`);
+                if (field) field.focus();
                 return false;
             }
             /* A one-time event, or one occurrence, moved before today while it
@@ -2028,14 +2062,14 @@
                     'This event has packing lists. Remove them before moving it to a day that has passed.');
                 return false;
             }
-            /* A list added to a one-time event, or one occurrence, whose day for
-               it has passed (#290): the last day on `Every day`, the start
-               otherwise, the API's rule. The API refuses it for every scope,
-               a whole series included; this is the early answer where the page
-               can see it. */
+            /* A list added to a one-time event, or one occurrence, whose first
+               day has passed (#290, #281): the API's rule. The API refuses it
+               for every scope, a whole series included; this is the early
+               answer where the page can see it. */
             const repeats = editingEvent ? editingEvent.rrule : payload.rrule;
-            const added = packingChosen.filter(id => !packingOpened.includes(id));
-            const landsOn = (chosenSpan() === 'every' ? payload.end || payload.start : payload.start).slice(0, 10);
+            const opened = new Set(packingOpened.map(packingKey));
+            const added = packingChosen.filter(list => !opened.has(packingKey(list)));
+            const landsOn = payload.start.slice(0, 10);
             if ((!repeats || scope === 'this') && added.length && landsOn < todayIso()) {
                 showFormMessage('event-packing-message',
                     "This event has already passed, so a packing list can't be added to it.");
@@ -2073,8 +2107,8 @@
         async function saveEvent(scope, adopt = false, release = null) {
             const payload = formPayload();
             if (!eventFormReady(payload, scope)) return;
-            if (editingEvent && scope !== 'this' && payload.packing_list_template_ids) {
-                payload.packing_list_template_ids = seriesPackingIds();
+            if (editingEvent && scope !== 'this' && payload.packing_lists) {
+                payload.packing_lists = seriesPackingLists();
             }
 
             /* An edit that did not touch the times says nothing about them, so
@@ -2548,35 +2582,63 @@
                 ? 'event-start-date-message'
                 : 'event-start-time-message';
         }
-        document.querySelectorAll('input[name="event-packing-span"]').forEach(radio =>
-            radio.addEventListener('change', () => clearFormMessage('event-packing-span-message')));
         // A refusal the API gave is about the form as a whole: any change to
         // it is a new attempt.
         ['input', 'change'].forEach(type => document.getElementById('event-form')
             .addEventListener(type, () => clearFormMessage('event-form-message')));
 
-        /* Picking a template adds it. A pick that waited for a separate Add
-           button was a pick Save silently dropped: the select reads like a
-           field whose value is saved, so nobody thinks to press Add. */
+        /* Picking adds it: a template brings a list named after it, and "New
+           packing list…" a list to name and fill. A pick that waited for a
+           separate Add button was a pick Save silently dropped: the select
+           reads like a field whose value is saved, so nobody thinks to press
+           Add. */
         document.getElementById('event-packing-select').addEventListener('change', (e) => {
-            const id = Number(e.target.value);
-            if (!id || packingChosen.includes(id)) return;
-            packingChosen.push(id);
+            const value = e.target.value;
+            if (!value) return;
             clearFormMessage('event-packing-message');
-            renderPackingSection();
-            const next = document.getElementById('event-packing-select');
-            if (next.offsetParent) next.focus();
+            if (value === 'new') {
+                packingChosen.push({ name: '', template_ids: [], fresh: true });
+                renderPackingSection(`event-packing-name-${packingChosen.length - 1}`);
+                return;
+            }
+            const id = Number(value);
+            packingChosen.push({ name: packingName(id), template_ids: [id], fresh: true });
+            renderPackingSection('event-packing-select');
         });
-        document.getElementById('event-packing-list').addEventListener('click', (e) => {
-            const button = e.target.closest('[data-remove-packing]');
-            if (!button) return;
-            const id = Number(button.dataset.removePacking);
-            packingChosen = packingChosen.filter(chosen => chosen !== id);
+        const packingList = document.getElementById('event-packing-list');
+        packingList.addEventListener('click', (e) => {
+            const remove = e.target.closest('[data-remove-packing]');
+            const uninclude = e.target.closest('[data-uninclude-packing]');
+            if (remove) {
+                packingChosen.splice(Number(remove.dataset.removePacking), 1);
+                clearFormMessage('event-packing-message');
+                renderPackingSection('event-packing-select');
+            } else if (uninclude) {
+                const [index, id] = uninclude.dataset.unincludePacking.split(':').map(Number);
+                const list = packingChosen[index];
+                list.template_ids = list.template_ids.filter(chosen => chosen !== id);
+                renderPackingSection(`event-packing-include-${index}`);
+            }
+        });
+        packingList.addEventListener('change', (e) => {
+            const include = e.target.closest('[data-include-packing]');
+            if (!include || !include.value) return;
+            const index = Number(include.dataset.includePacking);
+            const list = packingChosen[index];
+            const id = Number(include.value);
+            if (!list.template_ids.includes(id)) list.template_ids.push(id);
+            // An unnamed list takes its first template's name, until typed.
+            if (!list.name.trim()) list.name = packingName(id);
             clearFormMessage('event-packing-message');
-            renderPackingSection();
+            renderPackingSection(`event-packing-include-${index}`);
+        });
+        packingList.addEventListener('input', (e) => {
+            const field = e.target.closest('[data-packing-name]');
+            if (!field) return;
+            packingChosen[Number(field.dataset.packingName)].name = field.value;
+            clearFormMessage('event-packing-message');
         });
         ['event-start-time', 'event-end-time', 'event-start-date', 'event-end-date'].forEach(id => {
-            document.getElementById(id).addEventListener('change', renderPackingSpan);
             // A new date may give an added list a day to go on.
             document.getElementById(id).addEventListener('change', () => clearFormMessage('event-packing-message'));
         });

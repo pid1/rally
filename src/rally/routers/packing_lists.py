@@ -9,10 +9,10 @@ Several prefixes, because they are different kinds of thing:
   template and every day.
 * ``/api/packing-list-items/suggestions`` is the item history behind
   autocomplete.
-* ``/api/packing-list-days`` is a packing list on a date — a template put on
-  a day, or a day with no template — and the checks made on it. Nothing here
-  writes to a template. A day before today is the archive: readable, never
-  writable.
+* ``/api/packing-list-days`` is a packing list on a date: its own name and
+  items, and the templates it includes, read live (#281) — and the checks made
+  on it. Nothing here writes to a template. A day before today is the archive:
+  readable, never writable.
 * ``/api/packing-list-template-schedules`` puts a template on days by a
   repeating rule. It creates ordinary days ahead of time and has no hold over
   them after.
@@ -38,6 +38,7 @@ from rally.models import (
     PackingListDayBagCheck,
     PackingListDayCheck,
     PackingListDayItem,
+    PackingListDayTemplate,
     PackingListItemHistory,
     PackingListTemplate,
     PackingListTemplateBag,
@@ -60,6 +61,7 @@ from rally.schemas import (
     PackingListDayReorder,
     PackingListDayResponse,
     PackingListDayResync,
+    PackingListDayTemplateResponse,
     PackingListDayUpdate,
     PackingListItemCreate,
     PackingListItemUpdate,
@@ -103,17 +105,23 @@ def _get_template(db: Session, template_id: int) -> PackingListTemplate:
 
 
 def _get_template_item(
-    db: Session, template_id: int | None, template_item_id: int
+    db: Session, template_id: int | list[int] | None, template_item_id: int
 ) -> PackingListTemplateItem:
-    """An item on this template. A templateless day (``template_id`` is
-    ``None``) has no template items, so every id is a ``404`` there."""
+    """An item on this template, or on one of these (a list's included
+    templates). A list with no template has no template items, so every id is
+    a ``404`` there."""
+    ids = (
+        []
+        if template_id is None
+        else (template_id if isinstance(template_id, list) else [template_id])
+    )
     item = None
-    if template_id is not None:
+    if ids:
         item = (
             db.query(PackingListTemplateItem)
             .filter(
                 PackingListTemplateItem.id == template_item_id,
-                PackingListTemplateItem.packing_list_template_id == template_id,
+                PackingListTemplateItem.packing_list_template_id.in_(ids),
             )
             .first()
         )
@@ -200,21 +208,14 @@ def _summaries(db: Session, rows: list[PackingListTemplate]) -> list[PackingList
     days = dict.fromkeys(ids, 0)
     upcoming = dict.fromkeys(ids, 0)
     if ids:
-        days.update(
-            db.query(PackingListDay.packing_list_template_id, func.count(PackingListDay.id))
-            .filter(PackingListDay.packing_list_template_id.in_(ids))
-            .group_by(PackingListDay.packing_list_template_id)
-            .all()
+        including = (
+            db.query(PackingListDayTemplate.packing_list_template_id, func.count(PackingListDay.id))
+            .join(PackingListDay, PackingListDay.id == PackingListDayTemplate.day_id)
+            .filter(PackingListDayTemplate.packing_list_template_id.in_(ids))
+            .group_by(PackingListDayTemplate.packing_list_template_id)
         )
-        upcoming.update(
-            db.query(PackingListDay.packing_list_template_id, func.count(PackingListDay.id))
-            .filter(
-                PackingListDay.packing_list_template_id.in_(ids),
-                PackingListDay.date >= today_local_str(db),
-            )
-            .group_by(PackingListDay.packing_list_template_id)
-            .all()
-        )
+        days.update(including.all())
+        upcoming.update(including.filter(PackingListDay.date >= today_local_str(db)).all())
     return [
         PackingListTemplateSummary(
             id=t.id,
@@ -273,56 +274,51 @@ def _bag_on_list_responses(bags: list[logic.BagOnList]) -> list[PackingListBagOn
 
 
 def _day_responses(db: Session, rows: list[PackingListDay]) -> list[PackingListDayResponse]:
-    """Days with their items as each day has them, every item with its check,
-    and the bags on each day with whether each was grabbed.
+    """Lists with their items as each has them, every item with its check,
+    and the bags on each with whether each was grabbed.
 
     The counts come from the same resolved list the rows do
     (``logic.resolve_day``), so "3 of 13 packed" always describes what is on
-    screen, a day's own additions and removals included. A template on several
-    days — the backpack, every weekday — is read once. A templateless day
-    reads its own name, description and items.
+    screen, a list's own items and removals included. A template on several
+    lists — the backpack, every weekday — is read once.
 
-    A grab check whose bag has left a day from today on is deleted here
-    (``logic.prune_bag_checks``), the one place every day is read through, so
-    a bag that comes back comes back unchecked. A past day is the archive and
-    keeps its checks.
+    A grab check whose bag has left a list from today on is deleted here
+    (``logic.prune_bag_checks``), the one place every list is read through,
+    so a bag that comes back comes back unchecked. A past list is the archive
+    and keeps its checks.
     """
     today = today_local_str(db)
     pruned = False
-    templates = {
-        t.id: t
-        for t in db.query(PackingListTemplate)
-        .filter(PackingListTemplate.id.in_({d.packing_list_template_id for d in rows}))
-        .all()
-    }
-    contents: dict[int | None, list[PackingListTemplateItem]] = {}
+    included = logic.day_template_map(db, [d.id for d in rows])
+    templates = logic.templates_by_id(db, {tid for ids in included.values() for tid in ids})
+    contents: dict[int, list[PackingListTemplateItem]] = {}
     linked = logic.day_events(db, [d.id for d in rows])
     responses = []
     for day in rows:
-        template = templates.get(day.packing_list_template_id)
-        if day.packing_list_template_id is not None and template is None:
-            # A day pointing at a template that is gone. Deleting a template
-            # makes its days templateless first, so this is a guard, not a path.
-            continue
-        if day.packing_list_template_id not in contents:
-            contents[day.packing_list_template_id] = logic.ordered_template_items(
-                db, day.packing_list_template_id
-            )
-        items = contents[day.packing_list_template_id]
+        # A template that is gone is skipped: deleting a template converts
+        # its items first, so this is a guard, not a path.
+        own_templates = [templates[tid] for tid in included[day.id] if tid in templates]
+        items = logic.list_template_items(db, [t.id for t in own_templates], contents)
         resolved = logic.resolve_day(db, day, items)
         bags = logic.resolve_day_bags(db, day, resolved)
         if day.date >= today and logic.prune_bag_checks(db, day, bags):
             pruned = True
-        lead = logic.pack_days_before(day, template)
+        lead = logic.pack_days_before(day, own_templates)
         responses.append(
             PackingListDayResponse(
                 id=day.id,
-                packing_list_template_id=day.packing_list_template_id,
-                name=logic.day_name(day, template),
-                description=logic.day_description(day, template),
+                name=day.name,
+                description=logic.day_description(day, own_templates),
+                templates=[
+                    PackingListDayTemplateResponse(
+                        id=t.id, name=t.name, pack_days_before=t.pack_days_before
+                    )
+                    for t in own_templates
+                ],
                 date=day.date,
                 label=day.label,
                 pack_days_before=lead,
+                pack_days_before_own=day.pack_days_before if own_templates else lead,
                 pack_date=logic.pack_date(day.date, lead),
                 schedule_id=day.schedule_id,
                 total=len(resolved),
@@ -334,6 +330,7 @@ def _day_responses(db: Session, rows: list[PackingListDay]) -> list[PackingListD
                     PackingListDayItemResponse(
                         id=i.id,
                         source=i.source,
+                        packing_list_template_id=i.template_id,
                         owner_id=i.owner_id,
                         bag_id=i.bag_id,
                         name=i.name,
@@ -370,27 +367,13 @@ def _require_current(db: Session, day: PackingListDay) -> None:
         raise HTTPException(status_code=403, detail="Packing lists for past days are read-only")
 
 
-def _date_clash(
-    db: Session, template_id: int | None, day_date: str, *, exclude_id: int | None = None
-):
-    """A template is on a date once: ``409`` naming the day it is already on.
-
-    A templateless day never clashes. Filtering on ``None`` would compare
-    ``IS NULL`` and call every other templateless day on that date a clash.
-    """
-    if template_id is None:
-        return
-    query = db.query(PackingListDay).filter(
-        PackingListDay.packing_list_template_id == template_id, PackingListDay.date == day_date
-    )
-    if exclude_id is not None:
-        query = query.filter(PackingListDay.id != exclude_id)
-    clash = query.first()
-    if clash:
-        raise HTTPException(
-            status_code=409,
-            detail={"message": f"This packing list is already on {day_date}", "id": clash.id},
-        )
+def _require_templates(db: Session, template_ids: list[int]) -> list[PackingListTemplate]:
+    """Every id must be a template (``422``), first mention kept."""
+    wanted = list(dict.fromkeys(template_ids))
+    found = logic.templates_by_id(db, wanted)
+    if len(found) != len(wanted):
+        raise HTTPException(status_code=422, detail="Unknown packing_list_template_id")
+    return [found[tid] for tid in wanted]
 
 
 def _run_daily_passes(db: Session) -> None:
@@ -496,7 +479,10 @@ def update_template(
             raise HTTPException(
                 status_code=409, detail="A packing list template with that name already exists"
             )
+        old_name = template.name
         template.name = payload.name
+        # Lists named after it follow its new name (#281).
+        logic.rename_template_lists(db, template, old_name)
     if payload.description is not UNSET:
         template.description = payload.description
     if payload.pack_days_before is not None:
@@ -510,9 +496,9 @@ def update_template(
 def delete_template(template_id: int, db: Session = Depends(get_db)):
     """Delete a template, its items and its schedule.
 
-    Every day it is on is kept, made templateless first so it reads exactly as
-    it did (``logic.delete_template``): deleting a template never erases what
-    was packed or what is coming up.
+    Every list that includes it keeps its items as the list's own, so it
+    reads exactly as it did (``logic.delete_template``): deleting a template
+    never erases what was packed or what is coming up.
     """
     logic.delete_template(db, _get_template(db, template_id))
     db.commit()
@@ -606,8 +592,8 @@ def reorder_template_items(
     an id not on this template is a ``404`` and nothing changes; an unknown
     owner or bag is a ``422``.
 
-    The template's order wins: every day it is on from today on drops the
-    order it was arranged in by hand and reads in the new one.
+    The template's order wins: every list that includes it from today on
+    drops the order it was arranged in by hand and reads in the new one.
     """
     _get_template(db, template_id)
     _validate_group_key(db, payload.view, payload.key)
@@ -638,10 +624,19 @@ def reorder_template_items(
             item.owner_id = payload.key
         else:
             item.bag_id = payload.key
-    db.query(PackingListDay).filter(
-        PackingListDay.packing_list_template_id == template_id,
-        PackingListDay.date >= today_local_str(db),
-    ).update({PackingListDay.item_order: None}, synchronize_session=False)
+    including = [
+        row.day_id
+        for row in db.query(PackingListDayTemplate.day_id)
+        .join(PackingListDay, PackingListDay.id == PackingListDayTemplate.day_id)
+        .filter(
+            PackingListDayTemplate.packing_list_template_id == template_id,
+            PackingListDay.date >= today_local_str(db),
+        )
+    ]
+    if including:
+        db.query(PackingListDay).filter(PackingListDay.id.in_(including)).update(
+            {PackingListDay.item_order: None}, synchronize_session=False
+        )
     db.commit()
     return [items[i] for i in ordered_ids]
 
@@ -1057,25 +1052,27 @@ def list_previous_days(
 
     The exact complement of the default listing, on the same
     ``today_local_str`` boundary. Searching and paging are server-side, and
-    ``total`` counts every match, the same contract as previous notes. An
-    outer join, so a templateless day is in the archive too, found by its own
-    name.
+    ``total`` counts every match, the same contract as previous notes. A list
+    is found by its own name, its label, or the name of a template it
+    includes.
     """
     today = today_local_str(db)
-    query = (
-        db.query(PackingListDay)
-        .outerjoin(
-            PackingListTemplate, PackingListTemplate.id == PackingListDay.packing_list_template_id
-        )
-        .filter(PackingListDay.date < today)
-    )
+    query = db.query(PackingListDay).filter(PackingListDay.date < today)
     if search and search.strip():
         pattern = f"%{search.strip()}%"
+        including = (
+            db.query(PackingListDayTemplate.day_id)
+            .join(
+                PackingListTemplate,
+                PackingListTemplate.id == PackingListDayTemplate.packing_list_template_id,
+            )
+            .filter(PackingListTemplate.name.ilike(pattern))
+        )
         query = query.filter(
             or_(
-                PackingListTemplate.name.ilike(pattern),
                 PackingListDay.name.ilike(pattern),
                 PackingListDay.label.ilike(pattern),
+                PackingListDay.id.in_(including),
             )
         )
 
@@ -1094,50 +1091,15 @@ def list_previous_days(
 
 @days_router.post("", response_model=PackingListDayResponse, status_code=201)
 def create_day(payload: PackingListDayCreate, db: Session = Depends(get_db)):
-    """Put a packing list on a day, starting with nothing checked.
+    """Put a packing list on a day, starting with nothing checked (#281).
 
-    Three forms (``PackingListDayCreate``): a template kept in sync, a blank
-    one-off, or a one-off holding a copy of a template's items. A day before
-    today is a ``422``: nobody packs for yesterday. A template already on that
-    day is a ``409`` carrying the existing day's id, so the page can open it
-    instead — the same shape Notes uses. A one-off never clashes: its name is
-    its own, and any number of them can share a date.
+    It has its own name and includes any number of templates, each read live
+    (``PackingListDayCreate``). ``copy_from_template_id`` starts its own items
+    as a copy of that template's. A day before today is a ``422``: nobody
+    packs for yesterday. There is no date clash: a template may be on one
+    date any number of times, on different lists.
     """
-    if payload.is_one_off:
-        return _create_one_off(db, payload)
-    template = (
-        db.query(PackingListTemplate)
-        .filter(PackingListTemplate.id == payload.packing_list_template_id)
-        .first()
-    )
-    if not template:
-        raise HTTPException(status_code=422, detail="Unknown packing_list_template_id")
-    if payload.date < today_local_str(db):
-        raise HTTPException(status_code=422, detail="Pick today or a later day")
-    _date_clash(db, template.id, payload.date)
-    day = PackingListDay(
-        packing_list_template_id=template.id,
-        date=payload.date,
-        label=payload.label,
-        pack_days_before=payload.pack_days_before,
-    )
-    db.add(day)
-    db.commit()
-    db.refresh(day)
-    return _day_response(db, day)
-
-
-def _create_one_off(db: Session, payload: PackingListDayCreate) -> PackingListDayResponse:
-    """A templateless day of its own: blank, or holding a copy of a template's
-    items (``copy_from_template_id``).
-
-    A copy takes each item whole — name, note, owner and bag — in the
-    template's order, unchecked, as the day's own items, and the template's
-    readings of bags as the day's own readings. Nothing points back
-    at the template, so a later edit to it, or its deletion, leaves the copy
-    alone. Copying is not typing, so item history is untouched: the day counts
-    once its date is over (``logic.count_packed_days``), like any other.
-    """
+    templates = _require_templates(db, payload.included)
     source = None
     if payload.copy_from_template_id is not None:
         source = (
@@ -1149,67 +1111,83 @@ def _create_one_off(db: Session, payload: PackingListDayCreate) -> PackingListDa
             raise HTTPException(status_code=422, detail="Unknown copy_from_template_id")
     if payload.date < today_local_str(db):
         raise HTTPException(status_code=422, detail="Pick today or a later day")
+    name = payload.name or (templates[0].name if templates else source.name)
     day = PackingListDay(
-        packing_list_template_id=None,
-        name=payload.name,
+        name=name,
         date=payload.date,
         label=payload.label,
         pack_days_before=payload.pack_days_before,
     )
     db.add(day)
     db.flush()
+    for template in templates:
+        logic.include_template(db, day, template.id)
     if source is not None:
-        for position, item in enumerate(logic.ordered_template_items(db, source.id)):
-            db.add(
-                PackingListDayItem(
-                    day_id=day.id,
-                    template_item_id=None,
-                    owner_id=item.owner_id,
-                    bag_id=item.bag_id,
-                    name=item.name,
-                    note=item.note,
-                    sort_order=position,
-                )
-            )
-        for row in _template_bag_rows(db, source.id):
-            db.add(
-                PackingListDayBag(
-                    day_id=day.id,
-                    bag_id=row.bag_id,
-                    owner_id=row.owner_id,
-                    parent_bag_id=row.parent_bag_id,
-                )
-            )
+        _copy_into(db, day, source)
     db.commit()
     db.refresh(day)
     return _day_response(db, day)
 
 
+def _copy_into(db: Session, day: PackingListDay, source: PackingListTemplate) -> None:
+    """Give a list a copy of a template's items as its own.
+
+    Each item is taken whole — name, note, owner and bag — in the template's
+    order, unchecked, and the template's readings of bags become the list's
+    own readings. Nothing points back at the template, so a later edit to it,
+    or its deletion, leaves the copy alone. Copying is not typing, so item
+    history is untouched: the list counts once its date is over
+    (``logic.count_packed_days``), like any other.
+    """
+    for position, item in enumerate(logic.ordered_template_items(db, source.id)):
+        db.add(
+            PackingListDayItem(
+                day_id=day.id,
+                template_item_id=None,
+                owner_id=item.owner_id,
+                bag_id=item.bag_id,
+                name=item.name,
+                note=item.note,
+                sort_order=position,
+            )
+        )
+    have = {
+        row.bag_id
+        for row in db.query(PackingListDayBag.bag_id).filter(PackingListDayBag.day_id == day.id)
+    }
+    for row in _template_bag_rows(db, source.id):
+        if row.bag_id in have:
+            continue
+        db.add(
+            PackingListDayBag(
+                day_id=day.id,
+                bag_id=row.bag_id,
+                owner_id=row.owner_id,
+                parent_bag_id=row.parent_bag_id,
+            )
+        )
+
+
 @days_router.get("/{day_id}", response_model=PackingListDayResponse)
 def get_day(day_id: int, db: Session = Depends(get_db)):
-    """A day's packing list: its items as this day has them, each with its check."""
+    """A list: its items as it has them, each with its check."""
     return _day_response(db, _get_day(db, day_id))
 
 
 @days_router.put("/{day_id}", response_model=PackingListDayResponse)
 def update_day(day_id: int, payload: PackingListDayUpdate, db: Session = Depends(get_db)):
-    """Move a day's packing list to another date, relabel it, or give it its own
-    lead time (``pack_days_before``; ``null`` follows the template again, and
-    is a ``422`` on a templateless day, which has no template to follow).
-    Rename a templateless day (``name``; a ``422`` on a templated day).
-    Checks stay.
+    """Rename a list, move it to another date, relabel it, give it its own
+    lead time (``pack_days_before``; ``null`` follows its templates' again,
+    and is a ``422`` on a list that includes none), or change which templates
+    it includes (``packing_list_template_ids``, whole and in order). Checks
+    stay, except on a template taken off it.
 
-    A label set here is the day's own from then on: a schedule's relabel
+    A label set here is the list's own from then on: a schedule's relabel
     passes over it.
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
     if payload.name is not None:
-        if day.packing_list_template_id is not None:
-            raise HTTPException(
-                status_code=422,
-                detail="This packing list is called what its template is called.",
-            )
         day.name = payload.name
     if payload.date is not None and payload.date != day.date:
         events = logic.day_events(db, [day.id]).get(day.id, [])
@@ -1221,13 +1199,24 @@ def update_day(day_id: int, payload: PackingListDayUpdate, db: Session = Depends
             )
         if payload.date < today_local_str(db):
             raise HTTPException(status_code=422, detail="Pick today or a later day")
-        _date_clash(db, day.packing_list_template_id, payload.date, exclude_id=day.id)
         day.date = payload.date
     if payload.label is not UNSET:
         day.label = payload.label
         day.label_edited = True
+    if payload.packing_list_template_ids is not None:
+        wanted = [t.id for t in _require_templates(db, payload.packing_list_template_ids)]
+        for template_id in logic.day_template_ids(db, day.id):
+            if template_id not in wanted:
+                logic.exclude_template(db, day, template_id)
+        for template_id in wanted:
+            logic.include_template(db, day, template_id)
+        for position, template_id in enumerate(wanted):
+            db.query(PackingListDayTemplate).filter(
+                PackingListDayTemplate.day_id == day.id,
+                PackingListDayTemplate.packing_list_template_id == template_id,
+            ).update({PackingListDayTemplate.position: position}, synchronize_session=False)
     if payload.pack_days_before is not UNSET:
-        if payload.pack_days_before is None and day.packing_list_template_id is None:
+        if payload.pack_days_before is None and not logic.day_template_ids(db, day.id):
             raise HTTPException(
                 status_code=422,
                 detail="This packing list has no template, so it needs its own lead time.",
@@ -1240,18 +1229,18 @@ def update_day(day_id: int, payload: PackingListDayUpdate, db: Session = Depends
 
 @days_router.delete("/{day_id}", status_code=204)
 def delete_day(day_id: int, db: Session = Depends(get_db)):
-    """Take a packing list off a day. Its template, if it has one, is untouched.
+    """Take a packing list off a day. The templates it includes are untouched.
 
-    A day a schedule made stays off: the schedule never goes back over a date
-    it has already handled. Item history needs nothing undone, because a day
-    is only counted once its date is over, and a past day can't be deleted.
+    A list a schedule made stays off: the schedule never goes back over a
+    date it has already handled. Item history needs nothing undone, because a
+    list is only counted once its date is over, and a past one can't be
+    deleted.
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
     # Off every event it belongs to too, so none of them puts it back.
     logic.unlink_day(db, day)
-    logic.clear_day_state(db, day)
-    db.delete(day)
+    logic.delete_day(db, day)
     db.commit()
     return Response(status_code=204)
 
@@ -1276,7 +1265,7 @@ def reorder_day_items(day_id: int, payload: PackingListDayReorder, db: Session =
     _require_current(db, day)
     _validate_group_key(db, payload.view, payload.key)
 
-    template_items = logic.ordered_template_items(db, day.packing_list_template_id)
+    template_items = logic.day_items(db, day)
     resolved = logic.resolve_day(db, day, template_items)
     by_key = {item.key: item for item in resolved}
     listed: list[str] = []
@@ -1359,7 +1348,7 @@ def update_day_template_item(
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
-    item = _get_template_item(db, day.packing_list_template_id, template_item_id)
+    item = _get_template_item(db, logic.day_template_ids(db, day.id), template_item_id)
     if payload.checked is not None:
         existing = (
             db.query(PackingListDayCheck)
@@ -1387,10 +1376,10 @@ def update_day_template_item(
     "/{day_id}/template-items/{template_item_id}", response_model=PackingListDayResponse
 )
 def remove_day_template_item(day_id: int, template_item_id: int, db: Session = Depends(get_db)):
-    """Take a template item off one day. The template, and every other day, keep it."""
+    """Take a template item off one list. The template, and every other list, keep it."""
     day = _get_day(db, day_id)
     _require_current(db, day)
-    item = _get_template_item(db, day.packing_list_template_id, template_item_id)
+    item = _get_template_item(db, logic.day_template_ids(db, day.id), template_item_id)
     _day_change(db, day, item).removed = True
     db.query(PackingListDayCheck).filter(
         PackingListDayCheck.day_id == day.id, PackingListDayCheck.template_item_id == item.id
@@ -1500,9 +1489,7 @@ def check_all(day_id: int, db: Session = Depends(get_db)):
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
-    resolved = logic.resolve_day(
-        db, day, logic.ordered_template_items(db, day.packing_list_template_id)
-    )
+    resolved = logic.resolve_day(db, day, logic.day_items(db, day))
     for item in resolved:
         if item.source == logic.TEMPLATE and not item.checked:
             db.add(PackingListDayCheck(day_id=day.id, template_item_id=item.id))
@@ -1518,15 +1505,16 @@ def check_all(day_id: int, db: Session = Depends(get_db)):
 
 @days_router.post("/{day_id}/resync", response_model=PackingListDayResponse)
 def resync_day(day_id: int, payload: PackingListDayResync, db: Session = Depends(get_db)):
-    """Bring one day back in line with its template (``logic.resync_day``):
-    ``items`` undoes its item changes, ``all`` everything it does differently.
+    """Bring one list back in line with every template it includes
+    (``logic.resync_day``): ``items`` undoes its changes to template items,
+    ``all`` everything it does differently. Its own items stay.
 
-    Idempotent. A past day is a ``403``; a templateless day, which has no
-    template to resync with, a ``422``.
+    Idempotent. A past list is a ``403``; a list with no template to resync
+    with, a ``422``.
     """
     day = _get_day(db, day_id)
     _require_current(db, day)
-    if day.packing_list_template_id is None:
+    if not logic.day_template_ids(db, day.id):
         raise HTTPException(
             status_code=422, detail="This packing list has no template to resync with."
         )
@@ -1537,9 +1525,7 @@ def resync_day(day_id: int, payload: PackingListDayResync, db: Session = Depends
 
 def _day_bags(db: Session, day: PackingListDay) -> tuple[list, list[logic.BagOnList]]:
     """A day's items and bags as it reads them."""
-    resolved = logic.resolve_day(
-        db, day, logic.ordered_template_items(db, day.packing_list_template_id)
-    )
+    resolved = logic.resolve_day(db, day, logic.day_items(db, day))
     return resolved, logic.resolve_day_bags(db, day, resolved)
 
 
@@ -1562,16 +1548,14 @@ def update_day_bag(
     _, bags = _day_bags(db, day)
     _require_on_list(bags, bag_id)
     if payload.owner_id is not UNSET or payload.parent_bag_id is not UNSET:
-        owner_id, parent_bag_id = logic.bag_reading(
-            db, bag, template_id=day.packing_list_template_id, day_id=day.id
-        )
+        owner_id, parent_bag_id = logic.bag_reading(db, bag, template_id=None, day_id=day.id)
         if payload.owner_id is not UNSET:
             _require_owner(db, payload.owner_id)
             _require_reading_free(
                 db,
                 bag,
                 payload.owner_id,
-                template_id=day.packing_list_template_id,
+                template_id=None,
                 day_id=day.id,
             )
             owner_id = payload.owner_id
@@ -1580,7 +1564,7 @@ def update_day_bag(
                 db,
                 bag_id,
                 payload.parent_bag_id,
-                template_id=day.packing_list_template_id,
+                template_id=None,
                 day_id=day.id,
             )
             parent_bag_id = payload.parent_bag_id
@@ -1631,9 +1615,7 @@ def remove_day_bag(day_id: int, bag_id: int, db: Session = Depends(get_db)):
     _get_bag(db, bag_id)
     resolved, bags = _day_bags(db, day)
     _require_on_list(bags, bag_id)
-    template_items = {
-        i.id: i for i in logic.ordered_template_items(db, day.packing_list_template_id)
-    }
+    template_items = {i.id: i for i in logic.day_items(db, day)}
     for item in resolved:
         if item.bag_id != bag_id:
             continue

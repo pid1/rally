@@ -94,6 +94,16 @@ def migrate():
     cursor = conn.cursor()
 
     try:
+        # Migration 042 (#281) rebuilt both tables keyed on a list's name;
+        # the indexes below name the template column it removed, and would
+        # fail and stop the container.
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='packing_list_day_templates'"
+        )
+        if cursor.fetchone():
+            print("✓ Migration: event packing lists already moved on by migration 042 (idempotent)")
+            return True
+
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")
         if not cursor.fetchone():
             # init_db creates events with the column; the new tables stand alone.

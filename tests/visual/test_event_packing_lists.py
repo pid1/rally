@@ -1,10 +1,12 @@
-"""Packing lists on calendar events (#270), as the pages draw and send them.
+"""Packing lists on calendar events (#270, #281), as the pages draw and send them.
 
-The API's rules are pinned in ``tests/test_event_packing_lists.py``. What only a
-browser can show is the page's side: picking a template adds it, `Put on`
-appears and must be answered, the moves the page refuses or asks about, only
-the Save button saves, and the Packing Lists page's ⚭, `For:` line, locked date
-and bold-name confirmation.
+The API's rules are pinned in ``tests/test_event_packing_lists.py`` and
+``tests/test_named_packing_lists.py``. What only a browser can show is the
+page's side: picking a template adds a list named after it, `New packing
+list…` adds one to name and fill, a multi-day event asks nothing (its lists go
+on its first day), the moves the page refuses or asks about, only the Save
+button saves, and the Packing Lists page's ⚭, `For:` line, locked date and
+bold-name confirmation.
 """
 
 from __future__ import annotations
@@ -74,7 +76,7 @@ def _occurrence(page, event):
 
 def _days_for(page, template_id):
     rows = page.request.get(_base(page) + "/api/packing-list-days").json()
-    return [d for d in rows if d["packing_list_template_id"] == template_id]
+    return [d for d in rows if template_id in [t["id"] for t in d["templates"]]]
 
 
 def _reload_templates(page):
@@ -124,7 +126,9 @@ def test_picking_a_template_adds_it(page):
     assert background == "rgb(245, 245, 245)"
 
 
-def test_put_on_shows_for_a_multi_day_event_and_must_be_answered(page):
+def test_a_multi_day_event_asks_nothing_and_packs_on_its_first_day(page):
+    """#281 replaced `Put on`: a multi-day event is one ongoing event, so its
+    lists go on its first day only."""
     template = _template(page)
     _reload_templates(page)
     page.evaluate("d => openAddEventModal(d)", DAY.isoformat())
@@ -132,28 +136,50 @@ def test_put_on_shows_for_a_multi_day_event_and_must_be_answered(page):
     page.fill("#event-title", f"Three-day trip {uuid4().hex[:8]}")
     _choose_calendar(page)
     _pick(page, template["name"])
-    assert not page.is_visible("#event-packing-span-group")
-
     page.fill("#event-end-date", (DAY + timedelta(days=2)).isoformat())
     page.dispatch_event("#event-end-date", "change")
-    assert page.is_visible("#event-packing-span-group")
-    assert page.evaluate(
-        "() => [...document.querySelectorAll('input[name=\"event-packing-span\"]')]"
-        ".every(r => !r.checked)"
-    )
+    assert page.locator("#event-packing-span-group").count() == 0
 
-    page.click("#btn-save-event")
-    # Said in place under Put on (#272), with the form kept open.
-    message = page.locator("#event-packing-span-message")
-    message.wait_for()
-    assert message.inner_text() == "Choose which days the packing lists go on"
-    assert _days_for(page, template["id"]) == []
-
-    page.check('input[name="event-packing-span"][value="every"]')
     page.click("#btn-save-event")
     page.wait_for_timeout(500)
-    dates = sorted(d["date"] for d in _days_for(page, template["id"]))
-    assert dates == [(DAY + timedelta(days=n)).isoformat() for n in range(3)]
+    assert [d["date"] for d in _days_for(page, template["id"])] == [DAY.isoformat()]
+
+
+def test_a_new_packing_list_is_named_and_includes_templates(page):
+    """`New packing list…` adds a row to name, with its own Includes; picking
+    a template there names an unnamed list after it until somebody types."""
+    bag = _template(page)
+    kit = _template(page)
+    _reload_templates(page)
+    page.evaluate("d => openAddEventModal(d)", DAY.isoformat())
+    page.fill("#event-title", f"Dad flies to South Carolina {uuid4().hex[:8]}")
+    _choose_calendar(page)
+    page.select_option("#event-packing-select", value="new")
+    name = page.locator("#event-packing-name-0")
+    assert page.evaluate("document.activeElement.id") == "event-packing-name-0"
+
+    # Neither a name nor a template: refused in place.
+    page.click("#btn-save-event")
+    message = page.locator("#event-packing-message")
+    message.wait_for()
+    assert message.inner_text() == "Give the new packing list a name, or include a template."
+
+    page.select_option("#event-packing-include-0", label=bag["name"])
+    assert name.input_value() == bag["name"]
+    name.fill("Dad Goes to South Carolina")
+    page.select_option("#event-packing-include-0", label=kit["name"])
+    assert name.input_value() == "Dad Goes to South Carolina"
+    chips = page.locator('[data-packing-row="0"] .picked-list .manage-row-text')
+    assert chips.all_inner_texts() == [bag["name"], kit["name"]]
+
+    page.click("#btn-save-event")
+    page.wait_for_timeout(500)
+    (day,) = _days_for(page, bag["id"])
+    assert (day["name"], [t["id"] for t in day["templates"]], day["date"]) == (
+        "Dad Goes to South Carolina",
+        [bag["id"], kit["id"]],
+        DAY.isoformat(),
+    )
 
 
 def test_enter_in_a_field_does_not_save(page):
@@ -401,7 +427,9 @@ def test_remove_from_day_asks_with_the_name_in_bold(page):
     assert _days_for(page, template["id"]) == []
 
 
-def test_adding_a_list_already_on_that_day_is_refused_in_place(page):
+def test_a_template_already_on_that_day_goes_on_a_second_list(page):
+    """#281: a template may be on one date on two lists, so Add Packing List
+    no longer refuses it."""
     template = _template(page)
     page.request.post(
         _base(page) + "/api/packing-list-days",
@@ -409,19 +437,14 @@ def test_adding_a_list_already_on_that_day_is_refused_in_place(page):
     )
     page.goto(_base(page) + "/packing-lists", wait_until="networkidle")
     page.evaluate("() => openAddDayModal()")
-    page.check('input[name="day-add-start"][value="template"]')
-    page.select_option("#day-add-source", label=template["name"])
-    page.check('input[name="day-add-mode"][value="sync"]')
+    page.fill("#day-add-name", f"Afternoon {uuid4().hex[:8]}")
+    page.select_option("#day-add-includes-select", label=template["name"])
     page.fill("#day-date", DAY.isoformat())
     page.dispatch_event("#day-date", "change")
     page.click('#day-add-modal-overlay button[type="submit"]')
-    page.wait_for_timeout(400)
-
-    message = page.locator("#day-add-message")
-    assert message.is_visible()
-    assert message.inner_text().startswith(f'"{template["name"]}" is already on ')
-    assert page.is_visible("#day-add-modal-overlay")
-
-    page.fill("#day-date", NEXT.isoformat())
-    page.dispatch_event("#day-date", "change")
-    assert not message.is_visible()
+    page.wait_for_selector("#day-add-modal-overlay", state="hidden")
+    days = _days_for(page, template["id"])
+    assert len(days) == 2
+    # The server is shared by every test after this one.
+    for day in days:
+        page.request.delete(_base(page) + f"/api/packing-list-days/{day['id']}")

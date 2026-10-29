@@ -163,15 +163,14 @@ def test_items_added_later_go_to_the_bottom(client, swim):
     assert _names(client, day) == ["Goggles", "Towel", "Water", "Snacks", "Floatie", "Sun hat"]
 
 
-def test_the_templates_order_wins_from_today_on(client, db_session, swim):
+def test_the_templates_order_wins_from_today_on(client, db_session, swim, make_packing_day):
     day = swim["day"]["id"]
-    past = PackingListDay(
-        packing_list_template_id=swim["template"]["id"],
-        date="2026-09-26",
+    past = make_packing_day(
+        "2026-09-26",
+        [swim["template"]["id"]],
         item_order=[f"template:{swim['water']['id']}"],
+        commit=True,
     )
-    db_session.add(past)
-    db_session.commit()
     _reorder(
         client,
         day,
@@ -247,10 +246,8 @@ def test_duplicates_keep_their_first_mention(client, swim):
     assert _names(client, day) == ["Goggles", "Towel", "Water", "Snacks"]
 
 
-def test_a_past_day_cannot_be_reordered(client, db_session, swim):
-    past = PackingListDay(packing_list_template_id=swim["template"]["id"], date="2026-09-26")
-    db_session.add(past)
-    db_session.commit()
+def test_a_past_day_cannot_be_reordered(client, db_session, swim, make_packing_day):
+    past = make_packing_day("2026-09-26", [swim["template"]["id"]], commit=True)
     response = _reorder(client, past.id, "owner", None, [_ref("template", swim["snacks"])])
     assert response.status_code == 403
 

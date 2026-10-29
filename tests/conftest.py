@@ -29,6 +29,9 @@ from rally.models import (
     EventAttendee,
     FamilyMember,
     MealPlan,
+    PackingListDay,
+    PackingListDayTemplate,
+    PackingListTemplate,
     PrepItem,
     PrepLocation,
     PrepRefreshNotice,
@@ -294,6 +297,45 @@ def make_item_history(db_session: Session):
         db_session.commit()
         db_session.refresh(row)
         return row
+
+    return _make
+
+
+@pytest.fixture
+def make_packing_day(db_session: Session):
+    """A packing list on a date, written straight to the database — the way a
+    test puts one on a past day, which the API refuses (#281's model).
+
+    ``template_ids`` are the templates it includes, in order; ``name``
+    defaults to the first one's. Does not commit unless ``commit``.
+    """
+
+    def _make(
+        date: str,
+        template_ids=(),
+        *,
+        name: str | None = None,
+        commit: bool = False,
+        **kwargs,
+    ) -> PackingListDay:
+        template_ids = list(template_ids)
+        if name is None and template_ids:
+            name = db_session.get(PackingListTemplate, template_ids[0]).name
+        if not template_ids and "pack_days_before" not in kwargs:
+            kwargs["pack_days_before"] = 0
+        day = PackingListDay(name=name or "Packing list", date=date, **kwargs)
+        db_session.add(day)
+        db_session.flush()
+        for position, template_id in enumerate(template_ids):
+            db_session.add(
+                PackingListDayTemplate(
+                    day_id=day.id, packing_list_template_id=template_id, position=position
+                )
+            )
+        db_session.flush()
+        if commit:
+            db_session.commit()
+        return day
 
     return _make
 

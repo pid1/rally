@@ -1539,6 +1539,17 @@ html.modal-open {
     color: var(--ink-subtle);
 }
 
+/* Where a packing list's template item comes from: ⧉ and the template's
+   name, after the item's name (#281). Muted like `.item-mark`, but in the
+   template's own casing, since it is a name. */
+.item-source {
+    font-size: var(--text-xs);
+    font-weight: 400;
+    color: var(--ink-subtle);
+    margin-left: var(--space-1);
+    white-space: nowrap;
+}
+
 /* One box per day, read like a menu: everything planned for that day stacks
    inside it as a `.day-box-entry`, and the date is stated once, as the
    footer, in the shared `.date-label`. The Meal Planner's meals and the

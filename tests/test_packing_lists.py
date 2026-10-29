@@ -154,7 +154,7 @@ def test_deleting_a_template_keeps_its_days_without_it(client, db_session):
     assert client.get(f"/api/packing-list-templates/{packing_list['id']}").status_code == 404
     # The day stays, on its own, reading exactly as it did.
     kept = client.get(f"/api/packing-list-days/{day['id']}").json()
-    assert (kept["packing_list_template_id"], kept["name"]) == (None, "Swim at Nana's")
+    assert (kept["templates"], kept["name"]) == ([], "Swim at Nana's")
     assert [(i["name"], i["source"], i["checked"]) for i in kept["items"]] == [
         ("Goggles", "day", True)
     ]
@@ -453,17 +453,19 @@ def test_a_day_is_today_or_later(client):
     assert response.status_code == 422
 
 
-def test_once_per_day_and_the_clash_names_the_existing_day(client):
+def test_a_template_can_be_on_one_date_on_two_lists(client):
+    """#281: the old one-template-per-date rule is gone. Each list is its own,
+    with its own checks."""
     packing_list = _packing_list(client)
-    day = _day(client, packing_list["id"])
-    response = client.post(
+    item = _item(client, packing_list["id"], "Goggles")
+    morning = _day(client, packing_list["id"])
+    afternoon = client.post(
         "/api/packing-list-days",
         json={"packing_list_template_id": packing_list["id"], "date": SATURDAY},
     )
-    assert response.status_code == 409
-    assert response.json()["detail"]["id"] == day["id"]
-    # Another packing list on the same day is fine.
-    _day(client, _packing_list(client, "Beach day")["id"])
+    assert afternoon.status_code == 201
+    _check(client, morning["id"], item["id"])
+    assert client.get(f"/api/packing-list-days/{afternoon.json()['id']}").json()["checked"] == 0
 
 
 def test_unknown_packing_list_or_bad_date_is_422(client):
@@ -481,7 +483,7 @@ def test_unknown_packing_list_or_bad_date_is_422(client):
     assert response.status_code == 422
 
 
-def test_moving_a_day_keeps_its_checks_and_honors_the_clash_rule(client):
+def test_moving_a_day_keeps_its_checks(client):
     packing_list = _packing_list(client)
     item = _item(client, packing_list["id"], "Goggles")
     first = _day(client, packing_list["id"])
@@ -491,23 +493,21 @@ def test_moving_a_day_keeps_its_checks_and_honors_the_clash_rule(client):
     moved = client.put(f"/api/packing-list-days/{first['id']}", json={"date": "2026-10-04"})
     assert moved.status_code == 200
     assert moved.json()["checked"] == 1
-    clash = client.put(f"/api/packing-list-days/{first['id']}", json={"date": "2026-10-10"})
-    assert clash.status_code == 409
+    # Onto a date the template is already on, on another list: fine (#281).
+    beside = client.put(f"/api/packing-list-days/{first['id']}", json={"date": "2026-10-10"})
+    assert beside.status_code == 200
     past = client.put(f"/api/packing-list-days/{first['id']}", json={"date": "2026-09-01"})
     assert past.status_code == 422
 
 
-def test_upcoming_is_soonest_first_with_items(client, db_session):
-    from rally.models import PackingListDay
-
+def test_upcoming_is_soonest_first_with_items(client, db_session, make_packing_day):
     nana = _packing_list(client)
     _item(client, nana["id"], "Goggles")
     beach = _packing_list(client, "Beach day")
     _day(client, beach["id"], "2026-10-10")
     _day(client, nana["id"], SATURDAY)
     _day(client, nana["id"], TODAY)
-    db_session.add(PackingListDay(packing_list_template_id=nana["id"], date="2026-09-30"))
-    db_session.commit()
+    make_packing_day("2026-09-30", [nana["id"]], commit=True)
 
     upcoming = client.get("/api/packing-list-days").json()
     assert [(d["date"], d["name"]) for d in upcoming] == [
@@ -520,20 +520,13 @@ def test_upcoming_is_soonest_first_with_items(client, db_session):
     assert upcoming[2]["items"] == []
 
 
-def test_previous_is_newest_first_searchable_and_paged(client, db_session):
-    from rally.models import PackingListDay
-
+def test_previous_is_newest_first_searchable_and_paged(client, db_session, make_packing_day):
     nana = _packing_list(client)
     beach = _packing_list(client, "Beach day")
     _day(client, nana["id"], TODAY)
     for offset in range(12):
-        db_session.add(
-            PackingListDay(packing_list_template_id=nana["id"], date=f"2026-09-{offset + 10:02d}")
-        )
-    db_session.add(
-        PackingListDay(packing_list_template_id=beach["id"], date="2026-08-01", label="Galveston")
-    )
-    db_session.commit()
+        make_packing_day(f"2026-09-{offset + 10:02d}", [nana["id"]])
+    make_packing_day("2026-08-01", [beach["id"]], label="Galveston", commit=True)
 
     page = client.get("/api/packing-list-days/previous?limit=5").json()
     assert page["total"] == 13
@@ -552,14 +545,10 @@ def test_previous_is_newest_first_searchable_and_paged(client, db_session):
     assert by_name["total"] == 1
 
 
-def test_past_days_are_read_only(client, db_session):
-    from rally.models import PackingListDay
-
+def test_past_days_are_read_only(client, db_session, make_packing_day):
     packing_list = _packing_list(client)
     item = _item(client, packing_list["id"], "Goggles")
-    past = PackingListDay(packing_list_template_id=packing_list["id"], date="2026-09-30")
-    db_session.add(past)
-    db_session.commit()
+    past = make_packing_day("2026-09-30", [packing_list["id"]], commit=True)
     base = f"/api/packing-list-days/{past.id}"
 
     assert (
@@ -713,13 +702,9 @@ def test_check_all_checks_the_packing_lists_own_items(client):
     )
 
 
-def test_check_all_is_refused_on_a_past_day(client, db_session):
-    from rally.models import PackingListDay
-
+def test_check_all_is_refused_on_a_past_day(client, db_session, make_packing_day):
     packing_list = _packing_list(client)
-    past = PackingListDay(packing_list_template_id=packing_list["id"], date="2026-09-30")
-    db_session.add(past)
-    db_session.commit()
+    past = make_packing_day("2026-09-30", [packing_list["id"]], commit=True)
     assert client.post(f"/api/packing-list-days/{past.id}/check-all").status_code == 403
 
 
@@ -934,7 +919,7 @@ def test_removing_a_packing_list_item_from_a_day_leaves_the_packing_list_and_oth
     assert _day_names(client, wednesday["id"]) == ["Lunchbox"]
 
 
-def test_a_day_counts_the_items_it_changed_added_or_removed(client):
+def test_a_day_counts_the_template_items_it_changed_or_removed(client):
     packing_list = _packing_list(client)
     goggles = _item(client, packing_list["id"], "Goggles")
     towel = _item(client, packing_list["id"], "Towel")
@@ -945,17 +930,18 @@ def test_a_day_counts_the_items_it_changed_added_or_removed(client):
     assert day["changed_count"] == 0
 
     client.put(f"{base}/template-items/{goggles['id']}", json={"name": "Blue goggles"})
+    # A list's own item is its own, not a change to a template (#281).
     client.post(f"{base}/day-items", json={"name": "Sun hat"})
     removed = client.delete(f"{base}/template-items/{towel['id']}").json()
-    assert removed["changed_count"] == 3
+    assert removed["changed_count"] == 2
 
     # A check is not a change, and the other day is untouched.
     checked = client.put(f"{base}/template-items/{goggles['id']}", json={"checked": True}).json()
-    assert checked["changed_count"] == 3
+    assert checked["changed_count"] == 2
     assert client.get(f"/api/packing-list-days/{other['id']}").json()["changed_count"] == 0
     # Deleting an item from the template takes that day's edit of it along.
     client.delete(f"/api/packing-list-templates/{packing_list['id']}/items/{goggles['id']}")
-    assert client.get(base).json()["changed_count"] == 2
+    assert client.get(base).json()["changed_count"] == 1
 
 
 def test_a_day_item_needs_a_real_owner_and_bag(client):
@@ -1014,14 +1000,10 @@ def test_removing_a_day_takes_its_own_items_and_a_template_delete_keeps_them(cli
     assert [i.name for i in db_session.query(PackingListDayItem)] == ["Sun hat"]
 
 
-def test_a_past_days_items_are_read_only(client, db_session):
-    from rally.models import PackingListDay
-
+def test_a_past_days_items_are_read_only(client, db_session, make_packing_day):
     packing_list = _packing_list(client)
     item = _item(client, packing_list["id"], "Goggles")
-    past = PackingListDay(packing_list_template_id=packing_list["id"], date="2026-09-30")
-    db_session.add(past)
-    db_session.flush()
+    past = make_packing_day("2026-09-30", [packing_list["id"]])
     own = PackingListDayItem(day_id=past.id, name="Sun hat")
     db_session.add(own)
     db_session.commit()
@@ -1373,9 +1355,9 @@ def test_a_copy_puts_itself_on_no_day(client, nana):
     copy = _copy(client, nana["template"]["id"]).json()
 
     assert (copy["day_count"], copy["upcoming_days"]) == (0, 0)
-    assert [d["packing_list_template_id"] for d in client.get("/api/packing-list-days").json()] == [
-        nana["template"]["id"]
-    ]
+    assert [
+        [t["id"] for t in d["templates"]] for d in client.get("/api/packing-list-days").json()
+    ] == [[nana["template"]["id"]]]
 
 
 def test_an_unknown_source_is_422_and_creates_nothing(client, nana):

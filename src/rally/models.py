@@ -258,10 +258,9 @@ class Event(Base):
     notify_minutes_before: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # Push reminder lead time; NULL means no reminder
-    # Where a multi-day occurrence's packing lists go: "first" (its start date)
-    # or "every" (each date it covers). NULL reads as "first". The series'
-    # alone, like attendees and the reminder.
-    packing_list_span: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Migration 039 added ``packing_list_span`` (``first`` / ``every``) here.
+    # Since #281 an event's packing lists go on an occurrence's first day only,
+    # so nothing reads it; databases that have the column keep it, unused.
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
@@ -1015,23 +1014,27 @@ class PackingListItemHistory(Base):
 
 
 class PackingListDay(Base):
-    """A packing list on a date: "Swim at Nana's" on Saturday.
+    """A packing list on a date: "Dad Goes to South Carolina" on Thursday.
 
-    Usually a template put on a day. That day holds no copy of the template's
-    items — only its checks and its own changes (``PackingListDayItem``) — and
-    ``(packing_list_template_id, date)`` is unique, because the same template
-    twice on one day would be two copies of one bag.
+    A list has **its own name** and its own items, and includes any number of
+    templates (``PackingListDayTemplate``), each read **live**: it holds no
+    copy of their items, only its checks (``PackingListDayCheck``) and its own
+    changes to them (``PackingListDayItem``), so an edit to a template reaches
+    every list that includes it. A list with no template is simply a list of
+    its own items. The same template may be on one date any number of times,
+    on different lists (#281); it is on one list only once.
 
-    A **templateless** day has ``packing_list_template_id IS NULL``: its
-    template was deleted (its items were copied onto it first, see
-    ``rally.packing_lists.delete_template``). It carries its own ``name``,
-    ``description`` and ``pack_days_before``, and every item on it is one of
-    its own. SQLite treats NULLs as distinct in a unique index, so any number
-    of templateless days can share a date.
+    ``pack_days_before`` is this list's own lead time; NULL follows the
+    longest lead time among its templates, and is only allowed while it
+    includes one (``rally.packing_lists.pack_days_before``).
 
-    ``item_order`` is the day's hand-arranged order, a list of
-    ``"template:<id>"`` / ``"day:<id>"`` keys; NULL is the default order (the
-    template's, then the day's own). Nothing enforces its contents, so
+    ``description`` is the list's own; a list with none that includes exactly
+    one template reads that template's.
+
+    ``item_order`` is the list's hand-arranged order, a list of
+    ``"template:<id>"`` / ``"day:<id>"`` keys; NULL is the default order (each
+    template's items in the order the templates were included, then the
+    list's own). Nothing enforces its contents, so
     ``rally.packing_lists.resolve_day`` reads it leniently.
 
     ``date`` is ``String(10)`` YYYY-MM-DD like ``Todo.due_date``: a day on a
@@ -1041,30 +1044,48 @@ class PackingListDay(Base):
     __tablename__ = "packing_list_days"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    packing_list_template_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True
-    )  # FK to packing_list_templates.id; NULL for a templateless day
-    name: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Templateless only
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)  # Templateless only
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
     label: Mapped[str | None] = mapped_column(String(200), nullable=True)
     schedule_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True, index=True
-    )  # FK to packing_list_template_schedules.id; NULL for a day added by hand
+    )  # FK to packing_list_template_schedules.id; NULL for a list added by hand
     pack_days_before: Mapped[int | None] = mapped_column(
         Integer, nullable=True
-    )  # This day's own lead time; NULL follows the template's. Required when templateless
-    # Set once somebody edits this day's label: a schedule's relabel skips it.
+    )  # This list's own lead time; NULL follows its templates'. Required with none
+    # Set once somebody edits this list's label: a schedule's relabel skips it.
     label_edited: Mapped[bool] = mapped_column(default=False)
     item_order: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
+
+class PackingListDayTemplate(Base):
+    """A template a packing list includes, read live (#281).
+
+    ``position`` is the order the list reads its templates in: each one's
+    items, in the template's own order, then the next one's. Unique per
+    ``(day_id, packing_list_template_id)``: a template is on a list once.
+    Two templates that both hold "Toothbrush" put two toothbrushes on the
+    list; nothing is deduplicated, since they are likely in two bags.
+    """
+
+    __tablename__ = "packing_list_day_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to packing_list_days.id
+    packing_list_template_id: Mapped[int] = mapped_column(
+        Integer, index=True
+    )  # FK to packing_list_templates.id
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
     __table_args__ = (
         Index(
-            "ix_packing_list_days_packing_list_template_date",
+            "ix_packing_list_day_templates_day_template",
+            "day_id",
             "packing_list_template_id",
-            "date",
             unique=True,
         ),
     )
@@ -1276,29 +1297,35 @@ class PackingListDayBagCheck(Base):
 
 
 class EventPackingList(Base):
-    """A packing list template an event brings with it: "School backpack" on
-    every school drop-off.
+    """A packing list an event brings with it: "Dad Goes to South Carolina",
+    including "Dad's Overnight Bag", on the trip's first day (#281).
+
+    ``list_key`` is the list's identity on the event: its name, trimmed and
+    casefolded, when it was first added. Occurrence rows and the days the sync
+    put it on (``PackingListDayEvent``) refer to it by key, so renaming a
+    template the list is named after renames ``name`` and leaves the key.
+    ``name`` and ``template_ids`` (a JSON list of template ids, in order) are
+    what a day it puts the list on starts with; a removal row has neither.
 
     ``occurrence_date`` NULL is the series' own: every occurrence has it. Set,
     the row is one occurrence's difference, keyed on the occurrence's
     **original** local date (the key ``EventOverride`` uses, which survives the
     occurrence being moved): an addition only that occurrence has, or with
-    ``removed`` a series list that occurrence leaves out. An occurrence's lists
-    are the series', plus its additions, minus its removals
-    (``rally.packing_lists.occurrence_template_ids``).
+    ``removed`` a series list that occurrence leaves out
+    (``rally.packing_lists.occurrence_specs``).
 
-    Unique per ``(event_id, packing_list_template_id, IFNULL(occurrence_date,
-    ''))``: SQLite treats NULLs as distinct, and the series' row has to count as
-    one row like any other.
+    Unique per ``(event_id, list_key, IFNULL(occurrence_date, ''))``: SQLite
+    treats NULLs as distinct, and the series' row has to count as one row like
+    any other.
     """
 
     __tablename__ = "event_packing_lists"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     event_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to events.id
-    packing_list_template_id: Mapped[int] = mapped_column(
-        Integer, index=True
-    )  # FK to packing_list_templates.id
+    list_key: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    template_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
     occurrence_date: Mapped[str | None] = mapped_column(
         String(10), nullable=True
     )  # YYYY-MM-DD, original local date; NULL for the whole series
@@ -1307,9 +1334,9 @@ class EventPackingList(Base):
 
     __table_args__ = (
         Index(
-            "ix_event_packing_lists_event_template_occurrence",
+            "ix_event_packing_lists_event_list_occurrence",
             "event_id",
-            "packing_list_template_id",
+            "list_key",
             text("IFNULL(occurrence_date, '')"),
             unique=True,
         ),
@@ -1320,12 +1347,12 @@ class PackingListDayEvent(Base):
     """A day an event put a packing list on, or adopted: the link that makes the
     day move and go with the event.
 
-    One row per event occurrence, template and date. A day can have any number
-    of rows — two events that both bring "Beach day" on Saturday share the one
-    day — and it goes when its last row does. ``day_id`` NULL is a date the
-    list was taken off on the Packing Lists page while the occurrence kept it
-    on its other dates (an "Every day" occurrence): the row stays so that date
-    is never filled again.
+    One row per event occurrence, list (``list_key``, the event's key for it)
+    and date. A day can have any number of rows — two events that both bring
+    "Beach day" on Saturday share the one day — and it goes when its last row
+    does. ``day_id`` NULL is a date the list was taken off on the Packing Lists
+    page while the occurrence kept it: the row stays so that date is never
+    filled again.
 
     ``rally.packing_lists.sync_event_packing_lists`` is the one writer.
     """
@@ -1338,9 +1365,7 @@ class PackingListDayEvent(Base):
     )  # FK to packing_list_days.id; NULL for a date taken off by hand
     event_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to events.id
     occurrence_date: Mapped[str] = mapped_column(String(10))  # Original local date
-    packing_list_template_id: Mapped[int] = mapped_column(
-        Integer, index=True
-    )  # FK to packing_list_templates.id
+    list_key: Mapped[str] = mapped_column(String(100))  # EventPackingList.list_key
     date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD the list sits on
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
 
@@ -1349,7 +1374,7 @@ class PackingListDayEvent(Base):
             "ix_packing_list_day_events_unique",
             "event_id",
             "occurrence_date",
-            "packing_list_template_id",
+            "list_key",
             "date",
             unique=True,
         ),
