@@ -603,32 +603,24 @@
                 return spanLabel(start, addDays(start, ROLLING_RANGE_DAYS.rolling3 - 1));
             }
             if (range === 'rolling30') {
-                const end = addDays(startOfDay(anchor), ROLLING_RANGE_DAYS.rolling30 - 1);
-                return `${anchor.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
+                const start = startOfDay(anchor);
+                return spanLabel(start, addDays(start, ROLLING_RANGE_DAYS.rolling30 - 1));
             }
             if (range === 'day') {
-                return startOfDay(anchor).toLocaleDateString(undefined, {
-                    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-                });
+                return formatDate(startOfDay(anchor), { weekday: true, month: 'long' });
             }
             if (range === 'week') {
                 const start = startOfWeek(anchor);
                 return spanLabel(start, addDays(start, 6));
             }
-            return anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            return formatDate(anchor, { month: 'long', day: false });
         }
 
-        /* A span of days as one title. One that stays in one month reads
-           "August 9 – 15, 2026"; one that straddles repeats the month. Built by
-           hand because toLocaleDateString has no {day, year} format and
-           silently produces "2026 (day: 15)" if you ask for one. Week and
-           `Next 3 days` both name a span and share it. */
+        /* A span of days as one title: "August 9 – 15, 2026", "October 28 –
+           November 3, 2026", "December 28, 2026 – January 3, 2027". Week and
+           both rolling ranges name a span and share it. */
         function spanLabel(start, end) {
-            const left = start.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
-            const right = start.getMonth() === end.getMonth()
-                ? `${end.getDate()}, ${end.getFullYear()}`
-                : end.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-            return `${left} – ${right}`;
+            return formatDateRange(start, end, { month: 'long' });
         }
 
         function occurrencesOn(dateIso) {
@@ -1020,7 +1012,7 @@
 
                 // One day in the window means the range title has already said
                 // which day it is; a heading here would repeat it an inch below.
-                const heading = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+                const heading = formatDate(day, { weekday: true, month: 'long', year: 'never' });
                 const headingHtml = range === 'day'
                     ? ''
                     : `<div class="agenda-heading">${escapeHtml(heading)}${iso === todayIso() ? ' · Today' : ''}</div>`;

@@ -198,15 +198,10 @@
         // you ticked off an hour ago, absolute is right for an archive.
         function formatPurchasedDate(value) {
             if (!value) return '';
-            const date = new Date(value.endsWith('Z') || value.includes('+') ? value : value + 'Z');
+            const date = parseTimestamp(value);
             if (isNaN(date)) return '';
-            return `<div class="shopping-completed-at">Purchased ${formatDayMonth(date)}</div>`;
-        }
-
-        function formatDayMonth(date) {
-            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return `${dayNames[date.getDay()]}, ${monthNames[date.getMonth()]} ${date.getDate()}`;
+            const day = formatDate(date, { weekday: true, month: 'short', year: 'never' });
+            return `<div class="shopping-completed-at">Purchased ${day}</div>`;
         }
 
         // ── Event handlers ──
