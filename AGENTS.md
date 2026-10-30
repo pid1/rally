@@ -389,6 +389,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 2. **Idempotent**: Each migration checks if changes are already applied before executing
 3. **Ordered**: Migrations run in the order they're listed in `run_migrations.py`
 4. **Fail-Safe**: If any migration fails, the container won't start
+5. **Version-Stamped**: A successful run writes the highest migration number to `PRAGMA user_version`. A database stamped higher than the code's own highest migration is **refused before any migration runs**, with a message naming both numbers: it was migrated by newer code (a later release, or a feature branch), so this code cannot read its schema. A database last migrated before the stamp existed reads as `0` and is not caught
 
 ### Migration Files
 
