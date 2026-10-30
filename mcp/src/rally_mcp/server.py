@@ -17,7 +17,7 @@ import json
 from fastmcp import FastMCP
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from rally_mcp import tools
+from rally_mcp import generated, tools
 from rally_mcp.access import JWT_HEADER, AccessDenied, AccessVerifier
 from rally_mcp.config import Settings
 from rally_mcp.rally import CallContext, RallyClient, current_call
@@ -105,6 +105,13 @@ class AccessGate:
             )
             return
 
+        # Nothing the caller sent may speak for rally-mcp to Rally.
+        scope = dict(scope)
+        scope["headers"] = [
+            (k, v)
+            for k, v in scope["headers"]
+            if not k.decode("latin-1").lower().startswith(("x-rally-", "x-forwarded-user"))
+        ]
         token = current_call.set(
             CallContext(
                 identity=identity,
@@ -120,15 +127,30 @@ class AccessGate:
 
 
 def build(
-    settings: Settings, *, verifier: AccessVerifier | None = None, rally: RallyClient | None = None
+    settings: Settings,
+    *,
+    spec: dict | None = None,
+    verifier: AccessVerifier | None = None,
+    rally: RallyClient | None = None,
+    generated_transport=None,
 ):
-    """The FastMCP server and the ASGI app that serves it behind ``AccessGate``."""
+    """The FastMCP server and the ASGI app that serves it behind ``AccessGate``.
+
+    ``spec`` is Rally's MCP OpenAPI document; without it only the hand-written
+    tools are served.
+    """
     rally = rally or RallyClient(settings.rally_url, settings.service_token)
     verifier = verifier or AccessVerifier(
         certs_url=settings.certs_url, issuer=settings.issuer, audience=settings.audience
     )
     mcp = FastMCP("Rally", instructions=INSTRUCTIONS, mask_error_details=True)
     tools.register(mcp, rally)
+    if spec is not None:
+        client = generated.build_client(
+            settings.rally_url, settings.service_token, transport=generated_transport
+        )
+        mcp.mount(generated.build(spec, client))
+        mcp.add_middleware(generated.CallTagger(generated.untrusted_tools(spec)))
     inner = mcp.http_app(
         path=settings.mcp_path,
         stateless_http=True,

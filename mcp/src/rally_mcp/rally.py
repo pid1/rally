@@ -36,6 +36,31 @@ class CallContext:
 current_call: ContextVar[CallContext | None] = ContextVar("rally_mcp_call", default=None)
 
 
+def identity_headers(call: CallContext | None) -> dict[str, str]:
+    """The ``X-Rally-Mcp-*`` headers naming who a request to Rally is for."""
+    if call is None:
+        return {}
+    ident = call.identity
+    values = {
+        "Email": ident.email,
+        "Jwt-Sub": ident.subject,
+        "Connection-Id": ident.connection_id,
+        "Client": ident.client,
+        "Client-Ip": call.client_ip,
+        "Cf-Ray": call.cf_ray,
+        "User-Agent": call.user_agent,
+        "Tool": call.tool,
+        "Arguments": json.dumps(call.arguments, default=str)[:4000] if call.tool else None,
+        "Request-Id": call.request_id,
+    }
+    # Header values must be latin-1; JSON escapes anything else.
+    return {
+        f"X-Rally-Mcp-{name}": value.encode("latin-1", "replace").decode("latin-1")
+        for name, value in values.items()
+        if value
+    }
+
+
 class RallyError(Exception):
     def __init__(self, status: int, detail: str) -> None:
         super().__init__(f"Rally answered {status}: {detail}")
@@ -50,30 +75,10 @@ class RallyClient:
         self._status: tuple[float, bool] | None = None
 
     def _headers(self) -> dict[str, str]:
-        headers = {"X-Rally-Service-Token": self._service_token}
-        call = current_call.get()
-        if call is None:
-            return headers
-        ident = call.identity
-        values = {
-            "Email": ident.email,
-            "Jwt-Sub": ident.subject,
-            "Connection-Id": ident.connection_id,
-            "Client": ident.client,
-            "Client-Ip": call.client_ip,
-            "Cf-Ray": call.cf_ray,
-            "User-Agent": call.user_agent,
-            "Tool": call.tool,
-            "Arguments": json.dumps(call.arguments, default=str)[:4000] if call.tool else None,
-            "Request-Id": call.request_id,
+        return {
+            "X-Rally-Service-Token": self._service_token,
+            **identity_headers(current_call.get()),
         }
-        for name, value in values.items():
-            if value:
-                # Header values must be latin-1; JSON escapes anything else.
-                headers[f"X-Rally-Mcp-{name}"] = value.encode("latin-1", "replace").decode(
-                    "latin-1"
-                )
-        return headers
 
     async def request(self, method: str, path: str, **kwargs):
         response = await self._http.request(method, path, headers=self._headers(), **kwargs)

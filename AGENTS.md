@@ -402,8 +402,10 @@ must go through the audit layer and ship with an audit test.** Never write an
 - [ ] A setting with its own semantics (like `mcp_enabled`) gets a dedicated
       endpoint that writes an explicit `recorder.record(...)` event, and its key
       goes in `RESERVED_SETTING_KEYS` so the generic `/api/settings` refuses it.
-- [ ] If rally-mcp must call it, it is added to `MCP_ALLOWED_ROUTES` in
-      `rally/audit/middleware.py` — nothing else is reachable with an MCP identity.
+- [ ] Every new `/api` route becomes a Claude tool automatically (see
+      `rally/audit/mcp_policy.py`). If it exposes secrets or identity, add it to
+      `DENIED` with the reason; if its response carries outside text, add it to
+      `UNTRUSTED`; if it reaches outside Rally, to `OPEN_WORLD`.
 - [ ] A test asserts the events it produces (see `tests/test_audit.py`).
       `tests/test_audit_coverage.py` already calls every registered route and
       fails if one leaves no audit event; it needs no edit, but it must pass.
