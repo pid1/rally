@@ -131,6 +131,8 @@ The sample family is Mom, Dad, Emma and Jake. The data is anchored to the day yo
 
 Migrations are plain Python files under `migrations/`, run in order by `migrations/run_migrations.py`, which `entrypoint.sh` executes on container startup. Every migration is **idempotent**: it checks whether its change already exists before applying it, so running it twice is safe and an upgrade needs no manual step.
 
+A successful run records the highest migration number in the database (`PRAGMA user_version`). If a database has been through a newer migration than the code you are running, from a later release or a feature branch, the run stops before changing anything and says so. Run the newer code, or restore a backup from before that upgrade.
+
 ```bash
 python3 migrations/run_migrations.py          # run them all
 python3 migrations/run_migrations.py && python3 migrations/run_migrations.py   # prove idempotency
