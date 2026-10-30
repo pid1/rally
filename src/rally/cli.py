@@ -159,11 +159,12 @@ def seed():
         db.commit()
 
         # Create sample events, including a recurring one, an all-day one, a
-        # multi-day span, one across noon, one across midnight and one with no
-        # length, so /calendar has something honest to render.
+        # multi-day span, one across noon, one across midnight, one running for
+        # days and one with no length, so /calendar has something honest to render.
         seed_tz = "America/Chicago"
         monday = today_utc() - timedelta(days=today_utc().weekday())
         event_specs = [
+            (dad, "Work conference", 0, "08:00", 57, None, "Convention center", [dad], None),
             (mom, "Scouts", 1, "19:00", 1, "FREQ=WEEKLY;BYDAY=TU", "Church hall", [mom, jake], 60),
             (dad, "Dentist — Emma", 2, "09:00", 1, None, "Dr. Kim", [dad, emma], 30),
             (mom, "Book fair", 2, "11:30", 2, None, "School library", [mom, emma], None),
