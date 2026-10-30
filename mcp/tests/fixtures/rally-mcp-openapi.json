@@ -2667,7 +2667,7 @@
       "type": "string"
      },
      "when_display": {
-      "description": "The detail view's ``When`` row, without a zone.\n\n``Friday, Oct 30, 2026 \u00b7 4:00 PM \u2013 4:30 PM`` for a timed event within\none day; ``Friday, Oct 30 \u2013 Sunday, Nov 1, 2026 \u00b7 All day`` for an\nall-day one; and a date on each end for a timed one that crosses\nmidnight, ``Friday, Oct 30 10:30 PM \u2013 Saturday, Oct 31, 2026 6:15 AM``.\nThe notice's ``When:`` line (``notifications.when_label``) has the same\nshapes and names its zone; this row never has.",
+      "description": "The detail view's ``When`` row, without a zone.\n\n``Friday, Oct 30, 2026 \u00b7 4:00 \u2013 4:30 PM`` for a timed event within\none day (``display_time_range``); ``Friday, Oct 30 \u2013 Sunday, Nov 1,\n2026 \u00b7 All day`` for an all-day one; and a date on each end for a timed\none that crosses midnight, ``Friday, Oct 30 10:30 PM \u2013 Saturday, Oct\n31, 2026 6:15 AM``.\nThe notice's ``When:`` line (``notifications.when_label``) has the same\nshapes and names its zone; this row never has.",
       "readOnly": true,
       "title": "When Display",
       "type": "string"
