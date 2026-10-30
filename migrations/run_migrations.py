@@ -3,9 +3,52 @@
 
 This script runs all migration files in sequence. Each migration should be idempotent.
 Add new migrations by importing them here and adding to the MIGRATIONS list.
+
+A successful run stamps the highest migration number into the database's
+``PRAGMA user_version``. A database stamped higher than this code's own highest
+migration has been through migrations this code has never heard of, so its
+schema is unknown here: the run stops before touching it rather than crashing
+part-way through a migration, or quietly reshaping a table that has moved on.
 """
 
+import os
+import sqlite3
 import sys
+from pathlib import Path
+
+
+def _database_path():
+    """Where the database is, by the rule every migration follows."""
+    db_path = os.environ.get("RALLY_DB_PATH")
+    if db_path:
+        return Path(db_path)
+    prod_path = Path("/data/rally.db")
+    return prod_path if prod_path.exists() else Path(__file__).parent.parent / "rally.db"
+
+
+def _schema_version():
+    """The migration number the database was stamped with; None with no database."""
+    db_path = _database_path()
+    if not db_path.exists():
+        return None
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute("PRAGMA user_version").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _record_schema_version(version):
+    """Stamp the database, if there is one yet: a first run may precede init_db."""
+    db_path = _database_path()
+    if not db_path.exists():
+        return
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(f"PRAGMA user_version = {int(version)}")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def run_migrations():
@@ -158,6 +201,21 @@ def run_migrations():
     print("Running Rally database migrations...")
     print("=" * 60)
 
+    # Not simply the last entry: the list is not in number order.
+    latest = max(int(name.split("_", 1)[0]) for name, _ in migrations)
+    version = _schema_version()
+    if version is not None and version > latest:
+        print(
+            f"\n✗ This database has been through migration {version:03d}, but this "
+            f"code stops at {latest:03d}."
+        )
+        print("  It was migrated by a newer version of Rally, so nothing was changed.")
+        print("  Run the newer code, or restore a backup from before that upgrade.")
+        print("\n" + "=" * 60)
+        print("✗ Migrations failed")
+        print("=" * 60)
+        return False
+
     success = True
     for name, migration_func in migrations:
         print(f"\n[{name}]")
@@ -171,6 +229,9 @@ def run_migrations():
             print(f"✗ Migration {name} raised exception: {e}")
             success = False
             break
+
+    if success:
+        _record_schema_version(latest)
 
     print("\n" + "=" * 60)
     if success:
