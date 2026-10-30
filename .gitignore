@@ -69,3 +69,7 @@ envrc
 
 # Claude Code (local agent config, e.g. launch.json)
 .claude/
+
+# rally-mcp deploy secrets
+deploy/rally-mcp/.env
+deploy/cloudflare/config.toml

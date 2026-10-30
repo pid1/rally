@@ -85,6 +85,9 @@ class FamilyMemberBase(BaseModel):
     # is the default, not an error state.
     pushover_user_key: str | None = None
     pushover_device: str | None = None
+    # Sign-in email (Cloudflare Access / GitHub primary, Tailscale login): how
+    # MCP calls and tailnet requests are attributed to this person.
+    email: str | None = None
 
 
 def _check_notification_kinds(values: dict[str, bool] | None) -> dict[str, bool] | None:
@@ -125,6 +128,7 @@ class FamilyMemberUpdate(BaseModel):
     color: str | None = None
     pushover_user_key: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     pushover_device: str | None = UNSET
+    email: str | None = UNSET
     # A *partial* map: kinds left out keep whatever they resolve to today.
     # UNSET means "not provided", the same distinction the fields above draw.
     notifications: dict[str, bool] | None = UNSET

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from rally import member_colors, member_prefs, notification_prefs, packing_lists
+from rally.audit import context as audit_context
 from rally.database import get_db
 from rally.models import Calendar, FamilyMember
 from rally.schemas import UNSET, FamilyMemberCreate, FamilyMemberResponse, FamilyMemberUpdate
@@ -26,6 +27,11 @@ def _response(db: Session, member: FamilyMember) -> FamilyMemberResponse:
     """
     body = FamilyMemberResponse.model_validate(member)
     body.notifications = notification_prefs.preferences(db, member.id)
+    if audit_context.current().source == audit_context.SOURCE_MCP:
+        # Claude gets names and colors, not the keys that would let anyone
+        # push to a family member's phone.
+        body.pushover_user_key = None
+        body.pushover_device = None
     return body
 
 
@@ -57,6 +63,7 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
         color=color,
         pushover_user_key=(member.pushover_user_key or None),
         pushover_device=(member.pushover_device or None),
+        email=_clean_email(member.email),
     )
     db.add(db_member)
     db.commit()
@@ -80,6 +87,10 @@ def create_family_member(member: FamilyMemberCreate, db: Session = Depends(get_d
     if member.notifications:
         notification_prefs.set_preferences(db, db_member.id, member.notifications)
     return _response(db, db_member)
+
+
+def _clean_email(value: str | None) -> str | None:
+    return (value or "").strip().lower() or None
 
 
 @router.get("/{member_id}", response_model=FamilyMemberResponse)
@@ -110,6 +121,8 @@ def update_family_member(
         db_member.pushover_user_key = (member.pushover_user_key or "").strip() or None
     if member.pushover_device is not UNSET:
         db_member.pushover_device = (member.pushover_device or "").strip() or None
+    if member.email is not UNSET:
+        db_member.email = _clean_email(member.email)
 
     db.commit()
     db.refresh(db_member)

@@ -1,0 +1,46 @@
+[project]
+name = "rally-mcp"
+version = "0.1.0"
+description = "Rally's MCP server: Claude reads and updates Rally through Cloudflare Access"
+readme = "README.md"
+requires-python = ">=3.15"
+dependencies = [
+    "fastmcp>=4.1.1",
+    "httpx>=0.28.1",
+    "pyjwt[crypto]>=2.15.1",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+rally-mcp = "rally_mcp.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "ruff>=0.15",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py315"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.uv]
+# Same supply-chain policy as Rally: nothing is installed until it has been
+# public for 7 days.
+exclude-newer = "7 days"

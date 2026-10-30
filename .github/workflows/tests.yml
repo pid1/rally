@@ -30,6 +30,34 @@ jobs:
       - name: Check formatting
         run: uv run ruff format --check .
 
+  # rally-mcp (mcp/) is its own uv project with its own lockfile and tests.
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.1"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv run pytest -v
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
   # The design-system regression suite drives a real browser, so it needs a
   # Chromium download and runs on its own. tests/visual skips itself in the job
   # above, where Playwright is deliberately not installed.

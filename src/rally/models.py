@@ -40,6 +40,11 @@ class FamilyMember(Base):
     pushover_device: Mapped[str | None] = mapped_column(
         String(64), nullable=True
     )  # Optional Pushover device name; NULL means all of their devices
+    # The address this person signs in with — their Cloudflare Access (GitHub
+    # primary) email for MCP, and their Tailscale login. It is how an MCP call
+    # or a tailnet request is attributed to a person in the audit log; NULL
+    # means nothing is ever attributed to them by identity.
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
@@ -1349,3 +1354,66 @@ class PackingListDayEvent(Base):
             unique=True,
         ),
     )
+
+
+class AuditEvent(Base):
+    """One thing that happened to Rally's data, and who did it.
+
+    Written by ``rally.audit`` from the data layer itself (session flush and
+    execute hooks), never by a router, so nothing can change — or read — data
+    without leaving a row here. Append-only: triggers created with the table
+    (and by migration 041) refuse UPDATE and DELETE.
+    """
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUIDv7, sorts by time
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC, ms precision
+    actor_type: Mapped[str] = mapped_column(String(20))  # user, mcp_client, system, job
+    actor_id: Mapped[str] = mapped_column(String(200), index=True)
+    actor_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source: Mapped[str] = mapped_column(String(10), index=True)  # web, api, mcp, job
+    client_info: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    request_id: Mapped[str] = mapped_column(String(36), index=True)
+    action: Mapped[str] = mapped_column(String(100), index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    before: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    mcp_tool: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    mcp_arguments: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(10))  # success, failure, denied
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The actor could not be identified (served on the tailnet anyway).
+    flagged: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    __table_args__ = (Index("ix_audit_events_entity", "entity_type", "entity_id"),)
+
+
+class McpConnection(Base):
+    """One MCP authorization a household member approved.
+
+    A connection is first seen when rally-mcp forwards a call carrying a
+    connection id Rally has not met; that first sighting is the "new connection
+    authorized" audit event and alert. Revoking happens in Cloudflare Zero
+    Trust, which Rally cannot observe, so ``last_seen_at`` is what tells a live
+    connection from a forgotten one.
+    """
+
+    __tablename__ = "mcp_connections"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)  # connection id
+    family_member_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    email: Mapped[str] = mapped_column(String(200))
+    jwt_subject: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    client: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    first_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(default=now_utc)
+    last_seen_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+
+# Registers the audit log's session hooks. Imported here, after every model is
+# defined, so any process that can touch the database — the app, a job, the
+# CLI, the test suite — is audited without having to remember to import it.
+from rally.audit import recorder as _audit_recorder  # noqa: E402, F401

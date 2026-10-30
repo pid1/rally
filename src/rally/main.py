@@ -8,12 +8,15 @@ from sqlalchemy.orm import Session
 from starlette.responses import Response
 
 from rally import member_colors, member_prefs
+from rally.audit.middleware import AuditMiddleware
 from rally.database import get_db, init_db
 from rally.routers import (
+    audit,
     dashboard,
     devices,
     events,
     family,
+    mcp,
     meal_planner,
     notes,
     packing_lists,
@@ -55,6 +58,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Every request gets an actor and an audit event; MCP identity is checked here,
+# before any handler runs. See rally/audit/middleware.py.
+app.add_middleware(AuditMiddleware, fastapi_app=app)
+
 # Static files
 static_dir = BASE_DIR / "static"
 if static_dir.is_dir():
@@ -62,6 +69,8 @@ if static_dir.is_dir():
 
 # Include routers
 app.include_router(dashboard.router)
+app.include_router(audit.router)
+app.include_router(mcp.router)
 app.include_router(events.router)
 app.include_router(todos.router)
 app.include_router(meal_planner.router)
