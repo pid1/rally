@@ -454,7 +454,7 @@ def test_an_addition_reads_as_the_whole_notice(
 
     assert mock_pushover.sent[0]["title"] == "Calendar Addition: Soccer practice"
     assert mock_pushover.sent[0]["message"] == (
-        "When: Friday, Aug 14, 2026 · 5:30 to 6:30 PM CDT\nWhere: Field 3\nAttendees: Emma, Rodryk"
+        "When: Friday, Aug 14, 2026 · 5:30 – 6:30 PM CDT\nWhere: Field 3\nAttendees: Emma, Rodryk"
     )
 
 
@@ -475,7 +475,7 @@ def test_a_repeating_addition_reads_as_the_whole_notice(
     )
 
     assert mock_pushover.sent[0]["message"] == (
-        "When: Friday, Aug 14, 2026 · 5:30 to 6:30 PM CDT\n"
+        "When: Friday, Aug 14, 2026 · 5:30 – 6:30 PM CDT\n"
         "Where: Field 3\n"
         "Attendees: Emma, Rodryk\n"
         "This event repeats weekly on Friday"
@@ -486,7 +486,7 @@ def test_a_repeating_addition_reads_as_the_whole_notice(
 
 
 def test_a_time_crossing_noon_states_both_meridiems(client, token, reachable, mock_pushover):
-    """ "11:30 to 1:00 PM" would be an hour and a half of guesswork."""
+    """ "11:30 – 1:00 PM" would be an hour and a half of guesswork."""
     _create(
         client,
         start="2026-08-14T11:30",
@@ -494,9 +494,7 @@ def test_a_time_crossing_noon_states_both_meridiems(client, token, reachable, mo
         attendee_ids=[reachable.id],
     )
 
-    assert (
-        "When: Friday, Aug 14, 2026 · 11:30 AM to 1:00 PM CDT" in mock_pushover.sent[0]["message"]
-    )
+    assert "When: Friday, Aug 14, 2026 · 11:30 AM – 1:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_an_event_with_no_duration_states_one_time(client, token, reachable, mock_pushover):
@@ -603,7 +601,7 @@ def test_the_notice_dates_the_event_in_the_servers_local_time(
     """9:00 AM Chicago is 14:00 UTC — the notice must say the local reading."""
     _create(client, attendee_ids=[reachable.id])
 
-    assert "When: Friday, Aug 14, 2026 · 9:00 to 10:00 AM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: Friday, Aug 14, 2026 · 9:00 – 10:00 AM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_an_all_day_notice_carries_the_date_without_inventing_a_time(
@@ -662,7 +660,7 @@ def test_a_recurring_notice_describes_the_next_occurrence(client, token, reachab
         attendee_ids=[reachable.id],
     )
 
-    assert "When: Tuesday, Aug 11, 2026 · 7:00 to 8:00 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: Tuesday, Aug 11, 2026 · 7:00 – 8:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_an_event_with_no_attendees_announces_nothing(client, token, reachable, mock_pushover):
@@ -677,7 +675,7 @@ def test_a_modification_says_so(client, token, reachable, make_event, mock_pusho
 
     assert response.status_code == 200
     assert mock_pushover.sent[0]["title"] == "Calendar Modification: Dentist"
-    assert "When: Friday, Aug 14, 2026 · 10:30 to 11:30 AM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: Friday, Aug 14, 2026 · 10:30 – 11:30 AM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_modifying_one_occurrence_names_that_occurrence_not_the_next_one(
@@ -698,7 +696,7 @@ def test_modifying_one_occurrence_names_that_occurrence_not_the_next_one(
     )
 
     assert response.status_code == 200
-    assert "When: Tuesday, Aug 18, 2026 · 5:30 to 6:30 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: Tuesday, Aug 18, 2026 · 5:30 – 6:30 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_modifying_the_rest_of_a_series_announces_the_edited_tail(
@@ -719,7 +717,7 @@ def test_modifying_the_rest_of_a_series_announces_the_edited_tail(
 
     assert response.status_code == 200
     assert mock_pushover.sent[0]["title"] == "Calendar Modification: Scouts (new time)"
-    assert "When: Tuesday, Aug 18, 2026 · 5:30 to 6:30 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: Tuesday, Aug 18, 2026 · 5:30 – 6:30 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_deleting_an_event_announces_the_deletion(
@@ -734,7 +732,7 @@ def test_deleting_an_event_announces_the_deletion(
 
     assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Dentist"
     assert mock_pushover.sent[0]["message"] == (
-        "When: Friday, Aug 14, 2026 · 9:00 to 10:00 AM CDT\nWhere: Dr. Kim\nAttendees: Emma"
+        "When: Friday, Aug 14, 2026 · 9:00 – 10:00 AM CDT\nWhere: Dr. Kim\nAttendees: Emma"
     )
 
 
@@ -767,7 +765,7 @@ def test_deleting_one_occurrence_names_that_occurrence(
 
     assert response.status_code == 204
     assert mock_pushover.sent[0]["title"] == "Calendar Deletion: Scouts"
-    assert "When: Tuesday, Aug 18, 2026 · 7:00 to 8:00 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: Tuesday, Aug 18, 2026 · 7:00 – 8:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_deleting_the_rest_of_a_series_names_the_first_occurrence_removed(
@@ -785,7 +783,7 @@ def test_deleting_the_rest_of_a_series_names_the_first_occurrence_removed(
     )
 
     assert response.status_code == 204
-    assert "When: Tuesday, Aug 18, 2026 · 7:00 to 8:00 PM CDT" in mock_pushover.sent[0]["message"]
+    assert "When: Tuesday, Aug 18, 2026 · 7:00 – 8:00 PM CDT" in mock_pushover.sent[0]["message"]
 
 
 def test_a_deletion_notice_records_against_a_surviving_series(
