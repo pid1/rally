@@ -10,9 +10,12 @@ or rally/audit/mcp_policy.py:
 
 import json
 import pathlib
+import sys
 import warnings
 
 warnings.filterwarnings("ignore")
+# src layout, not installed: put src on the path the way pytest's `pythonpath` does.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 
 from rally.audit import mcp_policy  # noqa: E402
 from rally.main import app  # noqa: E402

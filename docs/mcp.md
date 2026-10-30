@@ -312,6 +312,20 @@ Rally has seen.
   also disconnect the connector in Claude.
 - **Updating:** pull `ghcr.io/pid1/rally-mcp:latest` and re-run
   `docker compose up -d` (or `./up.sh`). Rally updates as usual.
+- **Updating automatically:** a push to `main` publishes both images, and
+  on Unraid, CA Auto Update keeps Rally current once its template's
+  Repository is `ghcr.io/pid1/rally:latest`. rally-mcp isn't a template, so
+  `deploy/rally-mcp/auto-update.sh` does the same for it. It pulls the image
+  and, when it has changed, re-runs `up.sh`. Schedule it every minute, the
+  same cadence as Rally, in `/boot/config/plugins/dynamix/rally-mcp-update.cron`:
+
+  ```text
+  * * * * * /mnt/user/appdata/rally-mcp/auto-update.sh >/dev/null 2>&1
+  ```
+
+  Then run `update_cron`. The file survives a reboot. An update recreates
+  the tunnel too, so the connector drops for a few seconds. A local build in
+  `RALLY_MCP_IMAGE` (no registry in its name) is left alone.
 
 ### Agent instructions
 
