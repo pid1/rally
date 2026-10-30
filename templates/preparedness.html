@@ -167,6 +167,16 @@
         const UNASSIGNED = 'unassigned';
         const REFRESH_MS = 60000;   // multi-device sync + the local-midnight rollover
 
+        // A refresh date as the server words it too (`refresh_date_label`):
+        // `Saturday, Nov 14`, with the year only when it is not this one, in
+        // the Settings zone.
+        const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
+        function refreshDate(value) {
+            return formatDate(value, {
+                weekday: true, month: 'short', year: 'unlessThisYear', today: todayLocal(LOCAL_TIMEZONE),
+            });
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text == null ? '' : text;
@@ -241,10 +251,10 @@
 
         function scheduleText(item) {
             if (!item.next_refresh_date) return 'No refresh scheduled';
-            const d = item.next_refresh_date;
+            const d = refreshDate(item.next_refresh_date);
             if (item.status === 'overdue') return `Overdue since ${d}`;
-            if (item.days_until === 0) return `Refresh today (${d})`;
-            if (item.days_until === 1) return `Refresh tomorrow (${d})`;
+            if (item.days_until === 0) return 'Refresh today';
+            if (item.days_until === 1) return 'Refresh tomorrow';
             return `Refresh ${d} · ${item.days_until} days`;
         }
 

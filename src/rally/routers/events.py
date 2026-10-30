@@ -69,9 +69,9 @@ from rally.schemas import (
     RecurrenceDescribeRequest,
     RecurrenceDescribeResponse,
 )
-from rally.utils.display import display_time
+from rally.utils.display import display_date, display_time
 from rally.utils.settings import local_timezone_name
-from rally.utils.timezone import now_utc
+from rally.utils.timezone import now_utc, today_local
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -474,7 +474,7 @@ def list_occurrences(
     )
 
 
-def _reject_impossible_bound(event: Event) -> None:
+def _reject_impossible_bound(db: Session, event: Event) -> None:
     """Refuse an `Ends` value that contradicts the event it bounds.
 
     `Starts` and `Ends` are independent fields, so "ends before it begins" is a
@@ -496,11 +496,14 @@ def _reject_impossible_bound(event: Event) -> None:
 
     ends_on = series_end_date(event.rrule)
     if ends_on and ends_on < event.start_date:
+        today = today_local(local_timezone_name(db))
+        ends, starts = (
+            display_date(day, year="unless_this_year", today=today)
+            for day in (ends_on, event.start_date)
+        )
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"This repeat ends on {ends_on}, before the event starts on {event.start_date}."
-            ),
+            detail=f"This repeat ends on {ends}, before the event starts on {starts}.",
         )
 
     for part in event.rrule.split(";"):
@@ -553,7 +556,7 @@ def create_event(
         packing_list_span=payload.packing_list_span,
         **fields,
     )
-    _reject_impossible_bound(event)
+    _reject_impossible_bound(db, event)
     db.add(event)
     # Flushed, not committed: the event needs an id for its attendees and
     # packing lists, and a refused packing list sync must leave nothing behind.
@@ -713,7 +716,7 @@ def update_event(
     # app and not in anything that reuses a session — and a rejected write that
     # depends on teardown to stay rejected is not really rejected.
     try:
-        _reject_impossible_bound(event)
+        _reject_impossible_bound(db, event)
     except HTTPException:
         db.rollback()
         raise
@@ -884,7 +887,7 @@ def _split_series(
         packing_list_span=event.packing_list_span,
         **fields,
     )
-    _reject_impossible_bound(tail)
+    _reject_impossible_bound(db, tail)
     db.add(tail)
     db.flush()
 

@@ -879,7 +879,9 @@
         // use?", and a timestamp to the minute makes it harder to read, not
         // easier.
         function relativeTime(iso) {
-            const then = new Date(iso);
+            // `last_seen_at` arrives with no zone; parseTimestamp() reads it as
+            // the UTC it is, where `new Date()` would take it as local time.
+            const then = parseTimestamp(iso);
             if (Number.isNaN(then.getTime())) return 'at an unknown time';
             const days = Math.floor((Date.now() - then.getTime()) / 86400000);
             if (days <= 0) return 'today';

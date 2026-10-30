@@ -177,15 +177,19 @@ def packing_lists_previous_page(request: Request, db: Session = Depends(get_db))
 
 
 @app.get("/preparedness", response_class=HTMLResponse)
-def preparedness_page(request: Request):
+def preparedness_page(request: Request, db: Session = Depends(get_db)):
     """Serve the preparedness inventory page."""
-    return templates.TemplateResponse(request, "preparedness.html")
+    return templates.TemplateResponse(
+        request, "preparedness.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/go-list", response_class=HTMLResponse)
-def go_list_page(request: Request):
+def go_list_page(request: Request, db: Session = Depends(get_db)):
     """Serve the go list — the printable packing list, grouped by location."""
-    return templates.TemplateResponse(request, "go_list.html")
+    return templates.TemplateResponse(
+        request, "go_list.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/settings", response_class=HTMLResponse)

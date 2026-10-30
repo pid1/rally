@@ -39,10 +39,10 @@ EXPECTED_COUNTS = {
     # One Rally-owned calendar per family member, and no external feeds: a
     # seeded feed URL cannot resolve, so it would only ever render an error.
     "calendars": 4,
-    # The five sample events, plus the swim at Nana's, which brings its
+    # The eight sample events, plus the swim at Nana's, which brings its
     # packing list (#270).
-    "events": 6,
-    "event_attendees": 14,
+    "events": 9,
+    "event_attendees": 18,
     "settings": 5,
     "todos": 6,
     "recurring_todos": 3,
@@ -97,6 +97,21 @@ def _counts(session):
 def test_seed_populates_sample_data(cli_db):
     cli.seed()
     assert _counts(cli_db) == EXPECTED_COUNTS
+
+
+def test_seed_has_events_for_each_shape_of_time_range(cli_db):
+    """One across noon, one across midnight and one with no length, so `When` reads each."""
+    cli.seed()
+
+    book_fair = cli_db.query(Event).filter(Event.title == "Book fair").one()
+    assert book_fair.end_utc - book_fair.start_utc == timedelta(hours=2)
+    plumber = cli_db.query(Event).filter(Event.title == "Call the plumber").one()
+    assert plumber.end_utc == plumber.start_utc
+    sleepover = cli_db.query(Event).filter(Event.title == "Sleepover").one()
+    assert sleepover.end_utc - sleepover.start_utc == timedelta(hours=14)
+    assert date.fromisoformat(sleepover.end_date) == date.fromisoformat(
+        sleepover.start_date
+    ) + timedelta(days=1)
 
 
 def test_seed_creates_past_meals_for_history_filters(cli_db):

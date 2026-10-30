@@ -14,7 +14,8 @@ Saturday, Jan 2, 2027``.
 ``display_date`` takes options for the places that read a date more briefly
 or more fully, the same options the browser's ``formatDate()`` takes (#305):
 ``Due Sep 30`` on a task push, ``Wednesday, October 28, 2026`` on the
-Dashboard. A time of day reads ``4:00 PM`` (``display_time``).
+Dashboard. A time of day reads ``4:00 PM`` (``display_time``), and two of
+one day ``4:00 – 4:30 PM`` (``display_time_range``).
 
 Every date here is a local ISO date (``YYYY-MM-DD``), never an instant. An
 occurrence's dates are its own ``start_local_date`` / ``end_local_date``;
@@ -61,6 +62,20 @@ def _with_year(day: date) -> str:
     return f"{_without_year(day)}, {day.year}"
 
 
+def iso_date(value: date | str | None) -> str:
+    """A date as ``2026-11-14``, for a file a machine reads; ``""`` for none.
+
+    The machine-readable counterpart of ``display_date`` and the server's twin
+    of ``isoDate()`` in ``static/dates.js``: a spreadsheet sorts and parses
+    this, where it could do neither with ``Saturday, Nov 14``.
+    """
+    if not value:
+        return ""
+    if isinstance(value, str):
+        value = _parse(value)
+    return value.isoformat()
+
+
 def display_date(
     iso: str,
     *,
@@ -101,7 +116,7 @@ def display_time(
 
     ``moment`` is already in the zone to show; nothing here converts.
     ``meridiem=False`` leaves ``AM`` / ``PM`` off, for the first end of a range
-    that states it once (``5:30 to 6:30 PM``), and ``minutes="unless_zero"``
+    that states it once (``5:30 – 6:30 PM``), and ``minutes="unless_zero"``
     drops ``:00`` on the hour (``7 PM``), as the sports listings read.
     """
     hour = moment.hour % 12 or 12
@@ -118,6 +133,22 @@ def display_time(
 def is_morning(moment: datetime) -> bool:
     """Whether a time reads ``AM``: midnight through 11:59."""
     return moment.hour < 12
+
+
+def display_time_range(start: datetime, end: datetime) -> str:
+    """Two times of one day as ``4:00 – 4:30 PM``.
+
+    The meridiem is stated once when both ends share it and on both ends when
+    they do not (``11:30 AM – 1:00 PM``). An event with no length reads as its
+    start, ``4:00 PM``, rather than ``4:00 – 4:00 PM``. Both are already in the
+    zone to show. A span crossing midnight is ``display_dated_times``'s, since
+    each time there needs its own date.
+    """
+    if end <= start:
+        return display_time(start)
+    if is_morning(start) == is_morning(end):
+        return f"{display_time(start, meridiem=False)}{RANGE_SEPARATOR}{display_time(end)}"
+    return f"{display_time(start)}{RANGE_SEPARATOR}{display_time(end)}"
 
 
 def display_date_ends(start_iso: str, end_iso: str) -> tuple[str, str]:

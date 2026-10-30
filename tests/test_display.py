@@ -8,7 +8,7 @@ them. The notices' ``When:`` lines are pinned in ``tests/test_notifications.py``
 """
 
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -22,6 +22,8 @@ from rally.utils.display import (
     display_date_range,
     display_dated_times,
     display_time,
+    display_time_range,
+    iso_date,
     lead_time_label,
 )
 
@@ -125,6 +127,46 @@ def test_a_time_of_day(hour, minute, label, bare, on_the_hour):
 def test_a_time_converts_nothing():
     """The moment is already in the zone to show: 21:00 UTC reads 9:00 PM."""
     assert display_time(datetime(2026, 10, 28, 21, 0, tzinfo=UTC)) == "9:00 PM"
+
+
+# --- A time range (#317) -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "label"),
+    [
+        # Both ends share a meridiem: it is stated once, at the end.
+        ((16, 0), (16, 30), "4:00 – 4:30 PM"),
+        ((9, 0), (10, 0), "9:00 – 10:00 AM"),
+        ((12, 0), (13, 0), "12:00 – 1:00 PM"),
+        # The ends fall either side of noon: stated on both.
+        ((11, 30), (13, 0), "11:30 AM – 1:00 PM"),
+        ((11, 0), (12, 0), "11:00 AM – 12:00 PM"),
+        # No length: the start alone.
+        ((16, 0), (16, 0), "4:00 PM"),
+    ],
+)
+def test_a_time_range(start, end, label):
+    day = datetime(2026, 10, 30, tzinfo=CHICAGO)
+    start_at = day.replace(hour=start[0], minute=start[1])
+    end_at = day.replace(hour=end[0], minute=end[1])
+    assert display_time_range(start_at, end_at) == label
+
+
+# --- A date for a machine (#317) ---------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "label"),
+    [
+        (date(2026, 11, 14), "2026-11-14"),
+        ("2026-11-14", "2026-11-14"),
+        (None, ""),
+        ("", ""),
+    ],
+)
+def test_an_iso_date(value, label):
+    assert iso_date(value) == label
 
 
 # --- Two dates ---------------------------------------------------------------------
@@ -264,9 +306,29 @@ def test_a_timed_event_within_one_day():
         end_date="2026-10-30",
         notify=60,
     )
-    assert response.when_display == "Friday, Oct 30, 2026 · 4:00 PM – 4:30 PM"
+    assert response.when_display == "Friday, Oct 30, 2026 · 4:00 – 4:30 PM"
     assert response.reminder_display == "1 hour before"
     assert response.start_date_display == "Friday, Oct 30, 2026"
+
+
+def test_a_timed_event_with_no_length_reads_as_its_start():
+    response = _response(
+        start=_local(2026, 10, 30, 16, 0),
+        end=_local(2026, 10, 30, 16, 0),
+        start_date="2026-10-30",
+        end_date="2026-10-30",
+    )
+    assert response.when_display == "Friday, Oct 30, 2026 · 4:00 PM"
+
+
+def test_a_timed_event_across_noon_states_both_meridiems():
+    response = _response(
+        start=_local(2026, 10, 30, 11, 30),
+        end=_local(2026, 10, 30, 13, 0),
+        start_date="2026-10-30",
+        end_date="2026-10-30",
+    )
+    assert response.when_display == "Friday, Oct 30, 2026 · 11:30 AM – 1:00 PM"
 
 
 def test_an_all_day_event_on_one_day():
@@ -384,7 +446,7 @@ def test_the_api_sends_the_labels_the_page_shows(client):
     )
     assert created.status_code == 201, created.text
     occurrence = _occurrence(client, "Soccer practice")
-    assert occurrence["when_display"] == "Friday, Oct 30, 2026 · 4:00 PM – 4:30 PM"
+    assert occurrence["when_display"] == "Friday, Oct 30, 2026 · 4:00 – 4:30 PM"
     assert occurrence["reminder_display"] == "1 hour before"
     assert occurrence["start_date_display"] == "Friday, Oct 30, 2026"
 
