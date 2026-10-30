@@ -158,6 +158,15 @@ def test_a_second_note_for_one_day_is_a_409_naming_the_first(client):
     assert resp.json()["detail"]["id"] == first["id"]
 
 
+def test_a_409_names_the_day_as_people_read_it(client, frozen_now):
+    """`Thursday, Oct 29`, and the year only when it is not this one."""
+    frozen_now(datetime(2026, 10, 29, 17, 0))
+    for day, label in (("2026-10-29", "Thursday, Oct 29"), ("2027-01-02", "Saturday, Jan 2, 2027")):
+        _create(client, date_str=day, body="First")
+        resp = client.post("/api/notes", json={"date": day, "body": "Second"})
+        assert resp.json()["detail"]["message"] == f"A note already exists for {label}"
+
+
 def test_moving_a_note_onto_an_occupied_day_is_a_409(client):
     _create(client, date_str=_days(1), body="Tomorrow")
     second = _create(client, date_str=_days(2), body="Day after")

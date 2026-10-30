@@ -1,6 +1,6 @@
 """Rally CLI commands."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from rally import packing_lists as packing_lists_logic
 from rally.calendars import series_end_date
@@ -158,15 +158,19 @@ def seed():
             db.add(cal)
         db.commit()
 
-        # Create sample events, including a recurring one, an all-day one and a
-        # multi-day span, so /calendar has something honest to render.
+        # Create sample events, including a recurring one, an all-day one, a
+        # multi-day span, one across noon, one across midnight and one with no
+        # length, so /calendar has something honest to render.
         seed_tz = "America/Chicago"
         monday = today_utc() - timedelta(days=today_utc().weekday())
         event_specs = [
             (mom, "Scouts", 1, "19:00", 1, "FREQ=WEEKLY;BYDAY=TU", "Church hall", [mom, jake], 60),
             (dad, "Dentist — Emma", 2, "09:00", 1, None, "Dr. Kim", [dad, emma], 30),
+            (mom, "Book fair", 2, "11:30", 2, None, "School library", [mom, emma], None),
+            (dad, "Call the plumber", 3, "10:00", 0, None, "", [dad], None),
             (emma, "Piano lesson", 3, "16:00", 1, None, "Studio B", [emma], None),
             (jake, "Soccer practice", 4, "17:30", 2, None, "Field 4", [jake, dad], None),
+            (emma, "Sleepover", 4, "19:00", 14, None, "Olivia's house", [emma], None),
             (dad, "Camping trip", 5, None, 3, None, "Beavers Bend", [mom, dad, emma, jake], None),
         ]
 
@@ -191,12 +195,11 @@ def seed():
                     tzid=seed_tz,
                 )
             else:
-                start = f"{day.isoformat()}T{start_time}"
-                hour, minute = (int(part) for part in start_time.split(":"))
-                end_hour = hour + span
+                start = datetime.fromisoformat(f"{day.isoformat()}T{start_time}")
+                end = start + timedelta(hours=span)
                 times = resolve_event_times(
-                    start=start,
-                    end=f"{day.isoformat()}T{end_hour:02d}:{minute:02d}",
+                    start=start.strftime("%Y-%m-%dT%H:%M"),
+                    end=end.strftime("%Y-%m-%dT%H:%M"),
                     all_day=False,
                     tzid=seed_tz,
                 )

@@ -315,9 +315,8 @@ def _open_event_detail(page):
     page.select_option("#view-select", "agenda")
     page.select_option("#range-select", "rolling30")
     page.wait_for_timeout(600)
-    # Today's event, so it is reliably inside the window whatever day the
-    # seed is run on.
-    page.locator(".agenda-day .editable-item", has_text="Piano lesson").first.click()
+    # The weekly one, so it is inside the window whatever day the seed is run on.
+    page.locator(".agenda-day .editable-item", has_text="Scouts").first.click()
     page.wait_for_selector("#detail-modal-overlay .modal-content", state="visible")
     page.wait_for_timeout(300)
 
@@ -499,7 +498,7 @@ def _open_swim_remove(page):
     """Remove from day on the swim's entry: the name bold, the event quoted."""
     _open_card(SWIM_CARD, groups=None)(page)
     page.locator(SWIM_CARD).first.locator("[data-remove-day]").click()
-    page.wait_for_selector("#confirm-modal-overlay .modal-content", state="visible")
+    page.wait_for_selector("#dialog-modal-overlay .modal-content", state="visible")
     _park_pointer(page)
 
 
@@ -887,7 +886,7 @@ SHOTS: tuple[Shot, ...] = (
         "packing-list-remove-day",
         "/packing-lists",
         scale=1,
-        element="#confirm-modal-overlay .modal-content",
+        element="#dialog-modal-overlay .modal-content",
         setup=_open_swim_remove,
     ),
     Shot(

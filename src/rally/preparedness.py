@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from rally.models import FamilyMember, PrepItem, PrepLocation, PrepRefreshNotice, Setting
 from rally.notification_prefs import PREP_REFRESH, filter_recipients
+from rally.utils.display import display_date
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc, today_local
 
@@ -268,6 +269,15 @@ def _location_names(db: Session) -> dict[int, str]:
     return {loc.id: loc.name for loc in db.query(PrepLocation).all()}
 
 
+def refresh_date_label(iso: str, today: date) -> str:
+    """A refresh date as people read it, ``Saturday, Nov 14``.
+
+    The year only when it is not this one. The digest, the go list's exports and
+    (through ``formatDate()``) the Preparedness page all read it this way.
+    """
+    return display_date(iso, year="unless_this_year", today=today)
+
+
 def build_digest(db: Session, items: list[PrepItem], on_date: date) -> tuple[str, str]:
     """Render the digest title and body.
 
@@ -283,11 +293,8 @@ def build_digest(db: Session, items: list[PrepItem], on_date: date) -> tuple[str
     for item in items:
         where = names.get(item.location_id, "Unassigned")
         target = parse_date(item.next_refresh_date)
-        when = (
-            f"OVERDUE since {item.next_refresh_date}"
-            if target and on_date > target
-            else f"due {item.next_refresh_date}"
-        )
+        day = refresh_date_label(item.next_refresh_date, on_date)
+        when = f"OVERDUE since {day}" if target and on_date > target else f"due {day}"
         parts = [item.name, where, when]
         if item.quantity:
             parts.append(item.quantity)

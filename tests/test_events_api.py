@@ -7,6 +7,8 @@ rules that are easy to assume and easy to break: "all" keeps overrides, and the
 split point is a date rather than an index.
 """
 
+from datetime import datetime
+
 import pytest
 
 pytestmark = pytest.mark.usefixtures("local_timezone")
@@ -391,8 +393,9 @@ def test_update_with_a_null_rrule_clears_the_recurrence(client):
 # --- A recurrence that can never fire -----------------------------------------
 
 
-def test_an_end_date_before_the_start_is_rejected(client):
+def test_an_end_date_before_the_start_is_rejected(client, frozen_now):
     """The reachable contradiction: the form offers both fields independently."""
+    frozen_now(datetime(2026, 7, 22, 12, 0))
     response = client.post(
         "/api/events",
         json={
@@ -403,7 +406,9 @@ def test_an_end_date_before_the_start_is_rejected(client):
         },
     )
     assert response.status_code == 422
-    assert "before the event starts" in response.json()["detail"]
+    assert response.json()["detail"] == (
+        "This repeat ends on Saturday, Aug 1, before the event starts on Saturday, Sep 5."
+    )
 
 
 def test_a_zero_count_is_rejected(client):

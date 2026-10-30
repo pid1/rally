@@ -66,7 +66,7 @@ def test_a_timed_event_reads_its_date_and_reminder_in_words(page):
     )
     _open(page, event)
     assert page.inner_text("#detail-value-when") == (
-        f"{display_date(DAY.isoformat())} · 4:00 PM – 4:30 PM"
+        f"{display_date(DAY.isoformat())} · 4:00 – 4:30 PM"
     )
     assert page.inner_text("#detail-value-reminder") == "1 hour before"
 

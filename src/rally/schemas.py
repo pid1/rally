@@ -850,10 +850,11 @@ class OccurrenceResponse(BaseModel):
     def when_display(self) -> str:
         """The detail view's ``When`` row, without a zone.
 
-        ``Friday, Oct 30, 2026 · 4:00 PM – 4:30 PM`` for a timed event within
-        one day; ``Friday, Oct 30 – Sunday, Nov 1, 2026 · All day`` for an
-        all-day one; and a date on each end for a timed one that crosses
-        midnight, ``Friday, Oct 30 10:30 PM – Saturday, Oct 31, 2026 6:15 AM``.
+        ``Friday, Oct 30, 2026 · 4:00 – 4:30 PM`` for a timed event within
+        one day (``display_time_range``); ``Friday, Oct 30 – Sunday, Nov 1,
+        2026 · All day`` for an all-day one; and a date on each end for a timed
+        one that crosses midnight, ``Friday, Oct 30 10:30 PM – Saturday, Oct
+        31, 2026 6:15 AM``.
         The notice's ``When:`` line (``notifications.when_label``) has the same
         shapes and names its zone; this row never has.
         """
@@ -863,10 +864,13 @@ class OccurrenceResponse(BaseModel):
             return display.display_dated_times(
                 self.start_date, self.time_label, self.end_date, self.end_time_label
             )
-        return (
-            f"{display.display_date(self.start_date)} · {self.time_label}"
-            f"{display.RANGE_SEPARATOR}{self.end_time_label}"
+        # ``start_form`` / ``end_form`` are this occurrence's own local times in
+        # the install's zone, so the range is worded from them rather than from
+        # the labels, which already carry a meridiem each.
+        times = display.display_time_range(
+            datetime.fromisoformat(self.start_form), datetime.fromisoformat(self.end_form)
         )
+        return f"{display.display_date(self.start_date)} · {times}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
