@@ -623,6 +623,52 @@
             return formatDateRange(start, end, { month: 'long' });
         }
 
+        /* A timed event of a day or more: it ends at or after the same clock
+           time on the next date. Under that it reads as one event on the day
+           it starts, however late it runs (a sleepover); at or over it reads
+           as something going on all through each day it covers (a conference).
+           Compared on the local times the edit form shows, not the instants,
+           so 7 PM to 7 PM is a day even with a clock change between them. */
+        function runsFullDays(occurrence) {
+            const [day, time] = occurrence.start_form.split('T');
+            return occurrence.end_form >= `${shiftIsoDate(day, 1)}T${time}`;
+        }
+
+        /* What a month cell lists: a timed event under a full day appears on
+           the day it starts and no other. */
+        function monthOccurrencesOn(dateIso) {
+            return occurrencesOn(dateIso).filter(o => o.all_day
+                || o.start_date === dateIso
+                || runsFullDays(o));
+        }
+
+        /* An occurrence's time label in the agenda, on one of its dates. */
+        function agendaTimeLabel(occurrence, dateIso) {
+            if (occurrence.all_day) return 'All day';
+            if (occurrence.start_date === dateIso) return occurrence.time_label;
+            if (occurrence.end_date === dateIso) return `Until ${occurrence.end_time_label}`;
+            return 'All day';
+        }
+
+        /* Where a row falls in a day's agenda, in minutes from midnight: the
+           all-day rows first, then everything with a time by that time, so
+           `Until 9:00 AM` sits after an 8:00 AM event. */
+        function agendaOrder(occurrence, dateIso) {
+            const label = agendaTimeLabel(occurrence, dateIso);
+            if (label === 'All day') return -1;
+            return minutesFromLabel(occurrence.start_date === dateIso
+                ? occurrence.time_label
+                : occurrence.end_time_label);
+        }
+
+        /* A day's agenda rows, in that order. A stable sort, so rows that tie
+           keep the order the server gave them. */
+        function agendaOccurrencesOn(dateIso) {
+            return occurrencesOn(dateIso)
+                .slice()
+                .sort((a, b) => agendaOrder(a, dateIso) - agendaOrder(b, dateIso));
+        }
+
         function occurrencesOn(dateIso) {
             return occurrences.filter(o => o.dates.includes(dateIso));
         }
@@ -659,7 +705,7 @@
                 if (day.getMonth() !== month) classes.push('is-outside');
                 if (iso === today) classes.push('is-today');
 
-                const dayEvents = occurrencesOn(iso);
+                const dayEvents = monthOccurrencesOn(iso);
                 const shown = dayEvents.slice(0, 3);
                 const hidden = dayEvents.length - shown.length;
 
@@ -676,7 +722,11 @@
                     + `<span class="calendar-day-number">${day.getDate()}</span></button>`;
                 shown.forEach(occurrence => {
                     const index = occurrences.indexOf(occurrence);
-                    const label = occurrence.all_day ? '' : `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`;
+                    // The time belongs to the day it happens on; the days after
+                    // that are the event carrying on.
+                    const label = !occurrence.all_day && occurrence.start_date === iso
+                        ? `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`
+                        : '';
                     html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}" data-occurrence="${index}" title="${escapeHtml(occurrence.title)}">${dotFor(occurrence)}${label}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
                 });
                 if (hidden > 0) {
@@ -1007,7 +1057,7 @@
             for (let i = 0; i < rangeDayCount(); i++) {
                 const day = addDays(windowStart, i);
                 const iso = isoDate(day);
-                const dayEvents = occurrencesOn(iso);
+                const dayEvents = agendaOccurrencesOn(iso);
                 if (!dayEvents.length) continue;  // Empty days are omitted.
 
                 // One day in the window means the range title has already said
@@ -1019,9 +1069,7 @@
                 let html = `<div class="agenda-day">${headingHtml}`;
                 dayEvents.forEach(occurrence => {
                     const index = occurrences.indexOf(occurrence);
-                    const time = occurrence.all_day
-                        ? 'All day'
-                        : (occurrence.start_date === iso ? occurrence.time_label : 'Continues');
+                    const time = agendaTimeLabel(occurrence, iso);
                     const who = occurrence.attendees.length ? occurrence.attendees.join(', ') : (occurrence.member || '');
                     html += `
                         <div class="editable-item" data-occurrence="${index}" role="button" tabindex="0">
