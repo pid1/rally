@@ -1,8 +1,5 @@
 <p align="center"><img src="assets/banner.png" alt="Rally: your family's command center" width="880"></p>
 
-> [!IMPORTANT]
-> **Asset to create: `assets/banner.png`.** 1760×440 PNG (shown at 880 wide), on Rally's paper-white background. Show the RALLY wordmark in Playfair Display, letterspaced as in the app header, with the tagline "Your family's command center" in Crimson Text italic below it. Behind it, use a faint grayscale strip of the dashboard: briefing, weather and schedule. Grayscale only, so it matches the e-ink-friendly design. Also export `assets/logo.svg` (wordmark only) for social previews. Delete this callout once it's in.
-
 <p align="center">
   <a href="LICENSE"><img alt="license: BSD 3-Clause" src="https://img.shields.io/badge/license-BSD%203--Clause-15191f"></a>
   <a href="https://github.com/pid1/rally/actions/workflows/tests.yml"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/pid1/rally/tests.yml?branch=main&label=tests&color=15191f"></a>
@@ -98,9 +95,6 @@ Requirements, upgrades, environment variables and remote access are in **[docs/i
 ## Who did what
 
 ![The Audit Log: a reverse-chronological feed with filters, and a tool call expanded to show who, which client, and what changed](docs/screenshots/readme-audit-log.png)
-
-> [!IMPORTANT]
-> **Asset to create: `docs/screenshots/readme-audit-log.png`.** 1600×1000 PNG of `/audit` on the seeded demo instance, desktop width. Filter to source MCP with reads hidden, and expand one `todo.update` event so its before/after diff and client details show. It can be generated: add an `/audit` capture to `scripts/capture_screenshots.py` after seeding a few MCP calls, then run `screenshots`. Delete this callout once it's in.
 
 Rally has no logins, but it still knows who did what. Every read and write is recorded with the person, device or Claude connection behind it, append-only, with secrets redacted. You can filter it, see a request's every effect, follow one to-do's history, or export it. See [docs/audit-log.md](docs/audit-log.md).
 
