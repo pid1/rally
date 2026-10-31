@@ -42,6 +42,11 @@ OUT = ROOT / "docs" / "screenshots"
 PORT = 8123
 BASE = f"http://127.0.0.1:{PORT}"
 
+# The service secret rally-mcp would hold, for the throwaway server only, and
+# the seeded member its calls act for.
+MCP_SERVICE_TOKEN = "screenshots-only"
+MCP_MEMBER_EMAIL = "mom@example.com"
+
 # Retina for the README's hero shots, 1x for the inline reference ones — which
 # is the split the existing files already had.
 RETINA = 2
@@ -145,6 +150,12 @@ if row:
     row.value = "true"
 else:
     db.add(Setting(key="prep_review_enabled", value="true"))
+db.commit()
+
+# MCP is off by default and identifies a caller by email, so the audit log's
+# Claude calls need both.
+db.add(Setting(key="mcp_enabled", value="true"))
+db.query(FamilyMember).filter(FamilyMember.name == "Mom").one().email = "mom@example.com"
 db.commit()
 
 REVIEW = json.dumps({
@@ -563,6 +574,47 @@ def _open_add_packing_list(page):
     page.wait_for_timeout(300)
 
 
+def _mcp_call(method, path, tool, arguments, body=None):
+    """One request the way rally-mcp forwards a tool call.
+
+    The addresses are documentation ranges and the secret is the throwaway
+    server's, so nothing here names a real connection.
+    """
+    request = urllib.request.Request(
+        f"{BASE}{path}",
+        method=method,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "X-Rally-Service-Token": MCP_SERVICE_TOKEN,
+            "X-Rally-Mcp-Email": MCP_MEMBER_EMAIL,
+            "X-Rally-Mcp-Jwt-Sub": "demo-subject",
+            "X-Rally-Mcp-Connection-Id": "demo-connection",
+            "X-Rally-Mcp-Client": "claude.ai",
+            "X-Rally-Mcp-Client-Ip": "203.0.113.10",
+            "X-Rally-Mcp-Tool": tool,
+            "X-Rally-Mcp-Arguments": json.dumps(arguments),
+        },
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.load(response)
+
+
+def _open_mcp_update(page):
+    """Claude dates two to-dos, then the newest `todo.update` event is opened
+    to its before and after."""
+    with urllib.request.urlopen(f"{BASE}/api/todos", timeout=10) as response:
+        todos = {t["title"]: t["id"] for t in json.load(response)}
+    for days, title in ((3, "Plan weekend hike"), (7, "Schedule dentist appointments")):
+        due = (date.today() + timedelta(days=days)).isoformat()
+        arguments = {"todo_id": todos[title], "due_date": due}
+        _mcp_call("PUT", f"/api/todos/{todos[title]}", "update_todo", arguments, {"due_date": due})
+    page.reload(wait_until="networkidle")
+    row = page.locator("#audit-list .editable-item", has_text="todo.update").first
+    row.locator("details > summary").click()
+    _park_pointer(page)
+
+
 def _packing_lists_settings_section(page):
     page.locator("#packing-lists-form").scroll_into_view_if_needed()
     page.wait_for_timeout(300)
@@ -897,6 +949,13 @@ SHOTS: tuple[Shot, ...] = (
         element="#day-add-modal-overlay .modal-content",
         setup=_open_add_day_refused,
     ),
+    # Last, because its setup writes through the server: anything captured
+    # after it would show Claude's changes.
+    Shot(
+        "readme-audit-log",
+        "/audit?source=mcp&entity_type=todos&include_reads=false",
+        setup=_open_mcp_update,
+    ),
 )
 
 
@@ -981,7 +1040,12 @@ def main() -> int:
         print(f"Seeding {db_path}...")
         seed(db_path)
 
-        env = {**os.environ, "RALLY_DB_PATH": str(db_path), "PYTHONPATH": str(ROOT / "src")}
+        env = {
+            **os.environ,
+            "RALLY_DB_PATH": str(db_path),
+            "PYTHONPATH": str(ROOT / "src"),
+            "RALLY_MCP_SERVICE_TOKEN": MCP_SERVICE_TOKEN,
+        }
         server = subprocess.Popen(
             [_python(), "-m", "uvicorn", "rally.main:app", "--port", str(PORT)],
             env=env,
