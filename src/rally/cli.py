@@ -20,6 +20,7 @@ from rally.models import (
     PackingListDayCheck,
     PackingListDayEvent,
     PackingListDayItem,
+    PackingListDayTemplate,
     PackingListItemHistory,
     PackingListTemplate,
     PackingListTemplateItem,
@@ -50,6 +51,7 @@ def seed():
             PackingListDayEvent,
             PackingListDayCheck,
             PackingListDayItem,
+            PackingListDayTemplate,
             PackingListDay,
             PackingListTemplateSchedule,
             PackingListTemplateItem,
@@ -789,13 +791,14 @@ def seed():
         saturday = (5 - today_date.weekday()) % 7 or 7
 
         def put_on_day(name, offset, label=None, checked=()):
-            day = PackingListDay(
-                packing_list_template_id=seeded_packing_lists[name].id,
-                date=in_days(offset),
-                label=label,
-            )
+            day = PackingListDay(name=name, date=in_days(offset), label=label)
             db.add(day)
             db.flush()
+            db.add(
+                PackingListDayTemplate(
+                    day_id=day.id, packing_list_template_id=seeded_packing_lists[name].id
+                )
+            )
             for item_name, owner_name in checked:
                 item = packing_list_items[(name, item_name, owner_name)]
                 db.add(PackingListDayCheck(day_id=day.id, template_item_id=item.id))
@@ -858,10 +861,13 @@ def seed():
         db.flush()
         for member in (dad, emma, jake):
             db.add(EventAttendee(event_id=swim.id, family_member_id=member.id))
+        swim_key = packing_lists_logic.list_key("Swim at Nana's")
         db.add(
             EventPackingList(
                 event_id=swim.id,
-                packing_list_template_id=seeded_packing_lists["Swim at Nana's"].id,
+                list_key=swim_key,
+                name="Swim at Nana's",
+                template_ids=[seeded_packing_lists["Swim at Nana's"].id],
             )
         )
         db.add(
@@ -869,7 +875,7 @@ def seed():
                 day_id=swim_day.id,
                 event_id=swim.id,
                 occurrence_date=swim_day.date,
-                packing_list_template_id=seeded_packing_lists["Swim at Nana's"].id,
+                list_key=swim_key,
                 date=swim_day.date,
             )
         )
@@ -877,7 +883,6 @@ def seed():
         # A one-off on the swim's Saturday: a list with no template behind it,
         # so the demo shows one beside a template's day (which carries ⧉).
         concert = PackingListDay(
-            packing_list_template_id=None,
             name="Fall concert",
             date=in_days(saturday),
             label="Lawn seats",

@@ -61,6 +61,7 @@ from rally.schemas import (
     EventNotifyRequest,
     EventNotifyResponse,
     EventOverrideResponse,
+    EventPackingListResponse,
     EventResponse,
     EventUpdate,
     OccurrencePackingList,
@@ -197,10 +198,12 @@ def _event_response(db: Session, event: Event) -> EventResponse:
         series_end_date=event.series_end_date,
         notify_minutes_before=event.notify_minutes_before,
         attendee_ids=_attendee_ids(db, event.id),
-        packing_list_template_ids=packing_lists.series_template_ids(
-            packing_lists._event_rows(db, event.id)
-        ),
-        packing_list_span=event.packing_list_span,
+        packing_lists=[
+            EventPackingListResponse(
+                key=spec.key, name=spec.name, packing_list_template_ids=list(spec.template_ids)
+            )
+            for spec in packing_lists.series_specs(packing_lists._event_rows(db, event.id))
+        ],
         overrides=[
             EventOverrideResponse(
                 occurrence_date=override.occurrence_date,
@@ -267,20 +270,47 @@ def _with_packing_lists(
     return responses
 
 
-def _require_templates(db: Session, template_ids: list[int] | None) -> list[int] | None:
-    """Refuse a packing list id that is not a template, keeping the first
-    mention of each. SQLite would store a stray id happily, and the list would
-    then be on no day and in no modal."""
-    if template_ids is None:
+def _list_specs(db: Session, payload) -> list[packing_lists.ListSpec] | None:
+    """The packing lists a write sends, as specs (#281), or ``None`` to leave
+    them alone.
+
+    ``packing_lists`` names each list and the templates it includes; the #270
+    shorthand ``packing_list_template_ids`` makes one list per template, named
+    after it. Every template id must be a template (``422``): SQLite would
+    store a stray id happily, and the list would then include nothing. A list
+    with no name takes its first template's; one with neither is a ``422``.
+    Two lists with one key are one list, the first kept. A list the event
+    already has comes back with its ``key``, so a list renamed on its day
+    stays the same list.
+    """
+    if payload.packing_lists is not None:
+        raw = [
+            (spec.name, spec.packing_list_template_ids, spec.key) for spec in payload.packing_lists
+        ]
+    elif payload.packing_list_template_ids is not None:
+        raw = [(None, [template_id], None) for template_id in payload.packing_list_template_ids]
+    else:
         return None
-    wanted = list(dict.fromkeys(template_ids))
-    found = {
-        row.id
-        for row in db.query(PackingListTemplate.id).filter(PackingListTemplate.id.in_(wanted))
+    wanted = {tid for _, ids, _ in raw for tid in ids}
+    templates = {
+        row.id: row.name
+        for row in db.query(PackingListTemplate.id, PackingListTemplate.name).filter(
+            PackingListTemplate.id.in_(wanted)
+        )
     }
-    if len(found) != len(wanted):
+    if len(templates) != len(wanted):
         raise HTTPException(status_code=422, detail="Unknown packing list template")
-    return wanted
+    specs: dict[str, packing_lists.ListSpec] = {}
+    for name, ids, sent_key in raw:
+        ids = list(dict.fromkeys(ids))
+        name = name or (templates[ids[0]] if ids else None)
+        if not name:
+            raise HTTPException(status_code=422, detail="A packing list needs a name.")
+        key = sent_key or packing_lists.list_key(name)
+        specs.setdefault(
+            key, packing_lists.ListSpec(key=key, name=name.strip(), template_ids=tuple(ids))
+        )
+    return list(specs.values())
 
 
 def _sync_packing_lists(
@@ -288,7 +318,7 @@ def _sync_packing_lists(
     event: Event,
     *,
     adopt: bool = False,
-    added: set[int] | None = None,
+    added: set[str] | None = None,
     occurrence_date: str | None = None,
     asking=None,
     release: str | None = None,
@@ -542,7 +572,7 @@ def create_event(
         fields, start=payload.start, end=payload.end, all_day=payload.all_day, tzid=tz_name
     )
     rrule = _validated_rrule(payload.rrule)
-    template_ids = _require_templates(db, payload.packing_list_template_ids)
+    specs = _list_specs(db, payload) or []
 
     event = Event(
         calendar_id=calendar.id,
@@ -553,7 +583,6 @@ def create_event(
         rrule=rrule,
         series_end_date=series_end_date(rrule),
         notify_minutes_before=payload.notify_minutes_before,
-        packing_list_span=payload.packing_list_span,
         **fields,
     )
     _reject_impossible_bound(db, event)
@@ -563,9 +592,9 @@ def create_event(
     db.flush()
 
     _set_attendees(db, event.id, payload.attendee_ids)
-    if template_ids:
-        packing_lists.set_series_lists(db, event.id, template_ids)
-        _sync_packing_lists(db, event, adopt=adopt, added=set(template_ids))
+    if specs:
+        packing_lists.set_series_lists(db, event.id, specs)
+        _sync_packing_lists(db, event, adopt=adopt, added={spec.key for spec in specs})
     db.commit()
     db.refresh(event)
 
@@ -659,7 +688,7 @@ def update_event(
 
     Packing lists follow the same scopes (``packing_lists.set_series_lists`` /
     ``set_occurrence_lists``), and the event's packing list days are synced
-    before anything is committed. A move that would adopt a day already there
+    before anything is committed. A move that would adopt a list already there
     is a ``409`` unless ``adopt``; a move of an occurrence with packing lists
     into the past is a ``422``. Taking a list off a day nobody else uses is a
     ``409`` with ``releases`` until ``release`` says whether the day stays.
@@ -667,31 +696,27 @@ def update_event(
     """
     event = _load_event(db, event_id)
     tz_name = payload.tzid or event.tzid or local_timezone_name(db)
-    template_ids = _require_templates(db, payload.packing_list_template_ids)
-    if payload.packing_list_span is not UNSET:
-        event.packing_list_span = payload.packing_list_span
+    specs = _list_specs(db, payload)
 
     if scope == SCOPE_THIS:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
         occurrence = split_day.isoformat()
-        added: set[int] = set()
-        removed: set[int] = set()
-        if template_ids is not None:
+        added: set[str] = set()
+        removed: set[str] = set()
+        if specs is not None:
             before = packing_lists.occurrence_lists(db, event.id, occurrence)
-            added = set(template_ids) - before
-            removed = before - set(template_ids)
+            added = {spec.key for spec in specs} - before
+            removed = before - {spec.key for spec in specs}
         _update_single_occurrence(db, event, payload, split_day, tz_name)
-        if template_ids is not None:
-            packing_lists.set_occurrence_lists(db, event.id, occurrence, template_ids)
+        if specs is not None:
+            packing_lists.set_occurrence_lists(db, event.id, occurrence, specs)
         _sync_packing_lists(
             db,
             event,
             adopt=adopt,
             added=added,
             occurrence_date=occurrence,
-            asking=lambda link: (
-                link.occurrence_date == occurrence and link.packing_list_template_id in removed
-            ),
+            asking=lambda link: link.occurrence_date == occurrence and link.list_key in removed,
             release=release,
         )
         db.commit()
@@ -701,9 +726,7 @@ def update_event(
 
     if scope == SCOPE_FOLLOWING:
         split_day = _require_occurrence_date(event, scope, occurrence_date)
-        response = _split_series(
-            db, event, payload, split_day, tz_name, template_ids, adopt, release
-        )
+        response = _split_series(db, event, payload, split_day, tz_name, specs, adopt, release)
         # The edit now lives on the tail series, so that is what gets described.
         tail = db.query(Event).filter(Event.id == response.id).first()
         if tail is not None:
@@ -720,20 +743,20 @@ def update_event(
     except HTTPException:
         db.rollback()
         raise
-    added: set[int] = set()
-    removed: set[int] = set()
-    if template_ids is not None:
+    added: set[str] = set()
+    removed: set[str] = set()
+    if specs is not None:
         before = packing_lists.series_lists(db, event.id)
-        added = set(template_ids) - before
-        removed = before - set(template_ids)
-        packing_lists.set_series_lists(db, event.id, template_ids)
+        added = {spec.key for spec in specs} - before
+        removed = before - {spec.key for spec in specs}
+        packing_lists.set_series_lists(db, event.id, specs)
     db.flush()
     _sync_packing_lists(
         db,
         event,
         adopt=adopt,
         added=added,
-        asking=lambda link: link.packing_list_template_id in removed,
+        asking=lambda link: link.list_key in removed,
         release=release,
     )
     db.commit()
@@ -828,7 +851,7 @@ def _split_series(
     payload: EventUpdate,
     split_day: date,
     tz_name: str,
-    template_ids: list[int] | None = None,
+    specs: list[packing_lists.ListSpec] | None = None,
     adopt: bool = False,
     release: str | None = None,
 ) -> EventResponse:
@@ -884,7 +907,6 @@ def _split_series(
             if payload.notify_minutes_before is UNSET
             else payload.notify_minutes_before
         ),
-        packing_list_span=event.packing_list_span,
         **fields,
     )
     _reject_impossible_bound(db, tail)
@@ -902,15 +924,15 @@ def _split_series(
         if override.occurrence_date >= split_day.isoformat():
             override.event_id = tail.id
 
-    added: set[int] = set()
-    removed: set[int] = set()
-    if template_ids is not None:
+    added: set[str] = set()
+    removed: set[str] = set()
+    if specs is not None:
         before = packing_lists.series_lists(db, event.id)
-        added = set(template_ids) - before
-        removed = before - set(template_ids)
+        added = {spec.key for spec in specs} - before
+        removed = before - {spec.key for spec in specs}
     packing_lists.split_event_packing_lists(db, event.id, tail.id, split_day.isoformat())
-    if template_ids is not None:
-        packing_lists.set_series_lists(db, tail.id, template_ids)
+    if specs is not None:
+        packing_lists.set_series_lists(db, tail.id, specs)
 
     _truncate_series(event, split_day)
     db.flush()
@@ -920,7 +942,7 @@ def _split_series(
         tail,
         adopt=adopt,
         added=added,
-        asking=lambda link: link.packing_list_template_id in removed,
+        asking=lambda link: link.list_key in removed,
         release=release,
     )
     db.commit()

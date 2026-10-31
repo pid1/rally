@@ -27,6 +27,7 @@ from rally.models import (
     PackingListDay,
     PackingListDayCheck,
     PackingListDayItem,
+    PackingListDayTemplate,
     PackingListItemHistory,
     PackingListTemplate,
     PackingListTemplateItem,
@@ -119,6 +120,7 @@ def _migrate_to_models():
     assert _load("migrate_036_add_bag_owners_and_nesting").migrate() is True
     assert _load("migrate_037_add_day_bag_removed_from").migrate() is True
     assert _load("migrate_039_add_event_packing_lists").migrate() is True
+    assert _load("migrate_042_named_packing_lists").migrate() is True
 
 
 def _tables(path):
@@ -230,7 +232,8 @@ def test_a_missing_database_is_not_an_error(tmp_path, monkeypatch):
 
 def test_agrees_with_the_models(db_path, tmp_path):
     """Every packing list index the models create exists after 034 + 035
-    (+ 036), under the same name, over the same columns, and no other is left."""
+    (+ 036 … 042), under the same name, over the same columns, and no other is
+    left."""
     _migrate_to_models()
     fresh = tmp_path / "fresh.db"
     engine = create_engine(f"sqlite:///{fresh}")
@@ -265,18 +268,17 @@ def test_the_orm_can_use_what_it_made(db_path, apply_audit_migration):
         session.add_all([item, schedule])
         session.flush()
         day = PackingListDay(
-            packing_list_template_id=template.id,
+            name="Beach day",
             date=COMING,
             schedule_id=schedule.id,
             item_order=[f"template:{item.id}"],
         )
-        templateless = PackingListDay(
-            packing_list_template_id=None, name="Concert", date=COMING, pack_days_before=0
-        )
+        templateless = PackingListDay(name="Concert", date=COMING, pack_days_before=0)
         session.add_all([day, templateless])
         session.flush()
         session.add_all(
             [
+                PackingListDayTemplate(day_id=day.id, packing_list_template_id=template.id),
                 PackingListDayCheck(day_id=day.id, template_item_id=item.id),
                 PackingListDayItem(day_id=templateless.id, name="Ear plugs"),
                 PackingListItemHistory(name="Umbrella", name_key="umbrella"),

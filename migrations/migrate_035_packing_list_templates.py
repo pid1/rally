@@ -240,6 +240,12 @@ def migrate():
         if "packing_list_days" not in tables:
             print("✓ Migration: no packing list tables yet - nothing to rename")
             return True
+        # Migration 042 (#281) rebuilt packing_list_days without a template
+        # column. Running on would look for that column and recreate an index
+        # over it, which fails and stops the container.
+        if "packing_list_day_templates" in tables:
+            print("✓ Migration: packing lists already moved on by migration 042 (idempotent)")
+            return True
 
         cursor.execute("BEGIN")
         done = []

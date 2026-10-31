@@ -53,7 +53,7 @@ def delete_template(base: str, template_id: int) -> None:
     test that only deleted the template would leave days behind in Coming Up
     for every test after it on the session-scoped server."""
     for day in api(base, "GET", "/api/packing-list-days"):
-        if day["packing_list_template_id"] == template_id:
+        if template_id in [t["id"] for t in day["templates"]]:
             api(base, "DELETE", f"/api/packing-list-days/{day['id']}")
     api(base, "DELETE", f"/api/packing-list-templates/{template_id}")
 
@@ -422,16 +422,20 @@ def test_edit_packing_list_changes_one_days_date_label_and_lead_time(
         assert (
             page.locator("#day-edit-modal-overlay h3").inner_text().lower() == "edit packing list"
         )
-        # The template's name and description are text, not fields.
-        assert page.locator("#day-edit-name").inner_text() == "Browser test trip"
+        # The list's name is its own to change (#281); a description it has
+        # (its one template's) is text, not a field.
+        assert page.input_value("#day-edit-name-input") == "Browser test trip"
         assert page.locator("#day-edit-description").inner_text() == "Lake trip"
+        # The template it includes is a row of Includes, with Remove.
+        assert page.locator("#day-edit-includes-list .manage-row-text").all_inner_texts() == [
+            "Browser test trip"
+        ]
         assert (
             page.locator(
-                # The name field is a templateless day's only, so it is hidden here.
                 "#day-edit-modal-overlay input:not([type=date]):not([type=number]):visible"
             ).count()
-            == 1
-        )  # the label only
+            == 2
+        )  # the name and the label
         assert page.input_value("#day-edit-pack-days") == "0"
         # "Pack ___ days before" reads as one line, the number inside it.
         width = page.locator("#day-edit-pack-days").bounding_box()["width"]
@@ -464,25 +468,22 @@ def test_edit_packing_list_changes_one_days_date_label_and_lead_time(
     )
 
 
-def test_moving_a_day_onto_a_date_it_is_on_is_refused_in_place(browser, live_server, packing_list):
-    """Refused under Date, with the modal kept open, rather than closing it and
-    opening the other day without saying why."""
+def test_a_list_can_move_onto_a_date_its_template_is_already_on(browser, live_server, packing_list):
+    """#281: a template may be on one date on two lists, so a move there is
+    saved like any other."""
     first, second = packing_list["days"]
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         card(page, first["id"]).locator("[data-edit-day]").click()
         page.fill("#day-edit-date", second["date"])
         page.click("#day-edit-form ~ .modal-actions button[type=submit]")
-        message = page.locator("#day-edit-message")
-        message.wait_for(state="visible")
-        assert message.inner_text().startswith('"Browser test trip" is already on ')
-        assert page.locator("#day-edit-modal-overlay").is_visible()
-        page.dispatch_event("#day-edit-date", "change")
-        assert not message.is_visible()
+        page.wait_for_selector("#day-edit-modal-overlay", state="hidden")
     finally:
         context.close()
 
-    assert api(live_server, "GET", f"/api/packing-list-days/{first['id']}")["date"] == first["date"]
+    assert (
+        api(live_server, "GET", f"/api/packing-list-days/{first['id']}")["date"] == second["date"]
+    )
 
 
 def test_the_template_sets_its_lead_time_as_a_number(browser, live_server, packing_list):
@@ -671,7 +672,7 @@ def test_edit_mode_offers_delete_not_add_another(browser, live_server, packing_l
         assert page.locator("#btn-delete-item").inner_text() == "Delete"
         assert not page.locator("#btn-save-add-another").is_visible()
         assert page.input_value("#item-name") == "Towel"
-        assert "every day" in page.locator("#item-scope-note").inner_text()
+        assert "every packing list that includes" in page.locator("#item-scope-note").inner_text()
     finally:
         context.close()
 
@@ -892,9 +893,13 @@ def test_an_item_edited_on_a_day_stays_on_that_day(browser, live_server, packing
     assert "Goggles" in [i["name"] for i in master["items"]]
 
 
-def test_an_item_added_to_a_day_is_marked_and_one_can_be_removed(
+def test_an_item_added_to_a_list_is_its_own_and_a_template_item_can_be_removed(
     browser, live_server, packing_list
 ):
+    """#281: an item added to a list is the list's own, not a change to its
+    template: it carries no mark, and once a list has one, each template item
+    says where it came from (⧉ and the template's name). Removing a template
+    item is a change, and says so."""
     first, _ = packing_list["days"]
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
@@ -902,21 +907,27 @@ def test_an_item_added_to_a_day_is_marked_and_one_can_be_removed(
         page.fill("#item-name", "Field trip form")
         save_item(page)
 
-        added = item_row(card(page, first["id"]), "Field trip form")
-        assert added.locator(".item-mark").inner_text().lower() == "(added)"
-        # Beside the day's Edit, in the description's type.
-        changes = card(page, first["id"]).locator(":scope > .editable-item-actions > .day-changes")
-        assert changes.inner_text() == "1 item changed"
-        assert "editable-item-description" in changes.get_attribute("class")
-        progress = card(page, first["id"]).locator(".packing-list-progress")
-        assert progress.inner_text() == "0 of 5 packed"
+        entry = card(page, first["id"])
+        added = item_row(entry, "Field trip form")
+        assert added.locator(".item-mark").count() == 0
+        assert added.locator(".item-source").count() == 0
+        towel = item_row(entry, "Towel").locator(".item-source")
+        assert " ".join(towel.text_content().split()) == "⧉ Browser test trip"
+        assert towel.get_attribute("title") == "From the packing list template Browser test trip"
+        # Nothing changed on the template's items, so nothing is counted.
+        assert entry.locator(".day-changes").count() == 0
+        assert entry.locator(".packing-list-progress").inner_text() == "0 of 5 packed"
 
-        item_row(card(page, first["id"]), "Towel").locator("[data-edit-day-item]").click()
+        item_row(entry, "Towel").locator("[data-edit-day-item]").click()
         page.click("#btn-delete-item")
         page.wait_for_selector("#item-modal-overlay", state="hidden")
-        assert item_row(card(page, first["id"]), "Towel").count() == 0
-        # A removal counts too, though the item is no longer on the card.
-        assert card(page, first["id"]).locator(".day-changes").inner_text() == "2 items changed"
+        entry = card(page, first["id"])
+        assert item_row(entry, "Towel").count() == 0
+        # A removal counts, though the item is no longer on the card; beside
+        # the list's Edit, in the description's type.
+        changes = entry.locator(":scope > .editable-item-actions > .day-changes")
+        assert changes.inner_text() == "1 item changed"
+        assert "editable-item-description" in changes.get_attribute("class")
     finally:
         context.close()
 
@@ -962,7 +973,7 @@ def save_add_day(page):
 
 def delete_days_named(base: str, name: str) -> None:
     for day in api(base, "GET", "/api/packing-list-days"):
-        if day["name"] == name and day["packing_list_template_id"] is None:
+        if day["name"] == name:
             api(base, "DELETE", f"/api/packing-list-days/{day['id']}")
 
 
@@ -1010,64 +1021,61 @@ def test_add_packing_list_sits_where_add_meal_does(browser, live_server):
     assert packing["inActions"]
 
 
-def test_kept_in_sync_on_a_day_it_is_already_on_is_refused_in_place(
-    browser, live_server, packing_list
-):
+def test_a_named_list_includes_a_template_beside_its_own_items(browser, live_server, packing_list):
+    """#281's story from Add Packing List, with no event: a list with its own
+    name that includes a template kept in sync, on a date the template is
+    already on, then one item of its own. One entry, one progress line, and
+    every template item says where it came from."""
     existing = packing_list["days"][0]
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
-        open_add_day(page)
-        # Blank, so nothing lands on a day nobody picked.
-        assert page.input_value("#day-date") == ""
-        page.check('input[name="day-add-start"][value="template"]')
-        page.select_option("#day-add-source", label="Browser test trip")
-        page.check('input[name="day-add-mode"][value="sync"]')
-        page.fill("#day-date", existing["date"])
-        page.click("#day-add-modal-overlay button[type=submit]")
-        message = page.locator("#day-add-message")
-        message.wait_for(state="visible")
-        assert message.inner_text().startswith('"Browser test trip" is already on ')
-        assert page.locator("#day-add-modal-overlay").is_visible()
-        assert not page.locator("#item-modal-overlay").is_visible()
-    finally:
-        context.close()
-    same_day = [
-        d
-        for d in api(live_server, "GET", "/api/packing-list-days")
-        if d["packing_list_template_id"] == packing_list["id"] and d["date"] == existing["date"]
-    ]
-    assert len(same_day) == 1
-
-
-def test_a_template_kept_in_sync_lands_in_coming_up_with_its_label(
-    browser, live_server, packing_list
-):
-    context, page = open_page(browser, f"{live_server}/packing-lists")
-    try:
-        # With the packing filter on, a new day thirty days out would be
-        # hidden; adding one turns the filter off so it shows.
+        # With the packing filter on, a new list far out would be hidden;
+        # adding one turns the filter off so it shows.
         chip = page.locator("#day-filters .filter-chip").first
         chip.click()
         open_add_day(page)
-        page.check('input[name="day-add-start"][value="template"]')
-        page.select_option("#day-add-source", label="Browser test trip")
-        page.check('input[name="day-add-mode"][value="sync"]')
-        page.fill("#day-date", in_days(30))
-        page.fill("#day-label", "Long weekend")
+        # Blank, so nothing lands on a day nobody picked.
+        assert page.input_value("#day-date") == ""
+        page.fill("#day-add-name", "Browser test business trip")
+        page.select_option("#day-add-includes-select", label="Browser test trip")
+        assert page.locator("#day-add-includes-list .manage-row-text").all_inner_texts() == [
+            "Browser test trip"
+        ]
+        # The name somebody typed stays.
+        assert page.input_value("#day-add-name") == "Browser test business trip"
+        page.fill("#day-date", existing["date"])
+        page.fill("#day-label", "Browser test afternoon")
         save_add_day(page)
-        # The modal closes before the list is refetched, so wait for the card
-        # rather than reading the list the moment the modal hides.
-        row = page.locator("#days-container [data-day-card]", has_text="Long weekend")
-        row.wait_for()
-        assert row.count() == 1
-        assert "0 of 4 packed" in row.text_content()
-        title = row.locator(":scope > .editable-item-content .editable-item-title")
-        assert " ".join(title.inner_text().split()) == "Browser test trip — Long weekend ⧉"
+        entry = page.locator("#days-container [data-day-card]", has_text="Browser test afternoon")
+        entry.wait_for()
+        title = entry.locator(":scope > .editable-item-content .editable-item-title")
+        assert " ".join(title.inner_text().split()) == (
+            "Browser test business trip — Browser test afternoon ⧉"
+        )
+        assert "Includes: Browser test trip" in entry.text_content()
         assert "active" not in chip.get_attribute("class")
         # It already has items, so Add Item does not open.
         assert not page.locator("#item-modal-overlay").is_visible()
+
+        entry.locator("[data-add-day-item]").click()
+        page.fill("#item-name", "Client folder")
+        save_item(page)
+        entry = page.locator("#days-container [data-day-card]", has_text="Browser test afternoon")
+        assert entry.locator(".packing-list-progress").inner_text() == "0 of 5 packed"
+        # Read whether or not Emma's group is folded.
+        source = item_row(entry, "Goggles").locator(".item-source").text_content()
+        assert " ".join(source.split()) == "⧉ Browser test trip"
+        assert item_row(entry, "Client folder").locator(".item-source").count() == 0
     finally:
         context.close()
+        delete_days_named(live_server, "Browser test business trip")
+    # The template's own list on that date is untouched beside it.
+    same_day = [
+        d["name"]
+        for d in api(live_server, "GET", "/api/packing-list-days")
+        if d["date"] == existing["date"]
+    ]
+    assert "Browser test trip" in same_day
 
 
 def test_a_blank_list_opens_add_item_and_a_copy_does_not(browser, live_server, packing_list):
@@ -1100,6 +1108,7 @@ def test_a_blank_list_opens_add_item_and_a_copy_does_not(browser, live_server, p
         page.wait_for_timeout(300)
         assert not page.locator("#item-modal-overlay").is_visible()
         title = copy.locator(":scope > .editable-item-content .editable-item-title")
+        # A copy includes nothing: its items are its own.
         assert " ".join(title.inner_text().split()) == "Browser test copy"
         assert "0 of 4 packed" in copy.text_content()
     finally:
@@ -1108,7 +1117,7 @@ def test_a_blank_list_opens_add_item_and_a_copy_does_not(browser, live_server, p
         delete_days_named(live_server, "Browser test copy")
 
 
-def test_picking_a_template_fills_the_form(browser, live_server, packing_list):
+def test_picking_templates_fills_the_form(browser, live_server, packing_list):
     api(
         live_server,
         "PUT",
@@ -1118,43 +1127,84 @@ def test_picking_a_template_fills_the_form(browser, live_server, packing_list):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:
         open_add_day(page)
-        # Blank list is the default; the template fields wait for Template.
+        # A blank list is the default; the copy's fields wait for it.
         assert page.is_checked('input[name="day-add-start"][value="blank"]')
         fields = page.locator("#day-add-template-fields")
         assert not fields.is_visible()
+        assert page.locator("#day-add-includes-list .manage-row").count() == 0
+
+        # Including a template names the list after it until somebody types
+        # one, and follows its lead time.
+        page.select_option("#day-add-includes-select", label="Browser test trip")
+        assert page.input_value("#day-add-name") == "Browser test trip"
+        assert page.input_value("#day-add-pack-days") == "2"
+        # It is not offered twice.
+        assert (
+            "Browser test trip"
+            not in page.locator("#day-add-includes-select option").all_inner_texts()
+        )
+        page.fill("#day-add-name", "Trip, my way")
+        page.locator("#day-add-includes-list [data-remove-include]").click()
+        assert page.input_value("#day-add-name") == "Trip, my way"
 
         page.check('input[name="day-add-start"][value="template"]')
         # The templates are listed below, none chosen yet, and Save refuses
         # until one is.
         assert fields.is_visible()
         assert page.input_value("#day-add-source") == ""
-        page.fill("#day-add-name", "Anything")
         page.fill("#day-date", in_days(33))
         page.click("#day-add-modal-overlay button[type=submit]")
         page.wait_for_timeout(300)
         assert page.locator("#day-add-modal-overlay").is_visible()
-        page.fill("#day-add-name", "")
-
         page.select_option("#day-add-source", label="Browser test trip")
-        # A copy is the default, named after the template until somebody
-        # types a name, with the template's lead time.
-        assert page.is_checked('input[name="day-add-mode"][value="copy"]')
-        assert page.input_value("#day-add-name") == "Browser test trip"
-        assert page.input_value("#day-add-pack-days") == "2"
-
-        page.fill("#day-add-name", "Trip, my way")
-        page.check('input[name="day-add-mode"][value="sync"]')
-        # Kept in sync, it is called what the template is called.
-        assert page.input_value("#day-add-name") == "Browser test trip"
-        assert page.evaluate("document.getElementById('day-add-name').readOnly")
-        page.check('input[name="day-add-mode"][value="copy"]')
         assert page.input_value("#day-add-name") == "Trip, my way"
 
         page.check('input[name="day-add-start"][value="blank"]')
         assert not fields.is_visible()
-        assert page.input_value("#day-add-name") == "Trip, my way"
     finally:
         context.close()
+
+
+def test_edit_packing_list_adds_and_removes_an_included_template(
+    browser, live_server, packing_list
+):
+    other = api(live_server, "POST", "/api/packing-list-templates", {"name": "Browser test kit"})
+    api(
+        live_server,
+        "POST",
+        f"/api/packing-list-templates/{other['id']}/items",
+        {"name": "Laptop"},
+    )
+    first, _ = packing_list["days"]
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        card(page, first["id"]).locator("[data-edit-day]").click()
+        page.wait_for_selector("#day-edit-modal-overlay", state="visible")
+        page.select_option("#day-edit-includes-select", label="Browser test kit")
+        page.click("#day-edit-form ~ .modal-actions button[type=submit]")
+        page.wait_for_selector("#day-edit-modal-overlay", state="hidden")
+        entry = card(page, first["id"])
+        entry.locator(".editable-item-meta", has_text="Includes:").wait_for()
+        assert "Includes: Browser test trip · Browser test kit" in entry.text_content()
+        assert entry.locator(".packing-list-progress").inner_text() == "0 of 5 packed"
+
+        entry.locator("[data-edit-day]").click()
+        page.wait_for_selector("#day-edit-modal-overlay", state="visible")
+        page.locator("#day-edit-includes-list .manage-row", has_text="Browser test trip").locator(
+            "[data-remove-include]"
+        ).click()
+        page.click("#day-edit-form ~ .modal-actions button[type=submit]")
+        page.wait_for_selector("#day-edit-modal-overlay", state="hidden")
+        entry = card(page, first["id"])
+        entry.locator(".packing-list-progress", has_text="0 of 1 packed").wait_for()
+        day = api(live_server, "GET", f"/api/packing-list-days/{first['id']}")
+        assert (day["name"], [t["name"] for t in day["templates"]]) == (
+            "Browser test trip",
+            ["Browser test kit"],
+        )
+    finally:
+        context.close()
+        delete_template(live_server, other["id"])
 
 
 def test_start_from_is_hidden_with_no_templates(browser, live_server):
@@ -1184,7 +1234,6 @@ def test_a_one_off_is_renamed_from_edit(browser, live_server):
     try:
         card(page, day["id"]).locator("[data-edit-day]").click()
         page.wait_for_selector("#day-edit-modal-overlay", state="visible")
-        assert not page.locator("#day-edit-name").is_visible()
         page.fill("#day-edit-name-input", "Browser test one-off, renamed")
         page.click("#day-edit-modal-overlay button[type=submit]")
         page.wait_for_selector("#day-edit-modal-overlay", state="hidden")
@@ -1516,7 +1565,8 @@ def test_a_deleted_templates_day_stays_and_says_it_has_no_template(browser, live
             page.click("#btn-delete-template")
         page.wait_for_load_state("networkidle")
         assert dialog_messages(page)[-1] == (
-            "Delete Browser test gone? The day it's on keeps its packing list as it is now."
+            "Delete Browser test gone? The packing list that includes it keeps its items"
+            " as its own."
         )
 
         # Still in Coming Up, as it was, with no template mark, no item marks,
@@ -2419,7 +2469,7 @@ def test_change_bags_removes_a_bag_from_one_day_and_keeps_its_items(
             modal.get_by_role("button", name="Save").click()
         modal.wait_for(state="hidden")
         assert dialog_messages(page) == [
-            f'Remove {BAG} from this day? The 2 items in it move to "No bag" on this day'
+            f'Remove {BAG} from this day? The 2 items in it move to "No bag" on this list'
             " only — nothing is taken off the list."
         ]
         page.wait_for_function(
@@ -2488,7 +2538,7 @@ def test_cancel_leaves_the_day_as_it_was(browser, live_server, packing_list):
         target = open_card(page, first["id"], groups=False)
         target.get_by_role("button", name="Resync with template").click()
         modal = page.locator("#day-resync-modal-overlay")
-        modal.get_by_label("All changes on this day").check()
+        modal.get_by_label("All changes on this list").check()
         modal.get_by_role("button", name="Cancel").click()
         modal.wait_for(state="hidden")
     finally:
