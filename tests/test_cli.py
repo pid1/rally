@@ -18,6 +18,7 @@ from rally.models import (
     MealPlan,
     PackingListDay,
     PackingListDayCheck,
+    PackingListDayEvent,
     PackingListTemplate,
     PackingListTemplateItem,
     PackingListTemplateSchedule,
@@ -32,7 +33,9 @@ from rally.models import (
 )
 from rally.packing_lists import pack_date
 from rally.preparedness import status_of
-from rally.utils.timezone import today_utc
+from rally.utils.timezone import today_local
+
+SEED_TZ = "America/Chicago"
 
 EXPECTED_COUNTS = {
     "family": 4,
@@ -120,7 +123,7 @@ def test_seed_creates_past_meals_for_history_filters(cli_db):
     """Seeded history must span all meal types and a range of ratings so the
     Previous Meals meal-type and rating filters have data to act on."""
     cli.seed()
-    today = today_utc().strftime("%Y-%m-%d")
+    today = today_local(SEED_TZ).strftime("%Y-%m-%d")
 
     past = cli_db.query(MealPlan).filter(MealPlan.date < today).all()
 
@@ -141,7 +144,7 @@ def test_seed_shows_every_preparedness_state(cli_db):
     and the end of the go list are real.
     """
     cli.seed()
-    today = today_utc()
+    today = today_local(SEED_TZ)
 
     items = cli_db.query(PrepItem).all()
     statuses = {status_of(item, today, default_lead=14) for item in items}
@@ -173,7 +176,7 @@ def test_seed_gives_the_archive_shared_days_and_an_unfinished_list(cli_db):
     """Previous Packing Lists needs past days with more than one packing list, and a
     list left partly packed, or a demo of it shows nothing worth looking at."""
     cli.seed()
-    today = today_utc().isoformat()
+    today = today_local(SEED_TZ).isoformat()
     past = cli_db.query(PackingListDay).filter(PackingListDay.date < today).all()
 
     per_date: dict[str, int] = {}
@@ -196,7 +199,7 @@ def test_seed_gives_the_archive_shared_days_and_an_unfinished_list(cli_db):
 def test_seed_shows_a_one_off_beside_a_templates_day(cli_db):
     """Coming Up should show both kinds: a one-off has no template behind it."""
     cli.seed()
-    today = today_utc().isoformat()
+    today = today_local(SEED_TZ).isoformat()
     one_offs = (
         cli_db.query(PackingListDay)
         .filter(PackingListDay.packing_list_template_id.is_(None), PackingListDay.date >= today)
@@ -213,7 +216,7 @@ def test_seed_splits_tomorrows_box_across_due_now_and_coming_up(cli_db, monkeypa
     whatever day the seed runs: a packing list on tomorrow that is due now,
     and one that is still coming up."""
     today = date(2026, 10, day_of_month)
-    monkeypatch.setattr(cli, "today_utc", lambda: today)
+    monkeypatch.setattr(cli, "today_local", lambda _zone: today)
     cli.seed()
     tomorrow = (today + timedelta(days=1)).isoformat()
 
@@ -225,6 +228,43 @@ def test_seed_splits_tomorrows_box_across_due_now_and_coming_up(cli_db, monkeypa
         pack_dates.append(pack_date(day.date, lead))
     assert any(p <= today.isoformat() for p in pack_dates)
     assert any(p > today.isoformat() for p in pack_dates)
+
+
+@pytest.mark.parametrize(
+    "today",
+    [
+        date(2026, 10, 31),  # a month end, on a Saturday
+        date(2026, 11, 1),  # the Sunday a week starts, and clocks change
+        date(2026, 11, 2),  # a Monday
+        date(2026, 11, 3),  # a Tuesday, when Scouts meets
+        date(2026, 12, 31),  # a year end
+        date(2028, 2, 29),  # a leap day
+    ],
+)
+def test_seed_keeps_events_ahead_of_today_whatever_day_it_runs(cli_db, monkeypatch, today):
+    """The events used to hang off this week's Monday, so a seed on a Sunday
+    left nothing ahead of it but the swim."""
+    monkeypatch.setattr(cli, "today_local", lambda _zone: today)
+    cli.seed()
+
+    iso = today.isoformat()
+    events = cli_db.query(Event).all()
+    one_offs = [e for e in events if not e.rrule]
+    assert {e.title for e in one_offs if e.start_date <= iso} == {"Dentist — Emma", "Piano lesson"}
+    week = (today + timedelta(days=7)).isoformat()
+    assert all(e.start_date <= week for e in one_offs)
+
+    # Scouts has history, on a Tuesday, and so meets again within the week.
+    scouts = next(e for e in events if e.rrule)
+    first = date.fromisoformat(scouts.start_date)
+    assert first.weekday() == 1
+    assert (today - first).days >= 14
+
+    # The event that brings a packing list, and the day it put it on.
+    swim = next(e for e in events if e.title == "Swim at Nana's")
+    assert swim.start_date > iso
+    link = cli_db.query(PackingListDayEvent).filter_by(event_id=swim.id).one()
+    assert cli_db.get(PackingListDay, link.day_id).date == swim.start_date
 
 
 def test_seed_is_idempotent(cli_db):
@@ -264,6 +304,6 @@ def test_seed_links_the_swim_to_its_packing_list(cli_db):
     assert cli_db.query(EventPackingList).filter_by(event_id=swim.id).count() == 1
 
     days = cli_db.query(PackingListDay).count()
-    packing_lists.sync_event_packing_lists(cli_db, swim, today_utc(), tz=ZoneInfo("UTC"))
+    packing_lists.sync_event_packing_lists(cli_db, swim, today_local(SEED_TZ), tz=ZoneInfo("UTC"))
     assert cli_db.query(PackingListDay).count() == days
     assert cli_db.query(PackingListDayEvent).filter_by(event_id=swim.id).one().day_id == day.id

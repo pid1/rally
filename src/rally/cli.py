@@ -33,7 +33,7 @@ from rally.models import (
     ShoppingStore,
     Todo,
 )
-from rally.utils.timezone import now_utc, today_utc
+from rally.utils.timezone import now_utc, today_local
 
 
 def seed():
@@ -73,8 +73,14 @@ def seed():
         db.query(FamilyMember).delete()
         db.commit()
 
+        # Everything dated below counts from today where the family is, the
+        # zone this seed configures, so a seed run late in the evening does not
+        # land a day ahead of the app.
+        seed_tz = "America/Chicago"
+        today_date = today_local(seed_tz)
+
         # Create sample dashboard snapshot
-        today = today_utc().strftime("%Y-%m-%d")
+        today = today_date.strftime("%Y-%m-%d")
         sample_data = {
             "greeting": "Good morning, family! It's a beautiful day to get things done.",
             "weather_summary": "Partly cloudy with highs around 68°F. Light jacket recommended for morning activities, but you can shed it by afternoon. No rain expected today.",
@@ -161,18 +167,32 @@ def seed():
         # Create sample events, including a recurring one, an all-day one, a
         # multi-day span, one across noon, one across midnight, one running for
         # days and one with no length, so /calendar has something honest to render.
-        seed_tz = "America/Chicago"
-        monday = today_utc() - timedelta(days=today_utc().weekday())
+        # Offsets count from today, so the coming week is full whatever day
+        # the seed runs. The dentist and the piano lesson are behind us so Prev
+        # has something to show, and Scouts began on a Tuesday two weeks or more
+        # ago (an RRULE's first date has to match its BYDAY), so a series has
+        # past occurrences as well as one in the next week.
+        scouts = -14 - (today_date.weekday() - 1) % 7
         event_specs = [
-            (dad, "Work conference", 0, "08:00", 57, None, "Convention center", [dad], None),
-            (mom, "Scouts", 1, "19:00", 1, "FREQ=WEEKLY;BYDAY=TU", "Church hall", [mom, jake], 60),
-            (dad, "Dentist — Emma", 2, "09:00", 1, None, "Dr. Kim", [dad, emma], 30),
-            (mom, "Book fair", 2, "11:30", 2, None, "School library", [mom, emma], None),
-            (dad, "Call the plumber", 3, "10:00", 0, None, "", [dad], None),
-            (emma, "Piano lesson", 3, "16:00", 1, None, "Studio B", [emma], None),
-            (jake, "Soccer practice", 4, "17:30", 2, None, "Field 4", [jake, dad], None),
-            (emma, "Sleepover", 4, "19:00", 14, None, "Olivia's house", [emma], None),
-            (dad, "Camping trip", 5, None, 3, None, "Beavers Bend", [mom, dad, emma, jake], None),
+            (dad, "Work conference", 1, "08:00", 57, None, "Convention center", [dad], None),
+            (
+                mom,
+                "Scouts",
+                scouts,
+                "19:00",
+                1,
+                "FREQ=WEEKLY;BYDAY=TU",
+                "Church hall",
+                [mom, jake],
+                60,
+            ),
+            (dad, "Dentist — Emma", -7, "09:00", 1, None, "Dr. Kim", [dad, emma], 30),
+            (mom, "Book fair", 3, "11:30", 2, None, "School library", [mom, emma], None),
+            (dad, "Call the plumber", 4, "10:00", 0, None, "", [dad], None),
+            (emma, "Piano lesson", -5, "16:00", 1, None, "Studio B", [emma], None),
+            (jake, "Soccer practice", 5, "17:30", 2, None, "Field 4", [jake, dad], None),
+            (emma, "Sleepover", 5, "19:00", 14, None, "Olivia's house", [emma], None),
+            (dad, "Camping trip", 6, None, 3, None, "Beavers Bend", [mom, dad, emma, jake], None),
         ]
 
         events = []
@@ -187,7 +207,7 @@ def seed():
             attendees,
             notify,
         ) in event_specs:
-            day = monday + timedelta(days=offset)
+            day = today_date + timedelta(days=offset)
             if start_time is None:
                 times = resolve_event_times(
                     start=day.isoformat(),
@@ -224,7 +244,7 @@ def seed():
 
         # Create sample settings
         sample_settings = [
-            Setting(key="local_timezone", value="America/Chicago"),
+            Setting(key="local_timezone", value=seed_tz),
             Setting(
                 key="weather_nws_url",
                 value="https://forecast.weather.gov/MapClick.php?lat=33.085&lon=-97.0542&unit=0&lg=english&FcstType=dwml",
@@ -362,7 +382,6 @@ def seed():
             )
 
         # Create sample meal plans (multiple per date to showcase the feature)
-        today_date = today_utc()
 
         # Preparedness stock. Locations carry an explicit `sort_order` because
         # a go list is walked in physical order — the truck on the driveway,
