@@ -5,15 +5,21 @@ core models, a deterministic-time fixture, a timezone-setting fixture, and
 fixtures that stub the external boundaries (HTTP, LLM clients, CalDAV) so no
 test ever touches the network.
 
-The app's real database (``rally.db``) is never touched: the ``get_db`` override
-replaces it for request handling, and the ``TestClient`` is used without its
-lifespan context manager so the startup ``init_db()`` (which would create tables
-on the real engine) never runs.
+The app's real database (``rally.db``) is never touched. ``RALLY_DB_PATH`` is
+set below, before ``rally.database`` is imported, so the app's own engine is an
+empty in-memory database: code that opens ``SessionLocal()`` itself, as the
+generator does, cannot reach a developer's data whatever a test forgets to
+stub. The ``get_db`` override replaces that engine for request handling, and the
+``TestClient`` is used without its lifespan context manager so the startup
+``init_db()`` never runs.
 """
 
 import importlib
+import os
 from datetime import UTC, datetime
 from types import SimpleNamespace
+
+os.environ["RALLY_DB_PATH"] = ":memory:"
 
 import pytest
 from fastapi.testclient import TestClient
