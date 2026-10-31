@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 import pytest
 
 from rally import packing_lists as logic
-from rally.models import PackingListDay, PackingListDayTemplate
+from rally.models import EventPackingList, PackingListDay, PackingListDayTemplate
 
 # Thursday, 8 October 2026, mid-morning in Chicago. The lookahead runs through
 # Thursday the 15th.
@@ -634,6 +634,204 @@ def test_deleting_a_template_drops_it_from_an_event_list_that_has_others(
     assert [e["event_id"] for e in day["events"]] == [event["id"]]
     _ok(client.put(f"/api/events/{event['id']}", json={"start": SUNDAY, "end": SUNDAY}))
     assert [d["date"] for d in _days(client)] == [SUNDAY]
+
+
+def _occurrence_lists(client, day):
+    occurrences = _ok(client.get(f"/api/events?start={day}&end={day}"))
+    return [item for o in occurrences["occurrences"] for item in o["packing_lists"]]
+
+
+def _trip(client, *template_ids, day=SATURDAY):
+    return _ok(
+        client.post(
+            "/api/events",
+            json={
+                "title": "Trip",
+                "all_day": True,
+                "start": day,
+                "packing_lists": [{"name": TRIP, "packing_list_template_ids": list(template_ids)}],
+            },
+        ),
+        201,
+    )
+
+
+def test_an_event_reads_a_template_taken_off_its_day(client, overnight, work_kit):
+    event = _trip(client, overnight["id"], work_kit["id"])
+    (day,) = _days(client)
+    _ok(
+        client.put(
+            f"/api/packing-list-days/{day['id']}",
+            json={"packing_list_template_ids": [overnight["id"]]},
+        )
+    )
+    (brought,) = _occurrence_lists(client, SATURDAY)
+    assert brought["packing_list_template_ids"] == [overnight["id"]]
+    (series,) = _ok(client.get(f"/api/events/{event['id']}"))["packing_lists"]
+    assert series["packing_list_template_ids"] == [overnight["id"]]
+
+
+def test_an_event_reads_a_template_added_to_its_day(client, overnight, work_kit):
+    _trip(client, overnight["id"])
+    (day,) = _days(client)
+    _ok(
+        client.put(
+            f"/api/packing-list-days/{day['id']}",
+            json={"packing_list_template_ids": [overnight["id"], work_kit["id"]]},
+        )
+    )
+    (brought,) = _occurrence_lists(client, SATURDAY)
+    assert brought["packing_list_template_ids"] == [overnight["id"], work_kit["id"]]
+
+
+def test_a_placed_list_keeps_no_copy_on_the_event(client, db_session, overnight):
+    event = _trip(client, overnight["id"])
+    (row,) = db_session.query(EventPackingList).filter_by(event_id=event["id"]).all()
+    assert (row.name, row.template_ids) == (None, None)
+
+
+def test_an_occurrence_list_keeps_no_copy_but_the_series_does(client, db_session, overnight):
+    event = _ok(
+        client.post(
+            "/api/events",
+            json={
+                "title": "Scouts",
+                "all_day": True,
+                "start": SATURDAY,
+                "rrule": "FREQ=WEEKLY",
+                "packing_lists": [
+                    {"name": "Series", "packing_list_template_ids": [overnight["id"]]}
+                ],
+            },
+        ),
+        201,
+    )
+    _ok(
+        client.put(
+            f"/api/events/{event['id']}?scope=this&occurrence_date={SATURDAY}",
+            json={
+                "packing_lists": [
+                    {
+                        "key": "series",
+                        "name": "Series",
+                        "packing_list_template_ids": [overnight["id"]],
+                    },
+                    {"name": TRIP, "packing_list_template_ids": [overnight["id"]]},
+                ]
+            },
+        )
+    )
+    db_session.expire_all()
+    rows = db_session.query(EventPackingList).filter_by(event_id=event["id"]).all()
+    assert {row.occurrence_date: row.template_ids for row in rows} == {
+        None: [overnight["id"]],
+        SATURDAY: None,
+    }
+
+
+def test_one_days_change_stays_on_that_day_of_a_series(client, overnight, work_kit):
+    _ok(
+        client.post(
+            "/api/events",
+            json={
+                "title": "Scouts",
+                "all_day": True,
+                "start": SATURDAY,
+                "rrule": "FREQ=WEEKLY",
+                "packing_lists": [
+                    {"name": TRIP, "packing_list_template_ids": [overnight["id"], work_kit["id"]]}
+                ],
+            },
+        ),
+        201,
+    )
+    first = next(day for day in _days(client) if day["date"] == SATURDAY)
+    _ok(
+        client.put(
+            f"/api/packing-list-days/{first['id']}",
+            json={"packing_list_template_ids": [overnight["id"]]},
+        )
+    )
+    (changed,) = _occurrence_lists(client, SATURDAY)
+    assert changed["packing_list_template_ids"] == [overnight["id"]]
+    (later,) = _occurrence_lists(client, "2026-10-17")
+    assert later["packing_list_template_ids"] == [overnight["id"], work_kit["id"]]
+
+
+def test_moving_an_event_never_brings_back_a_removed_template(client, overnight, work_kit):
+    event = _trip(client, overnight["id"], work_kit["id"])
+    (day,) = _days(client)
+    _ok(
+        client.put(
+            f"/api/packing-list-days/{day['id']}",
+            json={"packing_list_template_ids": [overnight["id"]]},
+        )
+    )
+    target = _list(client, TRIP, [overnight["id"]], day=SUNDAY)
+    _ok(
+        client.put(
+            f"/api/events/{event['id']}?adopt=true",
+            json={"start": SUNDAY, "end": SUNDAY},
+        )
+    )
+    assert [t["id"] for t in _get(client, target["id"])["templates"]] == [overnight["id"]]
+
+
+def test_a_stale_save_does_not_bring_back_a_removed_template(client, overnight, work_kit):
+    event = _trip(client, overnight["id"], work_kit["id"])
+    (day,) = _days(client)
+    _ok(
+        client.put(
+            f"/api/packing-list-days/{day['id']}",
+            json={"packing_list_template_ids": [overnight["id"]]},
+        )
+    )
+    # A form opened before the removal, saved after it.
+    _ok(
+        client.put(
+            f"/api/events/{event['id']}",
+            json={
+                "packing_lists": [
+                    {
+                        "key": logic.list_key(TRIP),
+                        "name": TRIP,
+                        "packing_list_template_ids": [overnight["id"], work_kit["id"]],
+                    }
+                ]
+            },
+        )
+    )
+    assert [t["id"] for t in _get(client, day["id"])["templates"]] == [overnight["id"]]
+    (brought,) = _occurrence_lists(client, SATURDAY)
+    assert brought["packing_list_template_ids"] == [overnight["id"]]
+
+
+def test_a_past_one_time_list_moves_forward_as_its_day_had_it(
+    client, frozen_now, overnight, work_kit
+):
+    event = _trip(client, overnight["id"], work_kit["id"])
+    (day,) = _days(client)
+    _ok(
+        client.put(
+            f"/api/packing-list-days/{day['id']}",
+            json={"packing_list_template_ids": [overnight["id"]]},
+        )
+    )
+    frozen_now(datetime(2026, 10, 12, 15, 0, tzinfo=UTC))  # Saturday is over.
+    _ok(client.put(f"/api/events/{event['id']}", json={"start": THURSDAY, "end": THURSDAY}))
+    (moved,) = [d for d in _days(client) if d["date"] == THURSDAY]
+    assert [t["id"] for t in moved["templates"]] == [overnight["id"]]
+    assert moved["name"] == TRIP
+
+
+def test_deleting_the_only_template_of_a_placed_list_stops_the_event_bringing_it(
+    client, db_session, overnight
+):
+    event = _trip(client, overnight["id"])
+    client.delete(f"/api/packing-list-templates/{overnight['id']}")
+    assert _ok(client.get(f"/api/events/{event['id']}"))["packing_lists"] == []
+    (day,) = _days(client)
+    assert day["events"] == []
 
 
 def test_the_archive_finds_a_list_by_a_template_it_includes(

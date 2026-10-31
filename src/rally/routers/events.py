@@ -202,7 +202,10 @@ def _event_response(db: Session, event: Event) -> EventResponse:
             EventPackingListResponse(
                 key=spec.key, name=spec.name, packing_list_template_ids=list(spec.template_ids)
             )
-            for spec in packing_lists.series_specs(packing_lists._event_rows(db, event.id))
+            for spec in (
+                packing_lists.live_spec(db, event.id, spec)
+                for spec in packing_lists.series_specs(packing_lists._event_rows(db, event.id))
+            )
         ],
         overrides=[
             EventOverrideResponse(

@@ -1305,7 +1305,12 @@ class EventPackingList(Base):
     put it on (``PackingListDayEvent``) refer to it by key, so renaming a
     template the list is named after renames ``name`` and leaves the key.
     ``name`` and ``template_ids`` (a JSON list of template ids, in order) are
-    what a day it puts the list on starts with; a removal row has neither.
+    what a day not yet made starts with; a removal row has neither. **The day
+    is the one record once there is one**: the sync clears both on an
+    occurrence's row and on a one-time event's row when the list is on its day
+    (``rally.packing_lists._drop_copies``), and NULL ``template_ids`` means
+    "read the day". A repeating event's series row keeps its own, for the
+    occurrences still to come.
 
     ``occurrence_date`` NULL is the series' own: every occurrence has it. Set,
     the row is one occurrence's difference, keyed on the occurrence's

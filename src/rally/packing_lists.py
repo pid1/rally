@@ -1118,11 +1118,13 @@ NEXT_OCCURRENCE_DAYS = 400
 @dataclass(frozen=True)
 class ListSpec:
     """A packing list an event brings: its key on the event, the name a day
-    it puts it on starts with, and the templates that day includes."""
+    it puts it on starts with, and the templates that day includes.
+    ``template_ids`` is ``None`` when the row holds no copy because the list's
+    day is the record (``_drop_copies``); ``live_spec`` reads it from there."""
 
     key: str
     name: str
-    template_ids: tuple[int, ...]
+    template_ids: tuple[int, ...] | None
 
 
 def list_key(name: str) -> str:
@@ -1132,9 +1134,8 @@ def list_key(name: str) -> str:
 
 
 def _spec(row: EventPackingList) -> ListSpec:
-    return ListSpec(
-        key=row.list_key, name=row.name or row.list_key, template_ids=tuple(row.template_ids or ())
-    )
+    template_ids = None if row.template_ids is None else tuple(row.template_ids)
+    return ListSpec(key=row.list_key, name=row.name or row.list_key, template_ids=template_ids)
 
 
 class EventPackingListError(Exception):
@@ -1258,6 +1259,37 @@ def _event_rows(db: Session, event_id: int) -> list[EventPackingList]:
     )
 
 
+def _day_spec(db: Session, key: str, day_id: int) -> ListSpec:
+    """A list as its day has it now: the day is the record once there is one."""
+    day = db.query(PackingListDay).filter(PackingListDay.id == day_id).first()
+    if day is None:
+        return ListSpec(key=key, name=key, template_ids=())
+    return ListSpec(key=key, name=day.name, template_ids=tuple(day_template_ids(db, day.id)))
+
+
+def live_spec(
+    db: Session, event_id: int, spec: ListSpec, occurrence_date: str | None = None
+) -> ListSpec:
+    """``spec`` with what its row no longer holds read from the list's day:
+    that occurrence's when it has one, else the latest."""
+    if spec.template_ids is not None:
+        return spec
+    links = (
+        db.query(PackingListDayEvent)
+        .filter(
+            PackingListDayEvent.event_id == event_id,
+            PackingListDayEvent.list_key == spec.key,
+            PackingListDayEvent.day_id.isnot(None),
+        )
+        .order_by(PackingListDayEvent.date.desc())
+        .all()
+    )
+    if not links:
+        return ListSpec(key=spec.key, name=spec.name, template_ids=())
+    own = [link for link in links if link.occurrence_date == occurrence_date]
+    return _day_spec(db, spec.key, (own or links)[0].day_id)
+
+
 def series_specs(rows: list[EventPackingList]) -> list[ListSpec]:
     """The lists every occurrence of the series brings, in the order added."""
     return [_spec(row) for row in rows if row.occurrence_date is None]
@@ -1351,7 +1383,7 @@ def split_event_packing_lists(db: Session, head_id: int, tail_id: int, split: st
     """
     for spec in series_specs(_event_rows(db, head_id)):
         row = EventPackingList(event_id=tail_id, list_key=spec.key)
-        _write_spec(row, spec)
+        _write_spec(row, live_spec(db, head_id, spec))
         db.add(row)
     db.query(EventPackingList).filter(
         EventPackingList.event_id == head_id,
@@ -1567,7 +1599,7 @@ def sync_event_packing_lists(
         dates = _wanted_dates(occurrence, today_iso)
         for key, spec in occurrence_specs(rows, occurrence_date).items():
             wanted[(occurrence_date, key)] = dates
-            specs[(occurrence_date, key)] = spec
+            specs[(occurrence_date, key)] = live_spec(db, event.id, spec, occurrence_date)
 
     # Plan first, so a refusal leaves nothing half done.
     releases: list[PackingListDayEvent] = []
@@ -1642,17 +1674,45 @@ def sync_event_packing_lists(
     keeping = {link.id for link in asked} if release == RELEASE_KEEP else set()
     for link in releases:
         _release(db, link, keep=link.id in keeping)
-    for link, key, occurrence_date, value in moves:
+    for link, _key, occurrence_date, value in moves:
         link.occurrence_date = occurrence_date
-        _move(db, link, specs.get((occurrence_date, key)), value)
+        _move(db, link, value)
     for key, arriving in places.items():
         for occurrence_date, value in arriving:
             _place(db, event.id, occurrence_date, specs[(occurrence_date, key)], value)
     db.flush()
+    _drop_copies(db, event)
 
 
-def _move(db: Session, link: PackingListDayEvent, spec: ListSpec | None, value: str) -> None:
-    """Move one link, and its day when the day is this link's alone."""
+def _drop_copies(db: Session, event: Event) -> None:
+    """A row's name and templates are what a day *not yet made* starts with.
+    Once its list is on a day, the day is the one record of them, so the row
+    lets go of its copy and can never disagree with it.
+
+    A repeating event's series row keeps its own: its later occurrences still
+    have days to make, and one day's changes stay on that day.
+    """
+    links = (
+        db.query(PackingListDayEvent.occurrence_date, PackingListDayEvent.list_key)
+        .filter(PackingListDayEvent.event_id == event.id, PackingListDayEvent.day_id.isnot(None))
+        .all()
+    )
+    linked = {(occurrence_date, key) for occurrence_date, key in links}
+    keys = {key for _, key in linked}
+    for row in _event_rows(db, event.id):
+        if row.occurrence_date is None:
+            spent = not event.rrule and row.list_key in keys
+        else:
+            spent = (row.occurrence_date, row.list_key) in linked
+        if spent:
+            row.name = None
+            row.template_ids = None
+    db.flush()
+
+
+def _move(db: Session, link: PackingListDayEvent, value: str) -> None:
+    """Move one link, and its day when the day is this link's alone. Where the
+    list has to go on another day, it goes as its day has it now."""
     if link.day_id is None:
         link.date = value
         return
@@ -1666,8 +1726,7 @@ def _move(db: Session, link: PackingListDayEvent, spec: ListSpec | None, value: 
         db.flush()
         return
     old_day_id = link.day_id
-    if spec is None:
-        spec = ListSpec(key=link.list_key, name=link.list_key, template_ids=())
+    spec = _day_spec(db, link.list_key, old_day_id)
     if target is None:
         target = _new_day(db, spec, value)
     else:
@@ -1903,7 +1962,8 @@ def unlink_template(db: Session, template_id: int) -> None:
     rows = db.query(EventPackingList).filter(EventPackingList.removed == False).all()  # noqa: E712
     emptied: set[tuple[int, str]] = set()
     for row in rows:
-        if template_id in (row.template_ids or []) and len(row.template_ids) == 1:
+        included = live_spec(db, row.event_id, _spec(row), row.occurrence_date).template_ids
+        if included == (template_id,):
             emptied.add((row.event_id, row.list_key))
     for row in rows:
         if (row.event_id, row.list_key) in emptied:
@@ -2013,8 +2073,8 @@ def occurrence_packing_lists(
 ) -> dict[tuple[int, str], list[dict]]:
     """Each native occurrence's packing lists, A–Z: ``{key, name,
     packing_list_template_ids, day_ids}``. An occurrence the sync has not
-    reached yet still names its lists, with no days. The name is the list's
-    on its day when there is one (it can be renamed there), else the event's."""
+    reached yet still names its lists, with no days. A list on a day reads as
+    that day has it, name and templates alike: it can be changed there."""
     event_ids = {event_id for event_id, _ in pairs}
     if not event_ids:
         return {}
@@ -2041,6 +2101,7 @@ def occurrence_packing_lists(
             PackingListDay.id.in_({day_id for ids in days.values() for day_id in ids})
         )
     }
+    included = day_template_map(db, list(day_names))
     result = {}
     for event_id, occurrence_date in pairs:
         rows = rows_by_event.get(event_id)
@@ -2049,12 +2110,16 @@ def occurrence_packing_lists(
         lists = []
         for key, spec in occurrence_specs(rows, occurrence_date).items():
             day_ids = sorted(days.get((event_id, occurrence_date, key), []))
-            name = next((day_names[d] for d in day_ids if d in day_names), spec.name)
+            day_id = next((d for d in day_ids if d in day_names), None)
+            if day_id is None:
+                spec = live_spec(db, event_id, spec, occurrence_date)
             lists.append(
                 {
                     "key": key,
-                    "name": name,
-                    "packing_list_template_ids": list(spec.template_ids),
+                    "name": spec.name if day_id is None else day_names[day_id],
+                    "packing_list_template_ids": (
+                        list(spec.template_ids) if day_id is None else included[day_id]
+                    ),
                     "day_ids": day_ids,
                 }
             )
