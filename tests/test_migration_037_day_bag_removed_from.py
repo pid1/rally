@@ -104,8 +104,9 @@ def test_agrees_with_the_model(db_path, tmp_path):
     assert _columns(db_path, "packing_list_day_bags") == _columns(fresh, "packing_list_day_bags")
 
 
-def test_the_orm_can_use_what_it_made(db_path):
+def test_the_orm_can_use_what_it_made(db_path, apply_audit_migration):
     _migrate()
+    assert apply_audit_migration() is True
     engine = create_engine(f"sqlite:///{db_path}")
     with Session(engine) as session:
         session.add(PackingListDayBag(day_id=2, bag_id=3, removed_from_bag_id=1))

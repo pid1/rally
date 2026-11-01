@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from rally.utils.display import display_time
+
 # Sources, in the order the merge layer prefers them when the same event
 # arrives from two places. Native wins because it is the only editable one.
 SOURCE_NATIVE = "native"
@@ -116,7 +118,7 @@ class Occurrence:
         """
         if self.all_day:
             return "All day"
-        return self.local_start(tz).strftime("%I:%M %p").lstrip("0")
+        return display_time(self.local_start(tz))
 
     def form_values(self, tz: ZoneInfo) -> tuple[str, str]:
         """This occurrence's start and end as the edit form displays them.

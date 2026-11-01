@@ -259,6 +259,77 @@ def test_adding_a_list_to_a_past_event_is_refused_under_what_to_pack(page):
     assert not message.is_visible()
 
 
+def _answer(page, value):
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+    page.check(f'#dialog-modal-choices input[value="{value}"]')
+    page.click("#btn-dialog-modal-confirm")
+    page.wait_for_timeout(500)
+
+
+def test_removing_a_list_on_a_day_asks_keep_or_remove(page):
+    """#313: removing a list in What to pack asks whether it stays on its day,
+    with nothing chosen and Save waiting for an answer."""
+    template = _template(page)
+    event = _event(page, [template["id"]])
+    _reload_templates(page)
+    page.evaluate("async o => { await openEditEventModal(o); }", _occurrence(page, event))
+    page.click("[data-remove-packing]")
+
+    page.click("#btn-save-event")
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+    assert page.inner_text("#dialog-modal-title").lower() == "remove packing list"
+    assert page.inner_text("#dialog-modal-message strong") == template["name"]
+    assert page.inner_text("#btn-dialog-modal-confirm") == "Save"
+    assert page.is_disabled("#btn-dialog-modal-confirm")
+    labels = page.locator("#dialog-modal-choices label").all_inner_texts()
+    assert [label.split(" it")[0] for label in labels] == ["Keep", "Remove"]
+
+    # Cancel saves nothing and leaves the edits in the form.
+    page.click("#btn-dialog-modal-cancel")
+    page.wait_for_timeout(300)
+    assert page.evaluate("document.getElementById('event-modal-overlay').style.display") == "flex"
+    assert _picked(page) == []
+    assert [e["event_id"] for e in _days_for(page, template["id"])[0]["events"]] == [event["id"]]
+
+    page.click("#btn-save-event")
+    _answer(page, "keep")
+    days = _days_for(page, template["id"])
+    assert [(d["date"], d["events"]) for d in days] == [(DAY.isoformat(), [])]
+
+
+def test_joining_and_removing_in_one_save_is_one_question(page):
+    leaving = _template(page)
+    joining = _template(page)
+    event = _event(page, [leaving["id"]])
+    page.request.post(
+        _base(page) + "/api/packing-list-days",
+        data={"packing_list_template_id": joining["id"], "date": DAY.isoformat()},
+    )
+    _reload_templates(page)
+    page.evaluate("async o => { await openEditEventModal(o); }", _occurrence(page, event))
+    page.click("[data-remove-packing]")
+    _pick(page, joining["name"])
+
+    page.click("#btn-save-event")
+    page.wait_for_selector("#dialog-modal-overlay", state="visible")
+    assert page.inner_text("#dialog-modal-title").lower() == "save event"
+    assert page.locator("#dialog-modal-message strong").all_inner_texts() == [
+        joining["name"],
+        leaving["name"],
+    ]
+    # The choices name the list, since "it" could mean either.
+    assert page.locator("#dialog-modal-choices strong").all_inner_texts() == [
+        leaving["name"],
+        leaving["name"],
+    ]
+    page.check('#dialog-modal-choices input[value="remove"]')
+    page.click("#btn-dialog-modal-confirm")
+    page.wait_for_timeout(500)
+    assert _days_for(page, leaving["id"]) == []
+    joined = _days_for(page, joining["id"])
+    assert [e["event_id"] for e in joined[0]["events"]] == [event["id"]]
+
+
 def test_custom_schedule_is_not_offered_on_a_new_event(page):
     page.evaluate("d => openAddEventModal(d)", DAY.isoformat())
     labels = page.evaluate(

@@ -15,8 +15,9 @@ reader has no way to tell it is wrong.
 from __future__ import annotations
 
 import re
-from calendar import month_abbr
 from datetime import datetime
+
+from rally.utils.display import display_date
 
 # Declared in week order, Sunday first, because that is the order Rally reads a
 # week in everywhere else — the calendar grid and the event form's weekday
@@ -148,7 +149,7 @@ def _until_date(raw: str) -> str:
             parsed = datetime.strptime(text, fmt)
         except ValueError:
             continue
-        return f"{month_abbr[parsed.month]} {parsed.day}, {parsed.year}"
+        return display_date(parsed.date().isoformat(), weekday=False)
     return ""
 
 

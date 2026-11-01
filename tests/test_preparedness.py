@@ -315,7 +315,15 @@ class TestSendDigest:
         send_digest(db_session, TODAY)
 
         payload = mock_pushover.sent[0]
-        assert "OVERDUE since 2026-07-01" in payload["message"]
+        assert "OVERDUE since Wednesday, Jul 1" in payload["message"]
+
+    def test_due_reads_as_a_date_people_read(
+        self, db_session, make_prep_item, mock_pushover, prep_pushover
+    ):
+        _due(make_prep_item, name="Water drums")
+        send_digest(db_session, TODAY)
+
+        assert "due Saturday, Aug 15" in mock_pushover.sent[0]["message"]
 
     def test_long_digest_is_truncated_not_rejected(
         self, db_session, make_prep_item, mock_pushover, prep_pushover
@@ -554,6 +562,36 @@ class TestGoList:
         out = render_markdown(build_groups(db_session), TODAY)
         assert "## Food" in out
         assert "- [ ] SPAM Classic — 5" in out
+
+    def test_markdown_words_its_dates(self, db_session, make_prep_location, make_prep_item):
+        loc = make_prep_location("Water")
+        make_prep_item(
+            name="Water drums",
+            location_id=loc.id,
+            refresh_mode="date",
+            next_refresh_date="2026-08-22",
+        )
+        make_prep_item(
+            name="Filters", location_id=loc.id, refresh_mode="date", next_refresh_date="2027-01-09"
+        )
+
+        out = render_markdown(build_groups(db_session), TODAY)
+        assert "_Generated Saturday, Aug 15_" in out
+        assert "_Refresh: Saturday, Aug 22_" in out
+        assert "_Refresh: Saturday, Jan 9, 2027_" in out
+
+    def test_csv_keeps_iso_dates(self, db_session, make_prep_location, make_prep_item):
+        """A spreadsheet sorts and parses `2026-08-22`; it can do neither with words."""
+        loc = make_prep_location("Water")
+        make_prep_item(
+            name="Water drums",
+            location_id=loc.id,
+            refresh_mode="date",
+            next_refresh_date="2026-08-22",
+        )
+
+        out = render_csv(build_groups(db_session), TODAY)
+        assert out.splitlines()[1].endswith(",2026-08-22")
 
     def test_csv_columns(self, db_session, make_prep_location, make_prep_item):
         loc = make_prep_location("Food")

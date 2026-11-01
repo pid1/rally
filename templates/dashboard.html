@@ -46,39 +46,16 @@
     </footer>
 
     <script>
-        // Format current date in user's local timezone
-        (function() {
-            const dateElement = document.getElementById('current-date');
-            const today = new Date();
-            const formatted = today.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            dateElement.textContent = formatted;
-        })();
-        
         // Format timestamp in user's local timezone
         (function() {
             const timestampElement = document.getElementById('timestamp');
             const utcTimestamp = '{{timestamp_utc}}';
             
             if (utcTimestamp && utcTimestamp !== '') {
-                try {
-                    const date = new Date(utcTimestamp);
-                    const formatted = date.toLocaleString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true
-                    });
-                    timestampElement.textContent = formatted;
-                } catch (e) {
-                    // Fallback to server-formatted time if parsing fails
-                    console.error('Failed to parse timestamp:', e);
+                const date = parseTimestamp(utcTimestamp);
+                // Unreadable: keep the server-formatted time.
+                if (!isNaN(date)) {
+                    timestampElement.textContent = `${formatDate(date, { month: 'short' })}, ${formatTime(date)}`;
                 }
             }
         })();

@@ -68,9 +68,14 @@ The database holds your API keys and any CalDAV app-specific passwords **in plai
 |---|---|---|
 | `RALLY_ENV` | `development` | Set to `production` in Docker |
 | `RALLY_DB_PATH` | Auto-detected from `RALLY_ENV` | Override the database location |
+| `RALLY_MCP_SERVICE_TOKEN` | *(unset)* | Shared secret rally-mcp authenticates with. Unset means every MCP request is refused. See [mcp.md](mcp.md) |
+| `RALLY_TAILSCALE_SOCKET` | `/var/run/tailscale/tailscaled.sock` | tailscaled's LocalAPI socket, used to put a name on every tailnet request in the [audit log](audit-log.md). Mount it into the container read-only |
+| `RALLY_TRUSTED_PROXIES` | `127.0.0.1,::1` | Addresses whose `Tailscale-User-*` headers (Tailscale Serve) are believed |
 
 Everything else is configured in the Settings UI and stored in the database. See [configuration.md](configuration.md).
 
 ## Remote access
 
 Rally has no built-in authentication. Keep it on your LAN, or reach it over a private network such as Tailscale. If you expose it beyond that, put it behind a reverse proxy that terminates HTTPS and handles authentication.
+
+The one exception is the optional MCP server, which lets Claude reach Rally from outside the tailnet through Cloudflare Access without exposing Rally itself. See [mcp.md](mcp.md).

@@ -5,16 +5,17 @@ The rule: a date shows its year **only when that year is not the current one**.
 one that has not — the year is information when it distinguishes and noise when
 it cannot.
 
-This is asserted by calling each page's own ``formatDate()`` with synthetic
+This is asserted by calling each page's own ``noteDateLabel()`` with synthetic
 dates rather than by seeding rows, for two reasons. The year branch needs a
 note from a previous year, and the API refuses to write one — correctly, since
 past days are read-only, so there is no way to seed one through the front door.
 And the seed is entirely current-year, which means that without this the branch
 never executes in any test run at all.
 
-Both pages carry their own copy of the rule (the Notes page layers `Today` and
-`Tomorrow` on top), so both are checked, and they are checked against each
-other: two implementations of one rule is exactly the shape that drifts.
+Both pages state the rule as options to the shared ``formatDate()`` in
+static/dates.js (the Notes page layers `Today` and `Tomorrow` on top), so both
+are checked, and they are checked against each other: two statements of one
+rule is exactly the shape that drifts.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ def _expected(d: date, *, with_year: bool) -> str:
 
 @pytest.fixture(scope="module", params=sorted(PAGES))
 def formatter(request, browser, live_server):
-    """A callable running the given page's own formatDate() in the browser."""
+    """A callable running the given page's own noteDateLabel() in the browser."""
     page_name = request.param
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = context.new_page()
@@ -59,12 +60,12 @@ def formatter(request, browser, live_server):
         # Keyed on the shared class, not an id: the Notes page uses
         # `#notes-list` (mirroring the Meal Planner's `#plans-list`) and the
         # archive uses `#list-container` (mirroring the other archive pages).
-        # Both pages set localTimezone from /api/settings during init; formatDate
+        # Both pages set localTimezone from /api/settings during init; noteDateLabel
         # reads it, so waiting for the list is waiting for that to have happened.
         page.wait_for_selector(".list-container .editable-item")
 
         def call(date_str: str) -> str:
-            return page.evaluate("(d) => formatDate(d)", date_str)
+            return page.evaluate("(d) => noteDateLabel(d)", date_str)
 
         yield call
     finally:
@@ -138,7 +139,7 @@ def test_both_pages_label_a_dated_note_identically(browser, live_server):
         try:
             page.goto(live_server + path, wait_until="networkidle")
             page.wait_for_selector(".list-container .editable-item")
-            labels[name] = page.evaluate("(d) => formatDate(d)", _iso(probe))
+            labels[name] = page.evaluate("(d) => noteDateLabel(d)", _iso(probe))
         finally:
             page.close()
             context.close()
@@ -154,8 +155,10 @@ def test_the_notes_page_names_today_and_tomorrow(browser, live_server):
         page.goto(live_server + "/notes", wait_until="networkidle")
         page.wait_for_selector(".list-container .editable-item")
         today = _today()
-        assert page.evaluate("(d) => formatDate(d)", _iso(today)) == "Today"
-        assert page.evaluate("(d) => formatDate(d)", _iso(today + timedelta(days=1))) == "Tomorrow"
+        assert page.evaluate("(d) => noteDateLabel(d)", _iso(today)) == "Today"
+        assert (
+            page.evaluate("(d) => noteDateLabel(d)", _iso(today + timedelta(days=1))) == "Tomorrow"
+        )
     finally:
         page.close()
         context.close()

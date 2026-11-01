@@ -12,6 +12,11 @@
  *       A question: the action as the title, the verb on the confirm button,
  *       and Cancel. True on the confirm button, false on Cancel or a click on
  *       the backdrop.
+ *   confirmModal({ title, messageHtml, confirmLabel, choices }) → Promise<value|false>
+ *       A question with an answer to pick: `choices` is `[{ value, labelHtml }]`,
+ *       drawn as radios under the message with nothing chosen, and the
+ *       confirm button waits for one (#313). Resolves to the chosen `value`,
+ *       or false on Cancel or the backdrop.
  *   alertModal({ messageHtml })                          → Promise<void>
  *       A failure: the message and OK, with no title. Resolves when it closes.
  *   showFormMessage(id, text, role) / clearFormMessage(id)
@@ -43,14 +48,18 @@
  *   joinNames(names)
  *       Names in a sentence, quoted, with the Oxford comma.
  *
- * `messageHtml` is inserted as markup, so the caller escapes every name in it
- * before wrapping it in <strong>.
+ * `messageHtml` and each choice's `labelHtml` are inserted as markup, so the
+ * caller escapes every name in them before wrapping it in <strong>.
  */
 (function () {
     'use strict';
 
     const OVERLAY_ID = 'dialog-modal-overlay';
+    const CHOICE_NAME = 'dialog-modal-choice';
     let resolvePending = null;
+    // Whether the open question has choices, so the confirm button answers
+    // with the one picked rather than with true.
+    let choosing = false;
 
     function part(id) {
         return document.getElementById(id);
@@ -67,14 +76,21 @@
         const overlay = part(OVERLAY_ID);
         if (!overlay || overlay.dataset.dialogWired) return;
         overlay.dataset.dialogWired = 'true';
-        part('btn-dialog-modal-confirm').addEventListener('click', () => close(true));
+        part('btn-dialog-modal-confirm').addEventListener('click', () => {
+            if (!choosing) { close(true); return; }
+            const chosen = overlay.querySelector(`input[name="${CHOICE_NAME}"]:checked`);
+            if (chosen) close(chosen.value);
+        });
+        part('dialog-modal-choices').addEventListener('change', () => {
+            part('btn-dialog-modal-confirm').disabled = false;
+        });
         part('btn-dialog-modal-cancel').addEventListener('click', () => close(false));
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) close(false);
         });
     }
 
-    function open({ title, messageHtml, confirmLabel, cancellable }) {
+    function open({ title, messageHtml, confirmLabel, cancellable, choices = null }) {
         wire();
         // A dialog asked while another is still open answers the first one
         // as Cancel: only one question is ever waiting.
@@ -85,14 +101,25 @@
         // `display` (as `.btn` does) would outrank.
         heading.style.display = title ? '' : 'none';
         part('dialog-modal-message').innerHTML = messageHtml;
+        // Nothing is chosen in advance, the scope modal's rule: a preselected
+        // answer is how the wrong one gets picked.
+        choosing = Boolean(choices && choices.length);
+        const list = part('dialog-modal-choices');
+        list.innerHTML = choosing
+            ? choices.map((choice) => `<label><input type="radio" name="${CHOICE_NAME}"
+                value="${String(choice.value).replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`)}">
+                <span>${choice.labelHtml}</span></label>`).join('')
+            : '';
+        list.style.display = choosing ? '' : 'none';
+        part('btn-dialog-modal-confirm').disabled = choosing;
         part('btn-dialog-modal-confirm').textContent = confirmLabel;
         part('btn-dialog-modal-cancel').style.display = cancellable ? '' : 'none';
         showModalOverlay(OVERLAY_ID);
         return new Promise((resolve) => { resolvePending = resolve; });
     }
 
-    function confirmModal({ title, messageHtml, confirmLabel }) {
-        return open({ title, messageHtml, confirmLabel, cancellable: true });
+    function confirmModal({ title, messageHtml, confirmLabel, choices = null }) {
+        return open({ title, messageHtml, confirmLabel, cancellable: true, choices });
     }
 
     function alertModal({ messageHtml }) {

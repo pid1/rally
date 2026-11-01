@@ -1768,7 +1768,9 @@ def test_each_section_says_when_it_has_nothing(browser, live_server):
 
         add_hint = 'Click "Add Packing List" to put a packing list on a day.'
         # Only what is still coming up: Due Now is empty, Coming Up is not.
-        page.evaluate("days = days.filter(d => d.pack_date > todayLocal()); renderDays()")
+        page.evaluate(
+            "days = days.filter(d => d.pack_date > todayLocal(LOCAL_TIMEZONE)); renderDays()"
+        )
         assert note("due-now") == f"Nothing to pack yet. {add_hint}"
         assert page.locator("#coming-up-container [data-day-card]").count() > 0
         # With Packing: Due now on, it reads the same.

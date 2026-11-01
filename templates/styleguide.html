@@ -532,10 +532,12 @@
                 <code>confirm()</code> and <code>alert()</code>: <code>confirmModal()</code> and
                 <code>alertModal()</code> in <code>static/dialogs.js</code>. A question is titled with
                 the action, names what it touches in bold, and answers with the verb or Cancel. A
-                failure has no title and one OK.
+                question with an answer to pick passes <code>choices</code>: radios with nothing
+                chosen, and the verb waits for one. A failure has no title and one OK.
             </p>
             <div class="page-header-actions">
                 <button class="btn" id="sg-dialog-confirm">Ask a question</button>
+                <button class="btn" id="sg-dialog-choices">Ask with choices</button>
                 <button class="btn" id="sg-dialog-alert">Report a failure</button>
             </div>
         </section>
@@ -588,6 +590,15 @@
             title: 'Delete task',
             messageHtml: 'Delete <strong>Buy milk</strong>?',
             confirmLabel: 'Delete',
+        }));
+        document.getElementById('sg-dialog-choices').addEventListener('click', () => confirmModal({
+            title: 'Remove packing list',
+            messageHtml: '"<strong>Beach day</strong>" is on Saturday, Oct 10, 2026.',
+            confirmLabel: 'Save',
+            choices: [
+                { value: 'keep', labelHtml: 'Keep it on Saturday' },
+                { value: 'remove', labelHtml: 'Remove it, with what was checked on it' },
+            ],
         }));
         document.getElementById('sg-dialog-alert').addEventListener('click', () => alertModal({
             messageHtml: 'Failed to save task',

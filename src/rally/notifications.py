@@ -39,6 +39,14 @@ from rally.models import (
     FamilyMember,
     Setting,
 )
+from rally.utils.display import (
+    WEEKDAYS,
+    display_date,
+    display_date_range,
+    display_dated_times,
+    display_time,
+    display_time_range,
+)
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc
 
@@ -171,31 +179,11 @@ def format_message(event: Event, occurrence, tz: ZoneInfo) -> str:
         when = "All day today" if occurrence.start_local_date else "All day"
     else:
         local = occurrence.start.astimezone(tz)
-        when = local.strftime("%A %I:%M %p").replace(" 0", " ")
+        when = f"{WEEKDAYS[local.weekday()]} {display_time(local)}"
     parts = [when]
     if event.location:
         parts.append(f"at {event.location}")
     return " · ".join(parts)
-
-
-def _clock(moment: datetime) -> str:
-    """A local time as "5:30 PM"."""
-    return moment.strftime("%I:%M %p").lstrip("0")
-
-
-def _time_range(start: datetime, end: datetime) -> str:
-    """ "5:30 to 6:30 PM" — how long the thing runs, not just when it starts.
-
-    The meridiem is stated once when both ends share it and twice when they do
-    not, which is the difference between reading a range and parsing one. An
-    event with no duration collapses to its start rather than saying "5:30 to
-    5:30".
-    """
-    if end <= start:
-        return _clock(start)
-    if start.strftime("%p") == end.strftime("%p"):
-        return f"{start.strftime('%I:%M').lstrip('0')} to {_clock(end)}"
-    return f"{_clock(start)} to {_clock(end)}"
 
 
 def when_label(occurrence, tz: ZoneInfo) -> str:
@@ -206,26 +194,32 @@ def when_label(occurrence, tz: ZoneInfo) -> str:
     Times are rendered in the install's configured local zone — the same clock
     the calendar screens use — and name that zone, because a bare "5:30 PM" is
     only unambiguous to somebody who already knows which zone the server keeps.
+
+    The dates themselves read the way they do everywhere else in Rally
+    (``rally.utils.display``): ``Friday, Aug 14, 2026``.
     """
     if occurrence.all_day:
-        when = occurrence.start_local_date
-        if occurrence.spans_days():
-            when = f"{when} – {occurrence.end_local_date}"
-        return f"{when} · All day"
+        dates = display_date_range(occurrence.start_local_date, occurrence.end_local_date)
+        return f"{dates} · All day"
 
     start = occurrence.local_start(tz)
     end = occurrence.local_end(tz)
     zone = start.strftime("%Z") or getattr(tz, "key", "")
 
     if occurrence.spans_days():
-        # Each time needs its own date or the range is a riddle: "2026-08-14 –
-        # 2026-08-16 · 5:30 PM to 9:00 AM" does not say which end is which.
-        return (
-            f"{occurrence.start_local_date} {_clock(start)} – "
-            f"{occurrence.end_local_date} {_clock(end)} {zone}"
-        ).strip()
+        # Each time needs its own date or the range is a riddle: "Friday, Aug 14
+        # – Sunday, Aug 16, 2026 · 5:30 PM – 9:00 AM" does not say which end is
+        # which.
+        spans = display_dated_times(
+            occurrence.start_local_date,
+            display_time(start),
+            occurrence.end_local_date,
+            display_time(end),
+        )
+        return f"{spans} {zone}".strip()
 
-    return f"{occurrence.start_local_date} · {_time_range(start, end)} {zone}".strip()
+    day = display_date(occurrence.start_local_date)
+    return f"{day} · {display_time_range(start, end)} {zone}".strip()
 
 
 def change_title(event_title: str, kind: str) -> str:

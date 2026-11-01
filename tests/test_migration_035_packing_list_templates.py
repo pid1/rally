@@ -245,8 +245,9 @@ def test_agrees_with_the_models(db_path, tmp_path):
             assert ours == theirs, table
 
 
-def test_the_orm_can_use_what_it_made(db_path):
+def test_the_orm_can_use_what_it_made(db_path, apply_audit_migration):
     _migrate_to_models()
+    assert apply_audit_migration() is True
     engine = create_engine(f"sqlite:///{db_path}")
     with Session(engine) as session:
         template = PackingListTemplate(name="Beach day", pack_days_before=1)

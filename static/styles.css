@@ -3393,3 +3393,31 @@ code {
         display: none;
     }
 }
+
+/* Audit Log (templates/audit.html). An outcome or identity worth a second look
+   is a bordered tag like the history "current" marker; a denial is the same
+   tag inverted, the strongest mark the monochrome palette has. */
+.audit-badge {
+    border: 1px solid var(--ink);
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
+    color: var(--ink);
+}
+
+.audit-badge--strong {
+    background: var(--ink);
+    color: var(--inverse);
+}
+
+.audit-json {
+    margin: var(--space-1) 0 var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--rule);
+    background: var(--surface-sunken);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    white-space: pre-wrap;
+    word-break: break-word;
+}

@@ -20,10 +20,11 @@
         return div.innerHTML;
     }
 
-    // Today's date (YYYY-MM-DD) in a given IANA timezone. Mirrors the backend's
-    // today_local() so the planner/history day boundary agrees with the server.
-    function todayLocal(tzName) {
-        return new Intl.DateTimeFormat('en-CA', { timeZone: tzName || 'UTC' }).format(new Date());
+    // Today's date (YYYY-MM-DD) in the page's IANA timezone, by static/dates.js's
+    // todayLocal(). Mirrors the backend's today_local() so the planner/history
+    // day boundary agrees with the server.
+    function todayIn(tzName) {
+        return todayLocal(tzName || 'UTC');
     }
 
     // `plan-text` (Meal Name) is a single-line <input>, which silently drops
@@ -123,7 +124,7 @@
             document.getElementById('plan-edit-id').value = '';
             this.populateFamilyControls();
             this.populateMealTypeSelector();
-            document.getElementById('plan-date').value = defaults.date || todayLocal(this.getTimezone());
+            document.getElementById('plan-date').value = defaults.date || todayIn(this.getTimezone());
             document.getElementById('plan-meal-type').value = defaults.meal_type || this.getDefaultMealType();
             document.querySelectorAll('.attendee-cb').forEach(cb => cb.checked = false);
             document.getElementById('plan-cook').value = '';
@@ -180,7 +181,7 @@
             // modal, naming the meal as it was saved.
             if (this.editingPlan &&
                 (this.editingPlan.rating || this.editingPlan.review) &&
-                date >= todayLocal(this.getTimezone())) {
+                date >= todayIn(this.getTimezone())) {
                 const ok = await confirmModal({
                     title: 'Move to planner',
                     messageHtml: `Moving <strong>${escapeHtml(this.editingPlan.plan)}</strong> to the planner will discard its rating and review. Continue?`,
@@ -255,5 +256,4 @@
     }
 
     global.MealEditModal = MealEditModal;
-    global.mealTodayLocal = todayLocal;
 })(window);

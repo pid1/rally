@@ -12,6 +12,7 @@ from rally.database import get_db
 from rally.generator.generate import SummaryGenerator
 from rally.models import DashboardSnapshot, Note
 from rally.templating import templates
+from rally.utils.display import display_date
 from rally.utils.settings import today_local_str
 from rally.utils.timezone import ensure_utc, now_utc
 
@@ -159,7 +160,12 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
     live on every request, so a note added or corrected during the day appears
     on the next load rather than waiting for the next generation.
     """
-    note = db.query(Note).filter(Note.date == today_local_str(db)).first()
+    today = today_local_str(db)
+    # The household's date, in the Settings zone: the day this page is built
+    # for. The browser does not replace it, so the header and the tab title
+    # always agree, wherever the device is.
+    date_str = display_date(today, month="long")
+    note = db.query(Note).filter(Note.date == today).first()
     note_html = markdown.render(note.body) if note else ""
 
     # Fetch the most recent active snapshot (regardless of date)
@@ -180,14 +186,35 @@ async def get_dashboard(request: Request, db: Session = Depends(get_db)):
             "schedule": [],
             "briefing": "",
         }
-        date_str = now_utc().strftime("%A, %B %d, %Y")
         context = _dashboard_context(error_data, date_str, now_utc(), note_html)
     else:
         # Render from cached data
-        date_str = now_utc().strftime("%A, %B %d, %Y")
         context = _dashboard_context(snapshot.data, date_str, snapshot.timestamp, note_html)
 
     return templates.TemplateResponse(request, "dashboard.html", context)
+
+
+@router.get("/api/dashboard/summary")
+def get_dashboard_summary(db: Session = Depends(get_db)):
+    """Today's generated summary and the live Daily Note, as data.
+
+    The same content the dashboard page renders, for API and MCP callers. The
+    summary is written by the LLM from the family's calendars — including
+    external feeds — so callers should treat its prose as untrusted.
+    """
+    note = db.query(Note).filter(Note.date == today_local_str(db)).first()
+    snapshot = (
+        db.query(DashboardSnapshot)
+        .filter(DashboardSnapshot.is_active == True)  # noqa: E712
+        .order_by(DashboardSnapshot.timestamp.desc())
+        .first()
+    )
+    return {
+        "date": today_local_str(db),
+        "generated_at": ensure_utc(snapshot.timestamp).isoformat() if snapshot else None,
+        "summary": snapshot.data if snapshot else None,
+        "daily_note": note.body if note else None,
+    }
 
 
 @router.get("/api/dashboard/regenerate")

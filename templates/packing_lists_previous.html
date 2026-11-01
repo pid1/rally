@@ -53,7 +53,7 @@
     <script src="/static/packing_lists.js?v={{ css_version }}"></script>
     <script>
         const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
-        const today = new Intl.DateTimeFormat('en-CA', { timeZone: LOCAL_TIMEZONE }).format(new Date());
+        const today = todayLocal(LOCAL_TIMEZONE);
         // Which cards are open, so Load more puts them back the way they were,
         // and which groups inside them, by group key: opened, or folded by
         // hand. A group in neither is folded unless it is a list's only one;

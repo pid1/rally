@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from rally.database import get_db
-from rally.models import RecurringTodo, Setting, Todo
+from rally.models import RecurringTodo, Todo
 from rally.recurrence import get_first_recurrence_date, get_next_recurrence_date
 from rally.schemas import (
     UNSET,
@@ -18,29 +18,12 @@ from rally.schemas import (
     RecurringTodoResponse,
     RecurringTodoUpdate,
 )
-from rally.utils.timezone import ensure_utc, now_utc, today_utc
+from rally.utils.settings import local_timezone_name
+from rally.utils.timezone import ensure_utc, today_utc
 
 router = APIRouter(prefix="/api/recurring-todos", tags=["recurring-todos"])
 
 PREVIEW_OCCURRENCES = 3  # What the modal's read-back line shows: this one, then two
-
-
-def format_local_completion(completed_at: datetime, local_tz: ZoneInfo) -> str:
-    local_dt = completed_at.astimezone(local_tz)
-    today = now_utc().astimezone(local_tz).date()
-    if local_dt.date() == today:
-        date_label = "Today"
-    elif local_dt.date() == today.replace(day=today.day) - __import__("datetime").timedelta(days=1):
-        date_label = "Yesterday"
-    else:
-        suffix = (
-            "th"
-            if 11 <= local_dt.day % 100 <= 13
-            else {1: "st", 2: "nd", 3: "rd"}.get(local_dt.day % 10, "th")
-        )
-        date_label = f"{local_dt.strftime('%b')} {local_dt.day}{suffix}, {local_dt.year}"
-    time_label = local_dt.strftime("%I:%M %p").lstrip("0")
-    return f"{date_label} at {time_label}"
 
 
 def normalize_start_date(value: str | None) -> str | None:
@@ -118,8 +101,7 @@ def list_recurring_todos(db: Session = Depends(get_db)):
         .all()
     )
 
-    tz_row = db.query(Setting).filter(Setting.key == "local_timezone").first()
-    local_tz = ZoneInfo(tz_row.value if tz_row and tz_row.value else "UTC")
+    local_tz = ZoneInfo(local_timezone_name(db))
 
     last_completed_map: dict[int, datetime] = {}
     last_completed_date_map: dict[int, str] = {}

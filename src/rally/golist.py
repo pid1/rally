@@ -15,6 +15,8 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from rally.models import PrepItem, PrepLocation
+from rally.preparedness import refresh_date_label
+from rally.utils.display import iso_date
 
 UNASSIGNED = "Unassigned"
 
@@ -70,7 +72,8 @@ def _line(item: PrepItem) -> str:
 
 def render_markdown(groups, generated_on: date) -> str:
     """Checkbox syntax, so the list drops straight into Obsidian or a gist."""
-    out = ["# Go List", "", f"_Generated {generated_on.isoformat()}_", ""]
+    generated = refresh_date_label(generated_on.isoformat(), generated_on)
+    out = ["# Go List", "", f"_Generated {generated}_", ""]
     total = 0
     for _lid, name, items in groups:
         out.append(f"## {name}")
@@ -80,7 +83,8 @@ def render_markdown(groups, generated_on: date) -> str:
             if item.notes:
                 out.append(f"      {item.notes}")
             if item.next_refresh_date:
-                out.append(f"      _Refresh: {item.next_refresh_date}_")
+                refresh = refresh_date_label(item.next_refresh_date, generated_on)
+                out.append(f"      _Refresh: {refresh}_")
             total += 1
         out.append("")
     out.append(f"_{total} items across {len(groups)} locations._")
@@ -102,7 +106,7 @@ def render_csv(groups, generated_on: date) -> str:
                     item.name,
                     item.quantity or "",
                     item.notes or "",
-                    item.next_refresh_date or "",
+                    iso_date(item.next_refresh_date),
                 ]
             )
     return buf.getvalue()
@@ -149,7 +153,8 @@ def render_pdf(groups, generated_on: date) -> bytes:
     pdf.cell(0, 10, _latin1("GO LIST"), new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(110, 110, 110)
-    pdf.cell(0, 6, _latin1(f"Generated {generated_on.isoformat()}"), new_x="LMARGIN", new_y="NEXT")
+    generated = refresh_date_label(generated_on.isoformat(), generated_on)
+    pdf.cell(0, 6, _latin1(f"Generated {generated}"), new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(4)
 
@@ -172,7 +177,8 @@ def render_pdf(groups, generated_on: date) -> bytes:
             if item.notes:
                 detail.append(item.notes)
             if item.next_refresh_date:
-                detail.append(f"Refresh: {item.next_refresh_date}")
+                refresh = refresh_date_label(item.next_refresh_date, generated_on)
+                detail.append(f"Refresh: {refresh}")
             if detail:
                 pdf.set_font("Helvetica", "I", 8)
                 pdf.set_text_color(110, 110, 110)

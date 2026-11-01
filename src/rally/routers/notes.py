@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from rally.database import get_db
 from rally.models import Note
 from rally.schemas import ArchivePage, NoteCreate, NoteResponse, NoteUpdate
-from rally.utils.settings import today_local_str
+from rally.utils.display import display_date
+from rally.utils.settings import local_timezone_name, today_local_str
+from rally.utils.timezone import today_local
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
@@ -77,6 +79,12 @@ def get_note(note_id: int, db: Session = Depends(get_db)):
     return _get_or_404(note_id, db)
 
 
+def _clash_message(day: str, db: Session) -> str:
+    """What a `409` says when a date already has a note."""
+    today = today_local(local_timezone_name(db))
+    return f"A note already exists for {display_date(day, year='unless_this_year', today=today)}"
+
+
 @router.post("", response_model=NoteResponse, status_code=201)
 def create_note(note: NoteCreate, db: Session = Depends(get_db)):
     """Create a note for a day that does not have one.
@@ -93,7 +101,7 @@ def create_note(note: NoteCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(
             status_code=409,
-            detail={"message": f"A note already exists for {note.date}", "id": existing.id},
+            detail={"message": _clash_message(note.date, db), "id": existing.id},
         )
 
     db_note = Note(date=note.date, body=note.body)
@@ -116,7 +124,7 @@ def update_note(note_id: int, update: NoteUpdate, db: Session = Depends(get_db))
         if clash:
             raise HTTPException(
                 status_code=409,
-                detail={"message": f"A note already exists for {update.date}", "id": clash.id},
+                detail={"message": _clash_message(update.date, db), "id": clash.id},
             )
         db_note.date = update.date
 

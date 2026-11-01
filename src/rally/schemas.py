@@ -14,6 +14,7 @@ from pydantic import (
 )
 
 from rally import markdown, member_colors, member_prefs, notification_prefs, rich_text
+from rally.utils import display
 
 # Sentinel value to distinguish "field not provided" from "field set to None"
 UNSET = object()
@@ -84,6 +85,9 @@ class FamilyMemberBase(BaseModel):
     # is the default, not an error state.
     pushover_user_key: str | None = None
     pushover_device: str | None = None
+    # Sign-in email (Cloudflare Access / GitHub primary, Tailscale login): how
+    # MCP calls and tailnet requests are attributed to this person.
+    email: str | None = None
 
 
 def _check_notification_kinds(values: dict[str, bool] | None) -> dict[str, bool] | None:
@@ -124,6 +128,7 @@ class FamilyMemberUpdate(BaseModel):
     color: str | None = None
     pushover_user_key: str | None = UNSET  # None means "clear"; UNSET means "not provided"
     pushover_device: str | None = UNSET
+    email: str | None = UNSET
     # A *partial* map: kinds left out keep whatever they resolve to today.
     # UNSET means "not provided", the same distinction the fields above draw.
     notifications: dict[str, bool] | None = UNSET
@@ -831,6 +836,63 @@ class OccurrenceResponse(BaseModel):
         in ``calendar_cache`` is formatted without a resync.
         """
         return rich_text.render_description(self.description, source=self.source)
+
+    # The three labels below are the dates and lead time as the page shows
+    # them. Like ``description_html`` they are computed on the way out, so a row
+    # already in ``calendar_cache`` has them without a resync, and the browser
+    # does no date formatting of its own for these places: the rule lives once,
+    # in ``rally.utils.display``, which the Pushover notices use too. Every date
+    # is read from ``start_date`` / ``end_date`` — the occurrence's own local
+    # dates — never from the UTC instants.
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def when_display(self) -> str:
+        """The detail view's ``When`` row, without a zone.
+
+        ``Friday, Oct 30, 2026 · 4:00 – 4:30 PM`` for a timed event within
+        one day (``display_time_range``); ``Friday, Oct 30 – Sunday, Nov 1,
+        2026 · All day`` for an all-day one; and a date on each end for a timed
+        one that crosses midnight, ``Friday, Oct 30 10:30 PM – Saturday, Oct
+        31, 2026 6:15 AM``.
+        The notice's ``When:`` line (``notifications.when_label``) has the same
+        shapes and names its zone; this row never has.
+        """
+        if self.all_day:
+            return f"{display.display_date_range(self.start_date, self.end_date)} · All day"
+        if self.start_date != self.end_date:
+            return display.display_dated_times(
+                self.start_date, self.time_label, self.end_date, self.end_time_label
+            )
+        # ``start_form`` / ``end_form`` are this occurrence's own local times in
+        # the install's zone, so the range is worded from them rather than from
+        # the labels, which already carry a meridiem each.
+        times = display.display_time_range(
+            datetime.fromisoformat(self.start_form), datetime.fromisoformat(self.end_form)
+        )
+        return f"{display.display_date(self.start_date)} · {times}"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def start_date_display(self) -> str:
+        """The first local date, ``Saturday, Oct 31, 2026``.
+
+        The day a one-time event's packing lists come off, as the ``Delete
+        event`` dialog names it.
+        """
+        return display.display_date(self.start_date)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def reminder_display(self) -> str:
+        """``1 hour before``; empty when the event has no reminder.
+
+        Empty only for ``None``: a reminder of ``0`` still fires, at the start,
+        and says so.
+        """
+        if self.notify_minutes_before is None:
+            return ""
+        return display.lead_time_label(self.notify_minutes_before)
 
 
 class OccurrencePage(BaseModel):

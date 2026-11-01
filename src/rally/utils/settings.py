@@ -6,19 +6,69 @@ from ``models.py`` would close an import cycle. Keeping them in their own module
 breaks it.
 """
 
+import os
+import tomllib
 from datetime import UTC, datetime, time
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from rally.database import SessionLocal
 from rally.models import Setting
 from rally.utils.timezone import today_local
 
+DEFAULT_TIMEZONE = "UTC"
+
+
+def config_toml_path() -> Path:
+    """Where ``config.toml`` lives: ``/data`` in production, the working
+    directory otherwise. The generator looks in the same place."""
+    if os.getenv("RALLY_ENV", "development") == "production":
+        return Path("/data/config.toml")
+    return Path.cwd() / "config.toml"
+
+
+def _config_toml() -> dict:
+    try:
+        with open(config_toml_path(), "rb") as f:
+            return tomllib.load(f)
+    except OSError, tomllib.TOMLDecodeError:
+        return {}
+
+
+def resolve_timezone_name(stored: str | None, config: dict | None = None) -> str:
+    """The one rule for the family's timezone: the Settings row, else
+    ``config.toml``'s ``local_timezone``, else UTC.
+
+    Every part of Rally asks here — the web app, the generator and the 4 AM job
+    in ``entrypoint.sh`` — because when they each had their own fallback (UTC in
+    the app, ``config.toml`` then UTC in the generator, ``config.toml`` then
+    America/Chicago in the 4 AM job) they disagreed about what day it was every
+    evening on an install with no Settings row (#279). ``config`` is the parsed
+    file for a caller that already has it; otherwise it is read here, and only
+    when the row is missing.
+    """
+    if stored:
+        return stored
+    if config is None:
+        config = _config_toml()
+    return str(config.get("local_timezone") or DEFAULT_TIMEZONE)
+
 
 def local_timezone_name(db: Session) -> str:
-    """The user's configured IANA timezone name, defaulting to UTC."""
+    """The family's IANA timezone name (see ``resolve_timezone_name``)."""
     setting = db.query(Setting).filter(Setting.key == "local_timezone").first()
-    return setting.value if setting and setting.value else "UTC"
+    return resolve_timezone_name(setting.value if setting else None)
+
+
+def configured_timezone_name() -> str:
+    """``local_timezone_name`` with its own session, for ``entrypoint.sh``."""
+    db = SessionLocal()
+    try:
+        return local_timezone_name(db)
+    finally:
+        db.close()
 
 
 def home_location(db: Session) -> str:

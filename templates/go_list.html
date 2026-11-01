@@ -31,6 +31,16 @@
     </div>
 
     <script>
+        // A refresh date as the server words it too (`refresh_date_label`):
+        // `Saturday, Nov 14`, with the year only when it is not this one, in
+        // the Settings zone.
+        const LOCAL_TIMEZONE = {{ local_timezone | tojson }};
+        function refreshDate(value) {
+            return formatDate(value, {
+                weekday: true, month: 'short', year: 'unlessThisYear', today: todayLocal(LOCAL_TIMEZONE),
+            });
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text == null ? '' : text;
@@ -41,7 +51,7 @@
             const qty = item.quantity ? `<span class="prep-qty"> — ${escapeHtml(item.quantity)}</span>` : '';
             const bits = [];
             if (item.notes) bits.push(escapeHtmlWithPhoneLinks(item.notes));
-            if (item.next_refresh_date) bits.push(`Refresh: ${item.next_refresh_date}`);
+            if (item.next_refresh_date) bits.push(`Refresh: ${refreshDate(item.next_refresh_date)}`);
             const detail = bits.length ? `<div class="prep-notes">${bits.join(' &middot; ')}</div>` : '';
             return `
                 <div class="prep-row">
@@ -58,7 +68,7 @@
             const data = r.ok ? await r.json() : { groups: [], total_items: 0, generated_on: '' };
 
             document.getElementById('summary').textContent =
-                `${data.total_items} items across ${data.groups.length} locations · generated ${data.generated_on}`;
+                `${data.total_items} items across ${data.groups.length} locations${data.generated_on ? ` · generated ${refreshDate(data.generated_on)}` : ''}`;
 
             const container = document.getElementById('groups-container');
             if (!data.groups.length) {

@@ -25,9 +25,6 @@
     const EVENT_GLYPH = '⚭';
     // The key of the group for no owner, or no bag.
     const NONE_KEY = 'none';
-    const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
-        'August', 'September', 'October', 'November', 'December'];
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -39,30 +36,9 @@
         return escapeHtml(text).replace(/"/g, '&quot;');
     }
 
-    // Dates are wall-calendar days (YYYY-MM-DD), so they are read as local
-    // midnight and never through a timezone.
-    function parseDay(value) {
-        const [y, m, d] = value.split('-').map(Number);
-        return new Date(y, m - 1, d);
-    }
-
-    /* "Saturday, October 3" — the year only when it is not this one. */
-    function formatLongDate(value, today) {
-        const day = parseDay(value);
-        const base = `${WEEKDAYS[day.getDay()]}, ${MONTHS[day.getMonth()]} ${day.getDate()}`;
-        const thisYear = today ? parseDay(today).getFullYear() : new Date().getFullYear();
-        return day.getFullYear() === thisYear ? base : `${base}, ${day.getFullYear()}`;
-    }
-
-    function addDays(value, days) {
-        const day = parseDay(value);
-        day.setDate(day.getDate() + days);
-        const pad = n => String(n).padStart(2, '0');
-        return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
-    }
-
+    // Dates come from static/dates.js, which base.html loads first.
     function weekdayOf(value) {
-        return WEEKDAYS[parseDay(value).getDay()];
+        return WEEKDAYS[parseIsoDate(value).getDay()];
     }
 
     function itemCount(n) {
@@ -198,8 +174,7 @@
     function packLine(day) {
         if (day.pack_days_before === 0) return 'Pack the day of';
         if (day.pack_days_before === 1) return `Pack ${weekdayOf(day.pack_date)}`;
-        const pack = parseDay(day.pack_date);
-        return `Pack ${weekdayOf(day.pack_date)}, ${MONTHS[pack.getMonth()].slice(0, 3)} ${pack.getDate()}`;
+        return `Pack ${formatDate(day.pack_date, { weekday: true, month: 'short', year: 'never' })}`;
     }
 
     /* A day's group header: "2 of 5 packed · 1 of 2 bags", either half
@@ -441,11 +416,11 @@
     }
 
     /* A day box's footer: "Today" and "Tomorrow" in place of the date, as the
-     * Meal Planner and Notes read; the long date otherwise. */
+     * Meal Planner and Notes read; "Saturday, October 31" otherwise, the year
+     * only when it is not this one. Never "Yesterday": the archive draws its
+     * boxes here too, and yesterday's box shows its date. */
     function boxDateLabel(value, today) {
-        if (today && value === today) return 'Today';
-        if (today && value === addDays(today, 1)) return 'Tomorrow';
-        return formatLongDate(value, today);
+        return formatDate(value, { weekday: true, month: 'long', year: 'unlessThisYear', relative: 'upcoming', today });
     }
 
     /* Days' packing lists as day boxes, one per date, the Meal Planner's shape:
@@ -517,8 +492,6 @@
         NO_BAG,
         escapeHtml,
         escapeAttr,
-        formatLongDate,
-        addDays,
         weekdayOf,
         itemCount,
         packDaysLabel,

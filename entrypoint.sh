@@ -19,8 +19,9 @@ echo "✓ Database ready"
   LAST_RUN_DATE=""
   
   while true; do
-    # Get local timezone from config (default to America/Chicago for backward compatibility)
-    LOCAL_TZ=$(python -c "import tomllib; f=open('/data/config.toml', 'rb'); cfg=tomllib.load(f); print(cfg.get('local_timezone', 'America/Chicago'))" 2>/dev/null || echo "America/Chicago")
+    # The family's timezone, by the same rule the app uses: the Settings row,
+    # then config.toml, then UTC (rally.utils.settings.resolve_timezone_name)
+    LOCAL_TZ=$(python -c "from rally.utils.settings import configured_timezone_name; print(configured_timezone_name())" 2>/dev/null || echo "UTC")
     
     # Get current hour and date in the configured timezone
     current_hour=$(TZ="$LOCAL_TZ" date +%H)

@@ -5,15 +5,21 @@ core models, a deterministic-time fixture, a timezone-setting fixture, and
 fixtures that stub the external boundaries (HTTP, LLM clients, CalDAV) so no
 test ever touches the network.
 
-The app's real database (``rally.db``) is never touched: the ``get_db`` override
-replaces it for request handling, and the ``TestClient`` is used without its
-lifespan context manager so the startup ``init_db()`` (which would create tables
-on the real engine) never runs.
+The app's real database (``rally.db``) is never touched. ``RALLY_DB_PATH`` is
+set below, before ``rally.database`` is imported, so the app's own engine is an
+empty in-memory database: code that opens ``SessionLocal()`` itself, as the
+generator does, cannot reach a developer's data whatever a test forgets to
+stub. The ``get_db`` override replaces that engine for request handling, and the
+``TestClient`` is used without its lifespan context manager so the startup
+``init_db()`` never runs.
 """
 
 import importlib
+import os
 from datetime import UTC, datetime
 from types import SimpleNamespace
+
+os.environ["RALLY_DB_PATH"] = ":memory:"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -52,6 +58,43 @@ def _clear_anthropic_model_max_cache():
     generate._ANTHROPIC_MODEL_MAX_TOKENS.clear()
     yield
     generate._ANTHROPIC_MODEL_MAX_TOKENS.clear()
+
+
+# --- Audit schema for migration tests -------------------------------------------
+
+
+@pytest.fixture
+def apply_audit_migration():
+    """Run migration 041 against ``RALLY_DB_PATH``.
+
+    A migration test that builds a database from one old migration and then
+    writes through the ORM needs the audit table too: every ORM write is
+    audited, and in a real install 041 always runs after the older ones.
+    """
+    import importlib.util
+    import pathlib
+
+    path = pathlib.Path(__file__).parent.parent / "migrations" / "migrate_041_add_audit_log.py"
+    spec = importlib.util.spec_from_file_location("migrate_041_add_audit_log", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.migrate
+
+
+@pytest.fixture(autouse=True)
+def config_toml(monkeypatch, tmp_path):
+    """Point Rally's ``config.toml`` lookup at a file no test has written.
+
+    The timezone falls back to ``config.toml`` when Settings has no row, and a
+    developer's checkout usually has one, so without this a test's "today"
+    would depend on whose machine runs it. A test that wants the fallback
+    writes the returned path.
+    """
+    from rally.utils import settings
+
+    path = tmp_path / "config.toml"
+    monkeypatch.setattr(settings, "config_toml_path", lambda: path)
+    return path
 
 
 # --- Database + client ---------------------------------------------------------

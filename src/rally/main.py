@@ -8,12 +8,15 @@ from sqlalchemy.orm import Session
 from starlette.responses import Response
 
 from rally import member_colors, member_prefs
+from rally.audit.middleware import AuditMiddleware
 from rally.database import get_db, init_db
 from rally.routers import (
+    audit,
     dashboard,
     devices,
     events,
     family,
+    mcp,
     meal_planner,
     notes,
     packing_lists,
@@ -55,6 +58,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Every request gets an actor and an audit event; MCP identity is checked here,
+# before any handler runs. See rally/audit/middleware.py.
+app.add_middleware(AuditMiddleware, fastapi_app=app)
+
 # Static files
 static_dir = BASE_DIR / "static"
 if static_dir.is_dir():
@@ -62,6 +69,8 @@ if static_dir.is_dir():
 
 # Include routers
 app.include_router(dashboard.router)
+app.include_router(audit.router)
+app.include_router(mcp.router)
 app.include_router(events.router)
 app.include_router(todos.router)
 app.include_router(meal_planner.router)
@@ -125,27 +134,35 @@ def shopping_purchased_page(request: Request):
 
 
 @app.get("/notes", response_class=HTMLResponse)
-def notes_page(request: Request):
+def notes_page(request: Request, db: Session = Depends(get_db)):
     """Serve the Notes page: one Daily Note per day, from today onward."""
-    return templates.TemplateResponse(request, "notes.html")
+    return templates.TemplateResponse(
+        request, "notes.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/notes/previous", response_class=HTMLResponse)
-def notes_previous_page(request: Request):
+def notes_previous_page(request: Request, db: Session = Depends(get_db)):
     """Serve the read-only page of notes for days that have passed."""
-    return templates.TemplateResponse(request, "notes_previous.html")
+    return templates.TemplateResponse(
+        request, "notes_previous.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/meal-planner", response_class=HTMLResponse)
-def meal_planner_page(request: Request):
+def meal_planner_page(request: Request, db: Session = Depends(get_db)):
     """Serve the meal planner page."""
-    return templates.TemplateResponse(request, "meal_planner.html")
+    return templates.TemplateResponse(
+        request, "meal_planner.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/meal-planner/previous", response_class=HTMLResponse)
-def meal_planner_previous_page(request: Request):
+def meal_planner_previous_page(request: Request, db: Session = Depends(get_db)):
     """Serve the page of meals from days that have passed, with their reviews."""
-    return templates.TemplateResponse(request, "meal_planner_previous.html")
+    return templates.TemplateResponse(
+        request, "meal_planner_previous.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/packing-lists", response_class=HTMLResponse)
@@ -169,15 +186,19 @@ def packing_lists_previous_page(request: Request, db: Session = Depends(get_db))
 
 
 @app.get("/preparedness", response_class=HTMLResponse)
-def preparedness_page(request: Request):
+def preparedness_page(request: Request, db: Session = Depends(get_db)):
     """Serve the preparedness inventory page."""
-    return templates.TemplateResponse(request, "preparedness.html")
+    return templates.TemplateResponse(
+        request, "preparedness.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/go-list", response_class=HTMLResponse)
-def go_list_page(request: Request):
+def go_list_page(request: Request, db: Session = Depends(get_db)):
     """Serve the go list — the printable packing list, grouped by location."""
-    return templates.TemplateResponse(request, "go_list.html")
+    return templates.TemplateResponse(
+        request, "go_list.html", {"local_timezone": local_timezone_name(db)}
+    )
 
 
 @app.get("/settings", response_class=HTMLResponse)

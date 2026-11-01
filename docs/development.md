@@ -70,7 +70,13 @@ uv run pytest tests/test_events_api.py -q
 
 Every test gets an isolated in-memory database, so the suite never touches your local `rally.db`.
 
-The design-system suite in `tests/visual/` drives a real browser and is skipped unless Playwright and Chromium are installed:
+The design-system suite in `tests/visual/` drives a real browser and is skipped unless Playwright and Chromium are installed. In `devenv shell` they are: whenever the shell re-syncs dependencies it includes the `visual` group along with the default ones, and `install-deps` (which `setup` runs) installs Chromium. So it runs as it is:
+
+```bash
+uv run pytest tests/visual -v
+```
+
+A plain `uv sync` run by hand removes Playwright again, since it installs only the default groups. Use `install-deps`, or `uv sync --group visual`, instead. Outside devenv:
 
 ```bash
 uv sync --group visual
@@ -125,6 +131,8 @@ The sample family is Mom, Dad, Emma and Jake. The data is anchored to the day yo
 
 Migrations are plain Python files under `migrations/`, run in order by `migrations/run_migrations.py`, which `entrypoint.sh` executes on container startup. Every migration is **idempotent**: it checks whether its change already exists before applying it, so running it twice is safe and an upgrade needs no manual step.
 
+A successful run records the highest migration number in the database (`PRAGMA user_version`). If a database has been through a newer migration than the code you are running, from a later release or a feature branch, the run stops before changing anything and says so. Run the newer code, or restore a backup from before that upgrade.
+
 ```bash
 python3 migrations/run_migrations.py          # run them all
 python3 migrations/run_migrations.py && python3 migrations/run_migrations.py   # prove idempotency
@@ -132,6 +140,49 @@ docker exec rally python migrations/run_migrations.py
 ```
 
 To add one: write `migrations/migrate_XXX_description.py`, test it locally, and register it in the list in `run_migrations.py`. The template, the SQLite-specific patterns and the list of existing migrations live in [AGENTS.md](../AGENTS.md#database-migrations).
+
+## The audit log
+
+Every read and write is recorded by the data layer, so routes don't log by
+hand — but a new endpoint, MCP tool or data path still has to be built so the
+audit layer sees it, and has to ship with a test. Before opening a PR:
+
+- [ ] The data goes through the SQLAlchemy ORM session (`Depends(get_db)` in a
+      route, `SessionLocal()` in a job). No raw `sqlite3`, no `engine.connect()`
+      writes, no `text()` `UPDATE`/`DELETE` — those bypass the audit hooks.
+- [ ] A job wraps its work in `rally.audit.context.job_context("<name>")`, or
+      runs as a `python -m` module so it is recorded under its module name.
+- [ ] A new column that holds a credential has a name the redactor recognises
+      (`password`, `secret`, `token`, `api_key`, `jwt`, `credential`, …), or the
+      pattern in `rally/audit/recorder.py` is extended to cover it.
+- [ ] A setting with its own semantics (like `mcp_enabled`) gets a dedicated
+      endpoint that writes an explicit `recorder.record(...)` event, and its key
+      goes in `RESERVED_SETTING_KEYS` so the generic `/api/settings` refuses it.
+- [ ] Every new `/api` route becomes a Claude tool automatically (see
+      `rally/audit/mcp_policy.py`). If it exposes secrets or identity, add it to
+      `DENIED` with the reason; if its response carries outside text, add it to
+      `UNTRUSTED`; if it reaches outside Rally, to `OPEN_WORLD`.
+- [ ] A test asserts the events it produces (see `tests/test_audit.py`).
+      `tests/test_audit_coverage.py` already calls every registered route and
+      fails if one leaves no audit event; it needs no edit, but it must pass.
+- [ ] A new MCP tool gets an entry in `SAMPLE_ARGS` in
+      `mcp/tests/test_tool_coverage.py` (that test fails until it does), the
+      right `readOnlyHint`/`destructiveHint`, and wraps any outside-sourced
+      text with `untrusted(...)`.
+
+What the log records and why: [audit-log.md](audit-log.md).
+
+## The MCP server
+
+`mcp/` is rally-mcp, a separate uv project with its own lockfile and tests:
+
+```bash
+cd mcp
+uv sync
+uv run pytest
+```
+
+Deploying it and connecting Claude: [mcp.md](mcp.md).
 
 ## Project layout
 
