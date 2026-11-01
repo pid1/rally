@@ -1582,7 +1582,7 @@ Don't auto-merge. Facts, upkeep and issue PRs all need review.
 - `devenv` is not needed to run these commands. Sadr runs them with `uv` directly.
 
 ### Toolchain
-- Python 3.15 and uv. The Dockerfiles and CI pin uv 0.13.5. `mcp/.python-version` pins 3.15.1, the newest 3.15 that uv 0.13.5 can install. The root project has no `.python-version`.
+- Python 3.15 and uv. Both Dockerfiles pin the uv image by digest, and the three `setup-uv` steps in `.github/workflows/tests.yml` pin the same uv version. `mcp/.python-version` must name a Python that the pinned uv can install, because each uv release can install only the CPython patches it knows. The root project has no `.python-version`.
 - The Semgrep workflow runs `semgrep ci` in the `semgrep/semgrep` container, pinned by digest.
 
 ### Deploys outside CI
