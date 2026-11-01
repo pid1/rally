@@ -98,7 +98,7 @@ All commands should be run inside `devenv shell`.
 
 | Command | Description | Blocking |
 |---------|-------------|----------|
-| `install-deps` | Install dependencies with uv | No |
+| `install-deps` | Install dependencies with uv, including Playwright and Chromium for `tests/visual` | No |
 
 ## For AI Agents
 
@@ -310,18 +310,26 @@ test-generate
 ```
 
 The design-system regression suite needs a browser and is **not** part of the
-default run — `tests/visual/` skips itself when Playwright is absent, and CI
-runs it as a separate job. To run it locally:
+default `pytest` run in CI — `tests/visual/` skips itself when Playwright is
+absent, and CI runs it as a separate job. Locally, devenv keeps it installed:
+whenever `devenv shell` re-syncs (after `pyproject.toml` or the interpreter
+changes) it includes the `visual` group (`languages.python.uv.sync.groups` in
+`devenv.nix`), and `install-deps` (so `setup`) installs Chromium too. So in a devenv checkout it simply runs:
+
+```bash
+uv run pytest tests/visual -v
+```
+
+A bare `uv sync` by hand **removes** Playwright, because it syncs only the
+default groups; use `install-deps` (or `uv sync --group visual`) instead. Read
+the summary line, not the exit code: a missing Playwright reports
+`Skipped: Playwright is not installed` and exits 0. Outside devenv:
 
 ```bash
 uv sync --group visual
 uv run playwright install chromium
 uv run pytest tests/visual -v
 ```
-
-Note that `uv sync --group visual` drops the editable `rally` install. Tests
-still work (pytest puts `src/` on the path), but a bare `uvicorn rally.main:app`
-will then need `PYTHONPATH=src`. Re-run plain `uv sync` to restore it.
 
 ### Starting Development Server
 
@@ -371,6 +379,44 @@ logs-tail
 down
 ```
 
+## Audit Log
+
+Rally records every read and write of its data, from every source, in
+`audit_events` — see [docs/audit-log.md](docs/audit-log.md). The recording is
+done by the data layer (`src/rally/audit/recorder.py`, SQLAlchemy session
+hooks) and the request middleware (`src/rally/audit/middleware.py`), so a
+route never logs by hand. **Every new endpoint, MCP tool or data access path
+must go through the audit layer and ship with an audit test.** Never write an
+`UPDATE` or `DELETE` against `audit_events`: triggers refuse them.
+
+### Checklist for adding an endpoint, tool or data path
+
+- [ ] The data goes through the SQLAlchemy ORM session (`Depends(get_db)` in a
+      route, `SessionLocal()` in a job). No raw `sqlite3`, no `engine.connect()`
+      writes, no `text()` `UPDATE`/`DELETE` — those bypass the audit hooks.
+- [ ] A job wraps its work in `rally.audit.context.job_context("<name>")`, or
+      runs as a `python -m` module so it is recorded under its module name.
+- [ ] A new column that holds a credential has a name the redactor recognises
+      (`password`, `secret`, `token`, `api_key`, `jwt`, `credential`, …), or the
+      pattern in `rally/audit/recorder.py` is extended to cover it.
+- [ ] A setting with its own semantics (like `mcp_enabled`) gets a dedicated
+      endpoint that writes an explicit `recorder.record(...)` event, and its key
+      goes in `RESERVED_SETTING_KEYS` so the generic `/api/settings` refuses it.
+- [ ] Every new `/api` route becomes a Claude tool automatically (see
+      `rally/audit/mcp_policy.py`). If it exposes secrets or identity, add it to
+      `DENIED` with the reason; if its response carries outside text, add it to
+      `UNTRUSTED`; if it reaches outside Rally, to `OPEN_WORLD`.
+- [ ] A test asserts the events it produces (see `tests/test_audit.py`).
+      `tests/test_audit_coverage.py` already calls every registered route and
+      fails if one leaves no audit event; it needs no edit, but it must pass.
+- [ ] A new MCP tool gets an entry in `SAMPLE_ARGS` in
+      `mcp/tests/test_tool_coverage.py` (that test fails until it does), the
+      right `readOnlyHint`/`destructiveHint`, and wraps any outside-sourced
+      text with `untrusted(...)`.
+
+The MCP server lives in `mcp/` as its own uv project (own `pyproject.toml`,
+lockfile and tests): `cd mcp && uv run pytest`. See [docs/mcp.md](docs/mcp.md).
+
 ## Database Migrations
 
 Rally uses a simple, file-based migration system. All migrations live in the `migrations/` directory and are **idempotent** (safe to run multiple times).
@@ -381,6 +427,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 2. **Idempotent**: Each migration checks if changes are already applied before executing
 3. **Ordered**: Migrations run in the order they're listed in `run_migrations.py`
 4. **Fail-Safe**: If any migration fails, the container won't start
+5. **Version-Stamped**: A successful run writes the highest migration number to `PRAGMA user_version`. A database stamped higher than the code's own highest migration is **refused before any migration runs**, with a message naming both numbers: it was migrated by newer code (a later release, or a feature branch), so this code cannot read its schema. A database last migrated before the stamp existed reads as `0` and is not caught
 
 ### Migration Files
 
@@ -429,6 +476,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `038_remove_llm_max_tokens` - Delete the `llm_anthropic_max_tokens`, `llm_anthropic_max_tokens_mode` and `llm_local_max_tokens` settings rows. Rally no longer caps LLM output (Anthropic uses the model's own maximum, looked up at run time; local sends no `max_tokens`), so nothing reads them. `llm_settings_history` snapshots are left as they are — older ones still carry `max_tokens`/`max_tokens_mode` in their JSON, which the app ignores
 - `039_add_event_packing_lists` - Add `events.packing_list_span` (`first` / `every`; NULL reads as `first`) and the `event_packing_lists` and `packing_list_day_events` tables plus their indexes. The unique index on `event_packing_lists` is over `(event_id, packing_list_template_id, IFNULL(occurrence_date, ''))` because SQLite treats NULLs as distinct and the series' own row has to count once; the one on `packing_list_day_events` is `(event_id, occurrence_date, packing_list_template_id, date)`. The tables are created even where `events` does not exist yet. Purely additive and writes **no rows**: no event brings a packing list until somebody adds one
 - `040_add_meal_notes` - Add `dinner_plans.notes`: optional detail on a meal (who wants what, substitutions), kept separate from `plan`, which is the meal's name (`Meal Name` in the UI). Purely additive and writes **no rows**: every existing meal gets `notes = NULL` and its `plan` text is untouched
+- `041_add_audit_log` - Add `family_members.email` (sign-in address used to attribute MCP and tailnet requests) and create `audit_events` (with its indexes and the append-only `UPDATE`/`DELETE` triggers) and `mcp_connections`. Created here rather than left to `init_db()` because the data layer refuses to write anything it cannot audit
 
 ### Running Migrations
 
@@ -604,6 +652,7 @@ rally/
 │   │   └── __main__.py   # CLI entry point
 │   ├── utils/
 │   │   ├── __init__.py
+│   │   ├── display.py    # How a date, a time of day and a reminder lead time read (display_date, display_time, display_time_range, display_date_range, lead_time_label), plus iso_date for a file a machine reads
 │   │   ├── settings.py   # Settings-backed helpers (today_start_utc, local_timezone_name) — kept out of timezone.py to avoid a models.py import cycle
 │   │   └── timezone.py   # Timezone helpers (now_utc, today_utc, today_local, ensure_utc)
 │   └── routers/
@@ -623,11 +672,12 @@ rally/
 │   ├── styles.css           # Application stylesheet (see the Design System section)
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide, and the page scroll lock behind an open modal
 │   ├── dialogs.js           # Rally's own confirm/alert (confirmModal, alertModal), in-place form messages and joinNames(); loaded by base.html
+│   ├── dates.js             # How every page reads, steps and writes dates: parseIsoDate, isoDate, addDays, shiftIsoDate, todayLocal(zone), ordinal, the name lists, formatDate(value, options), formatDateRange, formatTime, parseTimestamp and formatUtcTimestamp; reads no clock for "today" (the page hands it in); loaded by base.html
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── inline_separators.js # Marks a quiet button that starts a wrapped line, so the · between quiet buttons never opens a line
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists, optionally fenced to a `scope`
 │   ├── list_group.js        # listGroupHtml(): the markup for one titled group of rows (.list-group), with optional lead rows (.list-group-lead)
-│   ├── packing_lists.js        # What the packing list pages share: date, pack-day and progress wording, grouping by owner or bag, a day box and its entries, a JSON fetch helper
+│   ├── packing_lists.js        # What the packing list pages share: pack-day and progress wording (dates through dates.js), grouping by owner or bag, a day box and its entries, a JSON fetch helper
 │   ├── autocomplete.js      # attachAutocomplete(): a text field's suggestion menu (Shopping item names; packing list item names and bags)
 │   ├── recurrence_form.js   # The shared repeat controls (Daily/Weekly/Monthly/Custom): rule in, rule out, read-back line
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
@@ -688,6 +738,7 @@ rally/
 │   ├── migrate_038_remove_llm_max_tokens.py # Migration 038: delete the removed LLM max tokens settings keys
 │   ├── migrate_039_add_event_packing_lists.py # Migration 039: packing lists on calendar events, and the days they put them on
 │   ├── migrate_040_add_meal_notes.py # Migration 040: add dinner_plans.notes
+│   ├── migrate_041_add_audit_log.py # Migration 041: audit log tables, member email
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium
@@ -779,7 +830,7 @@ rally/
   - **`Put on`** (`First day` / `Every day`, `events.packing_list_span`) shows only when the event covers more than one date and brings a list. Nothing is chosen in advance and Save waits for an answer (`eventFormReady()`). It belongs to the series, like attendees, and the scope question says so when it changed
   - Lists are kept **in sync with the template**: an event's day is an ordinary templated day (⧉), with no label, following the template's lead time
   - `event_packing_lists` holds the series' lists (`occurrence_date` NULL) and each occurrence's differences, keyed on the original occurrence date (the `event_overrides` key): an addition, or `removed`. `packing_list_day_events` links each occurrence, template and date to its day; a day can have several (two events adopting one day), and `day_id` NULL keeps one date of an `Every day` occurrence empty after it was taken off on the page
-  - **`packing_lists.sync_event_packing_lists` is the one writer.** It runs inside every event write before the commit (`create_event` and `_split_series` flush rather than commit their first step, so a refusal leaves nothing behind) and daily from `_run_daily_passes()` and the generator (`process_event_packing_lists`). Through the lookahead (`SUMMARY_LOOKAHEAD_DAYS`), plus a repeating event's next occurrence and a one-time event's one occurrence however far away. A template already on a date is **adopted**, checks and all; a day goes when its last link does, whoever made it. A moved occurrence moves its day (pairing leftover links and placements per template, which is what keeps checks when a one-time event's original date changes); a shared day stays with the other event; moving onto a day already there is a `409` (`adopts` + a `message` the calendar asks in the shared dialog, titled `Move event`, or `Use packing list` when no list in it moves (every `from_date` null), each list's name in bold) unless `adopt=true`, and so is **adding** a list the event has never had onto a day its template is already on (#291; a newly added list's sentence leaves out "instead", and an occurrence merely coming into the lookahead, or the daily sync, never asks); moving an occurrence with lists before today is a `422`, and so is adding a list to an occurrence with no date from today on for it to go on, by the sync's own `_wanted_dates` rule (#290, `refuse_lists_added_to_the_past`). **Nothing before today is ever written**
+  - **`packing_lists.sync_event_packing_lists` is the one writer.** It runs inside every event write before the commit (`create_event` and `_split_series` flush rather than commit their first step, so a refusal leaves nothing behind) and daily from `_run_daily_passes()` and the generator (`process_event_packing_lists`). Through the lookahead (`SUMMARY_LOOKAHEAD_DAYS`), plus a repeating event's next occurrence and a one-time event's one occurrence however far away. A template already on a date is **adopted**, checks and all; a day goes when its last link does, whoever made it — except that taking a list off a day nobody else uses, by removing it from the event or deleting the event at any scope, is a `409` (`releases` + `message`, `keep_label`, `remove_label`, worded in Python, with any `adopts` the same save makes; the message says which lists a schedule made, since a schedule never makes a removed day again) until `release=keep` (the day stays as an ordinary list: no ⚭, its date free, its checks and schedule kept) or `release=remove` (#313). The calendar asks it in the shared dialog with `choices` (`Remove packing list(s)`, `Save event` when it also joins a list, `Delete event` after the scope modal); a link let go for any other reason (a move, the daily sync) never asks. A moved occurrence moves its day (pairing leftover links and placements per template, which is what keeps checks when a one-time event's original date changes); a shared day stays with the other event; moving onto a day already there is a `409` (`adopts` + a `message` the calendar asks in the shared dialog, titled `Move event`, or `Use packing list` when no list in it moves (every `from_date` null), each list's name in bold) unless `adopt=true`, and so is **adding** a list the event has never had onto a day its template is already on (#291; a newly added list's sentence leaves out "instead", and an occurrence merely coming into the lookahead, or the daily sync, never asks); moving an occurrence with lists before today is a `422`, and so is adding a list to an occurrence with no date from today on for it to go on, by the sync's own `_wanted_dates` rule (#290, `refuse_lists_added_to_the_past`). **Nothing before today is ever written**
   - Scopes mirror overrides: `all` replaces the series' lists and keeps each occurrence's own (deleting ones it makes redundant); `this` writes the occurrence's differences; `following` copies the series' lists to the tail and moves occurrence rows and links on or after the split. The browser sends the occurrence's lists for `this` and applies the form's additions and removals to the series' for the other two (`seriesPackingIds()`), so a list added to one Tuesday never spreads
   - On `/packing-lists` an event-linked day shows ⚭ (`.title-indicator`, `From a calendar event`) and a `For:` line of event titles (`.inline-link` to `/calendar`, joined by ` · `), in the archive too. Its date is locked in Edit (`Set by "…". Change the date on the calendar.`; the API's `422` says the same). `Remove from day` unlinks it from every event (a removal on that occurrence, or the NULL-day link on an `Every day` one), and deleting a template unlinks its days (`unlink_template`)
   - Names in a sentence go through `join_names` / `joinNames()`: straight double quotes, Oxford comma
@@ -813,7 +864,9 @@ rally/
   - `pushover_app_token` identifies the install; `family_members.pushover_user_key` identifies a person. A member without a key is never notified, which is the default rather than an error
   - Recipients are the event's **attendees**, never "everyone" — notifying four phones for one child's appointment is how a notification feature gets muted
   - Three paths: a reminder lead time (`events.notify_minutes_before`), an explicit `Notify attendees`, and an automatic notice when an event is **added, changed or removed**. All go through one `_deliver` — the only place a push is attempted, so reporting, the send-once row and "a failure is data, not an exception" each exist once
-  - A change notice is **one body sent to everybody**, not personalized. The push title is `Calendar Addition|Modification|Deletion: <event title>` (see `CHANGE_LABELS`) and the body is `When:` / `Where:` / `Attendees:`, each line omitted when there is nothing to say. `When` is the occurrence's own local date plus the **time range** in the install's configured zone, named — `2026-08-14 · 5:30 to 6:30 PM CDT`. The meridiem is stated once when both ends share it and twice when they do not (`11:30 AM to 1:00 PM`); a zero-length event collapses to one time; a timed occurrence crossing midnight dates both ends, because `2026-08-14 – 2026-08-16 · 5:30 PM to 9:00 AM` does not say which end is which. `Attendees` lists **every** attendee in the order they were added, including those with no Pushover key, because the line describes the event rather than the send
+  - A change notice is **one body sent to everybody**, not personalized. The push title is `Calendar Addition|Modification|Deletion: <event title>` (see `CHANGE_LABELS`) and the body is `When:` / `Where:` / `Attendees:`, each line omitted when there is nothing to say. `When` is the occurrence's own local date plus the **time range** in the install's configured zone, named — `Friday, Aug 14, 2026 · 5:30 – 6:30 PM CDT`. The range is `display_time_range` (#317), the one the detail view's `When` row uses too: the meridiem is stated once when both ends share it and twice when they do not (`11:30 AM – 1:00 PM`); a zero-length event collapses to one time (`4:00 PM`); an all-day one reads `Friday, Aug 14 – Sunday, Aug 16, 2026 · All day`; a timed occurrence crossing midnight dates both ends — `Friday, Aug 14 10:30 PM – Saturday, Aug 15, 2026 6:15 AM CDT` — because `Friday, Aug 14 – Saturday, Aug 15, 2026 · 10:30 PM – 6:15 AM` does not say which end is which. `Attendees` lists **every** attendee in the order they were added, including those with no Pushover key, because the line describes the event rather than the send
+  - **Dates and lead times are worded in Python only** (`rally.utils.display`, #304). A date reads `Friday, Oct 30, 2026` — full weekday, three-letter month (`Sep`), no leading zero, always the year (`display_date`). Two dates together state the year once when they share it and on both ends when they do not: `Friday, Oct 30 – Sunday, Nov 1, 2026`, `Thursday, Dec 31, 2026 – Saturday, Jan 2, 2027` (`display_date_range`; `display_dated_times` for a timed span crossing midnight). Names are spelled out rather than taken from `strftime`, which follows the process locale. `display_date` takes the browser `formatDate()`'s options (#311): `weekday=False`, `month="long"`, and `year` as `"always"`, `"never"` or `"unless_this_year"` (which needs `today` handed in — it reads no clock), so a task push reads `Due Sep 30` and the Dashboard `Wednesday, October 28, 2026` from the same rule. A time of day is `display_time(moment)` — `4:00 PM`, 12-hour, no leading zero, the meridiem spelled out rather than `%p`; `meridiem=False` for the first end of `5:30 – 6:30 PM` (`display_time_range(start, end)`, #317), `minutes="unless_zero"` for the sports listings' `7 PM`. The reminder and task-assignment pushes, change notices, the calendar's time labels, the repeat read-back's `until` date, the sports listings and the Dashboard's date all go through it; `tests/test_display.py` fails on a `strftime` with `%a`, `%A`, `%b`, `%B`, `%I` or `%p`, or `calendar.month_abbr` / `day_name`, anywhere else but the daily summary's prompt (`generate.py`, `packing_lists._long_date()`) and the Dashboard's fallback timestamp, which are their own issue because changing them changes the eval. The preparedness review's prompt (`prep_review.build_inventory_text()`) is left alone for the same reason: it writes refresh dates as ISO because it is model input. Everywhere else a refresh date reads `Saturday, Nov 14`, the year only when it is not this one (`preparedness.refresh_date_label()`, and `formatDate()` with the same options on Preparedness and the go list): the refresh digest, the go list page and its Markdown and PDF exports. The CSV export keeps `2026-11-14`, written by `iso_date()`, so a spreadsheet can sort it. The `409` for a note's taken date and the `422` for a repeat that ends before it starts word their dates the same way. Every input is a local ISO date — the occurrence's `start_local_date` / `end_local_date` — never a UTC instant, which is what keeps an all-day event off the day before. `lead_time_label(minutes)` splits a reminder into days, hours and minutes, largest first, each nonzero part singular or plural: `10 minutes before`, `1 hour before`, `1 hour 30 minutes before`, `1 day 1 hour before`, `2 days 3 hours 15 minutes before`. It words **any** integer, not only the select's five values: `0` reads `When it starts` (that is when the push goes out), and a negative value the API does not refuse reads `… after` rather than raising
+  - The calendar page shows the server's labels and formats none of these dates itself. `OccurrenceResponse` carries `when_display` (the detail view's `When` row — the notice's shapes without a zone, `Friday, Oct 30, 2026 · 4:00 – 4:30 PM`, and a date on each end for a timed occurrence crossing midnight), `start_date_display` (the occurrence's first day; the `Delete event` dialog read it until #313, and now takes its words from `GET /api/events/{id}/delete-question`) and `reminder_display` (the `Reminder` row; empty when there is no reminder). Like `description_html` they are computed on the way out, so a row in `calendar_cache` has them without a resync. The edit form's `Remind attendees` select and the reminder push itself are unchanged
   - A recurring series adds `This event repeats …` — a sentence, not a fourth `Label: value` line, because it qualifies the whole notice. `describe_recurrence()` (in `calendars/describe.py`, since it serves the modal and the detail view as well as this notice) reads the RRULE back in the vocabulary the event form offers — `weekly on Friday`, `every 2 weeks on Tuesday and Thursday`, `monthly on the first Sunday`, `monthly on the last day`, `every weekday`, plus `, until Nov 14, 2026` or `, 12 times` for a bounded series. Anything richer degrades to `on a custom schedule` rather than a confidently wrong phrase. `every weekday` exists because describing that rule as `daily` was wrong rather than merely vague
   - Which occurrence a notice describes follows the scope: `scope=this` names that occurrence, everything else names the next one that has not finished yet, falling back to the most recent for a series entirely in the past
   - Notices are **planned then sent** (`plan_change_notice` → `send_change_notice`). Deletion is why: a delete destroys the occurrence, the attendee list and sometimes the event row, so the text and recipients are resolved *before* the write and delivered *after* it — announcing beforehand would risk naming a deletion that then failed. `notify_event_change` is the one-call form for additions and edits
@@ -1033,8 +1086,11 @@ When touching the UI:
   the shared `#dialog-modal-overlay` (`templates/_dialog_modal.html`, which
   `base.html` includes after the content so it draws over any page modal):
   the action as the title, the thing it touches in bold, the verb and Cancel.
+  A question with an answer to pick adds `choices: [{value, labelHtml}]`
+  (#313): radios under the message with nothing chosen, the verb disabled
+  until one is, resolving to the chosen `value` (or `false` on Cancel).
   `alertModal({messageHtml})` reports a failure with no title and one `OK`.
-  Escape every name in `messageHtml`. A form check (browser-side, or a `409`
+  Escape every name in `messageHtml` and `labelHtml`. A form check (browser-side, or a `409`
   or string-`422` refusal) and a saved notice are not dialogs: they go in an
   inline `.form-message` through `showFormMessage(id, text, role)` /
   `clearFormMessage(id)`, `role` `"alert"` or `"status"`. A required text
@@ -1056,7 +1112,31 @@ When touching the UI:
   a note's date, a packing list's date, template or start) clears them all when it changes, through
   `clearFormMessagesOn(controls, scope)`, never a page's own listener.
   `base.html` loads
-  `modal.js` and `dialogs.js` on every page, so a page never adds its own tag.
+  `modal.js`, `dialogs.js` and `dates.js` on every page, so a page never adds its own tag.
+- **Dates in the browser go through `static/dates.js` (#305), never a page's own
+  helper.** A `YYYY-MM-DD` is read with `parseIsoDate()` (local midnight, never
+  `new Date(value)` or a `T00:00:00` suffix), stepped with `addDays()` (a `Date`)
+  or `shiftIsoDate()` (a string), and written with one `formatDate(value,
+  {weekday, month: 'long'|'short', year: 'always'|'unlessThisYear'|'never',
+  day, ordinal, relative: 'upcoming'|'past', today})` (`day: false` is `October
+  2026`). A span is `formatDateRange(start, end, options)` — the year once when
+  both ends share it, on both ends when they do not, and the month once when
+  it stays in one month (`August 9 – 15, 2026`, `December 28, 2026 – January 3,
+  2027`). A time of day is `formatTime(date)` (`4:00 AM`). A stored timestamp
+  is read with `parseTimestamp()`, which takes one with no zone as UTC, never a
+  page's own `+ 'Z'`; `formatUtcTimestamp()` writes the one exact UTC time
+  Rally shows (Settings' version history). `formatDate()` reads no clock:
+  `relative` and `unlessThisYear` need `today` handed in, and each page decides
+  which clock that is. Notes, the Meal Planner, Packing Lists and their archives
+  pass `todayLocal(<Settings zone>)`; Calendar and Tasks still use the device's
+  date (`isoDate(new Date())`), as do Packing Lists' dialogs and form notes —
+  one "today" for every page is a follow-up. `tests/test_pages.py` refuses a
+  page that defines a helper of the same name again, and (#310) any
+  `toLocaleDateString` / `toLocaleTimeString` / `toLocaleString` outside
+  `dates.js` but the notes character counter (a number) — a date asked of
+  the device reads in the device's language (`28. Oktober`, `10/28/2026`).
+  The Dashboard's header date is the server's (#311), in the Settings zone,
+  and the browser leaves it alone, so it and the tab title always agree.
   A required field only some states of a form use (a calendar's URL for an ICS
   feed, a team's key outside racing) is marked `required` only while it is
   used; the shared checks skip a field that is not `required` just then.
@@ -1161,6 +1241,7 @@ visual suite (above) before shipping a layout change.
   - `Calendar` + `Day`/`Week` is a **time grid** — hour gutter, one column per day, blocks positioned and sized by start and duration. Day, `Next 3 days` and Week are the same component with `--timegrid-cols` set to 1, 3 or 7. Overlapping events cluster transitively and each takes `1/n` of the column, which is what makes a collision visible rather than something you derive from two timestamps. All-day events sit in a band pinned above the scrolling hours, spanning every column they cover. A timed event crossing midnight draws twice — to the bottom of the first day, from the top of the next. **The grid opens with the previous hour at the top**, hour-aligned and clamped at midnight, on every render and in every displayed range — where to open is a question about when you are asking, not about what the day contains. The rule this replaced opened an hour ahead of the day's first event, capped at 7 AM, so every visit started around 6 AM and the afternoon was ten hours of empty morning away on a device you are usually standing at
   - Block times are parsed back off the server-rendered `time_label` / `end_time_label` rather than derived from the UTC instant, because those labels are already in the family's configured zone. Doing the arithmetic in the browser would put blocks where the labels beside them disagree, for anybody traveling
   - `Calendar` + `Month` is the existing month grid. `Agenda` + any range is the existing day-grouped list. `Next 30 days` is the old rolling agenda window, kept as a first-class range and offered in `Agenda` only — a grid of 30 arbitrary days starting on a Wednesday is not a calendar. Switching to `Calendar` while on it falls back to `Month`. `Next 3 days` is its mirror: today and the next two days as a three-column time grid, offered in `Calendar` only, stepping 3 days per Prev/Next and following the date at midnight as `Day` does. Switching to `Agenda` while on it falls back to `Day`. Each rolling range is drawn by one View (`VIEW_ONLY_RANGES`), and the option for the other View is detached from the select rather than hidden
+  - **A timed event over several dates reads the way Google Calendar's does.** Under a day (`runsFullDays()`: it ends before the same clock time on the next date, compared on `start_form` / `end_form` so a clock change does not move the line) it is one event on the day it starts: a Friday 7 PM to Saturday 9 AM sleepover has one row in the month grid, on Friday, with its time. At a day or more it has a row on every date it covers, with the time on the first only. The agenda lists it on every date either way: its start time on the first, `All day` on any between, and `Until 9:00 AM` on the last (`agendaTimeLabel()`, from the server's `end_time_label`). A day's agenda reads all-day rows first, then everything with a time by that time (`agendaOrder()`), so `Until 9:00 AM` sits after an 8:00 AM event. The time grids are unchanged: duration is height there, so a block on each date is accurate, and a block after the first date still says `Continues`
   - **Month's window depends on the mode**: the grid draws the 42-day block containing the month because it has to square itself off; the list uses the calendar month, having no reason to carry the leading and trailing days
   - **Nothing is persisted, but the landing view is configurable per person per device.** Width is not consulted again after load, and changing `View` or `Range` while you are there is still never remembered — which calendar you want *next* is a function of why you opened it, and a remembered `Day` view is exactly wrong for the Sunday planning session. Where you *start* is a different question, and Settings → Personal Defaults answers it for the person using **this device** (`calendar_default_view`, stored as the `<view>:<range>` pair the toolbar draws). The default is `auto`, which is the width rule this page has always had — `const NARROW` lives here and nowhere else, because `auto` names Rally's rule and only the page holding the rule can resolve it. A device nobody has claimed, a person who has never chosen, and an `auto` answer all land in the same place: `Calendar` + `Month` on a computer, `Calendar` + `Day` on a phone
   - Every mode and range is reachable at every width. The month grid renders on a phone with **event text stacked in the cell**, not just a date and dots: a heat map says Tuesday is busy without saying with what, so reading any day cost a tap and a round trip. Cell height comes from content, so an empty week stays one row tall. **No dots in the cell**: they were the phone's entire answer to "who is busy today" when the cell could not carry text, and once every row carries a name they repeat it — worst in a crowded cell, where they sat above three rows *and* a `+N more`. `.calendar-day-dots` is gone from both the markup and the stylesheet; `.calendar-dot` still carries member color in the desktop rows, the agenda, the all-day band and the legend. Those rows are **real targets at `--target-min`**, not inert text: the old rule (one target per cell) was right when the cell was locked to one target-height, but the cell grows to fit now, so the rows clear the floor honestly and tapping an event opens it. `pointer-events: none` was tried and is wrong — it blocks only the pointer, leaving a `<button>` a keyboard can reach and a finger cannot
@@ -1205,10 +1286,11 @@ visual suite (above) before shipping a layout change.
   - `GET /api/events/{id}` - The stored series row plus its overrides
   - `GET /api/events/{id}/occurrences?start=&end=` - Occurrences of one series, so the UI can show what a change affects
   - `PUT /api/events/{id}?scope=this|following|all&occurrence_date=` - `this` writes an `event_overrides` row keyed on the **original** occurrence date; `following` truncates the series with `UNTIL` and creates a new event carrying the tail (moving the overrides at or after the split with it); `all` updates the row and **keeps existing overrides** — a moved occurrence stays moved. `occurrence_date` is required for the first two
-  - `DELETE /api/events/{id}?scope=…&occurrence_date=` - Cancel one occurrence, truncate the tail, or delete the event and cascade its attendees, overrides and notifications (SQLite does not enforce the references)
+  - `DELETE /api/events/{id}?scope=…&occurrence_date=&release=` - Cancel one occurrence, truncate the tail, or delete the event and cascade its attendees, overrides and notifications (SQLite does not enforce the references). Taking a packing list off a day nobody else uses is a `409 {message, keep_label, remove_label, releases}` until `release=keep|remove` (#313)
+  - `GET /api/events/{id}/delete-question?scope=…&occurrence_date=` - What that delete would ask, without writing (the delete is tried and rolled back): the same body as the `409`, with `releases: []` when it would ask nothing
   - Creating (`POST`), editing (`PUT`) or deleting (`DELETE`) an event pushes a notice to its attendees, at every scope. The response is unaffected: the notice is best-effort and never fails the write
   - `POST /api/events/describe-recurrence` - Read an **unsaved** rule back as a phrase: `{rrule}` in, `{"description": "every 2 weeks on Tuesday and Thursday"}` out. This is why the event modal does not own a second copy of the recurrence vocabulary, the same reasoning as `POST /api/recurring-todos/preview`. A malformed rule is *described as nothing* rather than rejected — the form asks on every keystroke, so a half-typed rule is the normal case; `validate_rrule` still guards the save
-  - Events carry `packing_list_template_ids` and `packing_list_span` (create and update; on update `None` leaves the lists alone and `this` means that occurrence's). `PUT` takes `adopt=true` to go ahead with a move onto a day its list is already on (otherwise `409 {message, adopts}`); a move of an occurrence with lists into the past is a `422`. Every occurrence carries `packing_lists: [{template_id, name, day_ids}]`
+  - Events carry `packing_list_template_ids` and `packing_list_span` (create and update; on update `None` leaves the lists alone and `this` means that occurrence's). `PUT` takes `adopt=true` to go ahead with a move onto a day its list is already on (otherwise `409 {message, adopts}`), and `release=keep|remove` to answer taking a list off a day nobody else uses (otherwise `409 {message, keep_label, remove_label, releases, adopts}`, #313); a move of an occurrence with lists into the past is a `422`. Every occurrence carries `packing_lists: [{template_id, name, day_ids}]`
   - `POST /api/events/{id}/notify` - Push now to the event's attendees. Returns `{sent, skipped, muted, failed}` **by name**: "it worked" and "both phones buzzed" are different claims. An attendee with no Pushover key is reported as *skipped*, and one who turned event reminders off is reported as *muted* — the button is filtered like every other push rather than exempted, so it has to say who it dropped
 - `/api/notes` - Daily Note CRUD. `GET` lists `date >= today` ascending; `POST`/`PUT` reject markup, an empty body, and any write into the past (`403`); a duplicate date is `409` with `{message, id}`
   - `GET /api/notes/previous?search=&limit=&offset=` - Days before today, newest first. Returns `{items, has_more, total}`; `total` counts every match, which is what the results count reports
@@ -1493,12 +1575,14 @@ docker run -d -p 8000:8000 -v $(pwd)/data:/data -v $(pwd)/output:/output --name 
 Don't auto-merge. Facts, upkeep and issue PRs all need review.
 
 ### Build and test
-- Install with `uv sync`. Run the tests with `uv run pytest`: 1941 passed and 1 skipped on 2026-10-23, in 42 to 105 seconds on a GitHub-hosted runner. The visual suite in `tests/visual` skips itself without Playwright.
+- Install with `uv sync`. Run the tests with `uv run pytest`: 2959 passed and 1 skipped on 2026-11-01, in about 70 seconds locally and 2 minutes on a GitHub-hosted runner. The visual suite in `tests/visual` skips itself without Playwright.
 - Check style with `uv run ruff check .` and `uv run ruff format --check .`. Both pass on the default branch. CI runs these three commands.
+- rally-mcp in `mcp/` is its own uv project: `cd mcp && uv sync --frozen && uv run pytest` (152 passed on 2026-11-01), then `uv run ruff check .` and `uv run ruff format --check .`.
+- The visual suite needs `uv sync --group visual` and `uv run playwright install --with-deps chromium`. Then `uv run pytest tests/visual`: 710 passed and 20 skipped on 2026-11-01.
 - `devenv` is not needed to run these commands. Sadr runs them with `uv` directly.
 
 ### Toolchain
-- Python 3.15 and uv. The Dockerfile pins uv 0.13.1 by digest.
+- Python 3.15 and uv. The Dockerfiles and CI pin uv 0.13.5. `mcp/.python-version` pins 3.15.1, the newest 3.15 that uv 0.13.5 can install. The root project has no `.python-version`.
 - The Semgrep workflow runs `semgrep ci` in the `semgrep/semgrep` container, pinned by digest.
 
 ### Deploys outside CI
