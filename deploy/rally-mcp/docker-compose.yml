@@ -1,4 +1,5 @@
-# rally-mcp and its Cloudflare Tunnel, for the Unraid NAS.
+# rally-mcp and its Cloudflare Tunnel, for hosts with Docker Compose. On Unraid,
+# use the templates in unraid/ instead, so CA Auto Update keeps them current.
 #
 #   cp .env.example .env    # fill in the four secrets (never commit .env)
 #   docker compose up -d
