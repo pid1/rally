@@ -1568,6 +1568,10 @@ docker run -d -p 8000:8000 -v $(pwd)/data:/data -v $(pwd)/output:/output --name 
 - [uv Documentation](https://docs.astral.sh/uv/)
 - [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
 
+## Homepage
+
+The README is Rally's homepage, with the guides in docs/ that it links to. The repository's GitHub "website" field points at it (https://github.com/pid1/rally#readme). There is no GitHub Pages site or separate landing page, and none should be added.
+
 ## Sadr
 
 ### Settings
