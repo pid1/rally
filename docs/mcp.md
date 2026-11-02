@@ -188,28 +188,31 @@ you're done.
    can name the device behind every tailnet request:
    `-v /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock:ro`.
 
-3. **Set up rally-mcp's folder.** Copy `deploy/rally-mcp/` to the Docker host
-   and run `cp .env.example .env`. Fill in `RALLY_MCP_PUBLIC_HOST`,
-   `CF_ACCESS_TEAM_DOMAIN`, `TUNNEL_TOKEN`, `CF_ACCESS_AUD` and the same
-   `RALLY_MCP_SERVICE_TOKEN`. Keep `.env` private (`chmod 600 .env`) and
-   never commit it.
-
-4. **Start it**, with Docker Compose:
+3. **Create the networks** (once):
 
    ```bash
-   docker compose up -d
+   docker network create rally_mcp_edge
+   docker network create --internal rally_mcp_backend
    ```
 
-   or, where Compose isn't installed (stock Unraid), with plain Docker:
+   `rally_mcp_edge` holds the tunnel and rally-mcp. `rally_mcp_backend` is
+   internal, with no internet access, and connects rally-mcp to Rally and
+   nothing else.
 
-   ```bash
-   ./up.sh
-   ```
+4. **Start rally-mcp and its tunnel.** Both need `RALLY_MCP_PUBLIC_HOST`,
+   `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` and the same
+   `RALLY_MCP_SERVICE_TOKEN` (rally-mcp), and `TUNNEL_TOKEN` (the tunnel).
 
-   Both start `rally-mcp` and `rally-mcp-cloudflared` and create two
-   networks. `rally_mcp_edge` holds the tunnel and rally-mcp.
-   `rally_mcp_backend` is internal, with no internet access, and connects
-   rally-mcp to Rally and nothing else.
+   - **Unraid:** copy the two templates in `deploy/rally-mcp/unraid/` to
+     `/boot/config/plugins/dockerMan/templates-user/` on the flash drive.
+     Then, in the Docker tab, choose **Add Container**, pick
+     `my-rally-mcp`, fill in the values and apply. Do the same for
+     `my-rally-mcp-cloudflared`. The templates carry the networks and the
+     hardening (`--read-only --cap-drop ALL --security-opt
+     no-new-privileges:true`) in **Extra Parameters**; keep them.
+   - **Anywhere else, with Docker Compose:** copy `deploy/rally-mcp/` to
+     the host, `cp .env.example .env`, fill it in, keep it private
+     (`chmod 600 .env`, never commit it) and run `docker compose up -d`.
 
 5. **Attach Rally to the backend network.** Rally keeps its own network for
    the web UI and its outbound calls, and joins this one as a second network:
@@ -310,22 +313,12 @@ Rally has seen.
 - **One person:** remove their email from `household_emails` and re-run the
   script, or revoke their session in Zero Trust → Access → Users. They can
   also disconnect the connector in Claude.
-- **Updating:** pull `ghcr.io/pid1/rally-mcp:latest` and re-run
-  `docker compose up -d` (or `./up.sh`). Rally updates as usual.
-- **Updating automatically:** a push to `main` publishes both images, and
-  on Unraid, CA Auto Update keeps Rally current once its template's
-  Repository is `ghcr.io/pid1/rally:latest`. rally-mcp isn't a template, so
-  `deploy/rally-mcp/auto-update.sh` does the same for it. It pulls the image
-  and, when it has changed, re-runs `up.sh`. Schedule it every minute, the
-  same cadence as Rally, in `/boot/config/plugins/dynamix/rally-mcp-update.cron`:
-
-  ```text
-  * * * * * /mnt/user/appdata/rally-mcp/auto-update.sh >/dev/null 2>&1
-  ```
-
-  Then run `update_cron`. The file survives a reboot. An update recreates
-  the tunnel too, so the connector drops for a few seconds. A local build in
-  `RALLY_MCP_IMAGE` (no registry in its name) is left alone.
+- **Updating:** a push to `main` publishes both images. On Unraid, rally-mcp
+  and its tunnel are templates like Rally, so CA Auto Update keeps all three
+  current: tick `rally`, `rally-mcp` and `rally-mcp-cloudflared` under
+  Settings → Auto Update Applications → Docker. The tunnel template follows
+  `cloudflare/cloudflared:latest`. With Compose, pull and re-run
+  `docker compose up -d`.
 
 ### Agent instructions
 
@@ -347,7 +340,7 @@ Rules:
 2. In the Cloudflare dashboard, create the custom API token from step 1 with exactly those permissions and a 30-day expiry. Have me save it to ~/.config/cloudflare/rally-mcp.token.
 3. On GitHub, create the OAuth App from step 2. Have me save its client secret to ~/.config/cloudflare/rally-mcp-github.secret.
 4. Write deploy/cloudflare/config.toml from config.example.toml with my values, and run python3 deploy/cloudflare/configure.py. Report its output, and note the AUD tag.
-5. On DOCKER_HOST, do step 4 of the guide: generate the service secret there, set it on the Rally container, write rally-mcp's .env (chmod 600), start rally-mcp and the tunnel, and attach Rally to rally_mcp_backend. On Unraid, use up.sh, the Extra Parameters and the "Preserve user defined networks" setting the guide describes.
+5. On DOCKER_HOST, do step 4 of the guide: generate the service secret there, set it on the Rally container, write rally-mcp's .env (chmod 600), start rally-mcp and the tunnel, and attach Rally to rally_mcp_backend. On Unraid, use the two templates in deploy/rally-mcp/unraid/, the Extra Parameters and the "Preserve user defined networks" setting the guide describes, and add rally-mcp and rally-mcp-cloudflared to CA Auto Update.
 6. Check: four registered tunnel connections, and curl -si https://HOSTNAME/mcp answering 401 from Cloudflare Access.
 7. Tell me to do step 5 (Rally Settings) and step 6 (connect Claude) myself, then confirm in Rally's Audit Log that mcp.connection_authorized appears for my connection.
 ```
