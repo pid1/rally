@@ -352,9 +352,9 @@
         let detailOccurrence = null;
         // What to pack: every template, the lists this form has, and what it
         // opened with, so a save only sends packing lists when they changed.
-        // A list is `{ key, name, template_ids, fresh }`: `key` is its identity
-        // on the event (none yet for one added here), `fresh` one added since
-        // the form opened, whose name and templates can still be changed.
+        // A list is `{ key, name, template_ids, composing }`: `key` is its
+        // identity on the event (none yet for one added here), `composing` one
+        // from `New packing list…`, whose name and templates are still open.
         let packingTemplates = [];
         let packingChosen = [];
         let packingOpened = [];
@@ -1216,12 +1216,13 @@
             return list.key || list.name.trim().toLowerCase();
         }
 
-        /* One row per list. A list the event already has reads as its name,
-           and the templates it includes; one added since the form opened has
-           a Name field and its own Includes select, until Save. */
+        /* One row per list. A list reads as its name and the templates it
+           includes, which for a picked template is just its name; one from
+           `New packing list…` has a Name field and its own Includes select,
+           until Save. */
         function packingRowHtml(list, index) {
             const included = list.template_ids.filter(id => packingName(id));
-            if (!list.fresh) {
+            if (!list.composing) {
                 const includes = included.length && !(included.length === 1 && packingName(included[0]) === list.name)
                     ? `<div class="editable-item-description">Includes ${escapeHtml(included.map(packingName).join(' · '))}</div>`
                     : '';
@@ -1301,7 +1302,7 @@
                 key: p.key,
                 name: p.name,
                 template_ids: p.packing_list_template_ids || [],
-                fresh: false,
+                composing: false,
             }));
         }
 
@@ -2044,7 +2045,7 @@
             }
             if (nativeCalendars.length && refuseNoCalendar()) return false;
             // A new list needs a name, or a template to be named after.
-            const unnamed = packingChosen.findIndex(list => list.fresh && !list.name.trim() && !list.template_ids.length);
+            const unnamed = packingChosen.findIndex(list => list.composing && !list.name.trim() && !list.template_ids.length);
             if (unnamed >= 0) {
                 showFormMessage('event-packing-message', 'Give the new packing list a name, or include a template.');
                 const field = document.getElementById(`event-packing-name-${unnamed}`);
@@ -2587,22 +2588,22 @@
         ['input', 'change'].forEach(type => document.getElementById('event-form')
             .addEventListener(type, () => clearFormMessage('event-form-message')));
 
-        /* Picking adds it: a template brings a list named after it, and "New
-           packing list…" a list to name and fill. A pick that waited for a
-           separate Add button was a pick Save silently dropped: the select
-           reads like a field whose value is saved, so nobody thinks to press
-           Add. */
+        /* Picking adds it: a template brings a list named after it, nothing
+           more to fill in, and "New packing list…" a list to name and compose.
+           A pick that waited for a separate Add button was a pick Save
+           silently dropped: the select reads like a field whose value is
+           saved, so nobody thinks to press Add. */
         document.getElementById('event-packing-select').addEventListener('change', (e) => {
             const value = e.target.value;
             if (!value) return;
             clearFormMessage('event-packing-message');
             if (value === 'new') {
-                packingChosen.push({ name: '', template_ids: [], fresh: true });
+                packingChosen.push({ name: '', template_ids: [], composing: true });
                 renderPackingSection(`event-packing-name-${packingChosen.length - 1}`);
                 return;
             }
             const id = Number(value);
-            packingChosen.push({ name: packingName(id), template_ids: [id], fresh: true });
+            packingChosen.push({ name: packingName(id), template_ids: [id], composing: false });
             renderPackingSection('event-packing-select');
         });
         const packingList = document.getElementById('event-packing-list');

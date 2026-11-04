@@ -112,6 +112,11 @@ def test_picking_a_template_adds_it(page):
     _pick(page, template["name"])
 
     assert _picked(page) == [template["name"]]
+    # A picked template is a list named after it, with nothing to fill in:
+    # only `New packing list…` unfolds a Name and its own Includes.
+    assert page.locator("#event-packing-list .manage-row--editing").count() == 0
+    assert page.locator("#event-packing-name-0").count() == 0
+    assert page.locator("#event-packing-include-0").count() == 0
     assert page.input_value("#event-packing-select") == ""
     labels = page.evaluate(
         "() => [...document.querySelectorAll('#event-packing-select option')].map(o => o.textContent)"
