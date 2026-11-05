@@ -354,8 +354,15 @@ set it up.
 
 How the two fit together:
 
-- **onhold never talks to Rally.** It has no Rally token, no connector into
-  Rally and no access to the family's data. Each call knows only its brief.
+- **onhold's code never talks to Rally.** It has no Rally token, no connector
+  into Rally and no access to the family's data. Each call knows only its brief.
+- **Optionally, the voice agent gets busy-only tools.** To let it offer times
+  or hold an appointment on a call, create a Rally connection for it (a token,
+  with the ElevenLabs IP preset on its allowlist) with the **Busy-only**
+  preset, and attach it to the agent in ElevenLabs as a custom MCP server. It
+  then sees only free and busy blocks, and anything it books is **pending**
+  until someone in the family confirms it. Never give it any other tools. See
+  [Busy-only tools](#busy-only-tools) and onhold's deploy guide.
 - **Claude is the bridge.** With both connectors added, Claude reads what it
   needs from Rally (a to-do, say), writes a brief for the call, and shows you a
   preview of everything the voice agent will say and know. It dials only after

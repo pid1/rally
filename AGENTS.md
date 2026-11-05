@@ -420,10 +420,11 @@ lockfile and tests): `cd mcp && uv run pytest`. See [docs/mcp.md](docs/mcp.md).
 ## Phone calls live outside Rally
 
 Rally never places phone calls and must not gain code that can. The optional
-[onhold](https://github.com/pid1/onhold) project does that, with no access to
-Rally; Claude, holding both connectors, is the only bridge. The README and
-`docs/mcp.md` link to it. Keep it that way: don't add phone, voice-agent or
-outbound-call code, routes or tokens to Rally.
+[onhold](https://github.com/pid1/onhold) project does that, and its code has no
+access to Rally; Claude, holding both connectors, is the bridge. The README and
+`docs/mcp.md` link to it. Keep it that way: don't add code to Rally that dials,
+speaks or calls out. MCP tools any connection can be given are a different
+thing and are fine, including the busy-only tools a voice agent may use.
 
 ## Database Migrations
 
