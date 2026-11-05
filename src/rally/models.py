@@ -261,10 +261,25 @@ class Event(Base):
     # Migration 039 added ``packing_list_span`` (``first`` / ``every``) here.
     # Since #281 an event's packing lists go on an occurrence's first day only,
     # so nothing reads it; databases that have the column keep it, unused.
+    # Phone bookings (``/api/busy``, migration 044). ``source`` is the MCP
+    # connection id that booked the event; NULL means a household member made
+    # it. A booking stays ``pending_confirmation`` until the family confirms
+    # it. Only the SHA-256 of the confirmation id the agent was given is kept,
+    # so reading the database is not enough to cancel a booking. The contact
+    # fields, title and description of a booked event are the caller's words:
+    # untrusted text, shown to the family and never followed.
+    source: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    pending_confirmation: Mapped[bool] = mapped_column(Boolean, default=False)
+    confirmation_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
-    __table_args__ = (Index("ix_events_calendar_start", "calendar_id", "start_date"),)
+    __table_args__ = (
+        Index("ix_events_calendar_start", "calendar_id", "start_date"),
+        Index("ix_events_confirmation_hash", "confirmation_hash", unique=True),
+    )
 
 
 class EventAttendee(Base):
@@ -1421,18 +1436,21 @@ class AuditEvent(Base):
 
 
 class McpConnection(Base):
-    """One MCP authorization a household member approved.
+    """One OAuth sign-in (a household member on one Claude client) seen on a connection.
 
-    A connection is first seen when rally-mcp forwards a call carrying a
-    connection id Rally has not met; that first sighting is the "new connection
-    authorized" audit event and alert. Revoking happens in Cloudflare Zero
-    Trust, which Rally cannot observe, so ``last_seen_at`` is what tells a live
-    connection from a forgotten one.
+    Despite the table's name this is a *grant*, not a connection: a connection
+    (``Connection``) is created in advance by a household member, and each
+    person-and-client pair that signs in to it through Cloudflare Access is one
+    row here. ``id`` is rally-mcp's hashed grant id; ``connection_id`` is the
+    connection it was seen on. Rows from before migration 043, when every
+    sign-in arrived on the single ``/mcp`` path, belong to the ``legacy``
+    connection. The first sighting is the ``mcp.connection_authorized`` event
+    and alert; ``last_seen_at`` tells a live sign-in from a forgotten one.
     """
 
     __tablename__ = "mcp_connections"
 
-    id: Mapped[str] = mapped_column(String(100), primary_key=True)  # connection id
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)  # grant id
     family_member_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     email: Mapped[str] = mapped_column(String(200))
     jwt_subject: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -1441,6 +1459,59 @@ class McpConnection(Base):
     last_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
     first_seen_at: Mapped[datetime] = mapped_column(default=now_utc)
     last_seen_at: Mapped[datetime] = mapped_column(default=now_utc)
+    # The pre-created connection this sign-in arrived on (``connections.id``).
+    connection_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+
+class Connection(Base):
+    """A named MCP client a household member set up in advance: "Claude", "Phone agent".
+
+    Each has its own endpoint, ``/mcp/c/<id>`` on rally-mcp's hostname, and is
+    the unit everything else hangs off: how it authenticates (``oauth`` through
+    Cloudflare Access, or a bearer ``token``), which tools it may use
+    (``preset``, with ``tools`` holding the explicit list once it is
+    ``custom``), which addresses it may connect from (``ip_allowlist``, CIDRs;
+    empty means nowhere), and whether it works at all (``status``). See
+    ``rally.connections`` for the rules and ``docs/mcp.md`` for the why.
+
+    ``legacy`` marks the one implicit connection behind the original ``/mcp``
+    path, kept so an existing Claude connector works until it is re-created.
+
+    A token is never stored: ``token_hash`` is an HMAC-SHA256 of it under a
+    key derived from Rally's service secret, and ``token_hint`` its first
+    characters, so the page can say which token a connection holds.
+    """
+
+    __tablename__ = "connections"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    auth_method: Mapped[str] = mapped_column(String(10))  # oauth | token
+    preset: Mapped[str] = mapped_column(String(20), default="custom")
+    tools: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    ip_allowlist: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(10), default="disabled")
+    # The household member who created the token, or who completed OAuth on it
+    # (bound on first sign-in). NULL on an OAuth connection nobody has signed
+    # in to yet, and on the legacy connection, which any household member uses.
+    authorized_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    legacy: Mapped[bool] = mapped_column(Boolean, default=False)
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    token_hint: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    first_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
+
+    __table_args__ = (
+        CheckConstraint("auth_method IN ('oauth', 'token')", name="ck_connections_auth_method"),
+        CheckConstraint(
+            "status IN ('enabled', 'disabled', 'revoked')", name="ck_connections_status"
+        ),
+    )
 
 
 # Registers the audit log's session hooks. Imported here, after every model is

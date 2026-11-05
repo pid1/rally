@@ -51,12 +51,23 @@ DENIED = (
         "family members carry Pushover keys and the sign-in emails MCP identity is resolved by",
     ),
     Rule(r"/api/devices(/.*)?", None, "device ids are the browser's own identity tokens"),
+    Rule(
+        r"/api/connections(/.*)?",
+        None,
+        "connections are MCP's own credentials, permissions and allowlists",
+    ),
 )
 
 # Served by rally-mcp's hand-written tools, which mark external calendar
-# content as untrusted field by field; not generated again.
+# content as untrusted field by field; not generated again. The /api/busy
+# routes are the busy-only tools (``rally_mcp.busy_tools``, permission scope
+# ``calendar:busy``): free/busy and phone bookings for an untrusted agent.
 HAND_WRITTEN = frozenset(
     {
+        ("GET", "/api/busy/availability"),
+        ("GET", "/api/busy/free-slots"),
+        ("POST", "/api/busy/appointments"),
+        ("POST", "/api/busy/appointments/cancel"),
         ("GET", "/api/todos"),
         ("POST", "/api/todos"),
         ("PUT", "/api/todos/{todo_id}"),
@@ -67,6 +78,55 @@ HAND_WRITTEN = frozenset(
     }
 )
 
+# Every tool touches exactly one scope, ``<area>:read`` or ``<area>:write``,
+# plus ``calendar:busy`` for the busy-only tools (free/busy and booking,
+# never event details). A connection's permissions are a set of tool names,
+# and each tool may only reach routes of its own scope: Rally enforces that
+# on every MCP request, so rally-mcp's own filtering is not the only fence.
+#
+# The hand-written tools' scopes, by tool name. rally-mcp declares the same
+# scope next to each tool (``@scoped(...)`` in ``rally_mcp.scopes``) and its
+# tests check the two agree through the OpenAPI snapshot. A new hand-written
+# tool needs one line here and one there. The busy-only tools are declared
+# ahead of their implementation so the Busy-only preset is fixed: exactly
+# these four names.
+BUSY_SCOPE = "calendar:busy"
+HAND_WRITTEN_TOOLS: dict[str, str] = {
+    "list_todos": "todos:read",
+    "create_todo": "todos:write",
+    "update_todo": "todos:write",
+    "complete_todo": "todos:write",
+    "delete_todo": "todos:write",
+    "list_events": "calendar:read",
+    "create_event": "calendar:write",
+    "get_daily_summary": "dashboard:read",
+    "check_availability": BUSY_SCOPE,
+    "find_free_slots": BUSY_SCOPE,
+    "book_appointment": BUSY_SCOPE,
+    "cancel_appointment": BUSY_SCOPE,
+}
+
+# Routes whose scope is not ``<area>:read|write``. Everything under
+# ``/api/busy`` is the busy-only surface.
+ROUTE_SCOPES = ((re.compile(r"/api/busy(/.*)?"), BUSY_SCOPE),)
+
+# Lookups any tool may make whatever its scope, except a busy-only one: the
+# hand-written tools resolve names to ids through the family list (names and
+# colors only for MCP; Rally strips the Pushover keys).
+SUPPORT_ROUTES = frozenset({("GET", "/api/family")})
+
+# Each area's scope name, where it differs from the area itself.
+SCOPE_AREAS = {
+    "todo": "todos",
+    "recurring_todo": "todos",
+    "event": "calendar",
+    "note": "notes",
+    "meal": "meals",
+    "prep": "preparedness",
+    "team": "sports",
+    "settings": "briefing",
+}
+
 # Responses that carry text from outside the household: ESPN schedules, an
 # LLM's review, a calendar feed's error message. rally-mcp wraps the whole
 # result in ``untrusted_external_content``.
@@ -75,6 +135,10 @@ UNTRUSTED = (
     re.compile(r"/api/preparedness/review"),
     re.compile(r"/api/events/sync(/.*)?"),
     re.compile(r"/api/dashboard/regenerate"),
+    # A single event may be a phone booking, whose title, notes and contact
+    # are a caller's words (the busy-only tools). The hand-written list_events
+    # wraps those field by field; the generated event tools wrap the whole result.
+    re.compile(r"/api/events/\{event_id\}(/occurrences|/confirm)?"),
 )
 
 # Calls that reach outside Rally (send a push, call an LLM or ESPN, sync feeds).
@@ -138,6 +202,17 @@ AREA_LABELS = {
 def area_of(path: str) -> str:
     segment = path.split("/")[2]
     return AREAS.get(segment, segment.replace("-", "_"))
+
+
+def route_scope(method: str, path: str) -> str:
+    """The scope a route touches: ``calendar:busy``, or ``<area>:read`` / ``<area>:write``."""
+    for pattern, scope in ROUTE_SCOPES:
+        if pattern.fullmatch(path):
+            return scope
+    area = area_of(path)
+    name = SCOPE_AREAS.get(area, area)
+    read = method == "GET" and not any(p.fullmatch(path) for p in NOT_READ_ONLY)
+    return f"{name}:{'read' if read else 'write'}"
 
 
 def denial(method: str, path: str) -> str | None:
@@ -228,8 +303,109 @@ def openapi_for_mcp(app) -> dict:
             op["x-rally-mcp"] = {
                 "annotations": _annotations(method.upper(), path),
                 "untrusted": any(p.fullmatch(path) for p in UNTRUSTED),
+                "scope": route_scope(method.upper(), path),
             }
             paths.setdefault(path, {})[method] = op
     full["paths"] = paths
     full["info"] = {**full.get("info", {}), "title": "Rally (MCP)"}
+    # The hand-written tools' scopes, for rally-mcp's tests to check its own
+    # declarations against.
+    full["x-rally-mcp-hand-written"] = dict(sorted(HAND_WRITTEN_TOOLS.items()))
     return full
+
+
+# --- The tool catalog ----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ToolInfo:
+    """One tool a connection can be given, as the Connections page lists it."""
+
+    name: str
+    scope: str
+    label: str  # the area it belongs to, e.g. "Shopping list"
+    summary: str
+    # The one route a generated tool calls; None for a hand-written tool,
+    # which may call any route of its own scope (plus the support lookups).
+    route: tuple[str, str] | None = None
+
+
+SCOPE_LABELS = {
+    "todos": "To-dos",
+    "calendar": "Calendar",
+    "notes": "Daily notes",
+    "meals": "Meal planner",
+    "shopping": "Shopping list",
+    "preparedness": "Emergency preparedness",
+    "packing": "Packing lists",
+    "sports": "Followed sports teams",
+    "dashboard": "Dashboard",
+    "briefing": "AI briefing settings",
+    "notifications": "Notifications",
+    "preferences": "Personal defaults",
+    "family": "Family members",
+}
+
+_catalogs: dict[int, tuple[int, dict[str, ToolInfo]]] = {}
+
+
+def _hand_written_summary(name: str) -> str:
+    return name.replace("_", " ").capitalize()
+
+
+def tool_catalog(app) -> dict[str, ToolInfo]:
+    """Every tool name a connection can be given, with its scope.
+
+    The generated tools come from the same document rally-mcp builds them
+    from, the hand-written ones from ``HAND_WRITTEN_TOOLS``. Cached per app
+    (keyed by its route count, so a route added later is picked up).
+    """
+    key = len(app.router.routes)
+    cached = _catalogs.get(id(app))
+    if cached and cached[0] == key:
+        return cached[1]
+    catalog: dict[str, ToolInfo] = {}
+    for name, scope in HAND_WRITTEN_TOOLS.items():
+        area = scope.split(":")[0]
+        catalog[name] = ToolInfo(
+            name=name,
+            scope=scope,
+            label=SCOPE_LABELS.get(area, area),
+            summary=_hand_written_summary(name),
+        )
+    spec = openapi_for_mcp(app)
+    for path, operations in spec["paths"].items():
+        for method, op in operations.items():
+            name = op["operationId"]
+            scope = op["x-rally-mcp"]["scope"]
+            area = scope.split(":")[0]
+            catalog[name] = ToolInfo(
+                name=name,
+                scope=scope,
+                label=SCOPE_LABELS.get(area, area),
+                summary=op.get("summary") or _hand_written_summary(name),
+                route=(method.upper(), path),
+            )
+    _catalogs[id(app)] = (key, catalog)
+    return catalog
+
+
+def call_denial(catalog: dict[str, ToolInfo], tool: str, method: str, route: str) -> str | None:
+    """Why ``tool`` may not make this request, or None when it may.
+
+    A generated tool calls exactly its own route. A hand-written tool calls
+    routes of its own scope, plus the support lookups unless it is busy-only.
+    """
+    info = catalog.get(tool)
+    if info is None:
+        return f"{tool!r} is not a Rally tool"
+    if info.route is not None:
+        if info.route != (method, route):
+            return f"tool {tool} may not call {method} {route}"
+        return None
+    if (method, route) in SUPPORT_ROUTES and info.scope != BUSY_SCOPE:
+        return None
+    scope = route_scope(method, route)
+    if scope != info.scope:
+        return f"tool {tool} ({info.scope}) may not call {method} {route} ({scope})"
+    return None

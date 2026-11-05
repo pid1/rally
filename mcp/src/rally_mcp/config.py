@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+# The cloudflared container's name in deploy/rally-mcp (compose and the Unraid templates).
+DEFAULT_TRUSTED_PROXIES = "rally-mcp-cloudflared"
+
 
 def _required(name: str) -> str:
     value = os.environ.get(name, "").strip()
@@ -30,6 +33,12 @@ class Settings:
     # How long rally-mcp trusts Rally's answer to "is MCP enabled?".
     status_ttl_seconds: float = 10.0
     extra_hosts: list[str] = field(default_factory=list)
+    # Peers whose CF-Connecting-IP header is believed: the cloudflared
+    # container, by name (resolved through Docker's DNS), IP or CIDR. From any
+    # other peer the header is ignored and the peer's own address is the
+    # client IP, so a direct request cannot claim to come from an allowed
+    # address. Empty trusts nobody.
+    trusted_proxies: tuple[str, ...] = ()
 
     @property
     def issuer(self) -> str:
@@ -54,4 +63,11 @@ class Settings:
                 for h in os.environ.get("RALLY_MCP_EXTRA_HOSTS", "").split(",")
                 if h.strip()
             ],
+            trusted_proxies=tuple(
+                p.strip()
+                for p in os.environ.get("RALLY_MCP_TRUSTED_PROXIES", DEFAULT_TRUSTED_PROXIES).split(
+                    ","
+                )
+                if p.strip()
+            ),
         )

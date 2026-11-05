@@ -16,7 +16,7 @@ from sqlalchemy.exc import DatabaseError
 from rally import notifications
 from rally.audit import context as audit_context
 from rally.audit import identity
-from rally.models import AuditEvent, Calendar, McpConnection, Setting, Todo
+from rally.models import AuditEvent, Calendar, Connection, McpConnection, Setting, Todo
 
 SERVICE_TOKEN = "test-service-token-0123456789"
 JON = "jon@example.com"
@@ -55,6 +55,14 @@ def mcp_ready(db_session, make_member, monkeypatch, pushes):
             Setting(key="mcp_enabled", value="true"),
             Setting(key="pushover_app_token", value="app-token"),
             Setting(key="audit_alert_member_ids", value=json.dumps([jon.id])),
+            Connection(
+                id="c-claude",
+                name="Claude",
+                auth_method="oauth",
+                preset="full",
+                ip_allowlist=["160.79.104.0/21"],
+                status="enabled",
+            ),
         ]
     )
     db_session.commit()
@@ -66,11 +74,12 @@ def mcp_headers(**overrides):
         "X-Rally-Service-Token": SERVICE_TOKEN,
         "X-Rally-Mcp-Email": JON,
         "X-Rally-Mcp-Jwt-Sub": "sub-123",
-        "X-Rally-Mcp-Connection-Id": "conn-abc",
+        "X-Rally-Mcp-Connection-Id": "c-claude",
+        "X-Rally-Mcp-Grant-Id": "conn-abc",
         "X-Rally-Mcp-Client": "claude.ai",
         "X-Rally-Mcp-Client-Ip": "160.79.104.10",
         "X-Rally-Mcp-Cf-Ray": "8f00000000000000-DFW",
-        "X-Rally-Mcp-Tool": "todos_list",
+        "X-Rally-Mcp-Tool": "list_todos",
         "X-Rally-Mcp-Arguments": json.dumps({"limit": 5}),
     }
     headers.update(overrides)
@@ -127,6 +136,7 @@ def test_every_request_gets_a_request_event_and_an_id(client, db_session):
         "path": "/api/todos",
         "route": "/api/todos",
         "status": 200,
+        "result_bytes": 2,
     }
     assert req.client_info["user_agent"]
     assert req.client_info["ip"] == "testclient"
@@ -299,9 +309,11 @@ def test_mcp_call_is_attributed_to_the_household_member(client, db_session, mcp_
     assert req.actor_type == "mcp_client"
     assert req.actor_id == JON
     assert req.actor_name == "Jon"
-    assert req.mcp_tool == "todos_list"
+    assert req.mcp_tool == "list_todos"
     assert req.mcp_arguments == {"limit": 5}
-    assert req.client_info["connection_id"] == "conn-abc"
+    assert req.client_info["connection_id"] == "c-claude"
+    assert req.client_info["connection_name"] == "Claude"
+    assert req.client_info["grant_id"] == "conn-abc"
     assert req.client_info["mcp_client"] == "claude.ai"
     assert req.client_info["client_ip"] == "160.79.104.10"
     assert req.client_info["cf_ray"] == "8f00000000000000-DFW"

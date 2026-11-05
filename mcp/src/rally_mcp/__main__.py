@@ -13,10 +13,12 @@ def main() -> None:
     # rally-mcp after upgrading Rally to pick up new endpoints).
     spec = fetch_spec(settings.rally_url, settings.service_token)
     _, app = build(settings, spec=spec)
-    # Behind cloudflared: trust its X-Forwarded-* only from the Docker network.
-    uvicorn.run(
-        app, host="0.0.0.0", port=settings.port, proxy_headers=True, forwarded_allow_ips="*"
-    )
+    # No proxy headers: the ASGI client address must stay the real TCP peer,
+    # because that is how ConnectionGate tells a request through the tunnel
+    # (from cloudflared) from a direct one, and so whether to believe its
+    # CF-Connecting-IP. X-Forwarded-For from anyone would let a direct request
+    # pose as cloudflared.
+    uvicorn.run(app, host="0.0.0.0", port=settings.port, proxy_headers=False)
 
 
 if __name__ == "__main__":

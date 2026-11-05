@@ -22,6 +22,11 @@
 #   Unraid deletes the network whenever Docker restarts. rally-mcp then reaches
 #   Rally's API at http://rally:8000 (the container name) and no other container.
 #
+# rally-mcp believes CF-Connecting-IP (the caller's public IP, which each
+# connection's IP allowlist is checked against) only from the cloudflared
+# container, found by its container_name below through Docker's DNS
+# (RALLY_MCP_TRUSTED_PROXIES, default "rally-mcp-cloudflared"). Keep the name.
+#
 # The tunnel's routing lives in Cloudflare (remotely managed): the only public
 # hostname (RALLY_MCP_PUBLIC_HOST) -> http://rally-mcp:8080, and
 # everything else answers 404. See deploy/cloudflare/README.md.

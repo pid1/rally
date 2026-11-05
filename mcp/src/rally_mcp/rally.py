@@ -1,12 +1,14 @@
 """Calling Rally's API on someone's behalf.
 
 Every request carries rally-mcp's service secret and who it is acting for —
-the household member's Access email, the JWT subject, the connection id, the
-Claude client, the caller's public IP and Cf-Ray, and the tool and arguments
-— as ``X-Rally-Mcp-*`` headers. Rally's audit middleware trusts those headers
-only alongside the service secret, maps the email to a family member, and
-records every event the call causes under that person and connection. One
-tool call is one request id on both sides.
+the connection it arrived on, the household member's Access email and JWT
+subject (or, for a token connection, the bearer token, which Rally checks
+again on every call), the grant id, the client, the caller's public IP and
+Cf-Ray, and the tool and arguments — as ``X-Rally-Mcp-*`` headers. Rally's
+audit middleware trusts those headers only alongside the service secret,
+checks the connection and the tool's permission, and records every event the
+call causes under that person and connection. One tool call is one request id
+on both sides.
 """
 
 from __future__ import annotations
@@ -22,9 +24,37 @@ import httpx
 from rally_mcp.access import Identity
 
 
+@dataclass(frozen=True)
+class ConnectionInfo:
+    """What Rally said about the connection a request arrived on."""
+
+    id: str
+    name: str
+    auth_method: str
+    tools: frozenset[str]
+    scopes: frozenset[str]
+    legacy: bool = False
+
+    @classmethod
+    def from_rally(cls, data: dict) -> ConnectionInfo:
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            auth_method=data["auth_method"],
+            tools=frozenset(data.get("tools") or ()),
+            scopes=frozenset(data.get("scopes") or ()),
+            legacy=bool(data.get("legacy")),
+        )
+
+
 @dataclass
 class CallContext:
-    identity: Identity
+    # The Access identity; None on a token connection, where nobody signs in.
+    identity: Identity | None
+    connection: ConnectionInfo | None = None
+    # A token connection's bearer token, forwarded so Rally checks it again.
+    token: str | None = None
+    client: str | None = None
     client_ip: str | None = None
     cf_ray: str | None = None
     user_agent: str | None = None
@@ -42,10 +72,12 @@ def identity_headers(call: CallContext | None) -> dict[str, str]:
         return {}
     ident = call.identity
     values = {
-        "Email": ident.email,
-        "Jwt-Sub": ident.subject,
-        "Connection-Id": ident.connection_id,
-        "Client": ident.client,
+        "Connection-Id": call.connection.id if call.connection else None,
+        "Connection-Token": call.token,
+        "Email": ident.email if ident else None,
+        "Jwt-Sub": ident.subject if ident else None,
+        "Grant-Id": ident.grant_id if ident else None,
+        "Client": ident.client if ident else call.client,
         "Client-Ip": call.client_ip,
         "Cf-Ray": call.cf_ray,
         "User-Agent": call.user_agent,
@@ -102,6 +134,25 @@ class RallyClient:
             enabled = False  # Rally unreachable or refusing: fail closed.
         self._status = (now, enabled)
         return enabled
+
+    async def resolve_connection(self, **request) -> dict:
+        """Ask Rally whether to serve a request on a connection, and with which tools.
+
+        Rally logs and alerts a refusal itself. Rally unreachable, or any
+        answer but a clear yes, is a refusal: fail closed.
+        """
+        try:
+            response = await self._http.post(
+                "/api/mcp/connections/resolve",
+                json=request,
+                headers={"X-Rally-Service-Token": self._service_token},
+            )
+            data = response.json() if response.status_code == 200 else None
+        except httpx.HTTPError, ValueError:
+            data = None
+        if not isinstance(data, dict) or "allowed" not in data:
+            return {"allowed": False, "status": 503, "reason": "Rally could not be asked"}
+        return data
 
     async def report_denial(self, **event) -> None:
         """Tell Rally about a request refused here, so it is logged and alerted."""

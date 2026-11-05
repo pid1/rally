@@ -12,7 +12,7 @@ import pytest
 
 from rally.audit import mcp_policy
 from rally.main import app
-from rally.models import Setting
+from rally.models import Connection, Setting
 from rally.utils.settings import today_local_str
 
 SERVICE_TOKEN = "test-service-token-0123456789"
@@ -24,15 +24,28 @@ def mcp_on(db_session, make_member, monkeypatch):
     monkeypatch.setenv("RALLY_MCP_SERVICE_TOKEN", SERVICE_TOKEN)
     member = make_member("Jon", email=JON, pushover_user_key="u-secret-key")
     db_session.add(Setting(key="mcp_enabled", value="true"))
+    db_session.add(
+        Connection(
+            id="c-test",
+            name="Claude",
+            auth_method="oauth",
+            preset="full",
+            ip_allowlist=["160.79.104.0/21"],
+            status="enabled",
+        )
+    )
     db_session.commit()
     return member
 
 
-def as_mcp(**extra):
+def as_mcp(tool, **extra):
     return {
         "X-Rally-Service-Token": SERVICE_TOKEN,
         "X-Rally-Mcp-Email": JON,
-        "X-Rally-Mcp-Connection-Id": "conn-test",
+        "X-Rally-Mcp-Connection-Id": "c-test",
+        "X-Rally-Mcp-Grant-Id": "conn-test",
+        "X-Rally-Mcp-Client-Ip": "160.79.104.10",
+        "X-Rally-Mcp-Tool": tool,
         **extra,
     }
 
@@ -121,19 +134,19 @@ def test_mcp_can_use_a_household_route(client, db_session, mcp_on):
     # Today, not a fixed date: notes for past days are read-only.
     today = today_local_str(db_session)
     created = client.post(
-        "/api/notes", json={"date": today, "body": "Pack swim bag"}, headers=as_mcp()
+        "/api/notes", json={"date": today, "body": "Pack swim bag"}, headers=as_mcp("create_note")
     )
     assert created.status_code in (200, 201), created.text
 
 
 def test_mcp_is_refused_a_denied_route(client, mcp_on):
-    response = client.get("/api/settings", headers=as_mcp())
+    response = client.get("/api/settings", headers=as_mcp("list_todos"))
     assert response.status_code == 403
     assert "not an MCP route" in response.json()["detail"]
 
 
 def test_mcp_sees_no_pushover_keys(client, mcp_on):
-    members = client.get("/api/family", headers=as_mcp()).json()
+    members = client.get("/api/family", headers=as_mcp("list_todos")).json()
     assert "u-secret-key" not in json.dumps(members)
     # Rally's own UI still sees them.
     assert "u-secret-key" in client.get("/api/family").text

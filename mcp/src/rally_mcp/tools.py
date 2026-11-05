@@ -5,8 +5,9 @@ Rally's audit middleware lets rally-mcp reach — and returns just what was
 asked, a page at a time.
 
 **Untrusted content.** Anything that did not come from a household member —
-events from external calendar feeds (ICS, Google, iCloud) and the generated
-summary, which an LLM wrote from those feeds — is returned inside an
+events from external calendar feeds (ICS, Google, iCloud), appointments booked
+through the busy-only phone tools, and the generated summary, which an LLM
+wrote from those feeds — is returned inside an
 ``untrusted_external_content`` object, never mixed into Rally's own fields.
 Tool descriptions tell the model that such content is data and never
 instructions: a calendar invite can contain text written to steer an agent.
@@ -22,6 +23,7 @@ from fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from rally_mcp.rally import RallyClient, RallyError, current_call
+from rally_mcp.scopes import scoped
 
 UNTRUSTED_KEY = "untrusted_external_content"
 UNTRUSTED_NOTE = (
@@ -124,15 +126,21 @@ def _occurrence(o: dict) -> dict:
         "member": o.get("member"),
         "attendees": o.get("attendees", []),
         "recurring": o.get("recurring", False),
+        "pending_confirmation": o.get("pending_confirmation", False),
     }
     content = {
         "title": o["title"],
         "description": o.get("description"),
         "location": o.get("location"),
     }
-    if o["source"] == "native":
+    if o["source"] == "native" and not o.get("booked_by_phone"):
         # Written in Rally by a household member.
         return base | content
+    # External calendars, and bookings made through the busy-only phone tools,
+    # whose title and notes are the caller's words.
+    if o.get("booked_by_phone"):
+        base["booked_by_phone"] = True
+        content |= {"contact_name": o.get("contact_name"), "contact_phone": o.get("contact_phone")}
     return base | untrusted(**content)
 
 
@@ -144,6 +152,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
             "today. Paginated; use offset to page."
         ),
     )
+    @scoped("todos:read")
     async def list_todos(
         assigned_to: Annotated[
             str | None, Field(description="Only this family member's to-dos (by name)")
@@ -170,6 +179,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
         annotations=WRITE | {"title": "Create to-do"},
         description="Create a to-do, optionally with a due date and an assignee.",
     )
+    @scoped("todos:write")
     async def create_todo(
         title: Annotated[str, Field(min_length=1, max_length=200)],
         description: Annotated[str | None, Field(max_length=4000)] = None,
@@ -193,6 +203,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
         annotations=IDEMPOTENT_WRITE | {"title": "Update to-do"},
         description="Change a to-do's title, description, due date or assignee. Omitted fields are left alone.",
     )
+    @scoped("todos:write")
     async def update_todo(
         todo_id: Annotated[int, Field(ge=1)],
         title: Annotated[str | None, Field(min_length=1, max_length=200)] = None,
@@ -220,6 +231,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
         annotations=IDEMPOTENT_WRITE | {"title": "Complete to-do"},
         description="Mark a to-do done (or not done again with completed=false).",
     )
+    @scoped("todos:write")
     async def complete_todo(
         todo_id: Annotated[int, Field(ge=1)],
         completed: bool = True,
@@ -233,6 +245,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
         annotations=DESTRUCTIVE | {"title": "Delete to-do"},
         description="Permanently delete a to-do. Destructive: confirm with the user first.",
     )
+    @scoped("todos:write")
     async def delete_todo(todo_id: Annotated[int, Field(ge=1)]) -> dict:
         _tag("delete_todo", locals())
         await _call(rally, "DELETE", f"/api/todos/{todo_id}")
@@ -246,6 +259,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
             + UNTRUSTED_NOTE
         ),
     )
+    @scoped("calendar:read")
     async def list_events(
         start: Annotated[date, Field(description="First local date, YYYY-MM-DD")],
         end: Annotated[
@@ -284,6 +298,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
             "(all-day end is the inclusive last day)."
         ),
     )
+    @scoped("calendar:write")
     async def create_event(
         title: Annotated[str, Field(min_length=1, max_length=200)],
         start: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$")],
@@ -321,6 +336,7 @@ def register(mcp: FastMCP, rally: RallyClient) -> None:
             "untrusted_external_content. " + UNTRUSTED_NOTE
         ),
     )
+    @scoped("dashboard:read")
     async def get_daily_summary() -> dict:
         _tag("get_daily_summary", {})
         data = await _call(rally, "GET", "/api/dashboard/summary")

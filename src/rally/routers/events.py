@@ -207,6 +207,10 @@ def _event_response(db: Session, event: Event) -> EventResponse:
                 for spec in packing_lists.series_specs(packing_lists._event_rows(db, event.id))
             )
         ],
+        booked_by_phone=bool(event.source),
+        pending_confirmation=bool(event.pending_confirmation),
+        contact_name=event.contact_name,
+        contact_phone=event.contact_phone,
         overrides=[
             EventOverrideResponse(
                 occurrence_date=override.occurrence_date,
@@ -253,6 +257,10 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         recurrence_text=describe_recurrence(occurrence.rrule),
         editable=occurrence.editable,
         notify_minutes_before=occurrence.notify_minutes_before,
+        booked_by_phone=occurrence.booked_by_phone,
+        pending_confirmation=occurrence.pending_confirmation,
+        contact_name=occurrence.contact_name,
+        contact_phone=occurrence.contact_phone,
     )
 
 
@@ -611,6 +619,22 @@ def create_event(
 def get_event(event_id: int, db: Session = Depends(get_db)):
     """The stored series row plus its overrides."""
     return _event_response(db, _load_event(db, event_id))
+
+
+@router.post("/{event_id}/confirm", response_model=EventResponse)
+def confirm_event(event_id: int, db: Session = Depends(get_db)):
+    """Confirm an appointment booked by phone, so it stops showing as pending.
+
+    Confirming is the family's call, so it is not one of the busy-only tools:
+    a phone agent can book and cancel its own pending bookings, never confirm
+    them. Confirming an event that is not pending changes nothing.
+    """
+    event = _load_event(db, event_id)
+    if event.pending_confirmation:
+        event.pending_confirmation = False
+        db.commit()
+        db.refresh(event)
+    return _event_response(db, event)
 
 
 @router.get("/{event_id}/occurrences", response_model=list[OccurrenceResponse])

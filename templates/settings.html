@@ -275,9 +275,7 @@
         <div class="page-header-row">
             <h3>MCP connections</h3>
         </div>
-        <div class="list-container" id="mcp-connections">
-            <div class="container-loading-state">Loading connections&hellip;</div>
-        </div>
+        <p>Each client Claude or an agent connects through is set up in advance, with its own endpoint, tools and allowed addresses, on the <a class="link-quiet" href="/connections">Connections</a> page.</p>
     </div>
 
     <!-- Tasks Section -->
@@ -2296,12 +2294,6 @@
         });
 
         // ── Claude (MCP) ──
-        // When a connector was first and last seen, as dates.js writes it.
-        function seenAt(value) {
-            const date = parseTimestamp(value);
-            return `${formatDate(date, { month: 'short' })} ${formatTime(date)}`;
-        }
-
         async function fetchMcpSettings() {
             const [mcp, alerts] = await Promise.all([
                 fetch('/api/mcp/settings').then(r => r.json()),
@@ -2317,17 +2309,6 @@
                         <span>${escapeHtml(m.name)}${m.pushover_user_key ? '' : ' (no Pushover key)'}</span>
                     </label>`).join('')
                 : '<div class="container-empty-state">Add a family member first.</div>';
-            const list = document.getElementById('mcp-connections');
-            list.innerHTML = mcp.connections.length
-                ? mcp.connections.map(c => `
-                    <div class="editable-item">
-                        <div class="editable-item-content">
-                            <div class="editable-item-title">${escapeHtml(c.member || c.email)} &mdash; ${escapeHtml(c.client || 'unknown client')}</div>
-                            <div class="editable-item-description">First seen ${seenAt(c.first_seen_at)} from ${escapeHtml(c.first_ip || '?')} &middot; last seen ${seenAt(c.last_seen_at)}</div>
-                            <a class="link-quiet" href="/audit?entity_type=mcp_connections&entity_id=${encodeURIComponent(c.id)}">Audit log</a>
-                        </div>
-                    </div>`).join('')
-                : '<div class="container-empty-state">No MCP connections yet. Revoke a connection in Cloudflare Zero Trust.</div>';
         }
 
         document.getElementById('mcp-form').addEventListener('submit', async (e) => {
