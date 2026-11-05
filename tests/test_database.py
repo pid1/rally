@@ -6,7 +6,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+from rally.database import engine
+
 SRC = Path(__file__).resolve().parent.parent / "src"
+
+
+def test_the_suite_cannot_reach_a_real_database():
+    # A route that opens its own session skips the `get_db` override. On a
+    # developer's machine that session used to be `rally.db`, so a test could
+    # replace the live dashboard snapshot. `conftest.py` sets the path.
+    assert engine.url.database == ":memory:"
 
 
 def test_init_db_alone_creates_the_tables(tmp_path):

@@ -1,10 +1,11 @@
-"""Resyncing a day's packing list with its template (#266).
+"""Resyncing a packing list with its templates (#266, #281).
 
-A day kept in sync with a template can drift from it — items edited, removed
-or added on that day only, its own order, its own reading of a bag, a label,
-a lead time — and before this there was no way back. ``items`` undoes the
-item changes and nothing else a person chose; ``all`` undoes every way the day
-differs. The template, other days and item history are never touched.
+A list that includes templates can drift from them — template items edited or
+removed on that list only, its own order, its own reading of a bag, a label, a
+lead time — and before this there was no way back. ``items`` undoes the
+item changes and nothing else a person chose; ``all`` undoes every way the
+list differs. Since #281 a list's own items are what it is, not drift, so both
+keep them. The template, other lists and item history are never touched.
 
 The bag rule is the subtle one: taking a bag off a day un-nests the bags that
 went in it, and only that removal — recorded on the reading as
@@ -22,6 +23,7 @@ from rally.models import (
     PackingListDayBagCheck,
     PackingListDayCheck,
     PackingListDayItem,
+    PackingListDayTemplate,
     PackingListItemHistory,
 )
 
@@ -163,21 +165,31 @@ def _drift(client, beach):
 # --- Only item changes -------------------------------------------------------------
 
 
-def test_only_item_changes_undoes_edits_removals_and_additions(client, beach):
+def test_only_item_changes_undoes_edits_and_removals_and_keeps_own_items(client, beach):
     drifted = _drift(client, beach)
-    assert drifted["changed_count"] == 3
+    assert drifted["changed_count"] == 2
 
     day = _resync(client, beach["day"]["id"], "items")
 
     items = _items(day)
-    assert set(items) == {"Goggles", "Sunscreen", "Towel", "Swimsuit", "Toothbrush", "Charger"}
+    assert set(items) == {
+        "Goggles",
+        "Sunscreen",
+        "Towel",
+        "Swimsuit",
+        "Toothbrush",
+        "Charger",
+        "Swim cap",
+    }
     assert not any(i["changed"] for i in day["items"])
     assert day["changed_count"] == 0
+    # The list's own swim cap is the list's, not a change to the template.
+    assert items["Swim cap"]["source"] == "day"
     # A check names the template item, so the edited goggles stay packed; the
     # sunscreen's check went when it was removed, so it comes back unchecked.
     assert items["Goggles"]["checked"] and items["Towel"]["checked"]
     assert not items["Sunscreen"]["checked"]
-    assert (day["checked"], day["total"]) == (2, 6)
+    assert (day["checked"], day["total"]) == (2, 7)
 
 
 def test_only_item_changes_leaves_everything_else_alone(client, db_session, beach):
@@ -220,6 +232,7 @@ def test_all_changes_undoes_every_way_the_day_differs(client, db_session, beach)
         "Swimsuit",
         "Toothbrush",
         "Charger",
+        "Swim cap",
     ]
     assert (day["checked"], day["bags_checked"], day["changed_count"]) == (0, 0, 0)
     assert not any(b["changed"] for b in day["bags"])
@@ -228,13 +241,11 @@ def test_all_changes_undoes_every_way_the_day_differs(client, db_session, beach)
     db_session.expire_all()
     row = db_session.get(PackingListDay, day_id)
     assert (row.item_order, row.pack_days_before, row.label_edited) == (None, None, False)
-    for model in (
-        PackingListDayItem,
-        PackingListDayCheck,
-        PackingListDayBag,
-        PackingListDayBagCheck,
-    ):
+    for model in (PackingListDayCheck, PackingListDayBag, PackingListDayBagCheck):
         assert db_session.query(model).filter(model.day_id == day_id).count() == 0, model
+    # Only the list's own items are left of its overlay, unchecked.
+    own = db_session.query(PackingListDayItem).filter(PackingListDayItem.day_id == day_id).all()
+    assert [(i.name, i.template_item_id, i.checked) for i in own] == [("Swim cap", None, False)]
 
 
 def test_all_changes_gives_a_scheduled_day_its_schedules_label_again(client, beach):
@@ -288,7 +299,7 @@ def test_the_template_other_days_and_history_are_untouched(client, db_session, b
 
     day = _resync(client, beach["day"]["id"], scope)
 
-    assert (day["date"], day["packing_list_template_id"]) == (SATURDAY, template_id)
+    assert (day["date"], [t["id"] for t in day["templates"]]) == (SATURDAY, [template_id])
     assert _ok(client.get(f"/api/packing-list-templates/{template_id}")) == template_before
     assert _ok(client.get(sunday_base)) == sunday_before
     db_session.expire_all()
@@ -343,6 +354,7 @@ def test_taking_a_list_off_its_day_still_clears_every_row(client, db_session, be
         PackingListDayCheck,
         PackingListDayBag,
         PackingListDayBagCheck,
+        PackingListDayTemplate,
     ):
         assert db_session.query(model).filter(model.day_id == day_id).count() == 0, model
 

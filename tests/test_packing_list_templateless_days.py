@@ -17,7 +17,9 @@ from rally.models import (
     PackingListDay,
     PackingListDayCheck,
     PackingListDayItem,
+    PackingListDayTemplate,
     PackingListItemHistory,
+    PackingListTemplate,
     PackingListTemplateItem,
 )
 
@@ -58,8 +60,11 @@ def _day(client, template_id, day=SATURDAY, **extra):
 
 
 def _past_day(db_session, template_id, day=PAST, **extra):
-    row = PackingListDay(packing_list_template_id=template_id, date=day, **extra)
+    template = db_session.get(PackingListTemplate, template_id)
+    row = PackingListDay(name=template.name, date=day, **extra)
     db_session.add(row)
+    db_session.flush()
+    db_session.add(PackingListDayTemplate(day_id=row.id, packing_list_template_id=template_id))
     db_session.commit()
     return row.id
 
@@ -108,7 +113,7 @@ def test_every_day_reads_exactly_as_it_did(client, db_session, nana):
     after = client.get(base).json()
     assert _read(after) == _read(before)
     assert (after["checked"], after["total"]) == (before["checked"], before["total"])
-    assert after["packing_list_template_id"] is None
+    assert after["templates"] == []
     assert (after["name"], after["description"]) == ("Swim at Nana's", "Saturdays at Nana's pool")
     assert (after["label"], after["pack_days_before"], after["pack_date"]) == (
         "Cousins are coming too",
@@ -225,7 +230,7 @@ def test_other_templates_days_and_history_are_untouched(client, db_session, nana
     _delete_template(client, nana["template"]["id"])
 
     kept = client.get(f"/api/packing-list-days/{beach_day['id']}").json()
-    assert kept["packing_list_template_id"] == beach["id"]
+    assert [t["id"] for t in kept["templates"]] == [beach["id"]]
     assert [(i["name"], i["source"], i["checked"]) for i in kept["items"]] == [
         ("Umbrella", "template", True)
     ]
@@ -340,11 +345,7 @@ def test_a_blank_one_off_is_a_list_of_its_own(client):
 
     assert response.status_code == 201
     day = response.json()
-    assert (day["packing_list_template_id"], day["name"], day["label"]) == (
-        None,
-        "Fall concert",
-        "Front row",
-    )
+    assert (day["templates"], day["name"], day["label"]) == ([], "Fall concert", "Front row")
     assert (day["description"], day["pack_days_before"], day["pack_date"]) == (
         None,
         1,
@@ -409,15 +410,9 @@ def test_a_copy_of_a_forgotten_name_does_not_revive_it(client, db_session, nana)
 @pytest.mark.parametrize(
     "body",
     [
-        {"date": SATURDAY, "pack_days_before": 0},  # none of the three
-        {"packing_list_template_id": 1, "name": "X", "date": SATURDAY, "pack_days_before": 0},
-        {"packing_list_template_id": 1, "copy_from_template_id": 1, "date": SATURDAY},
-        {
-            "copy_from_template_id": 1,
-            "date": SATURDAY,
-            "pack_days_before": 0,
-        },  # a copy needs a name
-        {"name": "X", "date": SATURDAY},  # a one-off needs its own lead time
+        {"date": SATURDAY, "pack_days_before": 0},  # nothing to name it after
+        {"name": "X", "date": SATURDAY},  # no template: it needs its own lead time
+        {"name": "X", "date": SATURDAY, "packing_list_template_ids": [999]},
         {"name": "  ", "date": SATURDAY, "pack_days_before": 0},
         {"name": "X", "date": SATURDAY, "pack_days_before": -1},
         {"name": "X", "date": "2026-09-30", "pack_days_before": 0},  # yesterday
@@ -437,7 +432,8 @@ def test_names_are_free(client, nana):
     assert _day(client, nana["template"]["id"])["name"] == "Swim at Nana's"
 
 
-def test_a_one_off_is_renamed_and_a_templated_day_is_not(client, nana):
+def test_any_list_can_be_renamed(client, nana):
+    """#281: a list's name is its own, whatever it includes."""
     one_off = _one_off(client).json()
     renamed = client.put(
         f"/api/packing-list-days/{one_off['id']}", json={"name": "  Fall concert with Grandpa "}
@@ -448,10 +444,12 @@ def test_a_one_off_is_renamed_and_a_templated_day_is_not(client, nana):
     )
 
     templated = _day(client, nana["template"]["id"])
-    response = client.put(f"/api/packing-list-days/{templated['id']}", json={"name": "Other"})
-    assert response.status_code == 422
-    assert (
-        client.get(f"/api/packing-list-days/{templated['id']}").json()["name"] == "Swim at Nana's"
+    response = client.put(f"/api/packing-list-days/{templated['id']}", json={"name": "Pool day"})
+    assert response.status_code == 200
+    renamed = client.get(f"/api/packing-list-days/{templated['id']}").json()
+    assert (renamed["name"], [t["id"] for t in renamed["templates"]]) == (
+        "Pool day",
+        [nana["template"]["id"]],
     )
 
 

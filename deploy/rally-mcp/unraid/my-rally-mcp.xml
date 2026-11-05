@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>rally-mcp</Name>
+  <Repository>ghcr.io/pid1/rally-mcp:latest</Repository>
+  <Registry>https://github.com/pid1/rally/pkgs/container/rally-mcp</Registry>
+  <Network>rally_mcp_edge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/pid1/rally</Support>
+  <Project>https://github.com/pid1/rally</Project>
+  <Overview>Rally's MCP server. Reached only through the rally-mcp Cloudflare Tunnel; talks to Rally over rally_mcp_backend. See docs/mcp.md.</Overview>
+  <Category>Productivity:</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon></Icon>
+  <ExtraParams>--network=rally_mcp_edge --network=rally_mcp_backend --read-only --cap-drop ALL --security-opt no-new-privileges:true --restart unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Rally URL" Target="RALLY_URL" Default="" Mode="" Description="Rally's API on rally_mcp_backend" Type="Variable" Display="always" Required="true" Mask="false">http://rally:8000</Config>
+  <Config Name="Access team domain" Target="CF_ACCESS_TEAM_DOMAIN" Default="" Mode="" Description="Cloudflare Zero Trust team domain" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="Public hostname" Target="RALLY_MCP_PUBLIC_HOST" Default="" Mode="" Description="The tunnel's public MCP hostname" Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="Access AUD" Target="CF_ACCESS_AUD" Default="" Mode="" Description="Access application audience tag" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="rally-mcp service token" Target="RALLY_MCP_SERVICE_TOKEN" Default="" Mode="" Description="Shared secret with Rally (same value as Rally's template)" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+</Container>

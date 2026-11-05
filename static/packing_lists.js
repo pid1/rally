@@ -23,6 +23,9 @@
     const BAG_GLYPH = '▣';
     // After a packing list's name, saying a calendar event put it on its day.
     const EVENT_GLYPH = '⚭';
+    // After a packing list's name, and a template item's, saying it comes
+    // from a template kept in sync.
+    const TEMPLATE_GLYPH = '⧉';
     // The key of the group for no owner, or no bag.
     const NONE_KEY = 'none';
 
@@ -34,6 +37,14 @@
 
     function escapeAttr(text) {
         return escapeHtml(text).replace(/"/g, '&quot;');
+    }
+
+    /* Names in a sentence, quoted, with the Oxford comma (the server's
+     * `join_names`). */
+    function joinQuoted(names) {
+        const quoted = names.map(name => `"${name}"`);
+        if (quoted.length <= 2) return quoted.join(' and ');
+        return `${quoted.slice(0, -1).join(', ')}, and ${quoted[quoted.length - 1]}`;
     }
 
     // Dates come from static/dates.js, which base.html loads first.
@@ -245,19 +256,44 @@
             : escapeHtml(note);
     }
 
-    /* What makes a day's item differ from its template, if anything: read
-     * beside its name, in parentheses. */
+    /* What makes a list's template item differ from its template, if
+     * anything: read beside its name, in parentheses. A list's own items are
+     * its own, not changes, so they carry none (#281). */
     function dayItemMark(item) {
-        if (item.source === 'day') return 'added';
-        if (item.changed) return 'changed';
-        return '';
+        return item.source === 'template' && item.changed ? 'changed' : '';
     }
 
-    /* Whether a day has a template behind it. A templateless day — its
-     * template was deleted — has only its own items, and nothing to differ
-     * from, so it carries no marks and no "changed" note. */
+    /* Whether a list includes a template. A list with none has only its own
+     * items, and nothing to differ from, so it carries no marks and no
+     * "changed" note. */
     function isTemplated(day) {
-        return day.packing_list_template_id != null;
+        return (day.templates || []).length > 0;
+    }
+
+    /* Whether a list is simply one template on a day, named after it, with
+     * nothing of its own: the entry's ⧉ already says where everything on it
+     * comes from. Anything else — its own name, its own items, two
+     * templates — marks each template item with where it comes from. */
+    function plainTemplate(day) {
+        return namedAfterTemplate(day) && !day.items.some(item => item.source === 'day');
+    }
+
+    /* Whether a list is one template named after it: its title already says
+     * what it includes, so no `Includes:` line repeats it. */
+    function namedAfterTemplate(day) {
+        const templates = day.templates || [];
+        return templates.length === 1
+            && day.name.trim().toLowerCase() === templates[0].name.trim().toLowerCase();
+    }
+
+    /* ⧉ and the template's name after a template item's name, so a list that
+     * mixes templates and its own items says where each came from. */
+    function itemSourceHtml(day, item) {
+        if (item.source !== 'template' || plainTemplate(day)) return '';
+        const template = (day.templates || []).find(t => t.id === item.packing_list_template_id);
+        if (!template) return '';
+        return ` <span class="item-source" title="From the packing list template ${escapeAttr(template.name)}">`
+            + `<span aria-hidden="true">${TEMPLATE_GLYPH}</span> ${escapeHtml(template.name)}</span>`;
     }
 
     /* A day row's id for drag_reorder.js: a template item and one of the
@@ -268,8 +304,8 @@
 
     function dayItemRowHtml(day, item, readOnly, lens) {
         const other = otherDimension(item, lens, day.bags || []);
-        const mark = isTemplated(day) ? dayItemMark(item) : '';
-        const markHtml = mark ? ` <span class="item-mark">(${mark})</span>` : '';
+        const mark = dayItemMark(item);
+        const markHtml = (mark ? ` <span class="item-mark">(${mark})</span>` : '') + itemSourceHtml(day, item);
         const edit = readOnly ? '' : `
                 <div class="editable-item-actions">
                     <button type="button" class="btn btn--sm" data-edit-day-item="${item.id}"
@@ -333,11 +369,16 @@
         // are still muted there, row by row.
         const done = !readOnly && isDone(day);
         const label = day.label ? ` <span class="assignee-label">— ${escapeHtml(day.label)}</span>` : '';
-        // ⧉ says the list comes from a template, so editing it there reaches
-        // this day too; ↻ that a schedule put it here. A templateless day
-        // carries neither.
-        const fromTemplate = isTemplated(day)
-            ? ' <span class="title-indicator" title="From a packing list template">⧉</span>'
+        // ⧉ says the list includes templates kept in sync, so editing one
+        // reaches this list too; ↻ that a schedule put it here. A list with
+        // no template carries neither. Unless it is simply its one template,
+        // an `Includes:` line names them.
+        const templates = day.templates || [];
+        const fromTemplate = templates.length
+            ? ` <span class="title-indicator" title="Includes ${escapeAttr(joinQuoted(templates.map(t => t.name)))}">${TEMPLATE_GLYPH}</span>`
+            : '';
+        const includesLine = templates.length && !namedAfterTemplate(day)
+            ? `<div class="editable-item-meta">Includes: ${templates.map(t => escapeHtml(t.name)).join(' · ')}</div>`
             : '';
         const repeats = day.schedule_id
             ? ' <span class="title-indicator" title="Added by a recurring schedule">↻</span>'
@@ -386,8 +427,8 @@
                 <button type="button" class="btn btn--sm btn--quiet" data-remove-day="${day.id}">${isTemplated(day) ? 'Remove from day' : 'Delete'}</button>
                 ${day.changed_count ? `<button type="button" class="btn btn--sm btn--quiet" data-resync-day="${day.id}">Resync with template</button>` : ''}
             </div>`;
-        // How far this day has drifted from its template, beside its Edit.
-        // A templateless day's count is always 0, so it never shows.
+        // How far this list has drifted from its templates, beside its Edit.
+        // A list with no template always counts 0, so it never shows.
         const changes = day.changed_count
             ? `<span class="editable-item-description day-changes">${day.changed_count} item${day.changed_count === 1 ? '' : 's'} changed</span>`
             : '';
@@ -401,6 +442,7 @@
                 <div class="editable-item-content">
                     <div class="editable-item-title">${escapeHtml(day.name)}${label}${fromTemplate}${repeats}${fromEvent}</div>
                     <div class="editable-item-meta">${escapeHtml(packLine(day))}</div>
+                    ${includesLine}
                     ${forLine}
                     <div class="packing-list-progress-line">
                         <span class="editable-item-meta packing-list-progress" data-progress role="status" aria-live="polite">${escapeHtml(progressLabel(day.checked, day.total))}</span>

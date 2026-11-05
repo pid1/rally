@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>rally-mcp-cloudflared</Name>
+  <Repository>cloudflare/cloudflared:latest</Repository>
+  <Registry>https://hub.docker.com/r/cloudflare/cloudflared</Registry>
+  <Network>rally_mcp_edge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/cloudflare/cloudflared</Support>
+  <Project>https://github.com/cloudflare/cloudflared</Project>
+  <Overview>Cloudflare Tunnel for rally-mcp (remotely managed tunnel "rally-mcp"). Only on rally_mcp_edge, so it can reach rally-mcp and nothing else.</Overview>
+  <Category>Network:Other</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon/>
+  <ExtraParams>--read-only --cap-drop ALL --security-opt no-new-privileges:true --restart unless-stopped</ExtraParams>
+  <PostArgs>tunnel --no-autoupdate run</PostArgs>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Tunnel token" Target="TUNNEL_TOKEN" Default="" Mode="" Description="Token for the remotely managed rally-mcp tunnel" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+</Container>

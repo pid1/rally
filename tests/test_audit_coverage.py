@@ -9,7 +9,9 @@ Calls are made with placeholder path parameters and an empty body, so most
 writes answer 404 or 422 — which is the point: a refused or failed request
 must be on the record too. The network is cut off for the duration, so routes
 that talk to the outside world (LLM tests, CalDAV, Pushover) fail fast
-instead of reaching out.
+instead of reaching out. The dashboard's regenerate route is the exception: its
+LLM retries span minutes, so the generator is stubbed. The request around it is
+what this file checks, and that still runs.
 
 The MCP tools have the same guarantee in ``mcp/tests/test_tool_coverage.py``.
 """
@@ -59,6 +61,16 @@ def test_every_mcp_route_exists():
     assert mcp_policy.HAND_WRITTEN <= mcp_policy.allowed_routes(app)
 
 
+class _StubGenerator:
+    """Stands in for ``SummaryGenerator``, which waits out LLM retries."""
+
+    def generate_summary(self):
+        return {"greeting": "Regenerated"}
+
+    def save_snapshot(self, data):
+        pass
+
+
 @pytest.fixture
 def raw_client(db_session, monkeypatch):
     def no_network(*args, **kwargs):
@@ -67,6 +79,7 @@ def raw_client(db_session, monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", no_network)
     monkeypatch.setattr(socket, "create_connection", no_network)
     monkeypatch.setattr(socket, "getaddrinfo", no_network)
+    monkeypatch.setattr("rally.routers.dashboard.SummaryGenerator", _StubGenerator)
 
     def override_get_db():
         yield db_session
@@ -108,3 +121,17 @@ def test_every_endpoint_is_audited(raw_client, db_session, method, path):
         assert req.outcome == "success"
     else:
         assert req.outcome in {"failure", "denied"}
+
+
+def test_regenerate_does_not_run_the_generator(raw_client, monkeypatch):
+    """The real one would wait out five LLM attempts against a closed network."""
+
+    def no_retries(seconds):
+        raise AssertionError("the generator's LLM retry loop ran")
+
+    monkeypatch.setattr("rally.generator.generate.time.sleep", no_retries)
+
+    response = raw_client.get("/api/dashboard/regenerate")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"

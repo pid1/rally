@@ -68,10 +68,12 @@ You can run the same demo yourself in about a minute: see [docs/development.md](
 
 Connect Rally to Claude once, and anyone in the household can ask "what's on today?", "add sunscreen to the beach-day list", "what in the emergency kit expires this month?" or "plan dinners for next week". Claude can do nearly everything you can in Rally. That works from claude.ai on the web, the desktop and mobile apps, voice, and Claude Code. Each person signs in with their own GitHub account through Cloudflare Access. Only the people you list get in, Rally itself never leaves your network, and each call is in the audit log under the person who made it.
 
+<!-- Hidden until docs/screenshots/readme-claude.png exists. Restore the image, then delete this note.
 ![Claude answering "what's on today?" from Rally, with the Rally connector's tool call shown](docs/screenshots/readme-claude.png)
 
 > [!IMPORTANT]
 > **Asset to create: `docs/screenshots/readme-claude.png`.** 1600×1000 PNG of claude.ai (light theme) with the Rally connector enabled. Show a short exchange: "What's on for the family today?", with the expanded Rally tool call (`list_events` and `list_todos`), and Claude's answer listing two or three events and a to-do. Use the seeded demo data (`demo`), never the real household. Crop to the conversation and blur the account name. Delete this callout once it's in.
+-->
 
 Setup takes about half an hour and is done once. **[docs/mcp.md](docs/mcp.md)** has the step-by-step guide, troubleshooting, and a prompt you can hand to an agent to do it for you.
 

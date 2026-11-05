@@ -1,0 +1,17 @@
+{#- Includes: the templates a packing list includes, kept in sync (#281). A
+    `.manage-row` per included template with a quiet `Remove`, in a
+    `.picked-list`, then a select that includes whatever is picked in it — the
+    event modal's `What to pack` shape. Shared by Add and Edit Packing List.
+
+    Set includes_prefix: it names the ids (`<prefix>-includes-group`,
+    `<prefix>-includes-list`, `<prefix>-includes-select`,
+    `<prefix>-includes-add-row`), because both modals share a page. The page
+    fills the select from its templates, and hides the group with none. -#}
+<div class="form-group" id="{{ includes_prefix }}-includes-group">
+    <label for="{{ includes_prefix }}-includes-select">Includes</label>
+    <div class="picked-list" id="{{ includes_prefix }}-includes-list"></div>
+    <div class="manage-row" id="{{ includes_prefix }}-includes-add-row">
+        <select id="{{ includes_prefix }}-includes-select" aria-label="Packing list template to include"></select>
+    </div>
+    <small>Templates kept in sync: a change to one shows up here. Items you add go on this list only.</small>
+</div>

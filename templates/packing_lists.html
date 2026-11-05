@@ -90,7 +90,7 @@
                 <h3>Packing List Templates</h3>
                 <button class="btn" id="btn-add-template">Add Packing List Template</button>
             </div>
-            <p class="page-note">A packing list template is kept here for the lists you pack again and again. Put one on a day with "Add Packing List", or on a repeating schedule with "Schedule". Changes to a packing list template show up on every day it's kept in sync on; changes made on a day stay on that day.</p>
+            <p class="page-note">A packing list template is kept here for the things you pack again and again. Include one in a packing list with "Add Packing List", or put it on a repeating schedule with "Schedule". Changes to a packing list template show up on every packing list that includes it; changes made on a packing list stay on that list.</p>
             <div class="list-container" id="templates-container">
                 <div class="container-loading-state">Loading packing list templates…</div>
             </div>
@@ -102,22 +102,22 @@
     </div>
 
     <!-- Add Packing List: the one way to put a packing list on a single day.
-         Blank list makes a one-off, a list of its own with no template. Picking
-         a template offers a copy (a one-off holding its items, free to change)
-         or the template itself kept in sync, as a repeating schedule puts it.
-         Repeating is the Schedule modal's. -->
+         A list has its own name and its own items, and includes any number of
+         templates kept in sync (#281). Start from a copy gives it a template's
+         items as its own instead. Repeating is the Schedule modal's. -->
     <div class="modal-overlay" id="day-add-modal-overlay">
         <div class="modal-content">
             <h3>Add Packing List</h3>
             <div class="modal-scroll">
             <div class="modal-body">
                 <form id="day-add-form">
-                    {% with start_from_prefix = "day-add", sync_options = true %}{% include "_start_from_fields.html" %}{% endwith %}
                     <div class="form-group">
                         <label for="day-add-name">Name</label>
-                        <input type="text" id="day-add-name" placeholder="e.g. Concert" maxlength="100" required>
+                        <input type="text" id="day-add-name" placeholder="e.g. Dad Goes to South Carolina" maxlength="100" required>
                         <div class="form-message" id="day-add-name-message" role="alert" hidden></div>
                     </div>
+                    {% with includes_prefix = "day-add" %}{% include "_includes_fields.html" %}{% endwith %}
+                    {% with start_from_prefix = "day-add", template_label = "A copy of a template" %}{% include "_start_from_fields.html" %}{% endwith %}
                     <div class="form-group">
                         <label for="day-date">Date</label>
                         <input type="date" id="day-date" required>
@@ -130,7 +130,7 @@
                     </div>
                     <div class="form-group">
                         <label>Pack <input type="number" id="day-add-pack-days" min="0" step="1" value="0" required class="remind-days-input" aria-label="Days before to pack"> days before</label>
-                        <small>0 means the same day.</small>
+                        <small id="day-add-pack-note">0 means the same day.</small>
                     </div>
                 </form>
                 <div class="form-message" id="day-add-actions-message" role="alert" hidden></div>
@@ -233,26 +233,22 @@
         </div>
     </div>
 
-    <!-- Edit Packing List: one day's packing list — its date, label and packing
-         day. A templated day's name and description are the template's, shown
-         as plain text so they cannot be mistaken for something to edit here. A
-         templateless day's name is its own, and editable; a description it
-         copied from a deleted template stays plain text. -->
+    <!-- Edit Packing List: one list — its name, the templates it includes,
+         its date, label and packing day. A description it has (its own, or
+         its one template's) is shown as plain text. -->
     <div class="modal-overlay" id="day-edit-modal-overlay">
         <div class="modal-content">
             <h3>Edit Packing List</h3>
             <div class="modal-scroll">
             <div class="modal-body">
                 <form id="day-edit-form">
-                    <div class="form-group" id="day-edit-name-field" style="display:none">
-                        <label for="day-edit-name-input">Name</label>
-                        <input type="text" id="day-edit-name-input" maxlength="100">
-                        <div class="form-message" id="day-edit-name-message" role="alert" hidden></div>
-                    </div>
                     <div class="form-group">
-                        <div class="editable-item-title" id="day-edit-name"></div>
+                        <label for="day-edit-name-input">Name</label>
+                        <input type="text" id="day-edit-name-input" maxlength="100" required>
+                        <div class="form-message" id="day-edit-name-message" role="alert" hidden></div>
                         <div class="editable-item-description" id="day-edit-description"></div>
                     </div>
+                    {% with includes_prefix = "day-edit" %}{% include "_includes_fields.html" %}{% endwith %}
                     <div class="form-group">
                         <label for="day-edit-date">Date</label>
                         <input type="date" id="day-edit-date" required>
@@ -265,7 +261,8 @@
                     </div>
                     <div class="form-group">
                         <label>Pack <input type="number" id="day-edit-pack-days" min="0" step="1" required class="remind-days-input" aria-label="Days before to pack"> days before</label>
-                        <small>0 means the same day.</small>
+                        <small id="day-edit-pack-note">0 means the same day.</small>
+                        <button type="button" class="btn btn--sm btn--quiet" id="btn-day-edit-follow" style="display:none">Use the templates' lead time</button>
                     </div>
                 </form>
                 <div class="form-message" id="day-edit-actions-message" role="alert" hidden></div>
@@ -290,7 +287,7 @@
                     <label id="day-resync-modal-label">Undo:</label>
                     <div class="radio-options" role="radiogroup" aria-labelledby="day-resync-modal-label">
                         <label><input type="radio" name="day-resync-scope" value="items"> Only item changes</label>
-                        <label><input type="radio" name="day-resync-scope" value="all"> All changes on this day</label>
+                        <label><input type="radio" name="day-resync-scope" value="all"> All changes on this list</label>
                     </div>
                     <small id="day-resync-modal-help"></small>
                 </div>
@@ -1041,19 +1038,25 @@
                 return;
             }
 
-            // A templated day comes off its day and the template stays. A day
-            // with no template is the only copy, so it is deleted outright.
-            // The name is bold, and a day a calendar event put here says the
-            // event loses it too, its title quoted.
+            // A list that includes templates comes off its day and the
+            // templates stay; its own items go with it, and the question says
+            // so when it has any. A list with no template is the only copy,
+            // so it is deleted outright. The name is bold, and a list a
+            // calendar event put here says the event loses it too.
             const name = `<strong>${escapeHtml(day.name)}</strong>`;
             const events = day.events || [];
             const alsoOff = events.length
                 ? ` It also comes off ${escapeHtml(joinNames(events.map(e => e.title)))} on that day.`
                 : '';
+            const ownCount = day.items.filter(i => i.source === 'day').length;
+            const stays = (day.templates || []).length === 1
+                ? 'The packing list template it includes stays.'
+                : 'The packing list templates it includes stay.';
+            const ownGo = ownCount ? ` Its own ${itemCount(ownCount)} ${ownCount === 1 ? 'goes' : 'go'} with it.` : '';
             const confirmed = isTemplated(day)
                 ? await confirmModal({
                     title: 'Remove from day',
-                    messageHtml: `Take ${name} off ${escapeHtml(formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) }))}? The packing list template itself stays.${alsoOff}`,
+                    messageHtml: `Take ${name} off ${escapeHtml(formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) }))}? ${stays}${ownGo}${alsoOff}`,
                     confirmLabel: 'Remove',
                 })
                 : await confirmModal({
@@ -1090,9 +1093,13 @@
 
         function openResyncModal(day) {
             resyncingDay = day;
+            const included = day.templates || [];
             document.getElementById('day-resync-modal-title').textContent = `Resync with template: ${day.name}`;
+            // Every template it includes, since a resync covers them all; its
+            // own items stay either way.
+            const across = included.length > 1 ? ` Across ${joinNames(included.map(t => t.name))}.` : '';
             document.getElementById('day-resync-modal-help').textContent =
-                `${formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) })}. This can't be undone.`;
+                `${formatDate(day.date, { ...LONG_DATE, today: isoDate(new Date()) })}.${across} Items you added to this list stay. This can't be undone.`;
             document.querySelectorAll('input[name="day-resync-scope"]').forEach(input => {
                 input.checked = false;
             });
@@ -1131,36 +1138,46 @@
             if (e.target.id === 'day-resync-modal-overlay') closeResyncModal();
         });
 
-        // ── Edit Packing List (one day's) ──
+        // ── Edit Packing List (one list's) ──
         //
-        // Only what changed is sent. A label sent here becomes the day's own
+        // Only what changed is sent. A label sent here becomes the list's own
         // (a schedule's relabel then passes over it), and a lead time sent
-        // here stops following the template's — so re-sending the values the
-        // form opened with would quietly do both.
+        // here stops following its templates' — so re-sending the values the
+        // form opened with would quietly do both. "Use the templates' lead
+        // time" goes back to following them.
         let editingDay = null;
+        let editFollows = false;
+        const editPackDays = document.getElementById('day-edit-pack-days');
+        const editFollowBtn = document.getElementById('btn-day-edit-follow');
+        const editIncludes = includesField('day-edit', showEditLead);
+
+        /* While the list follows its templates, the field shows the longest
+           of the templates now chosen, and a list that would include none
+           keeps the number it shows as its own. */
+        function showEditLead() {
+            const included = editIncludes.get();
+            const lead = templatesLead(included);
+            if (editFollows && lead != null) editPackDays.value = lead;
+            editFollowBtn.style.display = !editFollows && included.length ? '' : 'none';
+            document.getElementById('day-edit-pack-note').textContent = editFollows && included.length
+                ? 'Follows the longest of its templates unless you change it. 0 means the same day.'
+                : '0 means the same day.';
+        }
 
         function openDayEditModal(day) {
             editingDay = day;
             clearFormMessages('day-edit-modal-overlay');
             document.getElementById('day-edit-form').reset();
-            // A templateless day's name is its own to change; a templated
-            // day is called what its template is called.
-            const ownName = !isTemplated(day);
-            document.getElementById('day-edit-name-field').style.display = ownName ? '' : 'none';
-            const nameInput = document.getElementById('day-edit-name-input');
-            nameInput.required = ownName;
-            nameInput.value = ownName ? day.name : '';
-            const nameText = document.getElementById('day-edit-name');
-            nameText.textContent = day.name;
-            nameText.style.display = ownName ? 'none' : '';
+            document.getElementById('day-edit-name-input').value = day.name;
             const description = document.getElementById('day-edit-description');
             description.textContent = day.description || '';
             description.style.display = day.description ? '' : 'none';
+            editIncludes.set((day.templates || []).map(t => t.id));
             const date = document.getElementById('day-edit-date');
             date.min = todayLocal(LOCAL_TIMEZONE);
             date.value = day.date;
-            /* A day a calendar event put here moves with the event. The field
-               keeps the day's date, so the submit below leaves it out. */
+            /* A list a calendar event put here moves with the event. The field
+               keeps the list's date, so the submit below leaves it out. */
             const events = day.events || [];
             date.disabled = events.length > 0;
             const dateNote = document.getElementById('day-edit-date-note');
@@ -1169,7 +1186,9 @@
                 : '';
             dateNote.style.display = events.length ? '' : 'none';
             document.getElementById('day-edit-label').value = day.label || '';
-            document.getElementById('day-edit-pack-days').value = day.pack_days_before;
+            editPackDays.value = day.pack_days_before;
+            editFollows = (day.templates || []).length > 0 && day.pack_days_before_own == null;
+            showEditLead();
             showModalOverlay('day-edit-modal-overlay');
         }
 
@@ -1178,22 +1197,42 @@
             editingDay = null;
         }
 
+        editPackDays.addEventListener('input', () => {
+            editFollows = false;
+            showEditLead();
+        });
+        editFollowBtn.addEventListener('click', () => {
+            editFollows = true;
+            showEditLead();
+            editPackDays.focus();
+        });
+
         document.getElementById('day-edit-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const day = editingDay;
-            // A templateless day's name is its own, and required.
-            if (!isTemplated(day) && refuseBlankDayEditName()) return;
+            if (refuseBlankDayEditName()) return;
             const payload = {};
+            const name = document.getElementById('day-edit-name-input').value.trim();
             const date = document.getElementById('day-edit-date').value;
             const label = document.getElementById('day-edit-label').value.trim() || null;
-            const packDays = parseInt(document.getElementById('day-edit-pack-days').value, 10);
-            if (!isTemplated(day)) {
-                const name = document.getElementById('day-edit-name-input').value.trim();
-                if (name !== day.name) payload.name = name;
-            }
+            const packDays = parseInt(editPackDays.value, 10);
+            const included = editIncludes.get();
+            const opened = (day.templates || []).map(t => t.id);
+            if (name !== day.name) payload.name = name;
             if (date !== day.date) payload.date = date;
             if (label !== (day.label || null)) payload.label = label;
-            if (packDays !== day.pack_days_before) payload.pack_days_before = packDays;
+            if (included.length !== opened.length || included.some((id, i) => id !== opened[i])) {
+                payload.packing_list_template_ids = included;
+            }
+            // Following its templates sends null, which only a list that
+            // includes one can do; anything else is the list's own number.
+            // `pack_days_before_own` is null exactly while it follows them.
+            const own = day.pack_days_before_own;
+            if (editFollows && included.length) {
+                if (own != null) payload.pack_days_before = null;
+            } else if (packDays !== own) {
+                payload.pack_days_before = packDays;
+            }
             if (Object.keys(payload).length === 0) {
                 closeDayEditModal();
                 return;
@@ -1201,12 +1240,6 @@
             try {
                 await requestJson(`/api/packing-list-days/${day.id}`, { method: 'PUT', body: payload });
             } catch (error) {
-                if (error.status === 409 && error.detail && error.detail.id) {
-                    // Already on that date: refused, and said so where the
-                    // date is. Nothing was saved and the form keeps its edits.
-                    showFormMessage('day-edit-message', alreadyOnMessage(day.name, date));
-                    return;
-                }
                 if (isFormCheck(error)) showFormMessage('day-edit-actions-message', error.message);
                 else fail('Failed to save the packing list');
                 return;
@@ -1333,12 +1366,12 @@
             nameAutocomplete.close();
             bagAutocomplete.close();
             document.getElementById('item-modal-title').textContent = item ? 'Edit Item' : 'Add Item';
-            // On a day with no template there is no template to reassure
-            // anybody about, so the note just says which list this is.
+            // A template item on a list is changed there only; a list's own
+            // item is simply its own, so the note just says which list.
             let scopeNote;
             if (scope !== 'day') {
-                scopeNote = `Changes show up on every day ${context.template.name} is on, except where a day has changed this item.`;
-            } else if (isTemplated(context.day)) {
+                scopeNote = `Changes show up on every packing list that includes ${context.template.name}, except where a list has changed this item.`;
+            } else if (item && item.source === 'template') {
                 scopeNote = `For "${context.day.name}" on ${formatDate(context.day.date, { ...LONG_DATE, today: isoDate(new Date()) })} only. The packing list template stays as it is.`;
             } else {
                 scopeNote = `For "${context.day.name}" on ${formatDate(context.day.date, { ...LONG_DATE, today: isoDate(new Date()) })}.`;
@@ -1449,7 +1482,7 @@
                 }
                 const confirmed = await confirmModal({
                     title: 'Delete item',
-                    messageHtml: `Delete ${name}? It comes off every day ${escapeHtml(itemContext.template.name)} is on.`,
+                    messageHtml: `Delete ${name}? It comes off every packing list that includes ${escapeHtml(itemContext.template.name)}.`,
                     confirmLabel: 'Delete',
                 });
                 if (!confirmed) return;
@@ -1769,14 +1802,16 @@
         }
 
         /* How a bag reads one level above this list, which is what Reset
-         * puts it back to: a templated day's template (when the bag is on
-         * it), else the household. */
+         * puts it back to: the first template it includes that has the bag,
+         * else the household. */
         function bagAbove(bagId) {
             const { scope, list } = bagsListContext;
-            if (scope === 'day' && isTemplated(list)) {
-                const template = templateById(list.packing_list_template_id);
-                const onTemplate = template && (template.bags || []).find(b => b.id === bagId);
-                if (onTemplate) return { owner_id: onTemplate.owner_id, parent_bag_id: onTemplate.parent_bag_id };
+            if (scope === 'day') {
+                for (const included of (list.templates || [])) {
+                    const template = templateById(included.id);
+                    const onTemplate = template && (template.bags || []).find(b => b.id === bagId);
+                    if (onTemplate) return { owner_id: onTemplate.owner_id, parent_bag_id: onTemplate.parent_bag_id };
+                }
             }
             const bag = bags.find(b => b.id === bagId);
             return { owner_id: bag ? bag.owner_id : null, parent_bag_id: bag ? bag.parent_bag_id : null };
@@ -1821,7 +1856,7 @@
             document.getElementById('list-bags-modal-title').textContent = `Change bags: ${list.name}`;
             let note;
             if (scope === 'template') {
-                note = `Changes show up on every day ${list.name} is on, except where a day has changed this bag.`;
+                note = `Changes show up on every packing list that includes ${list.name}, except where a list has changed this bag.`;
             } else if (isTemplated(list)) {
                 note = `For "${list.name}" on ${formatDate(list.date, { ...LONG_DATE, today: isoDate(new Date()) })} only. The packing list template stays as it is.`;
             } else {
@@ -1910,7 +1945,7 @@
          * taken off, its name in bold, saying where its items go. */
         function removalQuestion(removed) {
             const { scope, list } = bagsListContext;
-            const where = escapeHtml(scope === 'day' ? 'on this day only' : `on ${list.name} and every day it's on`);
+            const where = escapeHtml(scope === 'day' ? 'on this list only' : `on ${list.name} and every packing list that includes it`);
             const noBag = escapeHtml(NO_BAG);
             const lines = removed.map(bag => {
                 const count = list.items.filter(i => i.bag_id === bag.id).length;
@@ -2145,24 +2180,79 @@
             if (e.target.id === 'schedule-modal-overlay') closeScheduleModal();
         });
 
+        // ── Includes (Add and Edit Packing List) ──
+        //
+        // The templates a list includes, kept in sync (#281): a row per
+        // template with a quiet Remove, then a select that includes whatever
+        // is picked in it — no Add button, the event modal's rule, because a
+        // pick waiting on one is a pick Save silently drops.
+        function includesField(prefix, onChange) {
+            const list = document.getElementById(`${prefix}-includes-list`);
+            const select = document.getElementById(`${prefix}-includes-select`);
+            let chosen = [];
+            function render() {
+                list.innerHTML = chosen.map(id => {
+                    const template = templateById(id);
+                    return `
+                    <div class="manage-row">
+                        <div class="manage-row-text">${escapeHtml(template ? template.name : '')}</div>
+                        <button type="button" class="btn btn--sm btn--quiet" data-remove-include="${id}"
+                                aria-label="Remove ${escapeAttr(template ? template.name : '')}">Remove</button>
+                    </div>`;
+                }).join('');
+                const left = templates.filter(t => !chosen.includes(t.id));
+                select.innerHTML = '<option value="">Include a template…</option>' +
+                    left.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+                document.getElementById(`${prefix}-includes-add-row`).style.display = left.length ? '' : 'none';
+                document.getElementById(`${prefix}-includes-group`).style.display = templates.length ? '' : 'none';
+            }
+            select.addEventListener('change', () => {
+                const id = parseInt(select.value, 10);
+                if (Number.isNaN(id) || chosen.includes(id)) return;
+                chosen.push(id);
+                render();
+                onChange();
+                if (select.offsetParent) select.focus();
+            });
+            list.addEventListener('click', (e) => {
+                const button = e.target.closest('[data-remove-include]');
+                if (!button) return;
+                chosen = chosen.filter(id => id !== parseInt(button.dataset.removeInclude, 10));
+                render();
+                onChange();
+                select.focus();
+            });
+            return {
+                get: () => chosen.slice(),
+                set: (ids) => { chosen = ids.slice(); render(); },
+            };
+        }
+
+        /* The longest lead time among some templates: what a list that
+           includes them packs on unless it has its own (#281). */
+        function templatesLead(ids) {
+            const leads = ids.map(id => templateById(id)).filter(Boolean).map(t => t.pack_days_before);
+            return leads.length ? Math.max(...leads) : null;
+        }
+
         // ── Add Packing List ──
         //
-        // The one way to put a packing list on a single day. Start from is
-        // Blank list (a one-off) or Template, which shows the templates to pick
-        // from (none chosen until somebody picks one) and a copy (a one-off
-        // holding its items, the default) or the template itself kept in sync. The name
-        // is the template's while kept in sync and shown read-only; for a copy
-        // the template fills it only until somebody types one. Picking a
-        // template fills the lead time with its own; kept in sync, leaving it
-        // there means the day follows the template.
+        // The one way to put a packing list on a single day. A list has its
+        // own Name and Includes any number of templates kept in sync; Start
+        // from a copy gives it one template's items as its own instead. The
+        // Name is filled from the first template it includes, or the copied
+        // one, until somebody types one. The lead time follows the longest of
+        // the included templates' until somebody changes it.
         const addForm = document.getElementById('day-add-form');
         const sourceSelect = document.getElementById('day-add-source');
         const addName = document.getElementById('day-add-name');
         const addDate = document.getElementById('day-date');
         const addPackDays = document.getElementById('day-add-pack-days');
-        // What somebody typed in Name, so switching templates or modes never
-        // throws it away.
+        // What somebody typed in Name, and whether they set the lead time, so
+        // picking templates never throws either away.
         let typedName = '';
+        let leadTyped = false;
+        const addIncludes = includesField('day-add', showAddMode);
 
         function startsFromTemplate() {
             return addForm.querySelector('input[name="day-add-start"]:checked').value === 'template';
@@ -2172,10 +2262,6 @@
             if (!startsFromTemplate()) return null;
             const id = parseInt(sourceSelect.value, 10);
             return Number.isNaN(id) ? null : templateById(id);
-        }
-
-        function addMode() {
-            return addForm.querySelector('input[name="day-add-mode"]:checked').value;
         }
 
         function updatePackHint() {
@@ -2200,25 +2286,28 @@
         function showAddMode() {
             const fromTemplate = startsFromTemplate();
             document.getElementById('day-add-template-fields').style.display = fromTemplate ? '' : 'none';
-            // Picking Template means picking one: Save refuses until then.
+            // Picking a copy means picking one: Save refuses until then.
             sourceSelect.required = fromTemplate;
-            const template = addSource();
-            const sync = !!template && addMode() === 'sync';
-            addName.readOnly = sync;
-            addName.required = !sync;
-            if (sync) addName.value = template.name;
-            else addName.value = typedName || (template ? template.name : '');
+            const included = addIncludes.get();
+            const source = addSource();
+            const named = included.length ? templateById(included[0]) : source;
+            addName.value = typedName || (named ? named.name : '');
+            const lead = templatesLead(included);
+            if (!leadTyped) {
+                addPackDays.value = lead != null ? lead : (source ? source.pack_days_before : 0);
+            }
+            document.getElementById('day-add-pack-note').textContent = included.length
+                ? 'Follows the longest of its templates unless you change it. 0 means the same day.'
+                : '0 means the same day.';
             updatePackHint();
-        }
-
-        function alreadyOnMessage(name, date) {
-            return `${joinNames([name])} is already on ${formatDate(date, { ...LONG_DATE, today: isoDate(new Date()) })}.`;
         }
 
         function openAddDayModal() {
             clearFormMessages('day-add-modal-overlay');
             addForm.reset();
             typedName = '';
+            leadTyped = false;
+            addIncludes.set([]);
             sourceSelect.innerHTML = templateOptionsHtml();
             document.getElementById('day-add-source-group').style.display = templates.length ? '' : 'none';
             addDate.min = todayLocal(LOCAL_TIMEZONE);
@@ -2231,68 +2320,55 @@
             hideModalOverlay('day-add-modal-overlay');
         }
 
-        sourceSelect.addEventListener('change', () => {
-            const template = addSource();
-            if (template) addPackDays.value = template.pack_days_before;
-            showAddMode();
-        });
-        addForm.querySelectorAll('input[name="day-add-mode"], input[name="day-add-start"]').forEach(radio =>
+        sourceSelect.addEventListener('change', showAddMode);
+        addForm.querySelectorAll('input[name="day-add-start"]').forEach(radio =>
             radio.addEventListener('change', showAddMode));
         addName.addEventListener('input', () => {
-            if (!addName.readOnly) typedName = addName.value;
+            typedName = addName.value;
+        });
+        addPackDays.addEventListener('input', () => {
+            leadTyped = true;
+            updatePackHint();
         });
         addDate.addEventListener('change', updatePackHint);
-        // A new date, template or start is a new attempt: nothing refused for
-        // the old one applies.
+        // A new date or start is a new attempt: nothing refused for the old
+        // one applies.
         clearFormMessagesOn(
-            [addDate, sourceSelect, ...addForm.querySelectorAll('input[name="day-add-mode"], input[name="day-add-start"]')],
+            [addDate, sourceSelect, ...addForm.querySelectorAll('input[name="day-add-start"]')],
             'day-add-modal-overlay');
-        addPackDays.addEventListener('input', updatePackHint);
         clearOnChange(addForm, 'day-add-actions-message');
 
         addForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const template = addSource();
-            const sync = !!template && addMode() === 'sync';
-            // Kept in sync, the name is the template's and cannot be typed.
-            if (!sync && refuseBlankDayAddName()) return;
+            if (refuseBlankDayAddName()) return;
+            const included = addIncludes.get();
+            const source = addSource();
             const lead = parseInt(addPackDays.value, 10);
             const payload = {
+                name: addName.value.trim(),
+                packing_list_template_ids: included,
                 date: addDate.value,
                 label: document.getElementById('day-label').value || null,
             };
-            if (sync) {
-                payload.packing_list_template_id = template.id;
-                // Left at the template's own, the day follows the template.
-                if (lead !== template.pack_days_before) payload.pack_days_before = lead;
-            } else {
-                payload.name = addName.value;
-                payload.pack_days_before = lead;
-                if (template) payload.copy_from_template_id = template.id;
-            }
+            // Left at its templates' own, the list follows them.
+            if (!included.length || lead !== templatesLead(included)) payload.pack_days_before = lead;
+            if (source) payload.copy_from_template_id = source.id;
             let dayId;
             try {
                 dayId = (await requestJson('/api/packing-list-days', { method: 'POST', body: payload })).id;
             } catch (error) {
-                if (error.status === 409 && error.detail && error.detail.id) {
-                    // The template is already on that day: refused, and said
-                    // so under the date. The modal keeps everything entered.
-                    showFormMessage('day-add-message', alreadyOnMessage(template.name, payload.date));
-                    return;
-                }
                 if (isFormCheck(error)) showFormMessage('day-add-actions-message', error.message);
                 else fail('Failed to add the packing list');
                 return;
             }
             closeAddDayModal();
-            // A new day is the one thing to show next, so the filters come
+            // A new list is the one thing to show next, so the filters come
             // off rather than hide it.
             clearFilters();
             await refresh();
             revealDay(dayId);
-            // A blank list's next step is its first item. A copy or a
-            // kept-in-sync day already has items to look over.
-            if (!template) {
+            // A list with nothing on it yet: its next step is its first item.
+            if (!included.length && !source) {
                 const day = days.find(d => d.id === dayId);
                 if (day) openItemModal({ scope: 'day', day, item: null });
             }
@@ -2390,10 +2466,10 @@
         document.getElementById('btn-delete-template').addEventListener('click', async () => {
             const template = editingTemplate;
             if (!template) return;
-            // Its days are kept: each becomes a list of its own, as it reads now.
+            // Every list that includes it keeps its items as the list's own.
             const n = template.day_count;
             const onDays = n
-                ? ` The ${n === 1 ? 'day' : `${n} days`} it's on ${n === 1 ? 'keeps its' : 'keep their'} packing ${n === 1 ? 'list' : 'lists'} as ${n === 1 ? 'it is' : 'they are'} now.`
+                ? ` The ${n === 1 ? 'packing list that includes it keeps' : `${n} packing lists that include it keep`} its items as ${n === 1 ? 'its' : 'their'} own.`
                 : '';
             const confirmed = await confirmModal({
                 title: 'Delete packing list template',
