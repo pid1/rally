@@ -1583,6 +1583,7 @@ Don't auto-merge. Facts, upkeep and issue PRs all need review.
 - Install with `uv sync`. Run the tests with `uv run pytest`: 2959 passed and 1 skipped on 2026-11-01, in about 70 seconds locally and 2 minutes on a GitHub-hosted runner. The visual suite in `tests/visual` skips itself without Playwright.
 - Check style with `uv run ruff check .` and `uv run ruff format --check .`. Both pass on the default branch. CI runs these three commands.
 - rally-mcp in `mcp/` is its own uv project: `cd mcp && uv sync --frozen && uv run pytest` (152 passed on 2026-11-01), then `uv run ruff check .` and `uv run ruff format --check .`.
+- rally-phone in `phone/` (the ElevenLabs phone agent and its stdio MCP server) is its own uv project the same way: `cd phone && uv sync --frozen && uv run pytest`, then both ruff checks. See [phone/README.md](phone/README.md).
 - The visual suite needs `uv sync --group visual` and `uv run playwright install --with-deps chromium`. Then `uv run pytest tests/visual`: 710 passed and 20 skipped on 2026-11-01.
 - `devenv` is not needed to run these commands. Sadr runs them with `uv` directly.
 

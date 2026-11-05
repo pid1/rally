@@ -1,0 +1,1 @@
+Hi, I'm an AI assistant calling on behalf of {{owner_name}}. This call is transcribed and may be shared with our service providers. I'm calling about {{call_topic}}.
