@@ -482,6 +482,7 @@ _NOW_UTC_IMPORTERS = (
     "rally.routers.shopping",
     "rally.routers.dashboard",
     "rally.routers.events",
+    "rally.routers.busy",
     "rally.routers.settings",
     "rally.generator.generate",
     "rally.notifications",

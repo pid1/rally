@@ -1,7 +1,7 @@
 """Pre-created MCP connections: who may connect, how, from where, and to which tools.
 
 A connection (``rally.models.Connection``) is a named client a household
-member sets up in advance on the Connections page: "Claude", "Home Assistant".
+member sets up in advance on the Connections page: "Claude", "Voice assistant".
 Every MCP request arrives on one connection's endpoint, ``/mcp/c/<id>``
 (or the legacy ``/mcp``), and is checked here, twice: once by rally-mcp when
 the request arrives (through ``POST /api/mcp/connections/resolve``), and again
@@ -52,6 +52,7 @@ STATUSES = ("enabled", "disabled", "revoked")
 PRESETS = {
     "full": "Full access",
     "read_only": "Read-only",
+    "busy": "Busy-only",
     "custom": "Custom",
 }
 
@@ -65,6 +66,15 @@ IP_PRESETS = {
         # https://platform.claude.com/docs/en/api/ip-addresses (checked 2026-11-05).
         "ranges": ["160.79.104.0/21", "153.61.208.0/20"],
         "source": "https://platform.claude.com/docs/en/api/ip-addresses",
+        "checked": "2026-11-05",
+    },
+    "elevenlabs": {
+        "label": "ElevenLabs (US)",
+        # ElevenLabs' published static egress addresses for US workspaces (the
+        # default api.elevenlabs.io), which cover MCP requests, webhooks and
+        # tools. Other regions have their own pair on the same page.
+        "ranges": ["34.67.146.145/32", "34.59.11.47/32"],
+        "source": "https://elevenlabs.io/docs/eleven-api/resources/ip-allowlisting",
         "checked": "2026-11-05",
     },
 }
@@ -118,6 +128,8 @@ def preset_tools(preset: str, catalog: dict[str, mcp_policy.ToolInfo]) -> set[st
         return set(catalog)
     if preset == "read_only":
         return {n for n, t in catalog.items() if t.scope.endswith(":read")}
+    if preset == "busy":
+        return {n for n, t in catalog.items() if t.scope == mcp_policy.BUSY_SCOPE}
     return set()
 
 

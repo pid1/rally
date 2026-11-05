@@ -49,7 +49,7 @@
             <form id="connection-form">
                 <div class="form-group">
                     <label for="connection-name">Name</label>
-                    <input type="text" id="connection-name" placeholder="e.g. Claude, Home Assistant" maxlength="100">
+                    <input type="text" id="connection-name" placeholder="e.g. Claude, Voice assistant" maxlength="100">
                     <div class="form-message" id="connection-name-message" role="alert" hidden></div>
                 </div>
                 <div class="form-group" id="connection-auth-group">
@@ -86,7 +86,7 @@
                 <div class="form-group">
                     <label for="connection-preset">Permissions</label>
                     <select id="connection-preset" class="select"></select>
-                    <small>Read-only can look but not change anything. Change any tool below and the connection becomes Custom.</small>
+                    <small>Busy-only can check availability and book pending appointments, and sees nothing else on the calendar. Change any tool below and the connection becomes Custom.</small>
                 </div>
                 <div class="form-group">
                     <label id="connection-tools-label">Tools</label>
@@ -285,8 +285,8 @@
                 '<option value="">Choose&hellip;</option>' + state.members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
             const preset = document.getElementById('connection-preset');
             preset.innerHTML = state.presets.map(p => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('');
-            preset.value = c ? c.preset : 'read_only';
-            renderTools(new Set(c ? c.tools : state.presets.find(p => p.id === 'read_only').tools));
+            preset.value = c ? c.preset : 'busy';
+            renderTools(new Set(c ? c.tools : state.presets.find(p => p.id === 'busy').tools));
             document.getElementById('connection-ips').value = c ? c.ip_allowlist.join('\n') : '';
             document.getElementById('connection-ip-presets').innerHTML = state.ip_presets.map(p => p.ranges.length
                 ? `<button type="button" class="btn btn--sm btn--quiet" data-ip-preset="${p.id}">Add ${escapeHtml(p.label)} ranges</button>`

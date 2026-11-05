@@ -59,9 +59,14 @@ DENIED = (
 )
 
 # Served by rally-mcp's hand-written tools, which mark external calendar
-# content as untrusted field by field; not generated again.
+# content as untrusted field by field; not generated again. The /api/busy
+# routes are the busy-only tools (``rally_mcp.busy_tools``, permission scope
+# ``calendar:busy``): free/busy and pending bookings for an untrusted agent.
 HAND_WRITTEN = frozenset(
     {
+        ("GET", "/api/busy/availability"),
+        ("GET", "/api/busy/free-slots"),
+        ("POST", "/api/busy/appointments"),
         ("GET", "/api/todos"),
         ("POST", "/api/todos"),
         ("PUT", "/api/todos/{todo_id}"),
@@ -72,15 +77,19 @@ HAND_WRITTEN = frozenset(
     }
 )
 
-# Every tool touches exactly one scope, ``<area>:read`` or ``<area>:write``.
-# A connection's permissions are a set of tool names,
+# Every tool touches exactly one scope, ``<area>:read`` or ``<area>:write``,
+# plus ``calendar:busy`` for the busy-only tools (free/busy and booking,
+# never event details). A connection's permissions are a set of tool names,
 # and each tool may only reach routes of its own scope: Rally enforces that
 # on every MCP request, so rally-mcp's own filtering is not the only fence.
 #
 # The hand-written tools' scopes, by tool name. rally-mcp declares the same
 # scope next to each tool (``@scoped(...)`` in ``rally_mcp.scopes``) and its
 # tests check the two agree through the OpenAPI snapshot. A new hand-written
-# tool needs one line here and one there.
+# tool needs one line here and one there. The busy-only tools are declared
+# ahead of their implementation so the Busy-only preset is fixed: exactly
+# these three names.
+BUSY_SCOPE = "calendar:busy"
 HAND_WRITTEN_TOOLS: dict[str, str] = {
     "list_todos": "todos:read",
     "create_todo": "todos:write",
@@ -90,13 +99,16 @@ HAND_WRITTEN_TOOLS: dict[str, str] = {
     "list_events": "calendar:read",
     "create_event": "calendar:write",
     "get_daily_summary": "dashboard:read",
+    "check_availability": BUSY_SCOPE,
+    "find_free_slots": BUSY_SCOPE,
+    "book_appointment": BUSY_SCOPE,
 }
 
-# Routes whose scope is not ``<area>:read|write``, as ``(pattern, scope)``.
-# None so far; a route that needs a scope of its own goes here.
-ROUTE_SCOPES: tuple[tuple[re.Pattern, str], ...] = ()
+# Routes whose scope is not ``<area>:read|write``. Everything under
+# ``/api/busy`` is the busy-only surface.
+ROUTE_SCOPES = ((re.compile(r"/api/busy(/.*)?"), BUSY_SCOPE),)
 
-# Lookups any tool may make whatever its scope: the
+# Lookups any tool may make whatever its scope, except a busy-only one: the
 # hand-written tools resolve names to ids through the family list (names and
 # colors only for MCP; Rally strips the Pushover keys).
 SUPPORT_ROUTES = frozenset({("GET", "/api/family")})
@@ -121,6 +133,10 @@ UNTRUSTED = (
     re.compile(r"/api/preparedness/review"),
     re.compile(r"/api/events/sync(/.*)?"),
     re.compile(r"/api/dashboard/regenerate"),
+    # A single event may be a connection's booking, whose title, notes and contact
+    # are a caller's words (the busy-only tools). The hand-written list_events
+    # wraps those field by field; the generated event tools wrap the whole result.
+    re.compile(r"/api/events/\{event_id\}(/occurrences|/confirm)?"),
 )
 
 # Calls that reach outside Rally (send a push, call an LLM or ESPN, sync feeds).
@@ -187,7 +203,7 @@ def area_of(path: str) -> str:
 
 
 def route_scope(method: str, path: str) -> str:
-    """The scope a route touches: ``<area>:read`` or ``<area>:write``, unless ``ROUTE_SCOPES`` says otherwise."""
+    """The scope a route touches: ``calendar:busy``, or ``<area>:read`` / ``<area>:write``."""
     for pattern, scope in ROUTE_SCOPES:
         if pattern.fullmatch(path):
             return scope
@@ -376,7 +392,7 @@ def call_denial(catalog: dict[str, ToolInfo], tool: str, method: str, route: str
     """Why ``tool`` may not make this request, or None when it may.
 
     A generated tool calls exactly its own route. A hand-written tool calls
-    routes of its own scope, plus the support lookups.
+    routes of its own scope, plus the support lookups unless it is busy-only.
     """
     info = catalog.get(tool)
     if info is None:
@@ -385,7 +401,7 @@ def call_denial(catalog: dict[str, ToolInfo], tool: str, method: str, route: str
         if info.route != (method, route):
             return f"tool {tool} may not call {method} {route}"
         return None
-    if (method, route) in SUPPORT_ROUTES:
+    if (method, route) in SUPPORT_ROUTES and info.scope != BUSY_SCOPE:
         return None
     scope = route_scope(method, route)
     if scope != info.scope:

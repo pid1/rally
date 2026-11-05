@@ -813,6 +813,10 @@ class EventResponse(BaseModel):
     attendee_ids: list[int] = []
     overrides: list[EventOverrideResponse] = []
     packing_lists: list[EventPackingListResponse] = []  # The series' own
+    booked_by_connection: bool = False
+    pending_confirmation: bool = False
+    contact_name: str | None = None
+    contact_phone: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -854,6 +858,12 @@ class OccurrenceResponse(BaseModel):
     notify_minutes_before: int | None = None
     # This occurrence's packing lists, A-Z. Always empty for an external one.
     packing_lists: list[OccurrencePackingList] = []
+    # Booked through the busy-only tools: title, description and
+    # contact are the caller's words. Pending until the family confirms it.
+    booked_by_connection: bool = False
+    pending_confirmation: bool = False
+    contact_name: str = ""
+    contact_phone: str = ""
 
     @computed_field  # type: ignore[prop-decorator]
     @property

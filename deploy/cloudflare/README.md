@@ -67,7 +67,7 @@ rather than at the edge. Access still guards every OAuth path for everyone.
 ## Token connections
 
 A token connection (Rally → Connections, *Signs in with: Token*) is for an
-agent that cannot complete a browser login, like the phone assistant. Its
+agent that cannot complete a browser login, like a voice assistant. Its
 path, `/mcp/c/<id>`, has to skip Access, so:
 
 1. Create the connection in Rally first, and copy its token from the dialog

@@ -12,6 +12,7 @@ from rally.audit.middleware import AuditMiddleware
 from rally.database import get_db, init_db
 from rally.routers import (
     audit,
+    busy,
     connections,
     dashboard,
     devices,
@@ -74,6 +75,7 @@ app.include_router(audit.router)
 app.include_router(mcp.router)
 app.include_router(connections.router)
 app.include_router(events.router)
+app.include_router(busy.router)
 app.include_router(todos.router)
 app.include_router(meal_planner.router)
 app.include_router(family.router)

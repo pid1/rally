@@ -410,7 +410,7 @@ must go through the audit layer and ship with an audit test.** Never write an
       `tests/test_audit_coverage.py` already calls every registered route and
       fails if one leaves no audit event; it needs no edit, but it must pass.
 - [ ] Every MCP tool touches exactly one **scope** (`todos:read`,
-      `calendar:write`, …), which is what a connection's
+      `calendar:write`, `calendar:busy`, …), which is what a connection's
       permissions are checked in. Generated tools get theirs from
       `mcp_policy.route_scope()`; a route whose scope isn't `<area>:read|write`
       goes in `ROUTE_SCOPES`. A hand-written tool declares its scope twice, one
@@ -419,7 +419,7 @@ must go through the audit layer and ship with an audit test.** Never write an
       because Rally enforces it too. `mcp/tests/test_connections.py` fails if
       the two disagree, and a tool with no scope is never listed or callable.
       A hand-written tool may only call routes of its own scope (plus `GET
-      /api/family`); a route that needs to know which
+      /api/family`, except a busy-only tool); a route needs to know which
       connection is calling reads `audit_context.current().connection_id`.
 - [ ] A new MCP tool gets an entry in `SAMPLE_ARGS` in
       `mcp/tests/test_tool_coverage.py` (that test fails until it does), the
@@ -497,6 +497,7 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `041_add_audit_log` - Add `family_members.email` (sign-in address used to attribute MCP and tailnet requests) and create `audit_events` (with its indexes and the append-only `UPDATE`/`DELETE` triggers) and `mcp_connections`. Created here rather than left to `init_db()` because the data layer refuses to write anything it cannot audit
 - `042_named_packing_lists` - Packing lists with their own name that include templates (#281), in **one transaction**. Adds `packing_list_day_templates` (a list's included templates, with `position`; unique per `(day_id, packing_list_template_id)`). Every day with a `packing_list_template_id` includes that template and takes its name (a templateless day keeps its own), then **rebuilds `packing_list_days`** without the template column — so the one-template-per-date index goes with it — and with `name` required. **Rebuilds `event_packing_lists`** keyed on `list_key` (a list's name, casefolded) with `name` and `template_ids` (JSON) in place of `packing_list_template_id`: each row becomes a list named after its template that includes it. **Rebuilds `packing_list_day_events`** keyed on `list_key`. On that run, **"Every day" placements** settle: from today on, every link not on its occurrence's first day (its override's start, else its original date) and every NULL-day link is dropped — the days stay as ordinary lists, and no new ones are made. Past links are left alone and `events.packing_list_span` stays, unread. Checks, own items, readings, order, labels, lead times and schedules move as they are. Migrations 035 and 039 return early once this has run (`packing_list_day_templates` exists): they run on every start and would otherwise look for the columns it removed
 - `043_add_connections` - Add the `connections` table (pre-created MCP connections: name, auth method, preset and tools, IP allowlist, status, who authorized it, the token's HMAC and hint, expiry and last-seen bookkeeping) and `mcp_connections.connection_id`. `mcp_connections` keeps its rows and its meaning, OAuth sign-ins (a person on a client), now attached to the connection they arrived on. Where sign-ins already exist it seeds one `legacy` connection (OAuth, full access, enabled, Anthropic's outbound ranges) and attaches every existing sign-in to it, so the original Claude connector on `/mcp` keeps working until it is re-created; a database with no sign-ins gets no connection, so `/mcp` is refused. A revoked legacy connection is never re-created
+- `044_add_connection_bookings` - Add `events.source` (the MCP connection that booked it; NULL for the family's own events), `events.pending_confirmation` (`NOT NULL DEFAULT 0`), `events.confirmation_hash` (SHA-256 of the confirmation id the busy-only tools return, with a unique index; SQLite treats the existing NULLs as distinct), `events.contact_name` and `events.contact_phone`. Purely additive and writes **no rows**: every existing event reads as confirmed and family-made. 
 
 ### Running Migrations
 
@@ -762,6 +763,7 @@ rally/
 │   ├── migrate_041_add_audit_log.py # Migration 041: audit log tables, member email
 │   ├── migrate_042_named_packing_lists.py # Migration 042: packing lists with their own name that include templates (#281)
 │   ├── migrate_043_add_connections.py # Migration 043: pre-created MCP connections
+│   ├── migrate_044_add_connection_bookings.py # Migration 044: connection booking columns on events
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium

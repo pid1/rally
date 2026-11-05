@@ -357,6 +357,45 @@
     "title": "AuthEvent",
     "type": "object"
    },
+   "AvailabilityResponse": {
+    "properties": {
+     "busy": {
+      "items": {
+       "$ref": "#/components/schemas/TimeBlock"
+      },
+      "title": "Busy",
+      "type": "array"
+     },
+     "end": {
+      "title": "End",
+      "type": "string"
+     },
+     "free": {
+      "items": {
+       "$ref": "#/components/schemas/TimeBlock"
+      },
+      "title": "Free",
+      "type": "array"
+     },
+     "start": {
+      "title": "Start",
+      "type": "string"
+     },
+     "timezone": {
+      "title": "Timezone",
+      "type": "string"
+     }
+    },
+    "required": [
+     "timezone",
+     "start",
+     "end",
+     "busy",
+     "free"
+    ],
+    "title": "AvailabilityResponse",
+    "type": "object"
+   },
    "BehaviorCatalogResponse": {
     "description": "Every behavioral setting Rally offers.",
     "properties": {
@@ -428,6 +467,98 @@
      "default"
     ],
     "title": "BehaviorSettingCatalogEntry",
+    "type": "object"
+   },
+   "BookingRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "contact_name": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Name"
+     },
+     "contact_phone": {
+      "anyOf": [
+       {
+        "maxLength": 32,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Phone"
+     },
+     "end": {
+      "maxLength": 40,
+      "title": "End",
+      "type": "string"
+     },
+     "members": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 10,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Members"
+     },
+     "notes": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notes"
+     },
+     "start": {
+      "maxLength": 40,
+      "title": "Start",
+      "type": "string"
+     },
+     "title": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "start",
+     "end",
+     "title"
+    ],
+    "title": "BookingRequest",
+    "type": "object"
+   },
+   "BookingResponse": {
+    "properties": {
+     "confirmation_id": {
+      "title": "Confirmation Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "confirmation_id"
+    ],
+    "title": "BookingResponse",
     "type": "object"
    },
    "CalendarCreate": {
@@ -1229,9 +1360,36 @@
       "title": "Attendee Ids",
       "type": "array"
      },
+     "booked_by_connection": {
+      "default": false,
+      "title": "Booked By Connection",
+      "type": "boolean"
+     },
      "calendar_id": {
       "title": "Calendar Id",
       "type": "integer"
+     },
+     "contact_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Name"
+     },
+     "contact_phone": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Phone"
      },
      "created_at": {
       "format": "date-time",
@@ -1298,6 +1456,11 @@
       },
       "title": "Packing Lists",
       "type": "array"
+     },
+     "pending_confirmation": {
+      "default": false,
+      "title": "Pending Confirmation",
+      "type": "boolean"
      },
      "rrule": {
       "anyOf": [
@@ -1926,6 +2089,32 @@
      }
     },
     "title": "FollowedTeamUpdate",
+    "type": "object"
+   },
+   "FreeSlotsResponse": {
+    "properties": {
+     "duration_minutes": {
+      "title": "Duration Minutes",
+      "type": "integer"
+     },
+     "slots": {
+      "items": {
+       "$ref": "#/components/schemas/TimeBlock"
+      },
+      "title": "Slots",
+      "type": "array"
+     },
+     "timezone": {
+      "title": "Timezone",
+      "type": "string"
+     }
+    },
+    "required": [
+     "timezone",
+     "duration_minutes",
+     "slots"
+    ],
+    "title": "FreeSlotsResponse",
     "type": "object"
    },
    "GoListGroup": {
@@ -2707,6 +2896,11 @@
       "title": "Attendees",
       "type": "array"
      },
+     "booked_by_connection": {
+      "default": false,
+      "title": "Booked By Connection",
+      "type": "boolean"
+     },
      "calendar_id": {
       "anyOf": [
        {
@@ -2721,6 +2915,16 @@
      "calendar_label": {
       "default": "",
       "title": "Calendar Label",
+      "type": "string"
+     },
+     "contact_name": {
+      "default": "",
+      "title": "Contact Name",
+      "type": "string"
+     },
+     "contact_phone": {
+      "default": "",
+      "title": "Contact Phone",
       "type": "string"
      },
      "dates": {
@@ -2830,6 +3034,11 @@
       },
       "title": "Packing Lists",
       "type": "array"
+     },
+     "pending_confirmation": {
+      "default": false,
+      "title": "Pending Confirmation",
+      "type": "boolean"
      },
      "recurrence_text": {
       "default": "",
@@ -6158,6 +6367,24 @@
     "title": "ShoppingSuggestion",
     "type": "object"
    },
+   "TimeBlock": {
+    "properties": {
+     "end": {
+      "title": "End",
+      "type": "string"
+     },
+     "start": {
+      "title": "Start",
+      "type": "string"
+     }
+    },
+    "required": [
+     "start",
+     "end"
+    ],
+    "title": "TimeBlock",
+    "type": "object"
+   },
    "TodoCreate": {
     "properties": {
      "assigned_to": {
@@ -6668,7 +6895,7 @@
       "readOnlyHint": false
      },
      "scope": "calendar:write",
-     "untrusted": false
+     "untrusted": true
     }
    },
    "get": {
@@ -6719,7 +6946,7 @@
       "readOnlyHint": true
      },
      "scope": "calendar:read",
-     "untrusted": false
+     "untrusted": true
     }
    },
    "put": {
@@ -6838,7 +7065,60 @@
       "readOnlyHint": false
      },
      "scope": "calendar:write",
-     "untrusted": false
+     "untrusted": true
+    }
+   }
+  },
+  "/api/events/{event_id}/confirm": {
+   "post": {
+    "description": "Calendar: Confirm Event.\n\nConfirm an appointment booked through a connection, so it stops showing as pending.\n\nConfirming is the family's call, so it is not one of the busy-only tools:\nan agent can book pending appointments, never confirm\nthem. Confirming an event that is not pending changes nothing.",
+    "operationId": "confirm_event",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "event_id",
+      "required": true,
+      "schema": {
+       "title": "Event Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Confirm Event",
+    "tags": [
+     "events"
+    ],
+    "x-rally-mcp": {
+     "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+     },
+     "scope": "calendar:write",
+     "untrusted": true
     }
    }
   },
@@ -7075,7 +7355,7 @@
       "readOnlyHint": true
      },
      "scope": "calendar:read",
-     "untrusted": false
+     "untrusted": true
     }
    }
   },
@@ -12898,10 +13178,13 @@
   }
  },
  "x-rally-mcp-hand-written": {
+  "book_appointment": "calendar:busy",
+  "check_availability": "calendar:busy",
   "complete_todo": "todos:write",
   "create_event": "calendar:write",
   "create_todo": "todos:write",
   "delete_todo": "todos:write",
+  "find_free_slots": "calendar:busy",
   "get_daily_summary": "dashboard:read",
   "list_events": "calendar:read",
   "list_todos": "todos:read",

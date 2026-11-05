@@ -32,7 +32,7 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from rally_mcp import generated, tools
+from rally_mcp import busy_tools, generated, tools
 from rally_mcp.access import JWT_HEADER, AccessDenied, AccessVerifier, client_name
 from rally_mcp.config import Settings
 from rally_mcp.rally import CallContext, ConnectionInfo, RallyClient, current_call
@@ -345,6 +345,7 @@ def build(
     )
     mcp = FastMCP("Rally", instructions=INSTRUCTIONS, mask_error_details=True)
     tools.register(mcp, rally)
+    busy_tools.register(mcp, rally)
     scopes = dict(SCOPES)
     if spec is not None:
         scopes.update(generated.tool_scopes(spec))

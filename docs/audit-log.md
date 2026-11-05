@@ -25,6 +25,8 @@ Open it from the sidebar: **Audit Log**, under Settings.
 | `mcp.service_auth_failed`, `mcp.identity_unresolved`, `mcp.route_not_allowed`, `mcp.disabled`, `mcp.token_validation_failed` | An MCP request was refused, at Rally or at rally-mcp. |
 | `alert.sent` / `alert.failed` / `alert.skipped` | An alert was delivered, or could not be. |
 | `audit.export` | The log was exported (format, filters, row count). |
+| `busy.check_availability` / `busy.find_free_slots` | A busy-only tool answered (see [mcp.md](mcp.md#busy-only-tools)). `after.result_size` is how many blocks or slots it returned. |
+| `busy.book_appointment` | A booking was requested through a connection. `after.event_id` names the event; the booking itself is also an `event.create` (with `source`, the booking connection). |
 
 Each event also carries who acted (`actor_type`, `actor_id`, `actor_name`),
 the `source` (`web`, `api`, `mcp`, `job`), a `request_id` shared by every
@@ -51,6 +53,9 @@ path and method, plus whatever identity could be learned.
   (`authorized_by`). Also recorded: the client (claude.ai, Claude Desktop,
   Claude Code), the public IP (`CF-Connecting-IP`, believed only from the
   tunnel) and `Cf-Ray`, the tool and its arguments, and the result's size.
+  Busy-only calls are recorded the same way, so each booking or availability
+  check names the connection, the IP, the tool, its arguments and how much it
+  returned.
 - **Jobs** (the 4 AM generator, the notification loop, the CLI) are recorded
   under the job's own name.
 

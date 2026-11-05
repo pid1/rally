@@ -61,6 +61,16 @@ def test_hand_written_scopes_match_rallys(server):
         assert rally_side.get(name) == scope, name
 
 
+def test_busy_only_is_exactly_the_three_busy_tools():
+    rally_side = SPEC["x-rally-mcp-hand-written"]
+    busy = {n for n, s in rally_side.items() if s == "calendar:busy"}
+    assert busy == {
+        "check_availability",
+        "find_free_slots",
+        "book_appointment",
+    }
+
+
 def test_scoped_declares_by_function_name():
     @scoped("notes:read")
     async def a_tool_for_this_test():
@@ -128,7 +138,7 @@ def test_rally_unreachable_for_a_verdict_fails_closed(server, rally):
 
 def test_a_token_connection_works_with_its_bearer_token(server, rally):
     response = mcp_post(
-        server.http, LIST_TOOLS, path="/mcp/c/c-token", bearer=TOKEN, client_ip="203.0.113.7"
+        server.http, LIST_TOOLS, path="/mcp/c/c-phone", bearer=TOKEN, client_ip="203.0.113.7"
     )
     assert tool_names(response) == {"list_events"}
     [asked] = resolves(rally)
@@ -139,32 +149,32 @@ def test_a_token_connection_works_with_its_bearer_token(server, rally):
     result = mcp_post(
         server.http,
         call("list_events", {"start": "2026-10-27"}),
-        path="/mcp/c/c-token",
+        path="/mcp/c/c-phone",
         bearer=TOKEN,
         client_ip="203.0.113.7",
     )
     assert result.status_code == 200
     [sent] = rally.calls("/api/events")
     # Rally checks the token again on every call; there is no person to name.
-    assert sent.headers["X-Rally-Mcp-Connection-Id"] == "c-token"
+    assert sent.headers["X-Rally-Mcp-Connection-Id"] == "c-phone"
     assert sent.headers["X-Rally-Mcp-Connection-Token"] == TOKEN
     assert "X-Rally-Mcp-Email" not in sent.headers
 
 
 def test_a_wrong_token_is_refused(server, rally):
     response = mcp_post(
-        server.http, LIST_TOOLS, path="/mcp/c/c-token", bearer="rly_wrong", client_ip="203.0.113.7"
+        server.http, LIST_TOOLS, path="/mcp/c/c-phone", bearer="rly_wrong", client_ip="203.0.113.7"
     )
     assert response.status_code == 401
     assert response.headers["www-authenticate"].startswith("Bearer")
 
 
 def test_no_credential_at_all_is_refused_before_rally_is_asked(server, rally):
-    response = mcp_post(server.http, LIST_TOOLS, token=None, path="/mcp/c/c-token")
+    response = mcp_post(server.http, LIST_TOOLS, token=None, path="/mcp/c/c-phone")
     assert response.status_code == 401
     assert not resolves(rally)
     [report] = reports(rally)
-    assert report["connection_id"] == "c-token"
+    assert report["connection_id"] == "c-phone"
 
 
 def test_with_an_access_jwt_the_authorization_header_is_not_a_token(server, rally):
