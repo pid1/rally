@@ -82,8 +82,22 @@ def test_is_idempotent(db_path):
     assert _migrate() is True
 
 
-def test_agrees_with_the_models(db_path, tmp_path):
+def _to_models(db_path):
+    """039, then 042 (#281), which rebuilds both tables keyed on a list."""
     assert _migrate() is True
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE packing_list_days (id INTEGER PRIMARY KEY,"
+            " packing_list_template_id INTEGER, name VARCHAR(100), description TEXT,"
+            " date VARCHAR(10), label VARCHAR(200), schedule_id INTEGER,"
+            " pack_days_before INTEGER, label_edited BOOLEAN, item_order JSON,"
+            " created_at DATETIME, updated_at DATETIME)"
+        )
+    assert _load("migrate_042_named_packing_lists").migrate() is True
+
+
+def test_agrees_with_the_models(db_path, tmp_path):
+    _to_models(db_path)
     fresh = tmp_path / "fresh.db"
     engine = create_engine(f"sqlite:///{fresh}")
     Base.metadata.create_all(engine, tables=[Event.__table__, *_model_tables()])
@@ -91,21 +105,22 @@ def test_agrees_with_the_models(db_path, tmp_path):
     for table in TABLES:
         assert _columns(db_path, table) == _columns(fresh, table)
         assert _indexes(db_path, table) == _indexes(fresh, table)
-    assert "packing_list_span" in _columns(fresh, "events")
+    # Since #281 the column is unread; databases keep it, the model drops it.
+    assert "packing_list_span" not in _columns(fresh, "events")
 
 
 def test_leaves_a_database_the_orm_can_use(db_path, apply_audit_migration):
-    assert _migrate() is True
+    _to_models(db_path)
     assert apply_audit_migration() is True
     engine = create_engine(f"sqlite:///{db_path}")
     with Session(engine) as session:
-        session.add(EventPackingList(event_id=1, packing_list_template_id=1))
+        session.add(EventPackingList(event_id=1, list_key="beach day", name="Beach day"))
         session.add(
             PackingListDayEvent(
                 day_id=1,
                 event_id=1,
                 occurrence_date="2026-10-10",
-                packing_list_template_id=1,
+                list_key="beach day",
                 date="2026-10-10",
             )
         )

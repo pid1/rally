@@ -307,21 +307,24 @@ def test_settings_scopes_its_defaults_to_this_device(client):
 
 
 def test_the_event_modal_asks_what_to_pack(client):
-    """#270: the event modal's packing lists reuse Manage Bags' add row, and
-    `Put on` offers both answers with neither chosen."""
+    """#270: the event modal's packing lists reuse Manage Bags' add row. #281:
+    it offers a new named list beside the templates, and `Put on` is gone —
+    a list goes on the event's first day."""
     html = client.get("/calendar").text
     assert 'id="event-packing-group"' in html
     assert '<div class="manage-row" id="event-packing-add-row">' in html
     assert ">What to pack</label>" in html
+    assert "'<option value=\"new\">New packing list…</option>'" in html
     assert (
-        "Packing lists follow this event when it moves. Removing one, or deleting the event, "
-        "asks whether to keep the list on its day." in html
+        "Packing lists go on the event&#39;s first day and follow it when it moves. Removing one, "
+        "or deleting the event, asks whether to keep the list on its day."
+        in html
+        or "Packing lists go on the event's first day and follow it when it moves. Removing one, "
+        "or deleting the event, asks whether to keep the list on its day."
+        in html
     )
-    span = html[html.index('id="event-packing-span-group"') :]
-    span = span[: span.index("</div>\n                    </div>")]
-    assert 'value="first"> First day' in span
-    assert 'value="every"> Every day' in span
-    assert "checked" not in span
+    assert "event-packing-span" not in html
+    assert "Put on" not in html
 
 
 def test_packing_lists_asks_and_refuses_through_the_shared_dialog(client):
@@ -563,7 +566,6 @@ def test_calendar_asks_and_refuses_through_the_shared_dialog(client):
         "event-start-time-message",
         "event-start-date-message",
         "event-calendar-message",
-        "event-packing-span-message",
         "event-packing-message",
         "event-form-message",
     ):
@@ -577,15 +579,20 @@ def test_calendar_asks_and_refuses_through_the_shared_dialog(client):
     assert html.count("clearFormMessages('event-modal-overlay');") == 2
 
 
-def test_a_template_already_on_a_date_is_refused_in_place(client):
-    """Add Packing List (kept in sync) and Edit Packing List refuse a date the
-    template is already on, with a message under Date, rather than closing and
-    opening the other day without saying why."""
+def test_add_and_edit_packing_list_offer_named_lists_with_includes(client):
+    """#281: Add and Edit Packing List name the list and include templates,
+    and a template already on a date is no longer refused (#254's 409 is
+    gone), so the message helper for it is too. Date keeps its own message
+    box for an empty or past date."""
     html = client.get("/packing-lists").text
     for message_id in ("day-add-message", "day-edit-message"):
         assert f'<div class="form-message" id="{message_id}" role="alert" hidden></div>' in html
-    assert html.count("alreadyOnMessage(") == 3  # the helper and its two callers
-    assert "revealDay(error.detail.id)" not in html
+    for prefix in ("day-add", "day-edit"):
+        assert f'id="{prefix}-includes-group"' in html
+        assert f'<select id="{prefix}-includes-select"' in html
+    assert "alreadyOnMessage(" not in html
+    assert "Keep in sync with the template" not in html
+    assert 'value="template"> A copy of a template</label>' in html
 
 
 def test_custom_schedule_is_detached_rather_than_hidden(client):

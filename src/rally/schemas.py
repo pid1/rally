@@ -680,14 +680,42 @@ class FollowedTeamResponse(FollowedTeamBase):
 # Calendar events
 
 
-PackingListSpan = Literal["first", "every"]
+class EventPackingListSpec(BaseModel):
+    """A packing list an event brings (#281): its own name and the templates
+    it includes, read live. A bare template is ``{packing_list_template_ids:
+    [id]}``: the name defaults to the first template's. A list with no name
+    and no template is a ``422``."""
+
+    name: str | None = None
+    packing_list_template_ids: list[int] = []
+    # The list's identity on the event, as the event sent it back (``key``):
+    # keeps a list the event already has the same list when its day was
+    # renamed. Left out, a list's key is its name.
+    key: str | None = None
+
+    @field_validator("name", "key")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
+
+
+class EventPackingListResponse(BaseModel):
+    """One of the series' own packing lists. ``key`` is its identity on the
+    event (its name, casefolded, when first added)."""
+
+    key: str
+    name: str
+    packing_list_template_ids: list[int] = []
 
 
 class OccurrencePackingList(BaseModel):
-    """One packing list an occurrence brings, and the days it sits on."""
+    """One packing list an occurrence brings, and the days it sits on. The
+    name is the list's on its day when it is on one, since it can be renamed
+    there."""
 
-    template_id: int
+    key: str
     name: str
+    packing_list_template_ids: list[int] = []
     day_ids: list[int] = []
 
 
@@ -713,10 +741,11 @@ class EventBase(BaseModel):
     notify_minutes_before: int | None = None
     attendee_ids: list[int] = []
     calendar_id: int | None = None  # Defaults to the family's first native calendar
-    # Packing list templates every occurrence brings, and where a multi-day
-    # occurrence's go: its first day, or every day it covers.
+    # The packing lists every occurrence brings, on its first day (#281).
+    # ``packing_list_template_ids`` is the #270 shorthand: each template a
+    # list of its own, named after it. Send one or the other.
+    packing_lists: list[EventPackingListSpec] | None = None
     packing_list_template_ids: list[int] = []
-    packing_list_span: PackingListSpan | None = None
 
 
 class EventCreate(EventBase):
@@ -739,8 +768,10 @@ class EventUpdate(BaseModel):
     calendar_id: int | None = None
     # The lists at the scope saved: the series' for `all` and `following`, the
     # occurrence's own for `this`. None leaves them alone, as attendees do.
+    # ``packing_list_template_ids`` is the #270 shorthand (a list per template,
+    # named after it); ``packing_lists`` wins when both are sent.
+    packing_lists: list[EventPackingListSpec] | None = None
     packing_list_template_ids: list[int] | None = None
-    packing_list_span: PackingListSpan | None = UNSET  # Always the series'
 
     _title = field_validator("title")(_refuse_blank_title)
 
@@ -781,8 +812,7 @@ class EventResponse(BaseModel):
     notify_minutes_before: int | None = None
     attendee_ids: list[int] = []
     overrides: list[EventOverrideResponse] = []
-    packing_list_template_ids: list[int] = []  # The series' own
-    packing_list_span: str | None = None
+    packing_lists: list[EventPackingListResponse] = []  # The series' own
     created_at: datetime
     updated_at: datetime
 
@@ -1527,12 +1557,13 @@ class PackingListDayReorder(BaseModel):
 
 
 class PackingListDayResync(BaseModel):
-    """How much of a day to bring back in line with its template.
+    """How much of a list to bring back in line with every template it
+    includes.
 
-    ``items`` undoes the day's item edits, removals and additions (and puts a
-    bag back inside a bag the day took off, once that bag is back); ``all``
-    undoes every way the day differs: those, its order, its bag readings, its
-    checks, its label and its lead time.
+    ``items`` undoes the list's edits and removals of template items (and puts
+    a bag back inside a bag the list took off, once that bag is back); ``all``
+    also undoes its order, its bag readings, its checks, its label and its
+    lead time. The list's own items stay either way.
     """
 
     scope: Literal["items", "all"]
@@ -1559,7 +1590,7 @@ class PackingListTemplateSummary(BaseModel):
     description: str | None = None
     pack_days_before: int
     item_count: int
-    day_count: int  # Every day it is on, past included — what a delete would convert
+    day_count: int  # Every list that includes it, past included — what a delete would convert
     upcoming_days: int  # Days from today on
 
 
@@ -1573,22 +1604,25 @@ class PackingListTemplateResponse(PackingListTemplateSummary):
 
 
 class PackingListDayCreate(BaseModel):
-    """A packing list on a day, in one of three forms:
+    """A packing list on a day (#281): its own name, its own items, and any
+    number of templates it includes, read live.
 
-    * ``packing_list_template_id``: the template itself on that day, kept in
-      sync with it. ``pack_days_before`` is optional: left out (or ``None``)
-      the day follows the template's, a number is the day's own.
-    * ``name``: a one-off, a templateless day with nothing on it yet.
-    * ``name`` and ``copy_from_template_id``: a one-off holding a copy of
-      that template's items, with no link back.
+    * ``packing_list_template_ids``: the templates it includes, in order. The
+      name defaults to the first one's, so ``{packing_list_template_ids: [id],
+      date}`` is a template on a day, named after it.
+    * ``packing_list_template_id``: shorthand for one included template.
+    * ``copy_from_template_id``: start its own items as a copy of that
+      template's, with no link back. The name defaults to the template's.
+    * ``pack_days_before``: its own lead time. Left out (or ``None``) it
+      follows the longest of its templates', and is required when it includes
+      none.
 
-    A one-off has no template to follow, so it needs its own lead time. A
-    template id with a name or a copy, or none of the three, is a ``422`` —
-    the ``ShoppingItemCreate`` rule for ``store`` and ``store_id``.
+    A list with no name and nothing to name it after is a ``422``.
     """
 
-    packing_list_template_id: int | None = None
     name: str | None = None
+    packing_list_template_ids: list[int] = []
+    packing_list_template_id: int | None = None
     copy_from_template_id: int | None = None
     date: str  # YYYY-MM-DD
     label: str | None = None
@@ -1611,32 +1645,35 @@ class PackingListDayCreate(BaseModel):
 
     @model_validator(mode="after")
     def _one_form(self):
-        kept_in_sync = self.packing_list_template_id is not None
-        one_off = self.name is not None or self.copy_from_template_id is not None
-        if kept_in_sync and one_off:
-            raise ValueError("Send packing_list_template_id, or a name for a one-off — not both.")
-        if not kept_in_sync and not one_off:
-            raise ValueError("Send packing_list_template_id, or a name for a one-off.")
-        if one_off and self.name is None:
-            raise ValueError("A one-off needs a name.")
-        if one_off and self.pack_days_before is None:
-            raise ValueError("A one-off needs its own lead time.")
+        if self.packing_list_template_id is not None:
+            if self.packing_list_template_id not in self.packing_list_template_ids:
+                self.packing_list_template_ids = [
+                    self.packing_list_template_id,
+                    *self.packing_list_template_ids,
+                ]
+        self.packing_list_template_ids = list(dict.fromkeys(self.packing_list_template_ids))
+        if self.name is None and not self.included and self.copy_from_template_id is None:
+            raise ValueError("A packing list needs a name.")
+        if not self.included and self.pack_days_before is None:
+            raise ValueError("A packing list that includes no template needs its own lead time.")
         return self
 
     @property
-    def is_one_off(self) -> bool:
-        return self.packing_list_template_id is None
+    def included(self) -> list[int]:
+        return self.packing_list_template_ids
 
 
 class PackingListDayUpdate(BaseModel):
-    # A templateless day's own name; a ``422`` on a templated day, which is
-    # called what its template is called.
     name: str | None = None
     date: str | None = None
     label: str | None = UNSET  # None means "clear"; UNSET means "not provided"
-    # This day's own lead time. None follows the template again (a 422 on a
-    # templateless day, which has none); UNSET leaves it as it is.
+    # This list's own lead time. None follows its templates again (a 422 on a
+    # list that includes none); UNSET leaves it as it is.
     pack_days_before: PackDaysBefore | None = UNSET
+    # The templates it includes, whole and in order: one left out comes off
+    # with its checks and this list's changes to it, a new one comes on with
+    # nothing checked. None leaves them as they are.
+    packing_list_template_ids: list[int] | None = None
 
     @field_validator("name")
     @classmethod
@@ -1654,6 +1691,14 @@ class PackingListDayUpdate(BaseModel):
         return _blank_to_none(value)
 
 
+class PackingListDayTemplateResponse(BaseModel):
+    """A template a list includes, as the page names it."""
+
+    id: int
+    name: str
+    pack_days_before: int
+
+
 class PackingListDayEventLink(BaseModel):
     """A calendar event a day belongs to: the occurrence's own title."""
 
@@ -1663,45 +1708,49 @@ class PackingListDayEventLink(BaseModel):
 
 
 class PackingListDaySummary(BaseModel):
-    """A day's packing list as a row: what it is, when, and how far along.
+    """A packing list on a day as a row: what it is, when, and how far along.
 
-    ``name`` and ``description`` are the template's on a templated day and
-    the day's own on a templateless one (``packing_list_template_id`` is
-    ``None``), so a page reads one pair of fields either way.
+    ``name`` is the list's own. ``templates`` are the templates it includes,
+    in the order it reads them, each read live; empty for a list of only its
+    own items. ``description`` is the list's own, or its one template's.
     """
 
     id: int
-    packing_list_template_id: int | None = None
     name: str
     description: str | None = None
+    templates: list[PackingListDayTemplateResponse] = []
     date: str
     label: str | None = None
-    pack_days_before: int  # In effect for this day: its own, or the template's
+    pack_days_before: int  # In effect: its own, or the longest of its templates'
+    # Its own lead time; None while it follows its templates'.
+    pack_days_before_own: int | None = None
     pack_date: str  # The day it should be packed: the date itself, or that many days before
     schedule_id: int | None = None  # The schedule that put it there; None when added by hand
     total: int
     checked: int
     bags_total: int = 0  # Bags on this day: every bag an item is in, and the bags those go in
     bags_checked: int = 0  # Of those, grabbed
-    # Items this day differs from its template on: edited, removed or added.
-    # Always 0 on a templateless day, which has no template to differ from.
+    # Template items this list differs from its templates on: edited or
+    # removed. Its own items are not changes. Always 0 with no template.
     changed_count: int = 0
     # The calendar events this day moves and goes with; empty for most days.
     events: list[PackingListDayEventLink] = []
 
 
 class PackingListDayItemResponse(BaseModel):
-    """One item as it reads on one day, after the day's own changes.
+    """One item as it reads on one list, after the list's own changes.
 
     ``source`` says which endpoint edits it: ``template`` is a template item
-    (``/template-items/{id}``, ``id`` is the template item's), ``day`` is an
-    item only this day has (``/day-items/{id}``). ``changed`` marks a template
-    item this day has edited, which a later edit to the template no longer
+    (``/template-items/{id}``, ``id`` is the template item's), ``day`` is one
+    of the list's own items (``/day-items/{id}``). ``packing_list_template_id``
+    is the template a template item comes from. ``changed`` marks a template
+    item this list has edited, which a later edit to the template no longer
     reaches.
     """
 
     id: int
     source: Literal["template", "day"]
+    packing_list_template_id: int | None = None
     owner_id: int | None = None
     bag_id: int | None = None
     name: str

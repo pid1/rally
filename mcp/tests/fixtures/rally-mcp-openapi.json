@@ -782,21 +782,6 @@
       ],
       "title": "Notify Minutes Before"
      },
-     "packing_list_span": {
-      "anyOf": [
-       {
-        "enum": [
-         "first",
-         "every"
-        ],
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Packing List Span"
-     },
      "packing_list_template_ids": {
       "default": [],
       "items": {
@@ -804,6 +789,20 @@
       },
       "title": "Packing List Template Ids",
       "type": "array"
+     },
+     "packing_lists": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/EventPackingListSpec"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Packing Lists"
      },
      "rrule": {
       "anyOf": [
@@ -983,6 +982,70 @@
     "title": "EventOverrideResponse",
     "type": "object"
    },
+   "EventPackingListResponse": {
+    "description": "One of the series' own packing lists. ``key`` is its identity on the\nevent (its name, casefolded, when first added).",
+    "properties": {
+     "key": {
+      "title": "Key",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "packing_list_template_ids": {
+      "default": [],
+      "items": {
+       "type": "integer"
+      },
+      "title": "Packing List Template Ids",
+      "type": "array"
+     }
+    },
+    "required": [
+     "key",
+     "name"
+    ],
+    "title": "EventPackingListResponse",
+    "type": "object"
+   },
+   "EventPackingListSpec": {
+    "description": "A packing list an event brings (#281): its own name and the templates\nit includes, read live. A bare template is ``{packing_list_template_ids:\n[id]}``: the name defaults to the first template's. A list with no name\nand no template is a ``422``.",
+    "properties": {
+     "key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Key"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "packing_list_template_ids": {
+      "default": [],
+      "items": {
+       "type": "integer"
+      },
+      "title": "Packing List Template Ids",
+      "type": "array"
+     }
+    },
+    "title": "EventPackingListSpec",
+    "type": "object"
+   },
    "EventResponse": {
     "description": "The stored series row, which is what the edit form reads.\n\nDeliberately *not* the same shape as an occurrence: one is the rule, the\nother is a dated instance of it, and collapsing them is how an edit ends up\napplied to the wrong thing.",
     "properties": {
@@ -1060,23 +1123,12 @@
       "title": "Overrides",
       "type": "array"
      },
-     "packing_list_span": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Packing List Span"
-     },
-     "packing_list_template_ids": {
+     "packing_lists": {
       "default": [],
       "items": {
-       "type": "integer"
+       "$ref": "#/components/schemas/EventPackingListResponse"
       },
-      "title": "Packing List Template Ids",
+      "title": "Packing Lists",
       "type": "array"
      },
      "rrule": {
@@ -1227,21 +1279,6 @@
       ],
       "title": "Notify Minutes Before"
      },
-     "packing_list_span": {
-      "anyOf": [
-       {
-        "enum": [
-         "first",
-         "every"
-        ],
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Packing List Span"
-     },
      "packing_list_template_ids": {
       "anyOf": [
        {
@@ -1255,6 +1292,20 @@
        }
       ],
       "title": "Packing List Template Ids"
+     },
+     "packing_lists": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/EventPackingListSpec"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Packing Lists"
      },
      "rrule": {
       "anyOf": [
@@ -2414,7 +2465,7 @@
     "type": "object"
    },
    "OccurrencePackingList": {
-    "description": "One packing list an occurrence brings, and the days it sits on.",
+    "description": "One packing list an occurrence brings, and the days it sits on. The\nname is the list's on its day when it is on one, since it can be renamed\nthere.",
     "properties": {
      "day_ids": {
       "default": [],
@@ -2424,17 +2475,25 @@
       "title": "Day Ids",
       "type": "array"
      },
+     "key": {
+      "title": "Key",
+      "type": "string"
+     },
      "name": {
       "title": "Name",
       "type": "string"
      },
-     "template_id": {
-      "title": "Template Id",
-      "type": "integer"
+     "packing_list_template_ids": {
+      "default": [],
+      "items": {
+       "type": "integer"
+      },
+      "title": "Packing List Template Ids",
+      "type": "array"
      }
     },
     "required": [
-     "template_id",
+     "key",
      "name"
     ],
     "title": "OccurrencePackingList",
@@ -2918,7 +2977,7 @@
     "type": "object"
    },
    "PackingListDayCreate": {
-    "description": "A packing list on a day, in one of three forms:\n\n* ``packing_list_template_id``: the template itself on that day, kept in\n  sync with it. ``pack_days_before`` is optional: left out (or ``None``)\n  the day follows the template's, a number is the day's own.\n* ``name``: a one-off, a templateless day with nothing on it yet.\n* ``name`` and ``copy_from_template_id``: a one-off holding a copy of\n  that template's items, with no link back.\n\nA one-off has no template to follow, so it needs its own lead time. A\ntemplate id with a name or a copy, or none of the three, is a ``422`` \u2014\nthe ``ShoppingItemCreate`` rule for ``store`` and ``store_id``.",
+    "description": "A packing list on a day (#281): its own name, its own items, and any\nnumber of templates it includes, read live.\n\n* ``packing_list_template_ids``: the templates it includes, in order. The\n  name defaults to the first one's, so ``{packing_list_template_ids: [id],\n  date}`` is a template on a day, named after it.\n* ``packing_list_template_id``: shorthand for one included template.\n* ``copy_from_template_id``: start its own items as a copy of that\n  template's, with no link back. The name defaults to the template's.\n* ``pack_days_before``: its own lead time. Left out (or ``None``) it\n  follows the longest of its templates', and is required when it includes\n  none.\n\nA list with no name and nothing to name it after is a ``422``.",
     "properties": {
      "copy_from_template_id": {
       "anyOf": [
@@ -2979,6 +3038,14 @@
        }
       ],
       "title": "Packing List Template Id"
+     },
+     "packing_list_template_ids": {
+      "default": [],
+      "items": {
+       "type": "integer"
+      },
+      "title": "Packing List Template Ids",
+      "type": "array"
      }
     },
     "required": [
@@ -3093,7 +3160,7 @@
     "type": "object"
    },
    "PackingListDayItemResponse": {
-    "description": "One item as it reads on one day, after the day's own changes.\n\n``source`` says which endpoint edits it: ``template`` is a template item\n(``/template-items/{id}``, ``id`` is the template item's), ``day`` is an\nitem only this day has (``/day-items/{id}``). ``changed`` marks a template\nitem this day has edited, which a later edit to the template no longer\nreaches.",
+    "description": "One item as it reads on one list, after the list's own changes.\n\n``source`` says which endpoint edits it: ``template`` is a template item\n(``/template-items/{id}``, ``id`` is the template item's), ``day`` is one\nof the list's own items (``/day-items/{id}``). ``packing_list_template_id``\nis the template a template item comes from. ``changed`` marks a template\nitem this list has edited, which a later edit to the template no longer\nreaches.",
     "properties": {
      "bag_id": {
       "anyOf": [
@@ -3144,6 +3211,17 @@
        }
       ],
       "title": "Owner Id"
+     },
+     "packing_list_template_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Packing List Template Id"
      },
      "sort_order": {
       "title": "Sort Order",
@@ -3365,7 +3443,7 @@
       "title": "Pack Days Before",
       "type": "integer"
      },
-     "packing_list_template_id": {
+     "pack_days_before_own": {
       "anyOf": [
        {
         "type": "integer"
@@ -3374,7 +3452,7 @@
         "type": "null"
        }
       ],
-      "title": "Packing List Template Id"
+      "title": "Pack Days Before Own"
      },
      "schedule_id": {
       "anyOf": [
@@ -3386,6 +3464,14 @@
        }
       ],
       "title": "Schedule Id"
+     },
+     "templates": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/PackingListDayTemplateResponse"
+      },
+      "title": "Templates",
+      "type": "array"
      },
      "total": {
       "title": "Total",
@@ -3406,7 +3492,7 @@
     "type": "object"
    },
    "PackingListDayResync": {
-    "description": "How much of a day to bring back in line with its template.\n\n``items`` undoes the day's item edits, removals and additions (and puts a\nbag back inside a bag the day took off, once that bag is back); ``all``\nundoes every way the day differs: those, its order, its bag readings, its\nchecks, its label and its lead time.",
+    "description": "How much of a list to bring back in line with every template it\nincludes.\n\n``items`` undoes the list's edits and removals of template items (and puts\na bag back inside a bag the list took off, once that bag is back); ``all``\nalso undoes its order, its bag readings, its checks, its label and its\nlead time. The list's own items stay either way.",
     "properties": {
      "scope": {
       "enum": [
@@ -3421,6 +3507,30 @@
      "scope"
     ],
     "title": "PackingListDayResync",
+    "type": "object"
+   },
+   "PackingListDayTemplateResponse": {
+    "description": "A template a list includes, as the page names it.",
+    "properties": {
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "pack_days_before": {
+      "title": "Pack Days Before",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "pack_days_before"
+    ],
+    "title": "PackingListDayTemplateResponse",
     "type": "object"
    },
    "PackingListDayUpdate": {
@@ -3469,6 +3579,20 @@
        }
       ],
       "title": "Pack Days Before"
+     },
+     "packing_list_template_ids": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "integer"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Packing List Template Ids"
      }
     },
     "title": "PackingListDayUpdate",
@@ -6286,7 +6410,7 @@
     }
    },
    "put": {
-    "description": "Calendar: Update Event.\n\nEdit an event at one of three scopes.\n\n``all`` updates the series and **keeps existing overrides** \u2014 a soccer\npractice the family already moved to Thursday must not snap back to Tuesday\nbecause somebody corrected the title.\n\n``following`` splits the series: the original is truncated with ``UNTIL``\nand a new event carries the edited values forward, taking the overrides at\nor after the split with it. Splitting on a *date* rather than an occurrence\nindex matters \u2014 an index shifts the moment an earlier occurrence is\ncancelled.\n\nEvery scope announces itself to the attendees afterwards. Which occurrence\nthe notice names differs by scope, and that is the point: a change to one\nTuesday says that Tuesday, while a change to the series says the next one\npeople will actually turn up to.\n\nPacking lists follow the same scopes (``packing_lists.set_series_lists`` /\n``set_occurrence_lists``), and the event's packing list days are synced\nbefore anything is committed. A move that would adopt a day already there\nis a ``409`` unless ``adopt``; a move of an occurrence with packing lists\ninto the past is a ``422``. Taking a list off a day nobody else uses is a\n``409`` with ``releases`` until ``release`` says whether the day stays.\nEither way nothing is written.",
+    "description": "Calendar: Update Event.\n\nEdit an event at one of three scopes.\n\n``all`` updates the series and **keeps existing overrides** \u2014 a soccer\npractice the family already moved to Thursday must not snap back to Tuesday\nbecause somebody corrected the title.\n\n``following`` splits the series: the original is truncated with ``UNTIL``\nand a new event carries the edited values forward, taking the overrides at\nor after the split with it. Splitting on a *date* rather than an occurrence\nindex matters \u2014 an index shifts the moment an earlier occurrence is\ncancelled.\n\nEvery scope announces itself to the attendees afterwards. Which occurrence\nthe notice names differs by scope, and that is the point: a change to one\nTuesday says that Tuesday, while a change to the series says the next one\npeople will actually turn up to.\n\nPacking lists follow the same scopes (``packing_lists.set_series_lists`` /\n``set_occurrence_lists``), and the event's packing list days are synced\nbefore anything is committed. A move that would adopt a list already there\nis a ``409`` unless ``adopt``; a move of an occurrence with packing lists\ninto the past is a ``422``. Taking a list off a day nobody else uses is a\n``409`` with ``releases`` until ``release`` says whether the day stays.\nEither way nothing is written.",
     "operationId": "update_event",
     "parameters": [
      {
@@ -8036,7 +8160,7 @@
     }
    },
    "post": {
-    "description": "Packing lists: Create Day.\n\nPut a packing list on a day, starting with nothing checked.\n\nThree forms (``PackingListDayCreate``): a template kept in sync, a blank\none-off, or a one-off holding a copy of a template's items. A day before\ntoday is a ``422``: nobody packs for yesterday. A template already on that\nday is a ``409`` carrying the existing day's id, so the page can open it\ninstead \u2014 the same shape Notes uses. A one-off never clashes: its name is\nits own, and any number of them can share a date.",
+    "description": "Packing lists: Create Day.\n\nPut a packing list on a day, starting with nothing checked (#281).\n\nIt has its own name and includes any number of templates, each read live\n(``PackingListDayCreate``). ``copy_from_template_id`` starts its own items\nas a copy of that template's. A day before today is a ``422``: nobody\npacks for yesterday. There is no date clash: a template may be on one\ndate any number of times, on different lists.",
     "operationId": "packing_create_day",
     "requestBody": {
      "content": {
@@ -8087,7 +8211,7 @@
   },
   "/api/packing-list-days/previous": {
    "get": {
-    "description": "Packing lists: List Previous Days.\n\nDays before today, newest first: the archive.\n\nThe exact complement of the default listing, on the same\n``today_local_str`` boundary. Searching and paging are server-side, and\n``total`` counts every match, the same contract as previous notes. An\nouter join, so a templateless day is in the archive too, found by its own\nname.",
+    "description": "Packing lists: List Previous Days.\n\nDays before today, newest first: the archive.\n\nThe exact complement of the default listing, on the same\n``today_local_str`` boundary. Searching and paging are server-side, and\n``total`` counts every match, the same contract as previous notes. A list\nis found by its own name, its label, or the name of a template it\nincludes.",
     "operationId": "packing_list_previous_days",
     "parameters": [
      {
@@ -8171,7 +8295,7 @@
   },
   "/api/packing-list-days/{day_id}": {
    "delete": {
-    "description": "Packing lists: Delete Day.\n\nTake a packing list off a day. Its template, if it has one, is untouched.\n\nA day a schedule made stays off: the schedule never goes back over a date\nit has already handled. Item history needs nothing undone, because a day\nis only counted once its date is over, and a past day can't be deleted.",
+    "description": "Packing lists: Delete Day.\n\nTake a packing list off a day. The templates it includes are untouched.\n\nA list a schedule made stays off: the schedule never goes back over a\ndate it has already handled. Item history needs nothing undone, because a\nlist is only counted once its date is over, and a past one can't be\ndeleted.",
     "operationId": "packing_delete_day",
     "parameters": [
      {
@@ -8214,7 +8338,7 @@
     }
    },
    "get": {
-    "description": "Packing lists: Get Day.\n\nA day's packing list: its items as this day has them, each with its check.",
+    "description": "Packing lists: Get Day.\n\nA list: its items as it has them, each with its check.",
     "operationId": "packing_get_day",
     "parameters": [
      {
@@ -8264,7 +8388,7 @@
     }
    },
    "put": {
-    "description": "Packing lists: Update Day.\n\nMove a day's packing list to another date, relabel it, or give it its own\nlead time (``pack_days_before``; ``null`` follows the template again, and\nis a ``422`` on a templateless day, which has no template to follow).\nRename a templateless day (``name``; a ``422`` on a templated day).\nChecks stay.\n\nA label set here is the day's own from then on: a schedule's relabel\npasses over it.",
+    "description": "Packing lists: Update Day.\n\nRename a list, move it to another date, relabel it, give it its own\nlead time (``pack_days_before``; ``null`` follows its templates' again,\nand is a ``422`` on a list that includes none), or change which templates\nit includes (``packing_list_template_ids``, whole and in order). Checks\nstay, except on a template taken off it.\n\nA label set here is the list's own from then on: a schedule's relabel\npasses over it.",
     "operationId": "packing_update_day",
     "parameters": [
      {
@@ -8877,7 +9001,7 @@
   },
   "/api/packing-list-days/{day_id}/resync": {
    "post": {
-    "description": "Packing lists: Resync Day.\n\nBring one day back in line with its template (``logic.resync_day``):\n``items`` undoes its item changes, ``all`` everything it does differently.\n\nIdempotent. A past day is a ``403``; a templateless day, which has no\ntemplate to resync with, a ``422``.",
+    "description": "Packing lists: Resync Day.\n\nBring one list back in line with every template it includes\n(``logic.resync_day``): ``items`` undoes its changes to template items,\n``all`` everything it does differently. Its own items stay.\n\nIdempotent. A past list is a ``403``; a list with no template to resync\nwith, a ``422``.",
     "operationId": "packing_resync_day",
     "parameters": [
      {
@@ -8939,7 +9063,7 @@
   },
   "/api/packing-list-days/{day_id}/template-items/{template_item_id}": {
    "delete": {
-    "description": "Packing lists: Remove Day Template Item.\n\nTake a template item off one day. The template, and every other day, keep it.",
+    "description": "Packing lists: Remove Day Template Item.\n\nTake a template item off one list. The template, and every other list, keep it.",
     "operationId": "packing_remove_day_template_item",
     "parameters": [
      {
@@ -9513,7 +9637,7 @@
   },
   "/api/packing-list-templates/{template_id}": {
    "delete": {
-    "description": "Packing lists: Delete Template.\n\nDelete a template, its items and its schedule.\n\nEvery day it is on is kept, made templateless first so it reads exactly as\nit did (``logic.delete_template``): deleting a template never erases what\nwas packed or what is coming up.",
+    "description": "Packing lists: Delete Template.\n\nDelete a template, its items and its schedule.\n\nEvery list that includes it keeps its items as the list's own, so it\nreads exactly as it did (``logic.delete_template``): deleting a template\nnever erases what was packed or what is coming up.",
     "operationId": "packing_delete_template",
     "parameters": [
      {
@@ -9923,7 +10047,7 @@
   },
   "/api/packing-list-templates/{template_id}/items/reorder": {
    "post": {
-    "description": "Packing lists: Reorder Template Items.\n\nOne group, in one view, as it should now read \u2014 and who or what it is.\n\nEvery listed item takes the group's owner (``view: owner``) or bag\n(``view: bag``), so a drag into another group is one request and cannot\nhalf-apply. The template keeps one order: the listed items are dealt back\ninto the positions they held between them, in the new sequence, so items\nin other groups keep their places. Duplicate ids keep their first mention;\nan id not on this template is a ``404`` and nothing changes; an unknown\nowner or bag is a ``422``.\n\nThe template's order wins: every day it is on from today on drops the\norder it was arranged in by hand and reads in the new one.",
+    "description": "Packing lists: Reorder Template Items.\n\nOne group, in one view, as it should now read \u2014 and who or what it is.\n\nEvery listed item takes the group's owner (``view: owner``) or bag\n(``view: bag``), so a drag into another group is one request and cannot\nhalf-apply. The template keeps one order: the listed items are dealt back\ninto the positions they held between them, in the new sequence, so items\nin other groups keep their places. Duplicate ids keep their first mention;\nan id not on this template is a ``404`` and nothing changes; an unknown\nowner or bag is a ``422``.\n\nThe template's order wins: every list that includes it from today on\ndrops the order it was arranged in by hand and reads in the new one.",
     "operationId": "packing_reorder_template_items",
     "parameters": [
      {

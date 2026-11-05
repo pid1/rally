@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 import pytest
 
 from rally.models import (
-    PackingListDay,
     PackingListDayBag,
     PackingListDayBagCheck,
     PackingListTemplateBag,
@@ -319,10 +318,8 @@ def test_a_bag_that_leaves_a_day_comes_back_unchecked(client, beach):
     assert [b for b in day["bags"] if b["id"] == pool_id][0]["checked"] is False
 
 
-def test_a_past_day_keeps_its_grab_checks(client, db_session, beach):
-    past = PackingListDay(packing_list_template_id=beach["template"]["id"], date="2026-09-30")
-    db_session.add(past)
-    db_session.flush()
+def test_a_past_day_keeps_its_grab_checks(client, db_session, beach, make_packing_day):
+    past = make_packing_day("2026-09-30", [beach["template"]["id"]])
     # A check for a bag that is not on the day: the archive leaves it be.
     db_session.add(PackingListDayBagCheck(day_id=past.id, bag_id=beach["cooler"]["id"]))
     db_session.commit()

@@ -67,6 +67,12 @@ def _days(client):
     return client.get("/api/packing-list-days").json()
 
 
+def _brings(event):
+    """The templates an event's own lists include, in order (#281: each list
+    names its templates; a bare template is a list of its own)."""
+    return [tid for item in event["packing_lists"] for tid in item["packing_list_template_ids"]]
+
+
 def _on(client, name):
     return [(d["date"], d["name"]) for d in _days(client) if d["name"] == name]
 
@@ -84,7 +90,8 @@ def test_saving_an_event_puts_its_lists_on_its_day(client, beach, nana):
         title="Nana's house overnight and beach day",
         packing_list_template_ids=[beach["id"], nana["id"]],
     )
-    assert event["packing_list_template_ids"] == [beach["id"], nana["id"]]
+    assert _brings(event) == [beach["id"], nana["id"]]
+    assert [item["name"] for item in event["packing_lists"]] == ["Beach day", "Nana overnight"]
 
     days = _days(client)
     assert sorted((d["date"], d["name"]) for d in days) == [
@@ -100,7 +107,7 @@ def test_saving_an_event_puts_its_lists_on_its_day(client, beach, nana):
             }
         ]
         # Kept in sync with the template, following its lead time.
-        assert day["packing_list_template_id"] is not None
+        assert len(day["templates"]) == 1
         assert day["label"] is None
 
 
@@ -165,23 +172,14 @@ def test_saving_adopts_a_day_already_there_with_its_checks(client, beach, db_ses
     assert len(days[0]["events"]) == 1
 
 
-def test_every_day_puts_the_list_on_each_date(client, beach):
+def test_a_three_day_event_puts_its_list_on_its_first_day_only(client, beach):
+    """#281: a multi-day event is one ongoing event, not a trip each day.
+    `Put on` is gone, and an old client's `packing_list_span` is ignored."""
     _event(
         client,
         start=SATURDAY,
         end="2026-10-12",
         packing_list_span="every",
-        packing_list_template_ids=[beach["id"]],
-    )
-    assert [date for date, _ in _on(client, "Beach day")] == [SATURDAY, "2026-10-11", "2026-10-12"]
-
-
-def test_first_day_puts_a_multi_day_event_on_its_start(client, beach):
-    _event(
-        client,
-        start=SATURDAY,
-        end="2026-10-11",
-        packing_list_span="first",
         packing_list_template_ids=[beach["id"]],
     )
     assert _on(client, "Beach day") == [(SATURDAY, "Beach day")]
@@ -283,18 +281,6 @@ def test_removing_a_list_in_the_modal_takes_it_off(client, beach, nana):
     event = _event(client, packing_list_template_ids=[beach["id"], nana["id"]])
     _put(client, event["id"], "?release=remove", packing_list_template_ids=[nana["id"]])
     assert [d["name"] for d in _days(client)] == ["Nana overnight"]
-
-
-def test_switching_to_first_day_lets_the_extra_dates_go(client, beach):
-    event = _event(
-        client,
-        start=SATURDAY,
-        end="2026-10-12",
-        packing_list_span="every",
-        packing_list_template_ids=[beach["id"]],
-    )
-    _put(client, event["id"], packing_list_span="first")
-    assert _on(client, "Beach day") == [(SATURDAY, "Beach day")]
 
 
 # --- Deleting ------------------------------------------------------------------
@@ -441,7 +427,7 @@ def test_this_and_following_carries_the_lists_to_the_tail(client, drop_off, gym,
     )
     assert response.status_code == 200, response.text
     tail = response.json()
-    assert tail["packing_list_template_ids"] == [backpack["id"], gym["id"]]
+    assert _brings(tail) == [backpack["id"], gym["id"]]
     assert [date for date, _ in _on(client, "Gym bag")] == SCHOOL_DAYS[2:]
     by_date = {d["date"]: d for d in _days(client) if d["name"] == "School backpack"}
     assert by_date["2026-10-09"]["events"][0]["event_id"] == drop_off["id"]
@@ -496,28 +482,8 @@ def test_removing_the_day_takes_the_list_off_the_occurrence(client, drop_off):
 def test_removing_a_one_time_events_day_drops_the_list(client, beach):
     event = _event(client, packing_list_template_ids=[beach["id"]])
     client.delete(f"/api/packing-list-days/{_days(client)[0]['id']}")
-    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == []
+    assert _brings(client.get(f"/api/events/{event['id']}").json()) == []
     assert _days(client) == []
-
-
-def test_removing_one_date_of_every_day_keeps_the_others(client, beach):
-    event = _event(
-        client,
-        start=SATURDAY,
-        end="2026-10-12",
-        packing_list_span="every",
-        packing_list_template_ids=[beach["id"]],
-    )
-    sunday = next(d for d in _days(client) if d["date"] == "2026-10-11")
-    client.delete(f"/api/packing-list-days/{sunday['id']}")
-
-    assert [date for date, _ in _on(client, "Beach day")] == [SATURDAY, "2026-10-12"]
-    # Syncing again leaves Sunday empty, and the event still lists Beach day.
-    _put(client, event["id"], title="Trip again")
-    assert [date for date, _ in _on(client, "Beach day")] == [SATURDAY, "2026-10-12"]
-    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == [
-        beach["id"]
-    ]
 
 
 def test_deleting_the_template_unlinks_its_days(client, beach, db_session):
@@ -526,9 +492,11 @@ def test_deleting_the_template_unlinks_its_days(client, beach, db_session):
 
     days = _days(client)
     assert len(days) == 1
-    assert days[0]["packing_list_template_id"] is None
+    # The list stays, with the template's items as its own (#281).
+    assert (days[0]["name"], days[0]["templates"]) == ("Beach day", [])
+    assert [i["name"] for i in days[0]["items"]] == ["Sunscreen", "Towels"]
     assert days[0]["events"] == []
-    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == []
+    assert _brings(client.get(f"/api/events/{event['id']}").json()) == []
 
     # The day no longer moves with the event.
     _put(client, event["id"], start=NEXT_SATURDAY, end=NEXT_SATURDAY, all_day=True)
@@ -575,9 +543,9 @@ def test_adding_a_list_on_a_day_it_is_already_on_asks_first(client, beach):
         '"Beach day" is already on Saturday, Oct 10, 2026. This event will use that list. Continue?'
     )
     assert detail["adopts"] == [
-        {"template_name": "Beach day", "from_date": None, "to_date": SATURDAY, "checked": False}
+        {"name": "Beach day", "from_date": None, "to_date": SATURDAY, "checked": False}
     ]
-    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == []
+    assert _brings(client.get(f"/api/events/{event['id']}").json()) == []
     assert _days(client)[0]["events"] == []
 
     response = _put(client, event["id"], "?adopt=true", packing_list_template_ids=[beach["id"]])
@@ -649,7 +617,7 @@ def test_adding_a_list_to_a_past_event_is_refused(client, beach):
     assert response.status_code == 422
     assert response.json()["detail"] == ADDED_TO_PAST
     # Nothing was stored, and no day was made.
-    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == []
+    assert _brings(client.get(f"/api/events/{event['id']}").json()) == []
     assert _days(client) == []
 
 
@@ -686,16 +654,11 @@ def test_a_series_that_started_in_the_past_still_takes_a_list(client, beach):
     assert [date for date, _ in _on(client, "Beach day")][:1] == [SATURDAY]
 
 
-def test_an_event_under_way_takes_a_list_on_every_day_but_not_its_first(client, beach, nana):
-    """The sync's own rule decides: `Every day` still has today, `First day` has
-    passed."""
-    under_way = {"start": "2026-10-06", "end": "2026-10-10"}
-    every = _event(client, packing_list_span="every", **under_way)
-    response = _put(client, every["id"], packing_list_template_ids=[beach["id"]])
-    assert response.status_code == 200, response.text
-
-    first = _event(client, packing_list_span="first", **under_way)
-    response = _put(client, first["id"], packing_list_template_ids=[nana["id"]])
+def test_an_event_under_way_takes_no_new_list(client, beach):
+    """The sync's own rule decides (#281): a list goes on the first day, and
+    that has passed."""
+    under_way = _event(client, start="2026-10-06", end="2026-10-10")
+    response = _put(client, under_way["id"], packing_list_template_ids=[beach["id"]])
     assert response.status_code == 422
     assert response.json()["detail"] == ADDED_TO_PAST
 
@@ -744,9 +707,8 @@ def test_removing_a_list_on_a_day_asks_first(client, beach):
     assert detail["remove_label"] == "Remove it, with what was checked on it"
     assert [(r["name"], r["date"]) for r in detail["releases"]] == [("Beach day", SATURDAY)]
     # Nothing was written: the event still brings the list.
-    assert client.get(f"/api/events/{event['id']}").json()["packing_list_template_ids"] == [
-        beach["id"]
-    ]
+    lists = client.get(f"/api/events/{event['id']}").json()["packing_lists"]
+    assert [p["packing_list_template_ids"] for p in lists] == [[beach["id"]]]
     assert [e["title"] for e in _days(client)[0]["events"]] == ["Trip"]
 
 
@@ -808,7 +770,7 @@ def test_joining_and_letting_go_in_one_save_is_one_question(client, beach, nana)
     )
     assert detail["keep_label"] == 'Keep "Beach day" on Saturday'
     assert detail["remove_label"] == 'Remove "Beach day", with what was checked on it'
-    assert [a["template_name"] for a in detail["adopts"]] == ["Nana overnight"]
+    assert [a["name"] for a in detail["adopts"]] == ["Nana overnight"]
 
     response = _put(
         client, event["id"], "?adopt=true&release=keep", packing_list_template_ids=[nana["id"]]
@@ -923,9 +885,9 @@ def test_the_question_says_when_a_schedule_made_the_day(client, beach, nana, db_
             "/api/packing-list-days",
             json={"packing_list_template_id": template["id"], "date": SATURDAY},
         )
-    db_session.query(PackingListDay).filter(
-        PackingListDay.packing_list_template_id == nana["id"]
-    ).update({PackingListDay.schedule_id: 1})
+    db_session.query(PackingListDay).filter(PackingListDay.name == "Nana overnight").update(
+        {PackingListDay.schedule_id: 1}
+    )
     db_session.commit()
 
     event = _event(client, adopt=True, packing_list_template_ids=[nana["id"]])

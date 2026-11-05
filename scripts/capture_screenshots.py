@@ -179,14 +179,20 @@ REVIEW = json.dumps({
 # run_review expects (raw, model) back from the call it is given.
 prep_review.run_review(db, llm=lambda *a, **k: (REVIEW, "demo-model"))
 
-# The seed puts no day's own changes on any packing list, so the coming beach
-# day gets two: a frisbee for that day only, and the umbrella's note changed
-# for it alone. That is what marks a row "(added)" or "(changed)" and puts
-# "2 items changed" beside the entry's Edit.
-from rally.models import PackingListTemplate, PackingListDay, PackingListDayItem, PackingListTemplateItem
+# The seed puts no list's own changes on any packing list, so the coming beach
+# day gets two: a frisbee on that list only, and the umbrella's note changed
+# for it alone. That is what marks a row "(changed)" and puts "1 item changed"
+# beside the entry's Edit, and the frisbee, the list's own, makes each beach
+# item say where it came from (⧉ Beach day, #281).
+from rally.models import (
+    PackingListTemplate, PackingListDay, PackingListDayItem, PackingListDayTemplate,
+    PackingListTemplateItem,
+)
 beach = db.query(PackingListTemplate).filter(PackingListTemplate.name == "Beach day").one()
 beach_day = (
-    db.query(PackingListDay).filter(PackingListDay.packing_list_template_id == beach.id)
+    db.query(PackingListDay)
+    .join(PackingListDayTemplate, PackingListDayTemplate.day_id == PackingListDay.id)
+    .filter(PackingListDayTemplate.packing_list_template_id == beach.id)
     .order_by(PackingListDay.date.desc()).first()
 )
 umbrella = db.query(PackingListTemplateItem).filter(
@@ -377,8 +383,9 @@ def _wait_for_packing_lists(page):
 SWIM_CARD = '[data-day-card]:has-text("Cousins are coming too")'
 # The day box holding it, which is what a reader sees as one day.
 SWIM_BOX = f".day-box:has({SWIM_CARD})"
-# The coming beach day, which the screenshot seed gives changes of its own.
-BEACH_CARD = '[data-day-card]:has-text("Beach day")'
+# The coming beach day the screenshot seed gives changes of its own: the one
+# whose entry says so (tomorrow's Beach day is another, unchanged list).
+BEACH_CARD = '[data-day-card]:has-text("Beach day"):has(.day-changes)'
 BEACH_BOX = f".day-box:has({BEACH_CARD})"
 
 
@@ -471,7 +478,8 @@ def _open_template(page):
 
 
 def _open_day_edit(page):
-    """Edit on the swim's entry: one day's date, label and lead time."""
+    """Edit on the swim's entry: its name, the templates it includes, its date,
+    label and lead time (#281)."""
     _wait_for_packing_lists(page)
     page.locator(SWIM_CARD).first.locator("[data-edit-day]").click()
     page.wait_for_selector("#day-edit-modal-overlay .modal-content", state="visible")
@@ -492,15 +500,13 @@ def _open_swim_event(page, edit=False):
 
 
 def _open_swim_event_packing(page):
-    """Edit on the swim's event with a second list picked and the event made
-    two days long, so `What to pack` shows both lists and `Put on` — nothing
-    is saved."""
+    """Edit on the swim's event with a new named packing list added (#281):
+    `What to pack` shows the swim's list, and the new one's Name and Includes,
+    with a template included — nothing is saved."""
     _open_swim_event(page, edit=True)
-    page.select_option("#event-packing-select", label="Beach day")
-    end = page.locator("#event-end-date")
-    start = page.input_value("#event-start-date")
-    end.fill((date.fromisoformat(start) + timedelta(days=1)).isoformat())
-    end.dispatch_event("change")
+    page.select_option("#event-packing-select", value="new")
+    page.fill("#event-packing-name-1", "Sleepover at Nana's")
+    page.select_option("#event-packing-include-1", label="Family vacation")
     page.evaluate("() => document.activeElement.blur()")
     _park_pointer(page)
 
@@ -511,22 +517,6 @@ def _open_swim_remove(page):
     page.locator(SWIM_CARD).first.locator("[data-remove-day]").click()
     page.wait_for_selector("#dialog-modal-overlay .modal-content", state="visible")
     _park_pointer(page)
-
-
-def _open_add_day_refused(page):
-    """Add Packing List, kept in sync, on a date the template is already on:
-    refused in place under Date."""
-    _wait_for_packing_lists(page)
-    day = page.evaluate('() => days.find(d => d.name === "Swim at Nana\'s" && d.label)')
-    page.evaluate("() => openAddDayModal()")
-    page.check('input[name="day-add-start"][value="template"]')
-    page.select_option("#day-add-source", label="Swim at Nana's")
-    page.check('input[name="day-add-mode"][value="sync"]')
-    page.fill("#day-date", day["date"])
-    page.dispatch_event("#day-date", "change")
-    page.click("#day-add-modal-overlay button[type=submit]")
-    page.wait_for_selector("#day-add-message", state="visible")
-    page.wait_for_timeout(400)
 
 
 def _open_add_item_suggesting(page):
@@ -559,18 +549,16 @@ def _open_schedule(page):
 
 
 def _open_add_packing_list(page):
-    """Add Packing List starting from a copy of Beach day, renamed and dated."""
+    """Add Packing List for a trip (#281): its own name, including Dad's work
+    bag kept in sync, dated — nothing is saved."""
     _wait_for_packing_lists(page)
     page.click("#btn-add-day")
     page.wait_for_selector("#day-add-modal-overlay .modal-content", state="visible")
-    page.check('input[name="day-add-start"][value="template"]')
-    page.select_option("#day-add-source", label="Beach day")
-    page.fill("#day-add-name", "Theme park")
+    page.fill("#day-add-name", "Dad Goes to South Carolina")
+    page.select_option("#day-add-includes-select", label="Dad's work bag")
     page.fill("#day-date", (date.today() + timedelta(days=9)).isoformat())
-    page.fill("#day-label", "Cousins are coming too")
-    page.fill("#day-add-pack-days", "1")
-    page.locator("#day-add-pack-days").dispatch_event("input")
-    page.locator("#day-add-pack-days").blur()
+    page.fill("#day-label", "Business trip")
+    page.locator("#day-label").blur()
     page.wait_for_timeout(300)
 
 
@@ -940,14 +928,6 @@ SHOTS: tuple[Shot, ...] = (
         scale=1,
         element="#dialog-modal-overlay .modal-content",
         setup=_open_swim_remove,
-    ),
-    Shot(
-        "packing-list-add-refused",
-        "/packing-lists",
-        height=1200,
-        scale=1,
-        element="#day-add-modal-overlay .modal-content",
-        setup=_open_add_day_refused,
     ),
     # Last, because its setup writes through the server: anything captured
     # after it would show Claude's changes.

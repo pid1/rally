@@ -298,14 +298,13 @@ def test_a_one_off_day_and_a_schedule_live_side_by_side(client, backpack):
     assert days[0]["id"] == saturday["id"]
 
 
-def test_a_new_label_relabels_the_days_it_added_from_today_on(client, backpack, db_session):
+def test_a_new_label_relabels_the_days_it_added_from_today_on(
+    client, backpack, db_session, make_packing_day
+):
     schedule = _schedule(client, backpack["id"], label="Emma")
     _upcoming_dates(client)
-    past = PackingListDay(
-        packing_list_template_id=backpack["id"],
-        date="2026-09-30",
-        label="Emma",
-        schedule_id=schedule["id"],
+    past = make_packing_day(
+        "2026-09-30", [backpack["id"]], label="Emma", schedule_id=schedule["id"]
     )
     by_hand = client.post(
         "/api/packing-list-days",

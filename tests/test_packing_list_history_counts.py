@@ -14,6 +14,7 @@ from rally import packing_lists as logic
 from rally.models import (
     PackingListDay,
     PackingListDayItem,
+    PackingListDayTemplate,
     PackingListItemHistory,
     Setting,
 )
@@ -57,8 +58,10 @@ def _marker(db_session, value):
 
 
 def _day(db_session, template_id, day):
-    row = PackingListDay(packing_list_template_id=template_id, date=day)
+    row = PackingListDay(name="Swim", date=day)
     db_session.add(row)
+    db_session.flush()
+    db_session.add(PackingListDayTemplate(day_id=row.id, packing_list_template_id=template_id))
     db_session.commit()
     return row
 
@@ -123,7 +126,7 @@ def test_a_templateless_day_counts(client, db_session, swim):
     _marker(db_session, "2026-09-25")
     day = _day(db_session, swim["id"], "2026-09-26")
     client.delete(f"/api/packing-list-templates/{swim['id']}")
-    assert db_session.get(PackingListDay, day.id).packing_list_template_id is None
+    assert logic.day_template_ids(db_session, day.id) == []
 
     logic.count_packed_days(db_session, TODAY)
 

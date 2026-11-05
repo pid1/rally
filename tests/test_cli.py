@@ -30,7 +30,8 @@ from rally.models import (
     ShoppingStore,
     Todo,
 )
-from rally.packing_lists import pack_date
+from rally.packing_lists import day_template_ids, pack_date
+from rally.packing_lists import pack_days_before as packing_days_before
 from rally.preparedness import status_of
 from rally.utils.timezone import today_utc
 
@@ -182,10 +183,11 @@ def test_seed_gives_the_archive_shared_days_and_an_unfinished_list(cli_db):
     assert sum(1 for n in per_date.values() if n > 1) >= 2
 
     def unchecked(day):
-        items = (
+        items = sum(
             cli_db.query(PackingListTemplateItem)
-            .filter_by(packing_list_template_id=day.packing_list_template_id)
+            .filter_by(packing_list_template_id=template_id)
             .count()
+            for template_id in day_template_ids(cli_db, day.id)
         )
         checks = cli_db.query(PackingListDayCheck).filter_by(day_id=day.id).count()
         return items - checks
@@ -197,11 +199,11 @@ def test_seed_shows_a_one_off_beside_a_templates_day(cli_db):
     """Coming Up should show both kinds: a one-off has no template behind it."""
     cli.seed()
     today = today_utc().isoformat()
-    one_offs = (
-        cli_db.query(PackingListDay)
-        .filter(PackingListDay.packing_list_template_id.is_(None), PackingListDay.date >= today)
-        .all()
-    )
+    one_offs = [
+        day
+        for day in cli_db.query(PackingListDay).filter(PackingListDay.date >= today)
+        if not day_template_ids(cli_db, day.id)
+    ]
     assert [(d.name, d.pack_days_before) for d in one_offs] == [("Fall concert", 1)]
     same_day = cli_db.query(PackingListDay).filter_by(date=one_offs[0].date).count()
     assert same_day >= 2
@@ -219,10 +221,8 @@ def test_seed_splits_tomorrows_box_across_due_now_and_coming_up(cli_db, monkeypa
 
     pack_dates = []
     for day in cli_db.query(PackingListDay).filter_by(date=tomorrow):
-        lead = day.pack_days_before
-        if lead is None:
-            lead = cli_db.get(PackingListTemplate, day.packing_list_template_id).pack_days_before
-        pack_dates.append(pack_date(day.date, lead))
+        templates = [cli_db.get(PackingListTemplate, t) for t in day_template_ids(cli_db, day.id)]
+        pack_dates.append(pack_date(day.date, packing_days_before(day, templates)))
     assert any(p <= today.isoformat() for p in pack_dates)
     assert any(p > today.isoformat() for p in pack_dates)
 
