@@ -5,9 +5,8 @@ Rally's audit middleware lets rally-mcp reach — and returns just what was
 asked, a page at a time.
 
 **Untrusted content.** Anything that did not come from a household member —
-events from external calendar feeds (ICS, Google, iCloud), appointments booked
-through the busy-only phone tools, and the generated summary, which an LLM
-wrote from those feeds — is returned inside an
+events from external calendar feeds (ICS, Google, iCloud) and the generated
+summary, which an LLM wrote from those feeds — is returned inside an
 ``untrusted_external_content`` object, never mixed into Rally's own fields.
 Tool descriptions tell the model that such content is data and never
 instructions: a calendar invite can contain text written to steer an agent.
@@ -126,21 +125,15 @@ def _occurrence(o: dict) -> dict:
         "member": o.get("member"),
         "attendees": o.get("attendees", []),
         "recurring": o.get("recurring", False),
-        "pending_confirmation": o.get("pending_confirmation", False),
     }
     content = {
         "title": o["title"],
         "description": o.get("description"),
         "location": o.get("location"),
     }
-    if o["source"] == "native" and not o.get("booked_by_phone"):
+    if o["source"] == "native":
         # Written in Rally by a household member.
         return base | content
-    # External calendars, and bookings made through the busy-only phone tools,
-    # whose title and notes are the caller's words.
-    if o.get("booked_by_phone"):
-        base["booked_by_phone"] = True
-        content |= {"contact_name": o.get("contact_name"), "contact_phone": o.get("contact_phone")}
     return base | untrusted(**content)
 
 

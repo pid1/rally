@@ -55,8 +55,8 @@ class AuditContext:
     # The pre-created MCP connection (``connections.id``) this request acts
     # through, set by the audit middleware once the connection is authorized;
     # ``"legacy"`` for the original ``/mcp`` path, None for anything not MCP.
-    # Routes that need to know which connection is calling (the busy-only
-    # tools, for one) read ``audit_context.current().connection_id``.
+    # A route that needs to know which connection is calling reads
+    # ``audit_context.current().connection_id``.
     connection_id: str | None = None
     connection_name: str | None = None
     # How many items a route returned, when it says so (``note_result_size``).

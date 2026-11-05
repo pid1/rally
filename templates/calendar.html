@@ -284,7 +284,6 @@
                 <div id="detail-body"></div>
                 <div id="detail-notify-result"></div>
                 <div class="modal-actions">
-                    <button type="button" class="btn" id="btn-confirm-booking" style="display:none;">Confirm booking</button>
                     <button type="button" class="btn" id="btn-notify-attendees" style="display:none;">Notify attendees</button>
                     <button type="button" class="btn" id="btn-detail-edit" style="display:none;">Edit</button>
                     <button type="button" class="btn" id="btn-close-detail">Close</button>
@@ -687,19 +686,6 @@
                 .replace(' PM', 'p');
         }
 
-        /* A booking made by the phone assistant (the busy-only tools) waits for
-           the family to confirm it. Said in a glyph and a word, never by color
-           alone, and the chip's dashed outline says the same thing again. */
-        function pendingMark(occurrence) {
-            return occurrence.pending_confirmation
-                ? '<span class="pending-mark" title="Booked by phone. Waiting for the family to confirm it.">☎ <span class="pending-mark-word">Pending</span></span>'
-                : '';
-        }
-
-        function pendingClass(occurrence) {
-            return occurrence.pending_confirmation ? ' is-pending' : '';
-        }
-
         function dotFor(occurrence) {
             const color = occurrence.member_color || '';
             return `<span class="calendar-dot"${color ? ` style="background:${escapeHtml(color)}"` : ''}></span>`;
@@ -742,7 +728,7 @@
                     const label = !occurrence.all_day && occurrence.start_date === iso
                         ? `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`
                         : '';
-                    html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}" data-occurrence="${index}" title="${escapeHtml(occurrence.title)}">${dotFor(occurrence)}${label}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
+                    html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}" data-occurrence="${index}" title="${escapeHtml(occurrence.title)}">${dotFor(occurrence)}${label}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
                 });
                 if (hidden > 0) {
                     html += `<button type="button" class="calendar-more" data-agenda-date="${iso}">+${hidden} more</button>`;
@@ -886,10 +872,10 @@
                 const first = covered[0];
                 const last = covered[covered.length - 1];
                 bars.push(
-                    `<button type="button" class="calendar-timegrid-allday-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}"`
+                    `<button type="button" class="calendar-timegrid-allday-event${occurrence.editable ? '' : ' is-external'}"`
                     + ` data-occurrence="${index}" title="${escapeHtml(occurrence.title)}"`
                     + ` style="grid-column: ${first + 1} / ${last + 2}">`
-                    + `${dotFor(occurrence)}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`
+                    + `${dotFor(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`
                 );
             });
             if (!bars.length) return '';
@@ -966,8 +952,7 @@
                     const time = item.occurrence.start_date === iso
                         ? item.occurrence.time_label
                         : 'Continues';
-                    const label = pendingMark(item.occurrence)
-                        + `<span class="calendar-event-title">${escapeHtml(item.occurrence.title)}</span>`
+                    const label = `<span class="calendar-event-title">${escapeHtml(item.occurrence.title)}</span>`
                         + `<span class="calendar-timegrid-event-time">${escapeHtml(time)}</span>`;
                     // The tab is measured off the hour, not off the button: the
                     // button is the body's 30 minutes, so a percentage of it
@@ -977,7 +962,7 @@
                             + `${color ? `;background:${escapeHtml(color)}` : ''}"></span>`
                             + `<span class="calendar-timegrid-event-body">${label}</span>`
                         : label;
-                    blocks += `<button type="button" class="calendar-timegrid-event${short ? ' is-short' : ''}${item.occurrence.editable ? '' : ' is-external'}${pendingClass(item.occurrence)}"`
+                    blocks += `<button type="button" class="calendar-timegrid-event${short ? ' is-short' : ''}${item.occurrence.editable ? '' : ' is-external'}"`
                         + ` data-occurrence="${index}" style="${style}"`
                         + ` title="${escapeHtml(`${time} · ${item.occurrence.title}`)}">`
                         + inner
@@ -1091,7 +1076,7 @@
                         <div class="editable-item" data-occurrence="${index}" role="button" tabindex="0">
                             <div class="agenda-time">${escapeHtml(time)}</div>
                             <div class="editable-item-content">
-                                <div class="editable-item-title">${dotFor(occurrence)} ${pendingMark(occurrence)}${escapeHtml(occurrence.title)}</div>
+                                <div class="editable-item-title">${dotFor(occurrence)} ${escapeHtml(occurrence.title)}</div>
                                 ${occurrence.location ? `<div class="editable-item-description">${escapeHtmlWithPhoneLinks(occurrence.location)}</div>` : ''}
                                 ${who ? `<div class="assignee-label">${escapeHtml(who)}</div>` : ''}
                             </div>
@@ -2282,16 +2267,6 @@
                    and matches the notices. */
                 ['when', 'When', occurrence.when_display],
             ];
-            /* A phone booking says so first: whether it still needs
-               confirming, and that its title, notes and contact are the
-               caller's words rather than the family's. */
-            if (occurrence.booked_by_phone) {
-                rows.unshift(['booking', 'Booking', occurrence.pending_confirmation
-                    ? '☎ Pending — booked by phone. Confirm it, or edit or delete it.'
-                    : '☎ Confirmed — booked by phone.']);
-                const contact = [occurrence.contact_name, occurrence.contact_phone].filter(Boolean).join(', ');
-                rows.push(['contact', 'Contact', contact || '—']);
-            }
             /* "Is this the one Tuesday or every Tuesday?" is asked here, and
                until now could only be answered by opening the edit form. Every
                source names its cadence: a CalDAV server expands its own
@@ -2351,28 +2326,9 @@
             linkPhoneNumbers(document.getElementById('detail-value-notes'));
 
             document.getElementById('btn-detail-edit').style.display = occurrence.editable ? '' : 'none';
-            document.getElementById('btn-confirm-booking').style.display =
-                occurrence.pending_confirmation && occurrence.event_id ? '' : 'none';
             document.getElementById('btn-notify-attendees').style.display =
                 occurrence.editable && occurrence.attendees.length ? '' : 'none';
             showModalOverlay('detail-modal-overlay');
-        }
-
-        async function confirmBooking() {
-            if (!detailOccurrence || !detailOccurrence.event_id) return;
-            const button = document.getElementById('btn-confirm-booking');
-            button.disabled = true;
-            try {
-                const response = await fetch(`/api/events/${detailOccurrence.event_id}/confirm`, { method: 'POST' });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                hideModalOverlay('detail-modal-overlay');
-                load();
-            } catch (error) {
-                document.getElementById('detail-notify-result').innerHTML =
-                    '<div class="notify-result">Could not reach Rally to confirm that.</div>';
-            } finally {
-                button.disabled = false;
-            }
         }
 
         async function notifyAttendees() {
@@ -2548,7 +2504,6 @@
         document.getElementById('btn-cancel-event').addEventListener('click', closeEventModal);
         document.getElementById('btn-close-detail').addEventListener('click', () => hideModalOverlay('detail-modal-overlay'));
         document.getElementById('btn-notify-attendees').addEventListener('click', notifyAttendees);
-        document.getElementById('btn-confirm-booking').addEventListener('click', confirmBooking);
         document.getElementById('btn-detail-edit').addEventListener('click', () => {
             hideModalOverlay('detail-modal-overlay');
             if (detailOccurrence) openEditEventModal(detailOccurrence);

@@ -261,25 +261,10 @@ class Event(Base):
     # Migration 039 added ``packing_list_span`` (``first`` / ``every``) here.
     # Since #281 an event's packing lists go on an occurrence's first day only,
     # so nothing reads it; databases that have the column keep it, unused.
-    # Phone bookings (``/api/busy``, migration 044). ``source`` is the MCP
-    # connection id that booked the event; NULL means a household member made
-    # it. A booking stays ``pending_confirmation`` until the family confirms
-    # it. Only the SHA-256 of the confirmation id the agent was given is kept,
-    # so reading the database is not enough to cancel a booking. The contact
-    # fields, title and description of a booked event are the caller's words:
-    # untrusted text, shown to the family and never followed.
-    source: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    pending_confirmation: Mapped[bool] = mapped_column(Boolean, default=False)
-    confirmation_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
-    __table_args__ = (
-        Index("ix_events_calendar_start", "calendar_id", "start_date"),
-        Index("ix_events_confirmation_hash", "confirmation_hash", unique=True),
-    )
+    __table_args__ = (Index("ix_events_calendar_start", "calendar_id", "start_date"),)
 
 
 class EventAttendee(Base):

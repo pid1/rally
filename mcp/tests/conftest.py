@@ -156,8 +156,8 @@ def default_connections() -> dict:
             "ip_allowlist": ANTHROPIC,
             "status": "enabled",
         },
-        "c-phone": {
-            "name": "Phone agent",
+        "c-token": {
+            "name": "Home automation",
             "auth_method": "token",
             "token": TOKEN,
             "tools": ["list_events"],
@@ -176,27 +176,6 @@ def default_connections() -> dict:
 
 def all_scopes() -> dict[str, str]:
     return {**SCOPES, **generated.tool_scopes(SPEC)}
-
-
-BUSY_ANSWERS = {
-    ("GET", "/api/busy/availability"): {
-        "timezone": "America/Chicago",
-        "start": "2026-10-29T00:00:00-05:00",
-        "end": "2026-10-30T00:00:00-05:00",
-        "busy": [{"start": "2026-10-29T09:00:00-05:00", "end": "2026-10-29T10:00:00-05:00"}],
-        "free": [
-            {"start": "2026-10-29T00:00:00-05:00", "end": "2026-10-29T09:00:00-05:00"},
-            {"start": "2026-10-29T10:00:00-05:00", "end": "2026-10-30T00:00:00-05:00"},
-        ],
-    },
-    ("GET", "/api/busy/free-slots"): {
-        "timezone": "America/Chicago",
-        "duration_minutes": 60,
-        "slots": [{"start": "2026-10-29T10:00:00-05:00", "end": "2026-10-29T11:00:00-05:00"}],
-    },
-    ("POST", "/api/busy/appointments"): {"confirmation_id": "K7QM-3XPD"},
-    ("POST", "/api/busy/appointments/cancel"): {"cancelled": True},
-}
 
 
 @dataclass
@@ -248,9 +227,6 @@ class FakeRally:
             },
         }
 
-    # (method, path) -> (status, body), to make a busy route refuse.
-    busy_errors: dict = field(default_factory=dict)
-
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path, method = request.url.path, request.method
@@ -260,13 +236,6 @@ class FakeRally:
             return httpx.Response(200, json=self.resolve(json.loads(request.content)))
         if path == "/api/mcp/auth-events":
             return httpx.Response(202, json={"recorded": True})
-        if path.startswith("/api/busy/"):
-            if (method, path) in self.busy_errors:
-                status, body = self.busy_errors[(method, path)]
-                return httpx.Response(status, json=body)
-            answer = BUSY_ANSWERS.get((method, path))
-            if answer is not None:
-                return httpx.Response(201 if path.endswith("/appointments") else 200, json=answer)
         if path == "/api/family":
             return httpx.Response(200, json=MEMBERS)
         if path == "/api/todos" and method == "GET":

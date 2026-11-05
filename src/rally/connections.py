@@ -1,7 +1,7 @@
 """Pre-created MCP connections: who may connect, how, from where, and to which tools.
 
 A connection (``rally.models.Connection``) is a named client a household
-member sets up in advance on the Connections page: "Claude", "Phone agent".
+member sets up in advance on the Connections page: "Claude", "Home Assistant".
 Every MCP request arrives on one connection's endpoint, ``/mcp/c/<id>``
 (or the legacy ``/mcp``), and is checked here, twice: once by rally-mcp when
 the request arrives (through ``POST /api/mcp/connections/resolve``), and again
@@ -52,7 +52,6 @@ STATUSES = ("enabled", "disabled", "revoked")
 PRESETS = {
     "full": "Full access",
     "read_only": "Read-only",
-    "busy": "Busy-only",
     "custom": "Custom",
 }
 
@@ -67,15 +66,6 @@ IP_PRESETS = {
         "ranges": ["160.79.104.0/21", "153.61.208.0/20"],
         "source": "https://platform.claude.com/docs/en/api/ip-addresses",
         "checked": "2026-11-05",
-    },
-    "elevenlabs": {
-        "label": "ElevenLabs (phone agent)",
-        # TODO(phase 3): ElevenLabs' outbound ranges for its MCP client go here,
-        # with their source URL and the date they were checked. Until they
-        # are, the preset adds nothing and the page says so.
-        "ranges": [],
-        "source": None,
-        "checked": None,
     },
 }
 
@@ -128,8 +118,6 @@ def preset_tools(preset: str, catalog: dict[str, mcp_policy.ToolInfo]) -> set[st
         return set(catalog)
     if preset == "read_only":
         return {n for n, t in catalog.items() if t.scope.endswith(":read")}
-    if preset == "busy":
-        return {n for n, t in catalog.items() if t.scope == mcp_policy.BUSY_SCOPE}
     return set()
 
 

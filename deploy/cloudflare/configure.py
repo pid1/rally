@@ -42,7 +42,7 @@ GITHUB_CLIENT_ID = ""
 # Access login: the bearer token is their credential, checked by Rally.
 TOKEN_CONNECTION_IDS: list[str] = []
 # Addresses besides Anthropic's that may reach the MCP paths at the edge,
-# e.g. the phone agent provider's. Each connection's own allowlist is still
+# e.g. a token connection's client. Each connection's own allowlist is still
 # enforced by rally-mcp and Rally behind this.
 EXTRA_MCP_IPS: list[str] = []
 CONFIG_FILE = Path(os.environ.get("RALLY_MCP_CF_CONFIG", Path(__file__).with_name("config.toml")))

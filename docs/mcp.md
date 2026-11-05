@@ -62,17 +62,6 @@ instead of ids, pagination, and calendar content marked field by field.
 | `create_event` | New event on the family's Rally calendar | write | `calendar:write` |
 | `get_daily_summary` | Today's generated summary and the Daily Note | read-only | `dashboard:read` |
 
-**Busy-only tools** let an untrusted agent, such as a phone assistant, check
-whether the family is free and book appointments without seeing the calendar.
-See [Busy-only tools](#busy-only-tools) below.
-
-| Tool | Does | Annotations |
-|---|---|---|
-| `check_availability` | Merged busy and free blocks between two times | read-only |
-| `find_free_slots` | Open slots of a given length that fit some constraints | read-only |
-| `book_appointment` | Book a pending appointment into free time; returns a confirmation id | write |
-| `cancel_appointment` | Cancel a still-pending booking this connection made | **destructive** |
-
 **Generated tools** cover everything else, one per API operation, for example
 `shopping_list_items`, `shopping_create_item`, `prep_list_items`,
 `prep_refresh_item`, `create_note`, `create_meal_plan`, `packing_list_days`,
@@ -110,7 +99,7 @@ a page at a time where Rally pages.
 ## Connections
 
 A connection is a named client, created in advance on **Connections** (in
-Rally's sidebar, under Settings): "Claude", "Phone agent". Nothing connects
+Rally's sidebar, under Settings): "Claude", "Home Assistant". Nothing connects
 without one. Each has:
 
 | Field | What it is |
@@ -131,15 +120,12 @@ stays off by default as before: nothing works until both are on.
 Every tool touches one **scope**: `<area>:read` or `<area>:write` for each
 area (`todos`, `calendar`, `notes`, `meals`, `shopping`, `packing`,
 `preparedness`, `sports`, `dashboard`, `briefing`, `notifications`,
-`preferences`, `family`), plus `calendar:busy` for the busy-only tools, which
-answer free/busy and book or cancel appointments but never reveal what is on
-the calendar.
+`preferences`, `family`).
 
 | Preset | Tools |
 |---|---|
 | **Full access** | Every tool, including ones Rally adds later |
 | **Read-only** | Every tool whose scope is `:read` |
-| **Busy-only** | `check_availability`, `find_free_slots`, `book_appointment`, `cancel_appointment` (scope `calendar:busy`) and nothing else |
 | **Custom** | Exactly the tools ticked |
 
 Permissions are enforced twice. rally-mcp lists only the connection's tools
@@ -168,7 +154,6 @@ Provider presets (`rally.connections.IP_PRESETS`):
 | Preset | Ranges | Source |
 |---|---|---|
 | Anthropic (Claude) | `160.79.104.0/21`, `153.61.208.0/20` | Anthropic's published outbound ranges, [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), checked 2026-11-05 |
-| ElevenLabs (phone agent) | not recorded yet | To be filled in with the phone agent's setup |
 
 Claude Code on your own machine calls from your own IP, not Anthropic's: add
 it to that connection's allowlist (and `--dev-ip` at the edge) while you use it.
@@ -211,93 +196,6 @@ Do this once per person, on their own Claude account, after upgrading:
    connection, and the Connections page for your sign-in under it.
 5. When everyone has moved, **Revoke** the *Claude (legacy /mcp)* connection.
    `/mcp` then answers every request with a refusal (and an alert).
-## Busy-only tools
-
-Four tools (`rally_mcp/busy_tools.py`, backed by `/api/busy/...` in
-`src/rally/routers/busy.py`) are built for an agent that cannot be trusted:
-an ElevenLabs phone assistant anyone can call, and so anyone can try to talk
-into misbehaving. They carry the permission scope `calendar:busy`. Their
-guarantees are enforced by Rally, not by rally-mcp or the agent, so they hold
-even if the agent is fully manipulated:
-
-- **Nothing private comes back.** Every calendar Rally knows counts: native
-  events (recurrences expanded, overrides applied) and every external feed and
-  CalDAV calendar, read from the sync cache. Each occurrence becomes a start
-  and an end, rounded outward to 15-minute boundaries and merged with anything
-  it touches. No title, description, location, attendee, uid, calendar name or
-  event count is ever returned, in a result or in an error message (Rally's
-  errors here are fixed strings, and an unknown family member is refused
-  without naming anyone). All-day events are busy for the whole local day.
-- **No network, and fail closed.** External calendars come from the cache
-  only. A calendar the sync has never stored is unknown time, so the whole
-  answer is refused (`503`) rather than reported free. A feed whose last sync
-  failed still counts with its previous events.
-- **Members.** `members` takes family members' names. An event belongs to its
-  explicit attendees, else to the owner of its calendar; an event on a
-  calendar that belongs to nobody blocks everyone.
-- **Bounded questions.** A window is at most **60 days**, may start at most a
-  day in the past, and must end within **180 days** (inside the cache's
-  horizon). Times are ISO 8601 **with a UTC offset**; a time without one is
-  refused, never guessed at. Answers are in the family's timezone, with its
-  offset.
-- **Rate limits**, per connection, in process: availability and slot
-  questions 30 at once then 30 a minute; bookings and cancellations 5 at once
-  then 5 an hour. Over the limit is `429`. Limits reset when Rally restarts.
-- **Bookings are pending.** `book_appointment` is refused (`409`) if any of
-  the time is busy for the members it is for (everyone if none are named). It
-  creates an ordinary Rally event on the first native calendar, tagged with
-  the booking connection and marked **pending**: the calendar shows it with a
-  dashed outline and **☎ Pending**, and its detail view says it was booked by
-  phone, shows the caller's contact details, and offers **Confirm booking**
-  (`POST /api/events/{id}/confirm`). Title (100 characters), notes (1,000),
-  contact name (100) and phone (digits and `+ ( ) - .`, 32) are capped and
-  stripped of control characters. They are the caller's words, so Claude's
-  own calendar tools return them as untrusted content.
-- **Opaque confirmation ids.** The agent gets back only a confirmation id
-  like `K7QM-3XPD` (about 40 bits, no look-alike characters, made to be read
-  aloud), never the event id or uid. Rally stores only its SHA-256.
-- **Cancel is narrow.** `cancel_appointment` works only on a booking the same
-  connection made that the family has not yet confirmed. Any other id
-  (another connection's, a confirmed booking, a family event, nonsense) gets
-  the same "not found".
-- **Audited.** Every call is an MCP request in the audit log, with the tool
-  and its arguments, plus a `busy.<tool>` event carrying the result size. A
-  booking is also an `event.create`, and a cancellation an `event.delete`.
-
-Examples (`members` is optional everywhere):
-
-```text
-GET /api/busy/availability?start=2026-11-05T08:00:00-06:00&end=2026-11-05T18:00:00-06:00&members=Sam
-→ {"timezone": "America/Chicago",
-   "start": "2026-11-05T08:00:00-06:00", "end": "2026-11-05T18:00:00-06:00",
-   "busy": [{"start": "2026-11-05T09:00:00-06:00", "end": "2026-11-05T10:30:00-06:00"}],
-   "free": [{"start": "2026-11-05T08:00:00-06:00", "end": "2026-11-05T09:00:00-06:00"},
-            {"start": "2026-11-05T10:30:00-06:00", "end": "2026-11-05T18:00:00-06:00"}]}
-
-GET /api/busy/free-slots?window_start=…&window_end=…&duration_minutes=60
-    &earliest_time=09:00&latest_time=17:00&weekdays_only=true&buffer_minutes=15&max_results=3
-→ {"timezone": "America/Chicago", "duration_minutes": 60,
-   "slots": [{"start": "2026-11-05T10:45:00-06:00", "end": "2026-11-05T11:45:00-06:00"}, …]}
-
-POST /api/busy/appointments
-     {"start": "2026-11-05T14:00:00-06:00", "end": "2026-11-05T15:00:00-06:00",
-      "title": "Furnace inspection", "contact_name": "Pat", "contact_phone": "555-0100",
-      "notes": "Side door", "members": ["Sam"]}
-→ 201 {"confirmation_id": "K7QM-3XPD"}
-
-POST /api/busy/appointments/cancel {"confirmation_id": "K7QM-3XPD"}
-→ 200 {"cancelled": true}            (anything else: 404, the same message)
-```
-
-`find_free_slots` constraints: `earliest_time` / `latest_time` (local
-`HH:MM`, default 08:00 to 18:00), `weekdays_only`, `buffer_minutes` (0 to
-120, kept clear around busy time), `duration_minutes` (15 to 480) and
-`max_results` (1 to 20). Slots start on 15-minute boundaries, never in the
-past, back to back within a free gap.
-
-Only MCP connections may call these routes; a request without an MCP
-identity is refused, because a booking has to be tagged with the connection
-that made it.
 
 ## Setting it up
 

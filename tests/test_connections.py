@@ -24,7 +24,6 @@ SERVICE_TOKEN = "test-service-token-0123456789"
 JON = "jon@example.com"
 EMMA = "emma@example.com"
 CLAUDE_IP = "160.79.104.10"
-BUSY_TOOLS = {"check_availability", "find_free_slots", "book_appointment", "cancel_appointment"}
 
 
 def events(db, **filters):
@@ -79,12 +78,12 @@ def add_connection(db, **overrides) -> Connection:
     return conn
 
 
-def add_token_connection(db, member, token="rly_phone-token", **overrides) -> Connection:
+def add_token_connection(db, member, token="rly_home-token", **overrides) -> Connection:
     values = {
-        "id": "c-phone",
-        "name": "Phone agent",
+        "id": "c-home",
+        "name": "Home automation",
         "auth_method": "token",
-        "preset": "busy",
+        "preset": "read_only",
         "ip_allowlist": ["203.0.113.0/24"],
         "authorized_by": member.id,
         "token_hash": connections.hash_token(token),
@@ -149,9 +148,9 @@ def test_a_token_is_shown_once_and_stored_hashed(client, db_session, household, 
     response = client.post(
         "/api/connections",
         json={
-            "name": "Phone agent",
+            "name": "Home automation",
             "auth_method": "token",
-            "preset": "busy",
+            "preset": "read_only",
             "ip_allowlist": ["203.0.113.0/24"],
             "authorized_by": household["jon"].id,
             "expires_in_days": 30,
@@ -256,8 +255,6 @@ def test_ip_presets_record_their_source():
     anthropic = connections.IP_PRESETS["anthropic"]
     assert anthropic["ranges"] == ["160.79.104.0/21", "153.61.208.0/20"]
     assert anthropic["source"].startswith("https://") and anthropic["checked"]
-    # Filled in by the phase that sets up the phone agent.
-    assert connections.IP_PRESETS["elevenlabs"]["ranges"] == []
 
 
 # --- MCP can never manage connections ----------------------------------------------
@@ -298,13 +295,12 @@ def test_presets():
     read_only = connections.preset_tools("read_only", catalog)
     assert read_only and all(catalog[t].scope.endswith(":read") for t in read_only)
     assert "delete_todo" not in read_only and "list_todos" in read_only
-    assert connections.preset_tools("busy", catalog) == BUSY_TOOLS
 
 
 def test_every_tool_has_an_area_scope():
     for tool in mcp_policy.tool_catalog(app).values():
         area, kind = tool.scope.split(":")
-        assert kind in {"read", "write", "busy"}, tool
+        assert kind in {"read", "write"}, tool
         assert area in mcp_policy.SCOPE_LABELS, tool
 
 
@@ -321,8 +317,6 @@ def test_every_tool_has_an_area_scope():
         ("GET", "/api/packing-list-days", "packing:read"),
         ("GET", "/api/followed-teams", "sports:read"),
         ("GET", "/api/dashboard/regenerate", "dashboard:write"),
-        ("GET", "/api/busy/availability", "calendar:busy"),
-        ("POST", "/api/busy/appointments", "calendar:busy"),
     ],
 )
 def test_route_scopes(method, path, scope):
@@ -340,10 +334,8 @@ def test_call_denial():
     assert mcp_policy.call_denial(catalog, "list_todos", "GET", "/api/todos") is None
     assert mcp_policy.call_denial(catalog, "list_todos", "GET", "/api/family") is None
     assert mcp_policy.call_denial(catalog, "list_todos", "DELETE", "/api/todos/{todo_id}")
-    # A busy-only tool reaches only the busy routes.
-    assert mcp_policy.call_denial(catalog, "check_availability", "GET", "/api/busy/x") is None
-    assert mcp_policy.call_denial(catalog, "check_availability", "GET", "/api/family")
-    assert mcp_policy.call_denial(catalog, "check_availability", "GET", "/api/events")
+    # A read tool cannot reach a write route of its own area.
+    assert mcp_policy.call_denial(catalog, "list_events", "POST", "/api/events")
     assert mcp_policy.call_denial(catalog, "made_up", "GET", "/api/todos")
 
 
@@ -438,19 +430,20 @@ def test_token_first_use_rejection_and_expiry(client, db_session, household, pus
     add_token_connection(db_session, household["jon"])
     ok = resolve(
         client,
-        connection_id="c-phone",
+        connection_id="c-home",
         email=None,
-        token="rly_phone-token",
+        token="rly_home-token",
         client_ip="203.0.113.5",
     )
     assert ok["allowed"] is True
-    assert ok["connection"]["tools"] == sorted(BUSY_TOOLS)
-    assert ok["connection"]["scopes"] == ["calendar:busy"]
+    catalog = mcp_policy.tool_catalog(app)
+    assert ok["connection"]["tools"] == sorted(connections.preset_tools("read_only", catalog))
+    assert all(s.endswith(":read") for s in ok["connection"]["scopes"])
     resolve(
         client,
-        connection_id="c-phone",
+        connection_id="c-home",
         email=None,
-        token="rly_phone-token",
+        token="rly_home-token",
         client_ip="203.0.113.5",
     )
     [first] = events(db_session, action="connection.token_first_used")
@@ -458,18 +451,18 @@ def test_token_first_use_rejection_and_expiry(client, db_session, household, pus
     assert sum("first time" in p["title"] for p in pushes) == 1
 
     wrong = resolve(
-        client, connection_id="c-phone", email=None, token="rly_guess", client_ip="203.0.113.5"
+        client, connection_id="c-home", email=None, token="rly_guess", client_ip="203.0.113.5"
     )
     assert wrong["status"] == 401 and wrong["action"] == "connection.token_rejected"
     assert any("token rejected" in p["title"] for p in pushes)
 
-    db_session.get(Connection, "c-phone").expires_at = now_utc() - timedelta(minutes=1)
+    db_session.get(Connection, "c-home").expires_at = now_utc() - timedelta(minutes=1)
     db_session.commit()
     expired = resolve(
         client,
-        connection_id="c-phone",
+        connection_id="c-home",
         email=None,
-        token="rly_phone-token",
+        token="rly_home-token",
         client_ip="203.0.113.5",
     )
     assert expired["action"] == "connection.token_rejected"
@@ -485,7 +478,7 @@ def test_an_allowed_call_names_the_connection(client, db_session, household, mon
     original = recorder.flush_request_reads
 
     def spy(ctx):
-        # What a route (Phase 2's busy tools, say) reads mid-request.
+        # What a route that needs the calling connection reads mid-request.
         seen["connection_id"] = audit_context.current().connection_id
         ctx.result_items = 2
         return original(ctx)
@@ -531,42 +524,35 @@ def test_a_request_naming_no_tool_is_refused(client, db_session, household):
     assert client.get("/api/todos", headers=as_mcp(tool=None)).status_code == 403
 
 
-def test_busy_only_cannot_read_the_calendar_even_by_lying_about_the_tool(
-    client, db_session, household
-):
+def test_read_only_cannot_write_even_by_lying_about_the_tool(client, db_session, household):
     add_token_connection(db_session, household["jon"])
-    for tool, path in [
-        ("check_availability", "/api/events?start=2026-11-01&end=2026-11-02"),
-        ("check_availability", "/api/family"),
-        ("list_events", "/api/events?start=2026-11-01&end=2026-11-02"),
-    ]:
-        response = client.get(
-            path,
-            headers=as_mcp(
-                tool=tool,
-                connection="c-phone",
-                email=None,
-                ip="203.0.113.5",
-                **{"X-Rally-Mcp-Connection-Token": "rly_phone-token"},
-            ),
+    headers = dict(
+        connection="c-home",
+        email=None,
+        ip="203.0.113.5",
+        **{"X-Rally-Mcp-Connection-Token": "rly_home-token"},
+    )
+    for tool in ("create_todo", "list_todos"):
+        response = client.post(
+            "/api/todos", json={"title": "x"}, headers=as_mcp(tool=tool, **headers)
         )
-        assert response.status_code == 403, (tool, path)
-    assert len(events(db_session, action="mcp.permission_denied")) == 3
+        assert response.status_code == 403, tool
+    assert len(events(db_session, action="mcp.permission_denied")) == 2
 
 
 def test_a_token_connection_is_checked_on_every_call(client, db_session, household):
     add_token_connection(db_session, household["jon"], preset="full")
     good = as_mcp(
-        connection="c-phone",
+        connection="c-home",
         email=None,
         ip="203.0.113.5",
-        **{"X-Rally-Mcp-Connection-Token": "rly_phone-token"},
+        **{"X-Rally-Mcp-Connection-Token": "rly_home-token"},
     )
     response = client.get("/api/todos", headers=good)
     assert response.status_code == 200
     [req] = events(db_session, action="http.request")
-    assert req.actor_id == "connection:c-phone"
-    assert req.actor_name == "Phone agent"
+    assert req.actor_id == "connection:c-home"
+    assert req.actor_name == "Home automation"
     assert req.client_info["authorized_by"] == "Jon"
 
     forged = {**good, "X-Rally-Mcp-Connection-Token": "rly_guess"}

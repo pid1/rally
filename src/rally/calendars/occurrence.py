@@ -82,14 +82,6 @@ class Occurrence:
     editable: bool = False
     notify_minutes_before: int | None = None
     member_color: str | None = None
-    # Native events booked through the busy-only phone tools (``/api/busy``).
-    # ``booked_by_phone`` marks the title, description and contact fields as
-    # the caller's words rather than the family's; ``pending_confirmation``
-    # stays true until someone in the family confirms the booking.
-    booked_by_phone: bool = False
-    pending_confirmation: bool = False
-    contact_name: str = ""
-    contact_phone: str = ""
 
     @property
     def dedupe_key(self) -> tuple:

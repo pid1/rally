@@ -139,7 +139,6 @@ def run_migrations():
             migrate as migrate_042_named_packing_lists,
         )
         from migrate_043_add_connections import migrate as migrate_043_add_connections
-        from migrate_044_add_phone_bookings import migrate as migrate_044_add_phone_bookings
         from migrate_add_caldav_support import migrate as migrate_008_add_caldav_support
         from migrate_add_completed_at import migrate as migrate_013_add_completed_at
         from migrate_add_custom_recurrence import migrate as migrate_009_add_custom_recurrence
@@ -204,7 +203,6 @@ def run_migrations():
         ("041_add_audit_log", migrate_041_add_audit_log),
         ("042_named_packing_lists", migrate_042_named_packing_lists),
         ("043_add_connections", migrate_043_add_connections),
-        ("044_add_phone_bookings", migrate_044_add_phone_bookings),
     ]
 
     print("=" * 60)
