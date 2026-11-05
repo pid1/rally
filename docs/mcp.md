@@ -345,6 +345,42 @@ Rules:
 7. Tell me to do step 5 (Rally Settings) and step 6 (connect Claude) myself, then confirm in Rally's Audit Log that mcp.connection_authorized appears for my connection.
 ```
 
+## Phone calls with onhold (optional)
+
+Rally doesn't place phone calls, and nothing in this repository can. The
+separate **[onhold](https://github.com/pid1/onhold)** project adds that, for
+anyone who wants it. It is not installed with Rally and stays off unless you
+set it up.
+
+How the two fit together:
+
+- **onhold never talks to Rally.** It has no Rally token, no connector into
+  Rally and no access to the family's data. Each call knows only its brief.
+- **Claude is the bridge.** With both connectors added, Claude reads what it
+  needs from Rally (a to-do, say), writes a brief for the call, and shows you a
+  preview of everything the voice agent will say and know. It dials only after
+  you approve that exact call.
+- **Results come back through Claude too.** onhold stores a report for each
+  call (outcome, each question's answer, follow-ups). Claude reads it with
+  `get_call` and, if you ask, updates Rally: completes the to-do, adds the
+  follow-ups. Put the to-do's id in the brief's `reference` (for example
+  `todo:12`) so the report can be matched back to it later.
+- **One person's assistant.** onhold calls on behalf of one owner, behind that
+  owner's Cloudflare Access login. Other people in the household aren't
+  affected by it and their details are never in it.
+
+Basic setup:
+
+1. Get an ElevenLabs account and a Twilio number nothing else answers, and
+   import the number into ElevenLabs.
+2. Deploy onhold to your Cloudflare account and put its `/mcp` behind Access.
+   [onhold's deploy guide](https://github.com/pid1/onhold/blob/main/docs/deploy.md)
+   covers every step, including creating the voice agent with its setup script.
+3. Add `https://<your onhold host>/mcp` as a second custom connector in Claude,
+   next to Rally's.
+4. Ask Claude to draft a test call to your own phone, read the preview and
+   approve it.
+
 ## Alerts
 
 Every new MCP connection authorized and every denied MCP connection or request

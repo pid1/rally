@@ -44,6 +44,7 @@ It runs on your own hardware, and your family's schedule stays in the house. Ask
 - **Packs for you**: templates, bags inside bags, items per person, and lists that ride along with calendar events.
 - **Tracks the emergency kit**: what's where, what expires when, a daily digest, and a printable go list.
 - **Works with Claude** through a remote MCP connector behind Cloudflare Access, so the whole household can use Rally from claude.ai and Claude Code.
+- **Can make phone calls for you, if you want it to.** Add the separate [onhold](https://github.com/pid1/onhold) project and Claude can turn a to-do into a call: an AI voice agent rings the office, asks your questions and reports back. It isn't part of Rally and never sees Rally's data.
 - **Records everything.** Every read and write, from the web, the API, Claude or a background job, goes in an append-only audit log with who did it.
 
 | | |
@@ -76,6 +77,12 @@ Connect Rally to Claude once, and anyone in the household can ask "what's on tod
 -->
 
 Setup takes about half an hour and is done once. **[docs/mcp.md](docs/mcp.md)** has the step-by-step guide, troubleshooting, and a prompt you can hand to an agent to do it for you.
+
+### Phone calls, if you want them
+
+Rally doesn't make phone calls, and it doesn't include anything that can. If you want Claude to make calls based on what's in Rally, add **[onhold](https://github.com/pid1/onhold)**, a separate project that runs on Cloudflare's free tier. Then you can say "call the dentist about my cleaning to-do and ask when they have an opening", and Claude reads the to-do from Rally, writes a brief for the call and shows it to you. Nothing dials until you say yes. An ElevenLabs voice agent makes the call, says it's an AI calling on your behalf, and asks your questions. When it hangs up, the report (who answered, each answer, what you need to do next) is waiting for Claude, which can update the to-do.
+
+It's kept out of Rally on purpose. onhold has no connection to Rally and never sees the family's data. It knows only what the brief for one call says, and only its owner can use it. Claude, holding both connectors, is the only thing that reads from one and writes to the other. Setup is in [Phone calls with onhold](docs/mcp.md#phone-calls-with-onhold-optional).
 
 ## Install
 
