@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+{% set nav_active = "connections" %}
+{% block title %}Connections{% endblock %}
+{% block subtitle %}Connections{% endblock %}
+
+{% block content %}
+    {#- The MCP clients the household has set up: each a name, an endpoint
+        (/mcp/c/<id> on rally-mcp's hostname), how it signs in, which tools it
+        may use and which addresses it may connect from. People only: MCP is
+        refused this page and every route behind it. A token is shown once,
+        right after it is created, and never again. -#}
+    <div class="page stack">
+        <header class="page-header">
+            <div class="page-header-row">
+                <h2>Connections</h2>
+                <button class="btn" id="btn-new-connection">New Connection</button>
+            </div>
+            <div class="page-header-meta" id="connections-mcp-state"></div>
+        </header>
+
+        <div class="border-container stack">
+            <div class="list-container" id="connections-list">
+                <div class="container-loading-state">Loading connections&hellip;</div>
+            </div>
+        </div>
+
+        <div class="border-container stack">
+            <div class="page-header-row">
+                <h3>rally-mcp address</h3>
+            </div>
+            <form id="public-url-form">
+                <div class="form-group">
+                    <label for="public-url">Public address</label>
+                    <input type="text" id="public-url" placeholder="e.g. https://rally-mcp.example.com">
+                    <small>The hostname Cloudflare publishes rally-mcp at. With it, each connection shows its full URL to paste into the client.</small>
+                    <div class="form-message" id="public-url-message" role="alert" hidden></div>
+                </div>
+                <button type="submit" class="btn btn--primary">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Connection modal: create, or edit name, tools and allowlist -->
+    <div class="modal-overlay" id="connection-modal-overlay">
+        <div class="modal-content">
+            <h3 id="connection-modal-title">New Connection</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+            <form id="connection-form">
+                <div class="form-group">
+                    <label for="connection-name">Name</label>
+                    <input type="text" id="connection-name" placeholder="e.g. Claude, Voice assistant" maxlength="100">
+                    <div class="form-message" id="connection-name-message" role="alert" hidden></div>
+                </div>
+                <div class="form-group" id="connection-auth-group">
+                    <label id="connection-auth-label">Signs in with</label>
+                    <div role="radiogroup" aria-labelledby="connection-auth-label">
+                        <label class="checkbox-label">
+                            <input type="radio" name="connection-auth" value="oauth" checked>
+                            <span>OAuth (Cloudflare Access sign-in, for Claude)</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="radio" name="connection-auth" value="token">
+                            <span>Token (a bearer token, for an agent that cannot sign in)</span>
+                        </label>
+                    </div>
+                    <small id="connection-auth-help">The person who signs in first owns the connection; nobody else can use it.</small>
+                </div>
+                <div class="stack" id="connection-token-fields" hidden>
+                <div class="form-group">
+                    <label for="connection-authorized-by">Created by</label>
+                    <select id="connection-authorized-by" class="select"></select>
+                    <small>Rally has no login, so say who is creating this token. Calls through it are recorded on their behalf.</small>
+                    <div class="form-message" id="connection-authorized-by-message" role="alert" hidden></div>
+                </div>
+                <div class="form-group">
+                    <label for="connection-expiry">Token expires</label>
+                    <select id="connection-expiry" class="select">
+                        <option value="">Never (until revoked)</option>
+                        <option value="30">After 30 days</option>
+                        <option value="90" selected>After 90 days</option>
+                        <option value="365">After a year</option>
+                    </select>
+                </div>
+                </div>
+                <div class="form-group">
+                    <label for="connection-preset">Permissions</label>
+                    <select id="connection-preset" class="select"></select>
+                    <small>Busy-only can check availability and book pending appointments, and sees nothing else on the calendar. Change any tool below and the connection becomes Custom.</small>
+                </div>
+                <div class="form-group">
+                    <label id="connection-tools-label">Tools</label>
+                    <div id="connection-tools" role="group" aria-labelledby="connection-tools-label"></div>
+                    <div class="form-message" id="connection-tools-message" role="alert" hidden></div>
+                </div>
+                <div class="form-group">
+                    <label for="connection-ips">Allowed from</label>
+                    <textarea id="connection-ips" rows="4" placeholder="One IP address or CIDR range per line"></textarea>
+                    <div id="connection-ip-presets"></div>
+                    <small>Requests from any other address are refused and alerted. Empty means nowhere.</small>
+                    <div class="form-message" id="connection-ips-message" role="alert" hidden></div>
+                </div>
+                <div class="form-group" id="connection-enable-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="connection-enable">
+                        <span>Enable it now</span>
+                    </label>
+                    <small>Off by default: a new connection refuses everything until it is enabled here.</small>
+                </div>
+                <div class="form-message" id="connection-form-message" role="alert" hidden></div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn--primary">Save</button>
+                    <button type="button" class="btn" id="btn-cancel-connection">Cancel</button>
+                </div>
+            </form>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- The token, once -->
+    <div class="modal-overlay" id="token-modal-overlay">
+        <div class="modal-content modal-content--narrow">
+            <h3>Copy the token now</h3>
+            <div class="modal-scroll">
+            <div class="modal-body">
+                <p>This is the only time Rally shows it. Paste it into the agent as the <code>Authorization: Bearer</code> header.</p>
+                <div class="form-group">
+                    <label for="token-value">Token</label>
+                    <input type="text" id="token-value" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="token-endpoint">Endpoint</label>
+                    <input type="text" id="token-endpoint" readonly>
+                </div>
+                <div class="form-message" id="token-copy-message" role="status" hidden></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn--primary" id="btn-copy-token">Copy token</button>
+                    <button type="button" class="btn" id="btn-close-token">Done</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let state = null;
+        let editingId = null;
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+
+        function seenAt(value) {
+            if (!value) return 'not yet';
+            const date = parseTimestamp(value);
+            return `${formatDate(date, { month: 'short' })} ${formatTime(date)}`;
+        }
+
+        const STATUS_WORDS = { enabled: 'Enabled', disabled: 'Disabled', revoked: 'Revoked' };
+
+        function presetLabel(id) {
+            const preset = state.presets.find(p => p.id === id);
+            return preset ? preset.label : id;
+        }
+
+        function endpointFor(c) {
+            return c.endpoint_url || c.endpoint_path;
+        }
+
+        function renderConnection(c) {
+            const badges = [
+                // Status is a word and a mark, never a color alone.
+                `<span class="audit-badge${c.status === 'enabled' ? '' : ' audit-badge--strong'}">${STATUS_WORDS[c.status]}</span>`,
+                c.legacy ? '<span class="audit-badge">Legacy /mcp</span>' : '',
+                c.expired ? '<span class="audit-badge audit-badge--strong">Token expired</span>' : '',
+            ].join(' ');
+            const auth = c.auth_method === 'token'
+                ? `Token ${escapeHtml(c.token_hint || '')}&hellip; created by ${escapeHtml(c.authorized_by || '?')}${c.expires_at ? `, expires ${seenAt(c.expires_at)}` : ', no expiry'}`
+                : (c.legacy ? 'OAuth, any household member' : (c.authorized_by ? `OAuth, ${escapeHtml(c.authorized_by)}` : 'OAuth, waiting for the first sign-in'));
+            const allow = c.ip_allowlist.length ? c.ip_allowlist.map(escapeHtml).join(', ') : 'nowhere (add an address)';
+            const signIns = c.sign_ins.length
+                ? c.sign_ins.map(s => `${escapeHtml(s.member)} on ${escapeHtml(s.client || 'unknown client')}, last ${seenAt(s.last_seen_at)} from ${escapeHtml(s.last_ip || '?')}`).join('<br>')
+                : '';
+            const actions = c.status === 'revoked' ? '' : `
+                <div class="editable-item-actions">
+                    <button class="btn btn--sm" data-edit="${escapeHtml(c.id)}">Edit</button>
+                    <button class="btn btn--sm" data-toggle="${escapeHtml(c.id)}">${c.status === 'enabled' ? 'Disable' : 'Enable'}</button>
+                    <button class="btn btn--sm" data-revoke="${escapeHtml(c.id)}">Revoke</button>
+                </div>`;
+            return `
+                <div class="editable-item${c.status === 'revoked' ? ' is-read-only' : ''}">
+                    <div class="editable-item-content">
+                        <div class="editable-item-title">${escapeHtml(c.name)} ${badges}</div>
+                        <div class="editable-item-description">${escapeHtml(endpointFor(c))}</div>
+                        <div class="assignee-label">${auth} &middot; ${escapeHtml(presetLabel(c.preset))}, ${c.tools.length} tools &middot; allowed from ${allow}</div>
+                        <div class="assignee-label">${c.last_seen_at ? 'Last used' : 'Used'} ${seenAt(c.last_seen_at)}${c.last_ip ? ` from ${escapeHtml(c.last_ip)}` : ''}</div>
+                        ${signIns ? `<div class="assignee-label">${signIns}</div>` : ''}
+                        <a class="link-quiet" href="/audit?entity_type=connections&entity_id=${encodeURIComponent(c.id)}">Audit log</a>
+                    </div>
+                    ${actions}
+                </div>`;
+        }
+
+        function render() {
+            document.getElementById('connections-mcp-state').textContent = state.mcp_enabled
+                ? 'MCP is on. Each connection works only while it is enabled.'
+                : 'MCP is off in Settings, so every connection is refused until it is turned on.';
+            document.getElementById('public-url').value = state.public_url || '';
+            const list = document.getElementById('connections-list');
+            list.innerHTML = state.connections.length
+                ? state.connections.map(renderConnection).join('')
+                : '<div class="container-empty-state">No connections yet. Click "New Connection" to set one up.</div>';
+            list.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openModal(b.dataset.edit)));
+            list.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', () => toggle(b.dataset.toggle)));
+            list.querySelectorAll('[data-revoke]').forEach(b => b.addEventListener('click', () => revoke(b.dataset.revoke)));
+        }
+
+        async function load() {
+            state = await fetch('/api/connections').then(r => r.json());
+            render();
+        }
+
+        // ── The modal ──
+
+        function authMethod() {
+            return document.querySelector('input[name="connection-auth"]:checked').value;
+        }
+
+        function renderTools(selected) {
+            const groups = {};
+            state.catalog.forEach(t => (groups[t.label] = groups[t.label] || []).push(t));
+            document.getElementById('connection-tools').innerHTML = Object.entries(groups).map(([label, tools], i) => `
+                <div class="form-group" role="group" aria-labelledby="connection-tools-group-${i}">
+                    <label id="connection-tools-group-${i}">${escapeHtml(label)}</label>
+                    ${tools.map(t => `
+                        <label class="checkbox-label">
+                            <input type="checkbox" data-tool value="${escapeHtml(t.name)}" ${selected.has(t.name) ? 'checked' : ''}>
+                            <span>${escapeHtml(t.summary)} <small>(${escapeHtml(t.name)}, ${escapeHtml(t.scope)})</small></span>
+                        </label>`).join('')}
+                </div>`).join('');
+            document.querySelectorAll('[data-tool]').forEach(box => box.addEventListener('change', syncPreset));
+        }
+
+        function selectedTools() {
+            return [...document.querySelectorAll('[data-tool]:checked')].map(el => el.value);
+        }
+
+        // Ticking or unticking a tool makes the choice Custom, unless it lands
+        // exactly on a preset again.
+        function syncPreset() {
+            const chosen = new Set(selectedTools());
+            const match = state.presets.find(p => p.id !== 'custom'
+                && p.tools.length === chosen.size && p.tools.every(t => chosen.has(t)));
+            document.getElementById('connection-preset').value = match ? match.id : 'custom';
+        }
+
+        function applyPreset() {
+            const id = document.getElementById('connection-preset').value;
+            if (id === 'custom') return;
+            renderTools(new Set(state.presets.find(p => p.id === id).tools));
+        }
+
+        function syncAuthFields() {
+            const token = authMethod() === 'token';
+            document.getElementById('connection-token-fields').hidden = !token || editingId !== null;
+            document.getElementById('connection-auth-help').textContent = token
+                ? 'Skips Cloudflare Access sign-in: the token is the credential, so keep it secret.'
+                : 'The person who signs in first owns the connection; nobody else can use it.';
+        }
+
+        function openModal(id) {
+            editingId = id || null;
+            const c = id ? state.connections.find(x => x.id === id) : null;
+            clearFormMessages('connection-modal-overlay');
+            document.getElementById('connection-modal-title').textContent = c ? `Edit ${c.name}` : 'New Connection';
+            document.getElementById('connection-name').value = c ? c.name : '';
+            document.querySelectorAll('input[name="connection-auth"]').forEach(r => {
+                r.checked = r.value === (c ? c.auth_method : 'oauth');
+                r.disabled = !!c;
+            });
+            document.getElementById('connection-authorized-by').innerHTML =
+                '<option value="">Choose&hellip;</option>' + state.members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+            const preset = document.getElementById('connection-preset');
+            preset.innerHTML = state.presets.map(p => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('');
+            preset.value = c ? c.preset : 'busy';
+            renderTools(new Set(c ? c.tools : state.presets.find(p => p.id === 'busy').tools));
+            document.getElementById('connection-ips').value = c ? c.ip_allowlist.join('\n') : '';
+            document.getElementById('connection-ip-presets').innerHTML = state.ip_presets.map(p => p.ranges.length
+                ? `<button type="button" class="btn btn--sm btn--quiet" data-ip-preset="${p.id}">Add ${escapeHtml(p.label)} ranges</button>`
+                : `<small>${escapeHtml(p.label)}: ranges not recorded yet.</small>`).join(' ');
+            document.querySelectorAll('[data-ip-preset]').forEach(b => b.addEventListener('click', () => {
+                const preset = state.ip_presets.find(p => p.id === b.dataset.ipPreset);
+                const box = document.getElementById('connection-ips');
+                const have = new Set(box.value.split('\n').map(s => s.trim()).filter(Boolean));
+                preset.ranges.forEach(r => have.add(r));
+                box.value = [...have].join('\n');
+            }));
+            document.getElementById('connection-enable').checked = false;
+            document.getElementById('connection-enable-group').hidden = !!c;
+            syncAuthFields();
+            showModalOverlay('connection-modal-overlay');
+        }
+
+        document.getElementById('btn-new-connection').addEventListener('click', () => openModal(null));
+        document.getElementById('btn-cancel-connection').addEventListener('click', () => hideModalOverlay('connection-modal-overlay'));
+        document.getElementById('connection-preset').addEventListener('change', applyPreset);
+        document.querySelectorAll('input[name="connection-auth"]').forEach(r => r.addEventListener('change', syncAuthFields));
+
+        async function detailOf(response) {
+            try {
+                const body = await response.json();
+                return typeof body.detail === 'string' ? body.detail : 'Rally refused the change.';
+            } catch (e) {
+                return 'Rally refused the change.';
+            }
+        }
+
+        document.getElementById('connection-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearFormMessages('connection-modal-overlay');
+            const name = document.getElementById('connection-name').value.trim();
+            if (!name) {
+                showFormMessage('connection-name-message', 'Give the connection a name.');
+                return;
+            }
+            const body = {
+                name,
+                preset: document.getElementById('connection-preset').value,
+                tools: selectedTools(),
+                ip_allowlist: document.getElementById('connection-ips').value.split('\n').map(s => s.trim()).filter(Boolean),
+            };
+            let response;
+            if (editingId) {
+                response = await fetch(`/api/connections/${encodeURIComponent(editingId)}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+                });
+            } else {
+                body.auth_method = authMethod();
+                body.enabled = document.getElementById('connection-enable').checked;
+                if (body.auth_method === 'token') {
+                    const by = document.getElementById('connection-authorized-by').value;
+                    if (!by) {
+                        showFormMessage('connection-authorized-by-message', 'Choose who is creating this token.');
+                        return;
+                    }
+                    body.authorized_by = Number(by);
+                    const days = document.getElementById('connection-expiry').value;
+                    body.expires_in_days = days ? Number(days) : null;
+                }
+                response = await fetch('/api/connections', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+                });
+            }
+            if (!response.ok) {
+                showFormMessage('connection-form-message', await detailOf(response));
+                return;
+            }
+            const saved = await response.json();
+            hideModalOverlay('connection-modal-overlay');
+            await load();
+            if (saved.token) {
+                document.getElementById('token-value').value = saved.token;
+                document.getElementById('token-endpoint').value = endpointFor(saved);
+                clearFormMessages('token-modal-overlay');
+                showModalOverlay('token-modal-overlay');
+            }
+        });
+
+        document.getElementById('btn-copy-token').addEventListener('click', async () => {
+            await navigator.clipboard.writeText(document.getElementById('token-value').value);
+            showFormMessage('token-copy-message', 'Copied.', 'status');
+        });
+        document.getElementById('btn-close-token').addEventListener('click', () => {
+            // Gone from the page as soon as the dialog closes.
+            document.getElementById('token-value').value = '';
+            hideModalOverlay('token-modal-overlay');
+        });
+
+        async function toggle(id) {
+            const c = state.connections.find(x => x.id === id);
+            const response = await fetch(`/api/connections/${encodeURIComponent(id)}`, {
+                method: 'PUT', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({status: c.status === 'enabled' ? 'disabled' : 'enabled'}),
+            });
+            if (!response.ok) {
+                alertModal({ messageHtml: escapeHtml(await detailOf(response)) });
+                return;
+            }
+            await load();
+        }
+
+        async function revoke(id) {
+            const c = state.connections.find(x => x.id === id);
+            const ok = await confirmModal({
+                title: 'Revoke connection',
+                messageHtml: `Revoke <strong>${escapeHtml(c.name)}</strong>? Its endpoint stops working for good${c.auth_method === 'token' ? ' and its token is forgotten' : ''}. This cannot be undone.`,
+                confirmLabel: 'Revoke',
+            });
+            if (!ok) return;
+            const response = await fetch(`/api/connections/${encodeURIComponent(id)}/revoke`, { method: 'POST' });
+            if (!response.ok) {
+                alertModal({ messageHtml: escapeHtml(await detailOf(response)) });
+                return;
+            }
+            await load();
+        }
+
+        document.getElementById('public-url-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const response = await fetch('/api/connections/public-url', {
+                method: 'PUT', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({public_url: document.getElementById('public-url').value.trim()}),
+            });
+            if (!response.ok) {
+                showFormMessage('public-url-message', await detailOf(response));
+                return;
+            }
+            await load();
+            showFormMessage('public-url-message', 'Saved.', 'status');
+        });
+
+        load();
+    </script>
+{% endblock %}

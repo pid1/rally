@@ -2,30 +2,41 @@
 
 Rally can let Claude — claude.ai on the web, desktop and mobile, voice, and
 Claude Code — read and update the family's to-dos and calendar through a
-remote MCP server, added in Claude as a custom connector. Rally itself stays
-exactly as it was: no login, reachable only over the tailnet.
+remote MCP server, added in Claude as a custom connector. Other agents (a
+voice assistant, say) can connect the same way with narrower permissions.
+Rally itself stays exactly as it was: no login, reachable only over the
+tailnet.
+
+Every client connects through a **connection** that a household member set up
+in advance on Rally's **Connections** page: its own URL, how it signs in, which
+tools it may use and which addresses it may connect from. See
+[Connections](#connections).
 
 ```
-Claude ──HTTPS──▶ Cloudflare edge ──▶ Cloudflare Access (Managed OAuth, GitHub login)
-                                          │ only the household
+Claude ──HTTPS──▶ Cloudflare edge ──▶ Cloudflare Access (Managed OAuth, GitHub login;
+   /mcp/c/<id>                            │  bypassed only on token connections' paths)
                                           ▼
                               Cloudflare Tunnel (cloudflared, next to Rally)
                                           │ rally_mcp_edge network
                                           ▼
-                                 rally-mcp (mcp/) ── validates the Access JWT again
+                                 rally-mcp (mcp/) ── validates the Access JWT again (or takes
+                                          │          the bearer token), asks Rally about
+                                          │          the connection, lists only its tools
                                           │ rally_mcp_backend network (internal)
                                           ▼
-                                 Rally API ── checks rally-mcp's service secret,
-                                              maps the email to a family member,
-                                              audits everything
+                                 Rally API ── checks rally-mcp's service secret, the
+                                              connection, its IP allowlist and token,
+                                              the tool's permission, maps the email
+                                              to a family member, audits everything
 ```
 
 - **rally-mcp** (`mcp/`, image `ghcr.io/pid1/rally-mcp`) speaks MCP over
-  Streamable HTTP at `/mcp` and calls Rally's existing API. Its only auth logic
-  is validating Cloudflare Access's JWT.
+  Streamable HTTP at each connection's `/mcp/c/<connection id>` (and the
+  legacy `/mcp`) and calls Rally's existing API. It validates Cloudflare
+  Access's JWT, and asks Rally whether each request's connection may be served.
 - **Cloudflare Tunnel** publishes only rally-mcp, at
-  `https://<your hostname>/mcp`. No router ports are opened and nothing else
-  on the server is reachable.
+  `https://<your hostname>/mcp/c/<id>`. No router ports are opened and nothing
+  else on the server is reachable.
 - **Cloudflare Access with Managed OAuth** is the OAuth authorization server,
   including the Dynamic Client Registration Claude requires. GitHub is the only
   login method and the Allow policy names exactly the household's emails.
@@ -40,16 +51,27 @@ followed teams, the AI briefing's settings and the dashboard.
 **Hand-written tools** cover the everyday requests, tuned for Claude: names
 instead of ids, pagination, and calendar content marked field by field.
 
+| Tool | Does | Annotations | Scope |
+|---|---|---|---|
+| `list_todos` | Open to-dos plus those completed today, paginated | read-only | `todos:read` |
+| `create_todo` | New to-do with optional due date and assignee | write | `todos:write` |
+| `update_todo` | Change title, description, due date or assignee | write | `todos:write` |
+| `complete_todo` | Mark done (or not done) | write | `todos:write` |
+| `delete_todo` | Delete a to-do | **destructive** | `todos:write` |
+| `list_events` | Occurrences between two dates (≤ 31 days), paginated | read-only | `calendar:read` |
+| `create_event` | New event on the family's Rally calendar | write | `calendar:write` |
+| `get_daily_summary` | Today's generated summary and the Daily Note | read-only | `dashboard:read` |
+
+**Busy-only tools** let an untrusted agent, such as a voice assistant, check
+whether the family is free and request appointments without seeing the calendar.
+They are ordinary tools: any connection, OAuth or token, can be given them.
+See [Busy-only tools](#busy-only-tools) below.
+
 | Tool | Does | Annotations |
 |---|---|---|
-| `list_todos` | Open to-dos plus those completed today, paginated | read-only |
-| `create_todo` | New to-do with optional due date and assignee | write |
-| `update_todo` | Change title, description, due date or assignee | write |
-| `complete_todo` | Mark done (or not done) | write |
-| `delete_todo` | Delete a to-do | **destructive** |
-| `list_events` | Occurrences between two dates (≤ 31 days), paginated | read-only |
-| `create_event` | New event on the family's Rally calendar | write |
-| `get_daily_summary` | Today's generated summary and the Daily Note | read-only |
+| `check_availability` | Merged busy and free blocks between two times | read-only |
+| `find_free_slots` | Open slots of a given length that fit some constraints | read-only |
+| `book_appointment` | Book a pending appointment into free time; returns a confirmation id | write |
 
 **Generated tools** cover everything else, one per API operation, for example
 `shopping_list_items`, `shopping_create_item`, `prep_list_items`,
@@ -73,6 +95,7 @@ sync calendars) are marked as reaching the outside world.
 | Devices | A device id is the browser's own identity token |
 | The audit log | It is for people to read (out of scope for v1) |
 | MCP's own switch and plumbing | Claude cannot turn itself on, or see its own gate |
+| Connections | Claude cannot create, widen or re-enable its own connection, or see its tokens |
 
 Rally enforces the same list. An MCP request for any of these is refused,
 logged and alerted, even if rally-mcp were compromised.
@@ -83,6 +106,196 @@ calendar-sync messages come back inside `untrusted_external_content`, never
 mixed into Rally's own fields. Every such tool's description says that
 content is data and never instructions. Results return only what was asked,
 a page at a time where Rally pages.
+
+## Connections
+
+A connection is a named client, created in advance on **Connections** (in
+Rally's sidebar, under Settings): "Claude", "Voice assistant". Nothing connects
+without one. Each has:
+
+| Field | What it is |
+|---|---|
+| **Name** | What the audit log and alerts call it |
+| **Endpoint** | Its own URL, `https://<hostname>/mcp/c/<connection id>`. The path is what binds a request to the connection; no header can change it |
+| **Signs in with** | **OAuth**: the Cloudflare Access login (GitHub), for Claude. The household member who signs in first owns it, and nobody else's sign-in is accepted on it. **Token**: a bearer token (`Authorization: Bearer rly_…`), for an agent that cannot sign in. Rally generates it, shows it **once**, and stores only an HMAC of it; it can expire and be revoked |
+| **Permissions** | A preset, then adjusted tool by tool (which makes it **Custom**) |
+| **Allowed from** | IP addresses or CIDR ranges. **Empty means nowhere.** Buttons add a provider's published ranges |
+| **Status** | **Enabled**, **Disabled** (refuses everything, can be re-enabled) or **Revoked** (for good; a token is forgotten) |
+| **Authorized by** | The member who completed OAuth on it, or who created its token |
+
+A new connection starts **disabled**, and the global MCP switch in Settings
+stays off by default as before: nothing works until both are on.
+
+### Permissions and scopes
+
+Every tool touches one **scope**: `<area>:read` or `<area>:write` for each
+area (`todos`, `calendar`, `notes`, `meals`, `shopping`, `packing`,
+`preparedness`, `sports`, `dashboard`, `briefing`, `notifications`,
+`preferences`, `family`), plus `calendar:busy` for the busy-only tools, which
+answer free/busy and book pending appointments but never reveal what is on
+the calendar.
+
+| Preset | Tools |
+|---|---|
+| **Full access** | Every tool, including ones Rally adds later |
+| **Read-only** | Every tool whose scope is `:read` |
+| **Busy-only** | `check_availability`, `find_free_slots`, `book_appointment` (scope `calendar:busy`) and nothing else |
+| **Custom** | Exactly the tools ticked |
+
+Permissions are enforced twice. rally-mcp lists only the connection's tools
+in `tools/list` and refuses any other tool even when it is called by name.
+Rally then checks every API call again: the connection named, its status, its
+credential and allowlist, that the tool is one of the connection's, and that
+the route is one that tool may reach (a generated tool its own route, a
+hand-written tool routes of its own scope). So a compromised rally-mcp still
+cannot do more than the connection it names allows. Every refusal is logged and
+alerted.
+
+### IP allowlists and the tunnel
+
+The address checked is the caller's public IP, from Cloudflare's
+`CF-Connecting-IP` header. rally-mcp believes that header **only on requests
+that arrive from the cloudflared container**: it compares the TCP peer
+address with `RALLY_MCP_TRUSTED_PROXIES` (default `rally-mcp-cloudflared`,
+the container's name, resolved through Docker's DNS; IPs and CIDRs also work).
+From any other peer — Rally on the backend network, say — the header is
+ignored and the peer's own address is checked instead, so a direct request
+cannot claim an allowed address. rally-mcp runs uvicorn without proxy headers
+for the same reason: `X-Forwarded-For` must not change what the peer is.
+
+Provider presets (`rally.connections.IP_PRESETS`):
+
+| Preset | Ranges | Source |
+|---|---|---|
+| Anthropic (Claude) | `160.79.104.0/21`, `153.61.208.0/20` | Anthropic's published outbound ranges, [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses), checked 2026-11-05 |
+| ElevenLabs (US) | `34.67.146.145`, `34.59.11.47` | ElevenLabs' published egress addresses, [elevenlabs.io/docs/eleven-api/resources/ip-allowlisting](https://elevenlabs.io/docs/eleven-api/resources/ip-allowlisting), checked 2026-11-05 |
+
+Claude Code on your own machine calls from your own IP, not Anthropic's: add
+it to that connection's allowlist (and `--dev-ip` at the edge) while you use it.
+
+### Token connections and Cloudflare Access
+
+A token connection's path has to skip the Access login, since the agent cannot
+sign in. `deploy/cloudflare/configure.py` adds one Access application per id
+listed in `token_connection_ids` (in `config.toml`), on exactly
+`<hostname>/mcp/c/<id>`, with a **Bypass** policy; every other path, OAuth
+connections' included, stays behind the household Allow policy. On a
+bypassed path the token and the allowlist are the only guard, both checked by
+Rally on every request. See [deploy/cloudflare/README.md](../deploy/cloudflare/README.md#token-connections).
+
+### The legacy `/mcp` path
+
+Installs that already had Claude connected keep working: migration 043 turns
+the existing `/mcp` into a **legacy** connection (OAuth, Full access, enabled,
+allowed from Anthropic's ranges), flagged **Legacy /mcp** on the Connections
+page. Unlike a new OAuth connection it is not bound to one person, because
+each household member connected their own Claude to that one URL. Re-create
+it as a pre-created connection (below), then revoke it. A fresh install has no
+legacy connection, so `/mcp` is refused.
+
+### Re-create the Claude connection
+
+Do this once per person, on their own Claude account, after upgrading:
+
+1. **Connections → New Connection.** Name it `Claude` (or `Claude - Jon`),
+   **Signs in with: OAuth**, **Permissions: Full access**, then **Add
+   Anthropic (Claude) ranges** under *Allowed from*. Tick **Enable it now**
+   and Save.
+2. Set **rally-mcp address** at the bottom of the page if it is empty
+   (`https://rally-mcp.example.com`), and copy the connection's URL:
+   `https://rally-mcp.example.com/mcp/c/<id>`.
+3. In Claude: **Settings → Connectors**, remove the old Rally connector, then
+   **Add custom connector** with the new URL and connect. Sign in with GitHub
+   as before. That sign-in binds the connection to you.
+4. Check the Audit Log for `mcp.connection_authorized` naming the new
+   connection, and the Connections page for your sign-in under it.
+5. When everyone has moved, **Revoke** the *Claude (legacy /mcp)* connection.
+   `/mcp` then answers every request with a refusal (and an alert).
+## Busy-only tools
+
+Three tools (`rally_mcp/busy_tools.py`, backed by `/api/busy/...` in
+`src/rally/routers/busy.py`) are built for an agent that cannot be trusted,
+such as a voice assistant that anyone it talks to can try to talk into
+misbehaving. They are ordinary tools: give them to any connection, OAuth or
+token, with the Busy-only preset or tool by tool. They carry the permission scope `calendar:busy`. Their
+guarantees are enforced by Rally, not by rally-mcp or the agent, so they hold
+even if the agent is fully manipulated:
+
+- **Nothing private comes back.** Every calendar Rally knows counts: native
+  events (recurrences expanded, overrides applied) and every external feed and
+  CalDAV calendar, read from the sync cache. Each occurrence becomes a start
+  and an end, rounded outward to 15-minute boundaries and merged with anything
+  it touches. No title, description, location, attendee, uid, calendar name or
+  event count is ever returned, in a result or in an error message (Rally's
+  errors here are fixed strings, and an unknown family member is refused
+  without naming anyone). All-day events are busy for the whole local day.
+- **No network, and fail closed.** External calendars come from the cache
+  only. A calendar the sync has never stored is unknown time, so the whole
+  answer is refused (`503`) rather than reported free. A feed whose last sync
+  failed still counts with its previous events.
+- **Members.** `members` takes family members' names. An event belongs to its
+  explicit attendees, else to the owner of its calendar; an event on a
+  calendar that belongs to nobody blocks everyone.
+- **Bounded questions.** A window is at most **60 days**, may start at most a
+  day in the past, and must end within **180 days** (inside the cache's
+  horizon). Times are ISO 8601 **with a UTC offset**; a time without one is
+  refused, never guessed at. Answers are in the family's timezone, with its
+  offset.
+- **Rate limits**, per connection, in process: availability and slot
+  questions 30 at once then 30 a minute; bookings 5 at once then 5 an hour. Over the limit is `429`. Limits reset when Rally restarts.
+- **Bookings are pending.** `book_appointment` is refused (`409`) if any of
+  the time is busy for the members it is for (everyone if none are named). It
+  creates an ordinary Rally event on the first native calendar, tagged with
+  the booking connection and marked **pending**: the calendar shows it with a
+  dashed outline and **◌ Pending**, and its detail view says it was requested
+  through a connection and not yet reviewed, shows the contact details the
+  agent gave, and offers **Confirm booking**
+  (`POST /api/events/{id}/confirm`). Title (100 characters), notes (1,000),
+  contact name (100) and contact phone (digits and `+ ( ) - .`, 32) are capped and
+  stripped of control characters. They are the caller's words, so Claude's
+  own calendar tools return them as untrusted content.
+- **Opaque confirmation ids.** The agent gets back only a confirmation id
+  like `K7QM-3XPD` (about 40 bits, no look-alike characters, made to be read
+  aloud), never the event id or uid. Rally stores only its SHA-256.
+- **Only the family changes a booking.** The agent can't cancel, move or
+  confirm anything, its own bookings included. Someone in the family confirms,
+  edits or deletes it on the calendar.
+- **Audited.** Every call is an MCP request in the audit log, with the tool
+  and its arguments, plus a `busy.<tool>` event carrying the result size. A
+  booking is also an `event.create`.
+
+Examples (`members` is optional everywhere):
+
+```text
+GET /api/busy/availability?start=2026-11-05T08:00:00-06:00&end=2026-11-05T18:00:00-06:00&members=Sam
+→ {"timezone": "America/Chicago",
+   "start": "2026-11-05T08:00:00-06:00", "end": "2026-11-05T18:00:00-06:00",
+   "busy": [{"start": "2026-11-05T09:00:00-06:00", "end": "2026-11-05T10:30:00-06:00"}],
+   "free": [{"start": "2026-11-05T08:00:00-06:00", "end": "2026-11-05T09:00:00-06:00"},
+            {"start": "2026-11-05T10:30:00-06:00", "end": "2026-11-05T18:00:00-06:00"}]}
+
+GET /api/busy/free-slots?window_start=…&window_end=…&duration_minutes=60
+    &earliest_time=09:00&latest_time=17:00&weekdays_only=true&buffer_minutes=15&max_results=3
+→ {"timezone": "America/Chicago", "duration_minutes": 60,
+   "slots": [{"start": "2026-11-05T10:45:00-06:00", "end": "2026-11-05T11:45:00-06:00"}, …]}
+
+POST /api/busy/appointments
+     {"start": "2026-11-05T14:00:00-06:00", "end": "2026-11-05T15:00:00-06:00",
+      "title": "Furnace inspection", "contact_name": "Pat", "contact_phone": "555-0100",
+      "notes": "Side door", "members": ["Sam"]}
+→ 201 {"confirmation_id": "K7QM-3XPD"}
+
+```
+
+`find_free_slots` constraints: `earliest_time` / `latest_time` (local
+`HH:MM`, default 08:00 to 18:00), `weekdays_only`, `buffer_minutes` (0 to
+120, kept clear around busy time), `duration_minutes` (15 to 480) and
+`max_results` (1 to 20). Slots start on 15-minute boundaries, never in the
+past, back to back within a free gap.
+
+Only MCP connections may call these routes; a request without an MCP
+identity is refused, because a booking has to be tagged with the connection
+that made it.
 
 ## Setting it up
 
@@ -162,16 +375,18 @@ python3 deploy/cloudflare/configure.py
 It sets up the tunnel, DNS, GitHub as the only login method, an Allow policy
 for exactly those emails, the Access application with Managed OAuth (the
 OAuth server Claude needs, including dynamic client registration), and edge
-rules. Those rules turn bot blocking off, allow Anthropic's IP range, block
-every path but `/mcp` and the OAuth discovery documents, and rate-limit
-`/mcp`. The script is safe to re-run after any change. It prints the Access
+rules. Those rules turn bot blocking off, allow Anthropic's IP ranges, block
+every path but `/mcp`, `/mcp/c/*` and the OAuth discovery documents, and
+rate-limit the MCP paths. It also gives each token connection listed in
+`token_connection_ids` its Access bypass. The script is safe to re-run after any change. It prints the Access
 application's **AUD tag** and writes the tunnel token to
 `~/.config/cloudflare/rally-mcp-tunnel.token`; you need both in the next step.
 Each setting is explained in
 [deploy/cloudflare/README.md](../deploy/cloudflare/README.md).
 
 To test from Claude Code on your own machine, add `--dev-ip <your public IP>`.
-`/mcp` only accepts Anthropic's addresses otherwise. Re-run without it when
+The MCP paths only accept Anthropic's addresses (and `extra_mcp_ips`) at the
+edge otherwise. Re-run without it when
 you're done.
 
 ### 4. Run rally-mcp next to Rally
@@ -232,7 +447,7 @@ you're done.
    "Registered tunnel connection" lines, and
 
    ```bash
-   curl -si https://rally-mcp.example.com/mcp | head -1
+   curl -si https://rally-mcp.example.com/mcp/c/check | head -1
    ```
 
    should answer `401` from Cloudflare Access (or `403` from a machine
@@ -255,8 +470,11 @@ you're done.
 
 ### 6. Connect Claude
 
-The connector URL is your hostname **with `/mcp` on the end**:
-`https://rally-mcp.example.com/mcp`.
+First create the connection: **Connections → New Connection**, OAuth, Full
+access (or less), the Anthropic ranges, enabled (see [Re-create the Claude
+connection](#re-create-the-claude-connection) for the same steps). The
+connector URL is that connection's endpoint:
+`https://rally-mcp.example.com/mcp/c/<id>`.
 
 - **claude.ai** (and with it Claude Desktop and the mobile apps):
   1. **Settings → Connectors → Add custom connector**. Name it Rally, paste
@@ -269,10 +487,11 @@ The connector URL is your hostname **with `/mcp` on the end**:
      delete tools on **Needs approval**.
 
   Each person connects from their own Claude account.
-- **Claude Code** (only from an IP you added with `--dev-ip`):
+- **Claude Code** (only from an IP you added with `--dev-ip`, and to the
+  connection's allowlist):
 
   ```bash
-  claude mcp add --transport http rally https://rally-mcp.example.com/mcp
+  claude mcp add --transport http rally https://rally-mcp.example.com/mcp/c/<id>
   ```
 
   Then run `/mcp` in Claude Code, pick **rally** and choose **Authenticate**.
@@ -284,23 +503,29 @@ Then ask Claude something like "What's on Rally's to-do list?".
 
 Open **Audit Log** in Rally's sidebar. You should see:
 
-- `mcp.connection_authorized` for you and the client. A Pushover alert goes
-  to everyone on the alert list.
-- One `http.request` per tool call, under your name, with the tool, the client
-  and its IP.
+- `mcp.connection_authorized` for you, the client and the connection. A
+  Pushover alert goes to everyone on the alert list.
+- One `http.request` per tool call, under your name, with the tool, its
+  arguments, the connection, the client, its IP and the result's size.
 
-**Settings → Claude (MCP) → MCP connections** lists each person and client
-Rally has seen.
+**Connections** lists each connection with the people and clients that have
+signed in to it.
 
 ### Troubleshooting
 
 | Symptom | Cause and fix |
 |---|---|
-| claude.ai: "Your account was authorized, but no MCP server was found at the provided URL" | The connector URL is missing `/mcp`. Remove the connector and add it again with the full URL. |
+| claude.ai: "Your account was authorized, but no MCP server was found at the provided URL" | The connector URL is not a connection's full endpoint. Remove the connector and add it again with the URL from the Connections page. |
+| `403` and `mcp.connection_unknown` in the audit log | The URL names no connection Rally has (or it is the legacy `/mcp` on an install without one). Create the connection first. |
+| `403` and `mcp.connection_disabled` / `mcp.connection_revoked` | Enable it on the Connections page (a revoked one has to be created again). |
+| `403` and `mcp.ip_rejected` | The caller's address is not on the connection's allowlist (empty means nowhere). Add it, or the provider's preset. If the rejected address is a Docker one (`172.…`), rally-mcp is not recognising cloudflared: check `RALLY_MCP_TRUSTED_PROXIES` and the cloudflared container's name. |
+| `403` and `mcp.connection_mismatch` | Someone else already signed in to that OAuth connection. Each person creates their own. |
+| `401` and `connection.token_rejected` | Wrong, revoked or expired token on a token connection. Create a new connection for a new token. |
+| A tool is missing from Claude's list, or `mcp.permission_denied` | The connection's permissions don't include it. Edit the connection. |
 | GitHub sign-in succeeds, then Cloudflare says access denied | That GitHub account's primary email isn't in `household_emails`. Fix `config.toml` and re-run the script. |
 | Every tool call fails with "MCP is disabled" | Tick the switch in **Settings → Claude (MCP)**. |
 | Calls fail with "No household member has the email …" | Set that person's **Sign-in email** in Settings → Family Members. |
-| Claude Code gets `403` on `/mcp` | Your IP isn't on the allowlist. Re-run `configure.py --dev-ip <your IP>`. |
+| Claude Code gets `403` from Cloudflare | Your IP isn't on the edge allowlist. Re-run `configure.py --dev-ip <your IP>`, and add the IP to the connection too. |
 | `401` on every call, and "token validation failed" events in the audit log | `CF_ACCESS_AUD` or `CF_ACCESS_TEAM_DOMAIN` in rally-mcp's `.env` doesn't match the Access app. Copy the AUD the script printed, then restart rally-mcp. |
 | "Missing or invalid rally-mcp service credential" | `RALLY_MCP_SERVICE_TOKEN` differs between Rally and rally-mcp. |
 | The tunnel never registers | The `TUNNEL_TOKEN` is wrong, or the host can't reach Cloudflare on outbound 7844 or 443. |
@@ -310,9 +535,11 @@ Rally has seen.
 
 - **Off for everyone, at once:** untick the switch in Settings. Every MCP
   request is then refused and logged.
+- **One connection:** **Disable** or **Revoke** it on the Connections page.
+  The next request on it is refused, at rally-mcp and at Rally.
 - **One person:** remove their email from `household_emails` and re-run the
-  script, or revoke their session in Zero Trust → Access → Users. They can
-  also disconnect the connector in Claude.
+  script, or revoke their session in Zero Trust → Access → Users, and revoke
+  their connections. They can also disconnect the connector in Claude.
 - **Updating:** a push to `main` publishes both images. On Unraid, rally-mcp
   and its tunnel are templates like Rally, so CA Auto Update keeps all three
   current: tick `rally`, `rally-mcp` and `rally-mcp-cloudflared` under
@@ -341,18 +568,26 @@ Rules:
 3. On GitHub, create the OAuth App from step 2. Have me save its client secret to ~/.config/cloudflare/rally-mcp-github.secret.
 4. Write deploy/cloudflare/config.toml from config.example.toml with my values, and run python3 deploy/cloudflare/configure.py. Report its output, and note the AUD tag.
 5. On DOCKER_HOST, do step 4 of the guide: generate the service secret there, set it on the Rally container, write rally-mcp's .env (chmod 600), start rally-mcp and the tunnel, and attach Rally to rally_mcp_backend. On Unraid, use the two templates in deploy/rally-mcp/unraid/, the Extra Parameters and the "Preserve user defined networks" setting the guide describes, and add rally-mcp and rally-mcp-cloudflared to CA Auto Update.
-6. Check: four registered tunnel connections, and curl -si https://HOSTNAME/mcp answering 401 from Cloudflare Access.
-7. Tell me to do step 5 (Rally Settings) and step 6 (connect Claude) myself, then confirm in Rally's Audit Log that mcp.connection_authorized appears for my connection.
+6. Check: four registered tunnel connections, and curl -si https://HOSTNAME/mcp/c/check answering 401 from Cloudflare Access.
+7. Tell me to do step 5 (Rally Settings) and step 6 (create the connection on Rally's Connections page, then connect Claude) myself, then confirm in Rally's Audit Log that mcp.connection_authorized appears for my connection.
 ```
 
 ## Alerts
 
-Every new MCP connection authorized and every denied MCP connection or request
-sends a Pushover alert to each person on the alert list (Settings → Claude
-(MCP)), at their own Pushover key and device. A connection is one person on
-one Claude client, so a token refresh is not a new connection. Each alert says
-who, which client, from which IP and when, and links to the matching events in
-the Audit Log. Sending an alert, and any delivery failure, is logged.
+A Pushover alert goes to each person on the alert list (Settings → Claude
+(MCP)), at their own Pushover key and device, for:
+
+- a connection created (with or without a token), changed (permissions,
+  allowlist, enabled or disabled, renamed) or revoked;
+- a first sign-in on a connection (one person on one client: a token refresh
+  is not a new sign-in), and a token used for the first time;
+- every refusal: an unknown, disabled or revoked connection, an address off
+  the allowlist, a token rejected or expired, someone else's sign-in, a tool
+  the connection may not use, MCP switched off.
+
+Each alert says who, which connection and client, from which IP and when, and
+links to the matching events in the Audit Log. Sending an alert, and any
+delivery failure, is logged.
 
 ## Known risk: claude.ai and Access Managed OAuth
 
@@ -368,3 +603,8 @@ record pass/fail, the final redirect URL, any `ofid_` reference shown, and the
 cloudflared and Access logs. The root URL answers `403` at the edge (path
 lockdown) or `404` from rally-mcp, so the #410 symptom shows as an error page
 on `https://<your hostname>/` rather than a return to claude.ai.
+
+Per-connection paths (`/mcp/c/<id>`) are new and have not yet been tried
+against a live Access Managed OAuth: the protected resource metadata for them
+is `/.well-known/oauth-protected-resource/mcp/c/<id>`, which the edge allows.
+Test Claude Code on a new connection first.

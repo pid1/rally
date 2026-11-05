@@ -8,7 +8,9 @@ issued by the team domain and for this application's AUD — so a mistake in
 the tunnel or Access config cannot expose Rally.
 
 The server is stateless with respect to auth: nothing is stored, Claude
-refreshes its own tokens, and revocation happens in Cloudflare Zero Trust.
+refreshes its own tokens, and revocation happens in Cloudflare Zero Trust or
+on Rally's Connections page. Which connection a request is for, and whether
+it may be served, is Rally's to say (``server.ConnectionGate``).
 """
 
 from __future__ import annotations
@@ -30,7 +32,8 @@ class AccessDenied(Exception):
 class Identity:
     email: str
     subject: str
-    connection_id: str
+    # One person's authorization from one client: "the same sign-in".
+    grant_id: str
     client: str
     claims: dict
 
@@ -47,7 +50,7 @@ def client_name(user_agent: str | None) -> str:
     return (user_agent or "unknown")[:80]
 
 
-def connection_id(claims: dict, client: str) -> str:
+def grant_id(claims: dict, client: str) -> str:
     """A stable id for one person's authorization from one client.
 
     Access does not document a grant or client id claim for Managed OAuth, so
@@ -89,7 +92,7 @@ class AccessVerifier:
         return Identity(
             email=email,
             subject=str(claims.get("sub", "")),
-            connection_id=connection_id(claims, client),
+            grant_id=grant_id(claims, client),
             client=client,
             claims=claims,
         )

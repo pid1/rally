@@ -27,6 +27,7 @@ SIDEBAR_ORDER = [
     ("/packing-lists", "Packing Lists"),
     ("/preparedness", "Preparedness"),
     ("/settings", "Settings"),
+    ("/connections", "Connections"),
     ("/audit", "Audit Log"),
 ]
 
@@ -46,6 +47,7 @@ PAGES = {
     "/preparedness": ("Preparedness", "/preparedness"),
     "/go-list": ("Go List", "/preparedness"),
     "/settings": ("Settings", "/settings"),
+    "/connections": ("Connections", "/connections"),
     "/audit": ("Audit Log", "/audit"),
     "/styleguide": ("Style Guide", None),
 }
@@ -84,8 +86,9 @@ def test_settings_and_the_audit_log_sit_below_the_divider(client, path):
     lists = sidebar.split('<ul class="sidebar-list">')[1:]
     assert len(lists) == 2
     assert 'href="/settings"' in lists[1]
+    assert 'href="/connections"' in lists[1]
     assert 'href="/audit"' in lists[1]
-    assert lists[1].count("<a ") == 2
+    assert lists[1].count("<a ") == 3
 
 
 @pytest.mark.parametrize("path", ALL_PATHS)

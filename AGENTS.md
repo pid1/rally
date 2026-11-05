@@ -409,10 +409,28 @@ must go through the audit layer and ship with an audit test.** Never write an
 - [ ] A test asserts the events it produces (see `tests/test_audit.py`).
       `tests/test_audit_coverage.py` already calls every registered route and
       fails if one leaves no audit event; it needs no edit, but it must pass.
+- [ ] Every MCP tool touches exactly one **scope** (`todos:read`,
+      `calendar:write`, `calendar:busy`, …), which is what a connection's
+      permissions are checked in. Generated tools get theirs from
+      `mcp_policy.route_scope()`; a route whose scope isn't `<area>:read|write`
+      goes in `ROUTE_SCOPES`. A hand-written tool declares its scope twice, one
+      line each: `@scoped("<scope>")` under its `@mcp.tool(...)` in rally-mcp
+      (`rally_mcp/scopes.py`), and its name in `mcp_policy.HAND_WRITTEN_TOOLS`,
+      because Rally enforces it too. `mcp/tests/test_connections.py` fails if
+      the two disagree, and a tool with no scope is never listed or callable.
+      A hand-written tool may only call routes of its own scope (plus `GET
+      /api/family`, except a busy-only tool); a route needs to know which
+      connection is calling reads `audit_context.current().connection_id`.
 - [ ] A new MCP tool gets an entry in `SAMPLE_ARGS` in
       `mcp/tests/test_tool_coverage.py` (that test fails until it does), the
       right `readOnlyHint`/`destructiveHint`, and wraps any outside-sourced
       text with `untrusted(...)`.
+
+MCP callers reach Rally only through **pre-created connections** (the
+Connections page, `src/rally/connections.py`): each has its own endpoint
+`/mcp/c/<id>`, OAuth or token auth, per-tool permissions from a preset and an
+IP allowlist, and Rally re-checks all of it on every MCP request. The
+Connections routes are in `mcp_policy.DENIED`.
 
 The MCP server lives in `mcp/` as its own uv project (own `pyproject.toml`,
 lockfile and tests): `cd mcp && uv run pytest`. See [docs/mcp.md](docs/mcp.md).
@@ -478,6 +496,8 @@ Rally uses a simple, file-based migration system. All migrations live in the `mi
 - `040_add_meal_notes` - Add `dinner_plans.notes`: optional detail on a meal (who wants what, substitutions), kept separate from `plan`, which is the meal's name (`Meal Name` in the UI). Purely additive and writes **no rows**: every existing meal gets `notes = NULL` and its `plan` text is untouched
 - `041_add_audit_log` - Add `family_members.email` (sign-in address used to attribute MCP and tailnet requests) and create `audit_events` (with its indexes and the append-only `UPDATE`/`DELETE` triggers) and `mcp_connections`. Created here rather than left to `init_db()` because the data layer refuses to write anything it cannot audit
 - `042_named_packing_lists` - Packing lists with their own name that include templates (#281), in **one transaction**. Adds `packing_list_day_templates` (a list's included templates, with `position`; unique per `(day_id, packing_list_template_id)`). Every day with a `packing_list_template_id` includes that template and takes its name (a templateless day keeps its own), then **rebuilds `packing_list_days`** without the template column — so the one-template-per-date index goes with it — and with `name` required. **Rebuilds `event_packing_lists`** keyed on `list_key` (a list's name, casefolded) with `name` and `template_ids` (JSON) in place of `packing_list_template_id`: each row becomes a list named after its template that includes it. **Rebuilds `packing_list_day_events`** keyed on `list_key`. On that run, **"Every day" placements** settle: from today on, every link not on its occurrence's first day (its override's start, else its original date) and every NULL-day link is dropped — the days stay as ordinary lists, and no new ones are made. Past links are left alone and `events.packing_list_span` stays, unread. Checks, own items, readings, order, labels, lead times and schedules move as they are. Migrations 035 and 039 return early once this has run (`packing_list_day_templates` exists): they run on every start and would otherwise look for the columns it removed
+- `043_add_connections` - Add the `connections` table (pre-created MCP connections: name, auth method, preset and tools, IP allowlist, status, who authorized it, the token's HMAC and hint, expiry and last-seen bookkeeping) and `mcp_connections.connection_id`. `mcp_connections` keeps its rows and its meaning, OAuth sign-ins (a person on a client), now attached to the connection they arrived on. Where sign-ins already exist it seeds one `legacy` connection (OAuth, full access, enabled, Anthropic's outbound ranges) and attaches every existing sign-in to it, so the original Claude connector on `/mcp` keeps working until it is re-created; a database with no sign-ins gets no connection, so `/mcp` is refused. A revoked legacy connection is never re-created
+- `044_add_connection_bookings` - Add `events.source` (the MCP connection that booked it; NULL for the family's own events), `events.pending_confirmation` (`NOT NULL DEFAULT 0`), `events.confirmation_hash` (SHA-256 of the confirmation id the busy-only tools return, with a unique index; SQLite treats the existing NULLs as distinct), `events.contact_name` and `events.contact_phone`. Purely additive and writes **no rows**: every existing event reads as confirmed and family-made. 
 
 ### Running Migrations
 
@@ -742,6 +762,8 @@ rally/
 │   ├── migrate_040_add_meal_notes.py # Migration 040: add dinner_plans.notes
 │   ├── migrate_041_add_audit_log.py # Migration 041: audit log tables, member email
 │   ├── migrate_042_named_packing_lists.py # Migration 042: packing lists with their own name that include templates (#281)
+│   ├── migrate_043_add_connections.py # Migration 043: pre-created MCP connections
+│   ├── migrate_044_add_connection_bookings.py # Migration 044: connection booking columns on events
 │   └── run_migrations.py              # Migration runner (executes all migrations in order)
 ├── tests/                # Pytest suite (in-memory DB per test)
 │   └── visual/           # Design-system regression suite; drives real Chromium
@@ -1272,6 +1294,7 @@ visual suite (above) before shipping a layout change.
 - `/packing-lists/previous` - Read-only day boxes for days before today, newest first, with the `View` toggle, server-side search and paging. Reachable only via `View previous packing lists` on `/packing-lists`, not from the nav
 - `/meal-planner/previous` - **Previous Meals**: meals from days before today, with ratings and reviews, Meal Type and Rating chips, Sort, server-side search over the meal and its review, and paging. Reachable only via `View previous meals` on `/meal-planner`, not from the nav. The one archive you can edit, so a save reloads what is loaded rather than jumping back to the first page
 - `/settings` - Settings, family member, calendar, and followed-team management page. **Personal Defaults** is the per-person, per-device behavioral section, and everything in it is scoped to the device it is being read on: a `This device` name, a `This device belongs to` control (the device→member binding, `localStorage` only, never sent anywhere), one dropdown per family member per setting in `member_prefs.CATALOG`, and **Devices Rally remembers** — every device, its answer count, when it was last seen, and a `Forget`. Saved on change; the `PUT` carries only the setting that moved. A section saved with its own Save button says so under it (`<form>-form-message`, `role="status"`, through `sectionSaved()`) until anything in that section changes; Weather, LLM, Notifications and the modals that connect to something report through the verification modal instead. Every delete asks in the shared dialog with the name in bold (deleting a Rally calendar says its events go with it). The Family Member, Calendar and Team modals refuse what is missing under the field: a name or label, the family member, an ICS feed's URL, a CalDAV calendar's email, and its password when adding (editing keeps the stored one); the API refuses the same (`422`), a team's key outside racing included
+- `/connections` - Connections page: the MCP clients set up in advance (name, endpoint `/mcp/c/<id>`, OAuth or token, permission preset and per-tool toggles, IP allowlist with provider presets, enable / disable / revoke, and each OAuth connection's sign-ins). A token is shown once, in a dialog after it is created. Refused to MCP callers
 - `/styleguide` - Design system reference: every component and state rendered from the real stylesheet. Unlinked from the nav, but it ships — a styleguide that exists only in development stops matching production
 - `/preparedness` - Preparedness stock, grouped by location. Location and status chips, search, and an `Add Item` modal carrying the refresh schedule. Each scheduled row has a `Refreshed` button — the one action performed while standing in the garage holding the thing
 - `/go-list` - The printable packing list: every item grouped by location, in walking order, with the unassigned group last. Print stylesheet plus Markdown / CSV / PDF export. Reachable only via the `View go list` link on `/preparedness`, not from the nav bar — it is a view of the inventory, and its nav marks Preparedness as the section you are in
@@ -1443,6 +1466,14 @@ visual suite (above) before shipping a layout change.
   - `POST /api/preparedness/review` - Run an LLM review of the inventory and store it. `400` with a message written for the person who pressed the button when the feature is off, the inventory is empty, no LLM is configured, or the model did not answer usefully
   - `GET /api/preparedness/review` - The last stored review, plus `stale` (the item count has changed since it ran). Reading **never** calls the model — a review costs real money and several seconds, so a page load must never spend either. `404` until one has been run
 
+- `/api/connections` - Pre-created MCP connections (people only; in `mcp_policy.DENIED`)
+  - `GET /api/connections` - Every connection, plus the tool catalog (name, scope, area), the presets with their tools, the IP presets and the public URL
+  - `POST /api/connections` - Create (`name`, `auth_method` `oauth|token`, `preset`, optional `tools`, `ip_allowlist`, `enabled` default false; a token connection needs `authorized_by` and takes `expires_in_days`). A token connection's response carries `token`, the only time it is ever returned
+  - `PUT /api/connections/{id}` - Rename, change `preset`/`tools` (a list that differs from the preset makes it `custom`), `ip_allowlist`, or `status` `enabled|disabled`. `409` once revoked
+  - `POST /api/connections/{id}/revoke` - Revoke for good and forget the token hash
+  - `PUT /api/connections/public-url` - rally-mcp's public `https://` address, for full endpoint URLs
+- `POST /api/mcp/connections/resolve` - rally-mcp's question for each incoming MCP request (service secret only): is this connection, credential and IP allowed, and with which tools and scopes. Refusals are logged and alerted here
+
 ### Navigation
 Every page extends **`templates/base.html`**, which owns the `<head>`, the wordmark header, the menu button and the sidebar. A page supplies only its `title` block (the part after `Rally — `, always an em dash), its `subtitle`, any page-specific `head` scripts, and its `content`; it names its own sidebar entry with `{% set nav_active = "…" %}` at the top. A nav change is therefore made **once**, in `base.html` — the old nav was copied into fourteen templates and had already drifted. Every page renders through the one Jinja environment in `src/rally/templating.py`, including the Dashboard, which used to be filled in with `str.replace` and so could not share a layout; its HTML-bearing values arrive as `Markup` so they are inserted exactly as before.
 
@@ -1582,7 +1613,7 @@ Don't auto-merge. Facts, upkeep and issue PRs all need review.
 ### Build and test
 - Install with `uv sync`. Run the tests with `uv run pytest`: 2959 passed and 1 skipped on 2026-11-01, in about 70 seconds locally and 2 minutes on a GitHub-hosted runner. The visual suite in `tests/visual` skips itself without Playwright.
 - Check style with `uv run ruff check .` and `uv run ruff format --check .`. Both pass on the default branch. CI runs these three commands.
-- rally-mcp in `mcp/` is its own uv project: `cd mcp && uv sync --frozen && uv run pytest` (152 passed on 2026-11-01), then `uv run ruff check .` and `uv run ruff format --check .`.
+- rally-mcp in `mcp/` is its own uv project: `cd mcp && uv sync --frozen && uv run pytest` (180 passed on 2026-11-05), then `uv run ruff check .` and `uv run ruff format --check .`.
 - The visual suite needs `uv sync --group visual` and `uv run playwright install --with-deps chromium`. Then `uv run pytest tests/visual`: 710 passed and 20 skipped on 2026-11-01.
 - `devenv` is not needed to run these commands. Sadr runs them with `uv` directly.
 

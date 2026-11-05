@@ -28,9 +28,29 @@ SAMPLE_ARGS = {
     "list_events": {"start": "2026-10-27"},
     "create_event": {"title": "x", "start": "2026-10-27T10:00"},
     "get_daily_summary": {},
+    "check_availability": {
+        "start": "2026-10-29T00:00:00-05:00",
+        "end": "2026-10-30T00:00:00-05:00",
+    },
+    "find_free_slots": {
+        "window_start": "2026-10-29T00:00:00-05:00",
+        "window_end": "2026-10-30T00:00:00-05:00",
+        "duration_minutes": 60,
+    },
+    "book_appointment": {
+        "start": "2026-10-29T14:00:00-05:00",
+        "end": "2026-10-29T15:00:00-05:00",
+        "title": "Furnace inspection",
+    },
 }
 DESTRUCTIVE = {"delete_todo"}
-READ_ONLY = {"list_todos", "list_events", "get_daily_summary"}
+READ_ONLY = {
+    "list_todos",
+    "list_events",
+    "get_daily_summary",
+    "check_availability",
+    "find_free_slots",
+}
 
 GENERATED = {
     op["operationId"]: op["x-rally-mcp"] for ops in SPEC["paths"].values() for op in ops.values()
@@ -38,7 +58,7 @@ GENERATED = {
 
 
 def _tools(server):
-    return {t.name: t for t in asyncio.run(server.mcp.list_tools())}
+    return {t.name: t for t in asyncio.run(server.mcp.list_tools(run_middleware=False))}
 
 
 def _placeholder(schema: dict):

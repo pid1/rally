@@ -25,5 +25,6 @@
   <Config Name="Access team domain" Target="CF_ACCESS_TEAM_DOMAIN" Default="" Mode="" Description="Cloudflare Zero Trust team domain" Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="Public hostname" Target="RALLY_MCP_PUBLIC_HOST" Default="" Mode="" Description="The tunnel's public MCP hostname" Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="Access AUD" Target="CF_ACCESS_AUD" Default="" Mode="" Description="Access application audience tag" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Trusted proxies" Target="RALLY_MCP_TRUSTED_PROXIES" Default="rally-mcp-cloudflared" Mode="" Description="Only requests from these peers may set CF-Connecting-IP for per-connection IP allowlists. Keep the tunnel container's name." Type="Variable" Display="advanced" Required="false" Mask="false">rally-mcp-cloudflared</Config>
   <Config Name="rally-mcp service token" Target="RALLY_MCP_SERVICE_TOKEN" Default="" Mode="" Description="Shared secret with Rally (same value as Rally's template)" Type="Variable" Display="always" Required="true" Mask="true"></Config>
 </Container>

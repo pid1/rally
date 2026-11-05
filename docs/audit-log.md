@@ -13,12 +13,20 @@ Open it from the sidebar: **Audit Log**, under Settings.
 |---|---|
 | `<entity>.create` / `.update` / `.delete` | A row changed. `before`/`after` hold the changed fields only. |
 | `<entity>.read` | A request (or job) read rows of a table. One event per table per request, with the ids returned. |
-| `http.request` | Every request: method, path, route and status. A failed or refused request is `failure`/`denied` with the error. |
+| `http.request` | Every request: method, path, route, status and `result_bytes` (the response's size), plus `result_items` when the route reports how many items it returned (`audit_context.note_result_size()`). A failed or refused request is `failure`/`denied` with the error. |
 | `mcp.enabled` / `mcp.disabled` | Someone switched the MCP server on or off. |
-| `mcp.connection_authorized` | A household member's MCP connection was seen for the first time. |
+| `mcp.connection_authorized` | A household member signed in to an MCP connection from a client for the first time. |
+| `connection.created` / `connection.updated` / `connection.revoked` | Someone created, changed (permissions, allowlist, status, name) or revoked a connection on the Connections page. The data layer's `connection.create` / `connection.update` diffs sit beside them, with the token hash redacted. |
+| `connection.token_created` / `connection.token_first_used` | A token connection's token was created, or used for the first time. |
+| `connection.token_rejected` | A token connection's request carried no token, the wrong one, or an expired one. |
+| `mcp.connection_unknown`, `mcp.connection_disabled`, `mcp.connection_revoked`, `mcp.connection_mismatch` | A request named no connection Rally has, a disabled or revoked one, or an OAuth connection that belongs to someone else. |
+| `mcp.ip_rejected` | A request came from an address not on its connection's allowlist. |
+| `mcp.permission_denied` | A tool the connection may not use, or a route that tool may not reach, refused by rally-mcp or by Rally. |
 | `mcp.service_auth_failed`, `mcp.identity_unresolved`, `mcp.route_not_allowed`, `mcp.disabled`, `mcp.token_validation_failed` | An MCP request was refused, at Rally or at rally-mcp. |
 | `alert.sent` / `alert.failed` / `alert.skipped` | An alert was delivered, or could not be. |
 | `audit.export` | The log was exported (format, filters, row count). |
+| `busy.check_availability` / `busy.find_free_slots` | A busy-only tool answered (see [mcp.md](mcp.md#busy-only-tools)). `after.result_size` is how many blocks or slots it returned. |
+| `busy.book_appointment` | A booking was requested through a connection. `after.event_id` names the event; the booking itself is also an `event.create` (with `source`, the booking connection). |
 
 Each event also carries who acted (`actor_type`, `actor_id`, `actor_name`),
 the `source` (`web`, `api`, `mcp`, `job`), a `request_id` shared by every
@@ -36,10 +44,18 @@ path and method, plus whatever identity could be learned.
   (Settings → Family Members) matches the login is named on the event. A
   *tagged* node belongs to no user (Tailscale reports `tagged-devices` for all
   of them), so it is recorded by device, as `device:<node name>`.
-- **Through MCP** every call is tied to the household member who approved the
-  connection: their Cloudflare Access email and JWT subject, the connection
-  id, the Claude client (claude.ai, Claude Desktop, Claude Code), the public IP
-  (`CF-Connecting-IP`) and `Cf-Ray`, and the tool and its arguments.
+- **Through MCP** every call is tied to its **connection** (`connection_id`,
+  `connection_name`, `auth_method` in `client_info`) and to the household
+  member behind it: for an OAuth connection the member who signed in (their
+  Cloudflare Access email and JWT subject, and the sign-in's `grant_id`), for a
+  token connection the connection itself (`actor_id` `connection:<id>`, its
+  name as `actor_name`) on behalf of the member who created the token
+  (`authorized_by`). Also recorded: the client (claude.ai, Claude Desktop,
+  Claude Code), the public IP (`CF-Connecting-IP`, believed only from the
+  tunnel) and `Cf-Ray`, the tool and its arguments, and the result's size.
+  Busy-only calls are recorded the same way, so each booking or availability
+  check names the connection, the IP, the tool, its arguments and how much it
+  returned.
 - **Jobs** (the 4 AM generator, the notification loop, the CLI) are recorded
   under the job's own name.
 
@@ -78,5 +94,7 @@ The API behind the page: `GET /api/audit/events`, `GET /api/audit/facets`,
 
 ## Alerts
 
-See [mcp.md](mcp.md#alerts): every new MCP connection and every denied MCP
-request sends a Pushover alert to the people on the alert list.
+See [mcp.md](mcp.md#alerts): connections created, changed or revoked, first
+sign-ins and first token uses, and every denied MCP request (unknown or
+disabled connection, IP off the allowlist, token rejected, permission denied)
+send a Pushover alert to the people on the alert list.

@@ -287,6 +287,10 @@ def expand_event(
             rrule=event.rrule,
             editable=True,
             notify_minutes_before=event.notify_minutes_before,
+            booked_by_connection=bool(event.source),
+            pending_confirmation=bool(event.pending_confirmation),
+            contact_name=event.contact_name or "",
+            contact_phone=event.contact_phone or "",
         )
 
         override = override_by_date.get(occurrence_date)

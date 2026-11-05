@@ -117,18 +117,19 @@ def test_identity_reaches_rally_on_every_request(server, rally):
         assert h["X-Rally-Mcp-Client-Ip"] == "160.79.104.10"
         assert h["X-Rally-Mcp-Cf-Ray"] == "8f0000000000-DFW"
         assert h["X-Rally-Mcp-Tool"] == "list_todos"
-        assert h["X-Rally-Mcp-Connection-Id"].startswith("conn_")
+        assert h["X-Rally-Mcp-Connection-Id"] == "legacy"
+        assert h["X-Rally-Mcp-Grant-Id"].startswith("conn_")
     # One tool call, one request id on both of its Rally requests.
     assert family.headers["X-Rally-Mcp-Request-Id"] == todos.headers["X-Rally-Mcp-Request-Id"]
 
 
-def test_connection_id_is_stable_across_tokens_and_differs_by_client(server, rally):
+def test_grant_id_is_stable_across_tokens_and_differs_by_client(server, rally):
     from conftest import make_jwt
 
     result(call_tool(server.http, "list_todos", {}, token=make_jwt(iat=1, exp=4102444800)))
     result(call_tool(server.http, "list_todos", {}))
     result(call_tool(server.http, "list_todos", {}, user_agent="claude-code/2.1"))
-    ids = [r.headers["X-Rally-Mcp-Connection-Id"] for r in rally.calls("/api/todos")]
+    ids = [r.headers["X-Rally-Mcp-Grant-Id"] for r in rally.calls("/api/todos")]
     assert ids[0] == ids[1] != ids[2]
 
 
@@ -158,13 +159,19 @@ def test_a_caller_cannot_choose_who_rally_thinks_is_acting(server, rally):
             "Accept": "application/json, text/event-stream",
             "User-Agent": "Claude-User",
             "Cf-Access-Jwt-Assertion": make_jwt(),
+            "CF-Connecting-IP": "160.79.104.10",
             "X-Rally-Mcp-Email": "sarah@example.com",
+            "X-Rally-Mcp-Connection-Id": "c-claude",
+            "X-Rally-Mcp-Connection-Token": "forged",
             "X-Rally-Service-Token": "guessed",
         },
     )
     assert response.status_code == 200
     sent = [r for r in rally.requests if r.url.path == "/api/shopping/items"][-1]
     assert sent.headers["X-Rally-Mcp-Email"] == EMAIL
+    # The connection is the one the path names, never a header's.
+    assert sent.headers["X-Rally-Mcp-Connection-Id"] == "legacy"
+    assert "X-Rally-Mcp-Connection-Token" not in sent.headers
     assert sent.headers["X-Rally-Service-Token"] == "svc-secret"
     assert "Cf-Access-Jwt-Assertion" not in sent.headers
 

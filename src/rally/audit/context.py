@@ -52,6 +52,17 @@ class AuditContext:
     client_info: dict = field(default_factory=dict)
     mcp_tool: str | None = None
     mcp_arguments: dict | None = None
+    # The pre-created MCP connection (``connections.id``) this request acts
+    # through, set by the audit middleware once the connection is authorized;
+    # ``"legacy"`` for the original ``/mcp`` path, None for anything not MCP.
+    # Routes that need to know which connection is calling (the busy-only
+    # tools, for one) read ``audit_context.current().connection_id``.
+    connection_id: str | None = None
+    connection_name: str | None = None
+    # How many items a route returned, when it says so (``note_result_size``).
+    # The middleware records it, with the response's size in bytes, on the
+    # request's ``http.request`` event.
+    result_items: int | None = None
     # entity_type -> {"ids": set, "count": int}; flushed once per request so a
     # page that lists forty todos is one read event, not forty.
     reads: dict[str, dict] = field(default_factory=dict)
@@ -95,6 +106,16 @@ def current() -> AuditContext:
             actor_id=_job_name(),
         )
     return _process_job
+
+
+def note_result_size(items: int) -> None:
+    """Record how many items the current request returned (slots, events, rows).
+
+    The generic result-size hook: any route may call it, and the audit
+    middleware writes it as ``result_items`` on the request's ``http.request``
+    event, next to ``result_bytes``, which it measures for every request.
+    """
+    current().result_items = int(items)
 
 
 def activate(ctx: AuditContext):

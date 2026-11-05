@@ -15,3 +15,13 @@ household_emails = ["parent.one@example.com", "parent.two@example.com"]
 # The GitHub OAuth App's client id (not the secret). Optional here: it can
 # also be passed as --github-client-id.
 github_client_id = ""
+
+# Token connections (Rally → Connections, "Signs in with: Token") whose
+# /mcp/c/<id> path skips Cloudflare Access login. Their bearer token is the
+# credential, checked by Rally on every request. List an id only after the
+# connection exists in Rally, and remove it (then re-run) after revoking it.
+token_connection_ids = []
+# Addresses besides Anthropic's that may reach /mcp and /mcp/c/* at the edge.
+# For an ElevenLabs agent (US workspace), its published egress addresses:
+# ["34.67.146.145", "34.59.11.47"]. See rally.connections.IP_PRESETS.
+extra_mcp_ips = []

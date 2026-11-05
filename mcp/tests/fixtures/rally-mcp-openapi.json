@@ -287,6 +287,18 @@
       ],
       "title": "Client Ip"
      },
+     "connection_id": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Connection Id"
+     },
      "email": {
       "anyOf": [
        {
@@ -314,6 +326,18 @@
       "title": "Reason",
       "type": "string"
      },
+     "tool": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tool"
+     },
      "user_agent": {
       "anyOf": [
        {
@@ -331,6 +355,45 @@
      "reason"
     ],
     "title": "AuthEvent",
+    "type": "object"
+   },
+   "AvailabilityResponse": {
+    "properties": {
+     "busy": {
+      "items": {
+       "$ref": "#/components/schemas/TimeBlock"
+      },
+      "title": "Busy",
+      "type": "array"
+     },
+     "end": {
+      "title": "End",
+      "type": "string"
+     },
+     "free": {
+      "items": {
+       "$ref": "#/components/schemas/TimeBlock"
+      },
+      "title": "Free",
+      "type": "array"
+     },
+     "start": {
+      "title": "Start",
+      "type": "string"
+     },
+     "timezone": {
+      "title": "Timezone",
+      "type": "string"
+     }
+    },
+    "required": [
+     "timezone",
+     "start",
+     "end",
+     "busy",
+     "free"
+    ],
+    "title": "AvailabilityResponse",
     "type": "object"
    },
    "BehaviorCatalogResponse": {
@@ -404,6 +467,98 @@
      "default"
     ],
     "title": "BehaviorSettingCatalogEntry",
+    "type": "object"
+   },
+   "BookingRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "contact_name": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Name"
+     },
+     "contact_phone": {
+      "anyOf": [
+       {
+        "maxLength": 32,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Phone"
+     },
+     "end": {
+      "maxLength": 40,
+      "title": "End",
+      "type": "string"
+     },
+     "members": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 10,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Members"
+     },
+     "notes": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notes"
+     },
+     "start": {
+      "maxLength": 40,
+      "title": "Start",
+      "type": "string"
+     },
+     "title": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "start",
+     "end",
+     "title"
+    ],
+    "title": "BookingRequest",
+    "type": "object"
+   },
+   "BookingResponse": {
+    "properties": {
+     "confirmation_id": {
+      "title": "Confirmation Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "confirmation_id"
+    ],
+    "title": "BookingResponse",
     "type": "object"
    },
    "CalendarCreate": {
@@ -626,6 +781,150 @@
      }
     },
     "title": "CalendarUpdate",
+    "type": "object"
+   },
+   "ConnectionCreate": {
+    "properties": {
+     "auth_method": {
+      "title": "Auth Method",
+      "type": "string"
+     },
+     "authorized_by": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Authorized By"
+     },
+     "enabled": {
+      "default": false,
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "expires_in_days": {
+      "anyOf": [
+       {
+        "maximum": 3650.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expires In Days"
+     },
+     "ip_allowlist": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Ip Allowlist",
+      "type": "array"
+     },
+     "name": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "preset": {
+      "default": "custom",
+      "title": "Preset",
+      "type": "string"
+     },
+     "tools": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tools"
+     }
+    },
+    "required": [
+     "name",
+     "auth_method"
+    ],
+    "title": "ConnectionCreate",
+    "type": "object"
+   },
+   "ConnectionUpdate": {
+    "properties": {
+     "ip_allowlist": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ip Allowlist"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "preset": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Preset"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "tools": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tools"
+     }
+    },
+    "title": "ConnectionUpdate",
     "type": "object"
    },
    "DeviceAnnounce": {
@@ -1061,9 +1360,36 @@
       "title": "Attendee Ids",
       "type": "array"
      },
+     "booked_by_connection": {
+      "default": false,
+      "title": "Booked By Connection",
+      "type": "boolean"
+     },
      "calendar_id": {
       "title": "Calendar Id",
       "type": "integer"
+     },
+     "contact_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Name"
+     },
+     "contact_phone": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contact Phone"
      },
      "created_at": {
       "format": "date-time",
@@ -1130,6 +1456,11 @@
       },
       "title": "Packing Lists",
       "type": "array"
+     },
+     "pending_confirmation": {
+      "default": false,
+      "title": "Pending Confirmation",
+      "type": "boolean"
      },
      "rrule": {
       "anyOf": [
@@ -1758,6 +2089,32 @@
      }
     },
     "title": "FollowedTeamUpdate",
+    "type": "object"
+   },
+   "FreeSlotsResponse": {
+    "properties": {
+     "duration_minutes": {
+      "title": "Duration Minutes",
+      "type": "integer"
+     },
+     "slots": {
+      "items": {
+       "$ref": "#/components/schemas/TimeBlock"
+      },
+      "title": "Slots",
+      "type": "array"
+     },
+     "timezone": {
+      "title": "Timezone",
+      "type": "string"
+     }
+    },
+    "required": [
+     "timezone",
+     "duration_minutes",
+     "slots"
+    ],
+    "title": "FreeSlotsResponse",
     "type": "object"
    },
    "GoListGroup": {
@@ -2539,6 +2896,11 @@
       "title": "Attendees",
       "type": "array"
      },
+     "booked_by_connection": {
+      "default": false,
+      "title": "Booked By Connection",
+      "type": "boolean"
+     },
      "calendar_id": {
       "anyOf": [
        {
@@ -2553,6 +2915,16 @@
      "calendar_label": {
       "default": "",
       "title": "Calendar Label",
+      "type": "string"
+     },
+     "contact_name": {
+      "default": "",
+      "title": "Contact Name",
+      "type": "string"
+     },
+     "contact_phone": {
+      "default": "",
+      "title": "Contact Phone",
       "type": "string"
      },
      "dates": {
@@ -2662,6 +3034,11 @@
       },
       "title": "Packing Lists",
       "type": "array"
+     },
+     "pending_confirmation": {
+      "default": false,
+      "title": "Pending Confirmation",
+      "type": "boolean"
      },
      "recurrence_text": {
       "default": "",
@@ -5032,6 +5409,18 @@
     "title": "PrepReviewResponse",
     "type": "object"
    },
+   "PublicUrl": {
+    "properties": {
+     "public_url": {
+      "default": "",
+      "maxLength": 300,
+      "title": "Public Url",
+      "type": "string"
+     }
+    },
+    "title": "PublicUrl",
+    "type": "object"
+   },
    "PurchasedPage": {
     "description": "One page of purchased items, plus the stores the Store chips offer.\n\n``stores`` holds chip values \u2014 store ids as strings, and ``\"anywhere\"`` for\nthe catch-all \u2014 for every store with a purchase matching the current search,\n*ignoring* the store filter. That is what the chips showed when they were\nbuilt from the whole archive in the browser, and answering it here keeps the\nchips from depending on how many pages have been loaded.",
     "properties": {
@@ -5528,6 +5917,133 @@
     "title": "RecurringTodoUpdate",
     "type": "object"
    },
+   "ResolveRequest": {
+    "description": "What rally-mcp learned about an incoming MCP request, for Rally to judge.",
+    "properties": {
+     "cf_ray": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cf Ray"
+     },
+     "client": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Client"
+     },
+     "client_ip": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Client Ip"
+     },
+     "connection_id": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Connection Id"
+     },
+     "email": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email"
+     },
+     "grant_id": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Grant Id"
+     },
+     "jwt_subject": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Jwt Subject"
+     },
+     "path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Path"
+     },
+     "token": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Token"
+     },
+     "user_agent": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "User Agent"
+     },
+     "via_tunnel": {
+      "default": false,
+      "title": "Via Tunnel",
+      "type": "boolean"
+     }
+    },
+    "title": "ResolveRequest",
+    "type": "object"
+   },
    "SettingsResponse": {
     "description": "All settings as a flat dict.",
     "properties": {
@@ -5851,6 +6367,24 @@
     "title": "ShoppingSuggestion",
     "type": "object"
    },
+   "TimeBlock": {
+    "properties": {
+     "end": {
+      "title": "End",
+      "type": "string"
+     },
+     "start": {
+      "title": "Start",
+      "type": "string"
+     }
+    },
+    "required": [
+     "start",
+     "end"
+    ],
+    "title": "TimeBlock",
+    "type": "object"
+   },
    "TodoCreate": {
     "properties": {
      "assigned_to": {
@@ -6156,6 +6690,7 @@
       "openWorldHint": true,
       "readOnlyHint": false
      },
+     "scope": "dashboard:write",
      "untrusted": true
     }
    }
@@ -6207,6 +6742,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "calendar:write",
      "untrusted": false
     }
    }
@@ -6236,6 +6772,7 @@
       "openWorldHint": true,
       "readOnlyHint": false
      },
+     "scope": "calendar:write",
      "untrusted": true
     }
    }
@@ -6265,6 +6802,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "calendar:read",
      "untrusted": true
     }
    }
@@ -6356,7 +6894,8 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
-     "untrusted": false
+     "scope": "calendar:write",
+     "untrusted": true
     }
    },
    "get": {
@@ -6406,7 +6945,8 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
-     "untrusted": false
+     "scope": "calendar:read",
+     "untrusted": true
     }
    },
    "put": {
@@ -6524,7 +7064,61 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
-     "untrusted": false
+     "scope": "calendar:write",
+     "untrusted": true
+    }
+   }
+  },
+  "/api/events/{event_id}/confirm": {
+   "post": {
+    "description": "Calendar: Confirm Event.\n\nConfirm an appointment booked through a connection, so it stops showing as pending.\n\nConfirming is the family's call, so it is not one of the busy-only tools:\nan agent can book pending appointments, never confirm\nthem. Confirming an event that is not pending changes nothing.",
+    "operationId": "confirm_event",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "event_id",
+      "required": true,
+      "schema": {
+       "title": "Event Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Confirm Event",
+    "tags": [
+     "events"
+    ],
+    "x-rally-mcp": {
+     "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+     },
+     "scope": "calendar:write",
+     "untrusted": true
     }
    }
   },
@@ -6601,6 +7195,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "calendar:read",
      "untrusted": false
     }
    }
@@ -6670,6 +7265,7 @@
       "openWorldHint": true,
       "readOnlyHint": false
      },
+     "scope": "calendar:write",
      "untrusted": false
     }
    }
@@ -6758,7 +7354,8 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
-     "untrusted": false
+     "scope": "calendar:read",
+     "untrusted": true
     }
    }
   },
@@ -6793,6 +7390,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "family:read",
      "untrusted": false
     }
    }
@@ -6845,6 +7443,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "family:read",
      "untrusted": false
     }
    }
@@ -6880,6 +7479,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "sports:read",
      "untrusted": true
     }
    },
@@ -6929,6 +7529,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "sports:write",
      "untrusted": true
     }
    }
@@ -6974,6 +7575,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "sports:write",
      "untrusted": true
     }
    },
@@ -7034,6 +7636,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "sports:write",
      "untrusted": true
     }
    }
@@ -7084,6 +7687,7 @@
       "openWorldHint": true,
       "readOnlyHint": false
      },
+     "scope": "sports:write",
      "untrusted": true
     }
    }
@@ -7119,6 +7723,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "meals:read",
      "untrusted": false
     }
    },
@@ -7168,6 +7773,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "meals:write",
      "untrusted": false
     }
    }
@@ -7224,6 +7830,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "meals:read",
      "untrusted": false
     }
    }
@@ -7356,6 +7963,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "meals:read",
      "untrusted": false
     }
    }
@@ -7401,6 +8009,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "meals:write",
      "untrusted": false
     }
    },
@@ -7451,6 +8060,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "meals:read",
      "untrusted": false
     }
    },
@@ -7511,6 +8121,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "meals:write",
      "untrusted": false
     }
    }
@@ -7573,6 +8184,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "meals:write",
      "untrusted": false
     }
    }
@@ -7608,6 +8220,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "notes:read",
      "untrusted": false
     }
    },
@@ -7657,6 +8270,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "notes:write",
      "untrusted": false
     }
    }
@@ -7741,6 +8355,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "notes:read",
      "untrusted": false
     }
    }
@@ -7791,6 +8406,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "notes:write",
      "untrusted": false
     }
    },
@@ -7841,6 +8457,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "notes:read",
      "untrusted": false
     }
    },
@@ -7901,6 +8518,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "notes:write",
      "untrusted": false
     }
    }
@@ -7932,6 +8550,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "notifications:read",
      "untrusted": false
     }
    }
@@ -7967,6 +8586,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    },
@@ -8016,6 +8636,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8061,6 +8682,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    },
@@ -8121,6 +8743,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8156,6 +8779,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    },
@@ -8205,6 +8829,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8289,6 +8914,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    }
@@ -8334,6 +8960,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    },
@@ -8384,6 +9011,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    },
@@ -8444,6 +9072,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8515,6 +9144,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8576,6 +9206,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8637,6 +9268,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8689,6 +9321,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8751,6 +9384,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8812,6 +9446,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    },
@@ -8881,6 +9516,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8943,6 +9579,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -8995,6 +9632,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9057,6 +9695,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9118,6 +9757,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    },
@@ -9187,6 +9827,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9263,6 +9904,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    }
@@ -9308,6 +9950,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9343,6 +9986,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    },
@@ -9392,6 +10036,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9437,6 +10082,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    },
@@ -9487,6 +10133,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    },
@@ -9547,6 +10194,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9582,6 +10230,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    },
@@ -9631,6 +10280,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9676,6 +10326,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    },
@@ -9726,6 +10377,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "packing:read",
      "untrusted": false
     }
    },
@@ -9786,6 +10438,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9857,6 +10510,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9918,6 +10572,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -9979,6 +10634,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -10041,6 +10697,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -10107,6 +10764,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -10161,6 +10819,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    },
@@ -10230,6 +10889,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "packing:write",
      "untrusted": false
     }
    }
@@ -10261,6 +10921,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "preferences:read",
      "untrusted": false
     }
    }
@@ -10320,6 +10981,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "preparedness:read",
      "untrusted": false
     }
    }
@@ -10375,6 +11037,7 @@
       "openWorldHint": true,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    }
@@ -10433,6 +11096,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "preparedness:read",
      "untrusted": false
     }
    }
@@ -10499,6 +11163,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "preparedness:read",
      "untrusted": false
     }
    }
@@ -10609,6 +11274,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "preparedness:read",
      "untrusted": false
     }
    },
@@ -10658,6 +11324,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    }
@@ -10703,6 +11370,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    },
@@ -10753,6 +11421,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "preparedness:read",
      "untrusted": false
     }
    },
@@ -10813,6 +11482,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    }
@@ -10882,6 +11552,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    }
@@ -10917,6 +11588,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "preparedness:read",
      "untrusted": false
     }
    },
@@ -10966,6 +11638,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    }
@@ -11011,6 +11684,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    },
@@ -11071,6 +11745,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": false
     }
    }
@@ -11102,6 +11777,7 @@
       "openWorldHint": true,
       "readOnlyHint": true
      },
+     "scope": "preparedness:read",
      "untrusted": true
     }
    },
@@ -11131,6 +11807,7 @@
       "openWorldHint": true,
       "readOnlyHint": false
      },
+     "scope": "preparedness:write",
      "untrusted": true
     }
    }
@@ -11166,6 +11843,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "todos:read",
      "untrusted": false
     }
    },
@@ -11215,6 +11893,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "todos:write",
      "untrusted": false
     }
    }
@@ -11266,6 +11945,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "todos:write",
      "untrusted": false
     }
    }
@@ -11311,6 +11991,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "todos:write",
      "untrusted": false
     }
    },
@@ -11361,6 +12042,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "todos:read",
      "untrusted": false
     }
    },
@@ -11421,6 +12103,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "todos:write",
      "untrusted": false
     }
    }
@@ -11456,6 +12139,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "briefing:read",
      "untrusted": false
     }
    }
@@ -11518,6 +12202,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "briefing:write",
      "untrusted": false
     }
    }
@@ -11570,6 +12255,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "briefing:read",
      "untrusted": false
     }
    }
@@ -11632,6 +12318,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "briefing:write",
      "untrusted": false
     }
    }
@@ -11691,6 +12378,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "shopping:read",
      "untrusted": false
     }
    },
@@ -11740,6 +12428,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    }
@@ -11795,6 +12484,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    }
@@ -11840,6 +12530,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    },
@@ -11900,6 +12591,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    }
@@ -11999,6 +12691,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "shopping:read",
      "untrusted": false
     }
    }
@@ -12034,6 +12727,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "shopping:read",
      "untrusted": false
     }
    },
@@ -12083,6 +12777,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    }
@@ -12128,6 +12823,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    },
@@ -12188,6 +12884,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    }
@@ -12264,6 +12961,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "shopping:read",
      "untrusted": false
     }
    }
@@ -12309,6 +13007,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
      },
+     "scope": "shopping:write",
      "untrusted": false
     }
    }
@@ -12419,6 +13118,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "todos:read",
      "untrusted": false
     }
    }
@@ -12471,9 +13171,23 @@
       "openWorldHint": false,
       "readOnlyHint": true
      },
+     "scope": "todos:read",
      "untrusted": false
     }
    }
   }
+ },
+ "x-rally-mcp-hand-written": {
+  "book_appointment": "calendar:busy",
+  "check_availability": "calendar:busy",
+  "complete_todo": "todos:write",
+  "create_event": "calendar:write",
+  "create_todo": "todos:write",
+  "delete_todo": "todos:write",
+  "find_free_slots": "calendar:busy",
+  "get_daily_summary": "dashboard:read",
+  "list_events": "calendar:read",
+  "list_todos": "todos:read",
+  "update_todo": "todos:write"
  }
 }

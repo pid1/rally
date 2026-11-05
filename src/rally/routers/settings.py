@@ -39,8 +39,13 @@ from rally.utils.timezone import now_utc
 
 router = APIRouter(tags=["settings"])
 
-# Settings with a dedicated, audited endpoint (rally.routers.mcp / .audit).
-RESERVED_SETTING_KEYS = {"mcp_enabled", "audit_alert_member_ids", "rally_base_url"}
+# Settings with a dedicated, audited endpoint (rally.routers.mcp / .audit / .connections).
+RESERVED_SETTING_KEYS = {
+    "mcp_enabled",
+    "audit_alert_member_ids",
+    "rally_base_url",
+    "mcp_public_url",
+}
 
 
 # --- Key-value settings ---

@@ -6,12 +6,16 @@ For each HTTP request (static files aside) this middleware
    path, method, and the caller's identity (Tailscale for tailnet requests, the
    forwarded household member for rally-mcp);
 2. refuses, before any handler runs, a request that claims an MCP identity
-   without rally-mcp's service secret, arrives while MCP is disabled, names
-   nobody Rally knows, or asks for a route MCP may not use — each refusal is a
-   ``denied`` event and an alert;
+   without rally-mcp's service secret, arrives while MCP is disabled, asks for
+   a route MCP may not use, fails its connection's checks (unknown, disabled
+   or revoked, IP off the allowlist, bad token, nobody Rally knows), or names
+   a tool the connection may not use or a route that tool may not reach (see
+   ``rally.connections``) — each refusal is a ``denied`` event and an alert;
 3. after the handler, writes the reads the request made and one
-   ``http.request`` event carrying the status, so a request that failed —
-   including a change that was rolled back — is still on the record.
+   ``http.request`` event carrying the status and the response's size
+   (``result_bytes``, plus ``result_items`` when the route reported it), so a
+   request that failed — including a change that was rolled back — is still
+   on the record.
 
 The response carries ``X-Request-Id`` so a person (or rally-mcp) can find
 every event from one request on the Audit Log page.
@@ -20,14 +24,13 @@ every event from one request on the Audit Log page.
 from __future__ import annotations
 
 import json
-from datetime import timedelta
 
 import anyio
 from starlette.routing import Match
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from rally.audit import alerts, identity, recorder
 from rally.audit import context as audit_context
+from rally.audit import identity, recorder
 from rally.audit.context import (
     ACTOR_MCP,
     ACTOR_USER,
@@ -38,8 +41,7 @@ from rally.audit.context import (
     AuditContext,
 )
 from rally.database import get_db
-from rally.models import FamilyMember, McpConnection, Setting
-from rally.utils.timezone import now_utc
+from rally.models import FamilyMember, Setting
 
 MCP_ENABLED_KEY = "mcp_enabled"
 
@@ -53,10 +55,10 @@ MCP_SERVICE_ROUTES = {
     ("GET", "/api/mcp/status"),
     ("POST", "/api/mcp/auth-events"),
     ("GET", "/api/mcp/openapi"),
+    ("POST", "/api/mcp/connections/resolve"),
 }
 
 SKIP_PREFIXES = ("/static/", "/favicon")
-LAST_SEEN_RESOLUTION = timedelta(minutes=1)
 
 
 def mcp_enabled(db) -> bool:
@@ -157,7 +159,7 @@ class AuditMiddleware:
                 await self._send_denial(send, ctx, denial)
                 return
 
-            status = {"code": 500}
+            status = {"code": 500, "bytes": 0}
             error_body = bytearray()
 
             async def send_wrapper(message):
@@ -167,8 +169,11 @@ class AuditMiddleware:
                     message["headers"] = list(message["headers"]) + [
                         (b"x-request-id", ctx.request_id.encode())
                     ]
-                elif message["type"] == "http.response.body" and status["code"] >= 400:
-                    if len(error_body) < 1000:
+                elif message["type"] == "http.response.body":
+                    # The generic result-size hook: every response's size is
+                    # on its http.request event.
+                    status["bytes"] += len(message.get("body", b""))
+                    if status["code"] >= 400 and len(error_body) < 1000:
                         error_body.extend(message.get("body", b"")[:1000])
                 await send(message)
 
@@ -181,7 +186,9 @@ class AuditMiddleware:
             finally:
                 if error is None and status["code"] >= 400:
                     error = error_body.decode("utf-8", "replace") or None
-                await anyio.to_thread.run_sync(self._finish, ctx, status["code"], error)
+                await anyio.to_thread.run_sync(
+                    self._finish, ctx, status["code"], error, status["bytes"]
+                )
         finally:
             audit_context.reset(token)
 
@@ -205,16 +212,26 @@ class AuditMiddleware:
             _close(gen)
 
     def _authorize_mcp(self, ctx: AuditContext, claim, method: str, route: str | None):
-        """Return None to let the request through, or (status, action, reason)."""
+        """Return None to let the request through, or a ``connections.Denial``."""
+        from rally import connections
+        from rally.audit import mcp_policy
+
         ctx.actor_id = claim.email or UNKNOWN_ACTOR
         ctx.mcp_tool = claim.tool
         ctx.mcp_arguments = claim.arguments
+        connection_id = claim.connection_id
+        grant_id = claim.grant_id
+        if connection_id and connection_id.startswith("conn_") and not grant_id:
+            # A rally-mcp from before pre-created connections sends its grant
+            # hash as the connection id, and only ever serves /mcp.
+            connection_id, grant_id = connections.LEGACY_ID, connection_id
         ctx.client_info.update(
             {
                 "mcp_client": claim.client,
                 "client_ip": claim.client_ip,
                 "cf_ray": claim.cf_ray,
-                "connection_id": claim.connection_id,
+                "connection_id": connection_id,
+                "grant_id": grant_id,
                 "jwt_subject": claim.jwt_subject,
                 "upstream_request_id": claim.upstream_request_id,
                 "upstream_user_agent": claim.user_agent,
@@ -227,7 +244,9 @@ class AuditMiddleware:
 
         if not claim.service_token_ok:
             ctx.flagged = True
-            return 403, "mcp.service_auth_failed", "Missing or invalid rally-mcp service credential"
+            return connections.Denial(
+                403, "mcp.service_auth_failed", "Missing or invalid rally-mcp service credential"
+            )
 
         db, gen = _session(self.fastapi_app)
         try:
@@ -236,112 +255,96 @@ class AuditMiddleware:
                 ctx.actor_id = claim.email or "rally-mcp"
                 return None
             if not mcp_enabled(db):
-                return 403, "mcp.disabled", "MCP is disabled in Rally's settings"
-            from rally.audit import mcp_policy
-
+                return connections.Denial(
+                    403, "mcp.disabled", "MCP is disabled in Rally's settings"
+                )
             if (method, route) not in mcp_policy.allowed_routes(self.fastapi_app):
-                return (
+                return connections.Denial(
                     403,
                     "mcp.route_not_allowed",
                     f"{method} {route or ctx.client_info['path']} is not an MCP route",
                 )
-            member = _member_by_email(db, claim.email)
-            if member is None:
-                ctx.flagged = True
-                return (
-                    403,
-                    "mcp.identity_unresolved",
-                    (
-                        f"No household member has the email {claim.email!r}"
-                        if claim.email
-                        else "No acting identity was forwarded"
-                    ),
+            result = connections.authorize(
+                db,
+                connection_id=connection_id,
+                email=claim.email,
+                token=claim.connection_token,
+                client_ip=claim.client_ip,
+            )
+            if isinstance(result, connections.Denial):
+                if result.action == "mcp.identity_unresolved":
+                    ctx.flagged = True
+                return result
+            conn, member = result.connection, result.member
+            ctx.connection_id = conn.id
+            ctx.connection_name = conn.name
+            ctx.client_info.update(
+                {
+                    "connection_id": conn.id,
+                    "connection_name": conn.name,
+                    "auth_method": conn.auth_method,
+                }
+            )
+            if conn.auth_method == "token":
+                # Nobody signed in: the connection itself is the actor, on
+                # behalf of the member who created its token.
+                ctx.actor_id = f"connection:{conn.id}"
+                ctx.actor_name = conn.name
+            elif member is not None:
+                ctx.actor_name = member.name
+            if member is not None:
+                ctx.client_info["member_id"] = member.id
+                ctx.client_info["authorized_by"] = member.name
+
+            catalog = mcp_policy.tool_catalog(self.fastapi_app)
+            tool = claim.tool
+            if not tool:
+                return connections.Denial(
+                    403, "mcp.permission_denied", "The request names no MCP tool"
                 )
-            ctx.actor_name = member.name
-            ctx.client_info["member_id"] = member.id
-            self._track_connection(db, ctx, claim, member)
+            if tool not in connections.permitted_tools(conn, catalog):
+                return connections.Denial(
+                    403,
+                    "mcp.permission_denied",
+                    f"Connection {conn.name!r} may not use the tool {tool}",
+                )
+            why = mcp_policy.call_denial(catalog, tool, method, route)
+            if why:
+                return connections.Denial(403, "mcp.permission_denied", why)
+
+            if conn.auth_method == "oauth" and member is not None:
+                connections.track_grant(
+                    db,
+                    conn=conn,
+                    member=member,
+                    grant_id=grant_id,
+                    email=claim.email,
+                    jwt_subject=claim.jwt_subject,
+                    client=claim.client,
+                    client_ip=claim.client_ip,
+                )
             return None
         finally:
             _close(gen)
 
-    def _track_connection(self, db, ctx: AuditContext, claim, member: FamilyMember) -> None:
-        conn_id = claim.connection_id or f"{claim.email}:{claim.jwt_subject}"
-        conn = db.get(McpConnection, conn_id)
-        now = now_utc()
-        if conn is not None:
-            # Refreshed at most once a minute (or when the IP changes): every
-            # tool call is already its own audit trail, and a last-seen write
-            # per request would double the log for no new information.
-            stale = now.replace(tzinfo=None) - conn.last_seen_at.replace(tzinfo=None)
-            if stale >= LAST_SEEN_RESOLUTION or conn.last_ip != claim.client_ip:
-                conn.last_seen_at = now
-                conn.last_ip = claim.client_ip
-                db.commit()
-            return
-        db.add(
-            McpConnection(
-                id=conn_id,
-                family_member_id=member.id,
-                email=claim.email,
-                jwt_subject=claim.jwt_subject,
-                client=claim.client,
-                first_ip=claim.client_ip,
-                last_ip=claim.client_ip,
-                first_seen_at=now,
-                last_seen_at=now,
-            )
-        )
-        recorder.record(
-            db,
-            action="mcp.connection_authorized",
-            entity_type="mcp_connections",
-            entity_id=conn_id,
-            after={
-                "member": member.name,
-                "email": claim.email,
-                "client": claim.client,
-                "client_ip": claim.client_ip,
-            },
-        )
-        alerts.send(
-            db,
-            title="Rally: new MCP connection",
-            message=(
-                f"{member.name} ({claim.email}) authorized a new MCP connection.\n"
-                f"Client: {claim.client or 'unknown'}\nIP: {claim.client_ip or 'unknown'}\n"
-                f"Time: {now.isoformat(timespec='seconds')}"
-            ),
-            request_id=ctx.request_id,
-        )
-
     # --- writing ---------------------------------------------------------------
 
-    def _record_denial(self, ctx: AuditContext, action: str, reason: str) -> None:
+    def _record_denial(self, ctx: AuditContext, denial) -> None:
+        from rally import connections
+
         db, gen = _session(self.fastapi_app)
         try:
-            recorder.record(db, action=action, outcome="denied", error=reason)
-            alerts.send(
-                db,
-                title="Rally: MCP request denied",
-                message=(
-                    f"{reason}\nActor: {ctx.actor_id}\n"
-                    f"Client: {ctx.client_info.get('mcp_client') or 'unknown'}\n"
-                    f"IP: {ctx.client_info.get('client_ip') or ctx.client_info.get('ip')}\n"
-                    f"Request: {ctx.client_info['method']} {ctx.client_info['path']}"
-                ),
-                request_id=ctx.request_id,
-            )
+            connections.record_denial(db, denial)
         finally:
             _close(gen)
 
     async def _send_denial(self, send: Send, ctx: AuditContext, denial) -> None:
-        status, action, reason = denial
-        await anyio.to_thread.run_sync(self._record_denial, ctx, action, reason)
-        body = json.dumps({"detail": reason, "request_id": ctx.request_id}).encode()
+        await anyio.to_thread.run_sync(self._record_denial, ctx, denial)
+        body = json.dumps({"detail": denial.reason, "request_id": ctx.request_id}).encode()
         await send(
             {
                 "type": "http.response.start",
-                "status": status,
+                "status": denial.status,
                 "headers": [
                     (b"content-type", b"application/json"),
                     (b"content-length", str(len(body)).encode()),
@@ -351,7 +354,9 @@ class AuditMiddleware:
         )
         await send({"type": "http.response.body", "body": body})
 
-    def _finish(self, ctx: AuditContext, status: int, error: str | None) -> None:
+    def _finish(
+        self, ctx: AuditContext, status: int, error: str | None, result_bytes: int = 0
+    ) -> None:
         if status < 400:
             outcome = "success"
         elif status in (401, 403):
@@ -373,6 +378,8 @@ class AuditMiddleware:
                     "path": ctx.client_info["path"],
                     "route": ctx.client_info.get("route"),
                     "status": status,
+                    "result_bytes": result_bytes,
+                    **({"result_items": ctx.result_items} if ctx.result_items is not None else {}),
                 },
                 outcome=outcome,
                 error=error if outcome != "success" else None,

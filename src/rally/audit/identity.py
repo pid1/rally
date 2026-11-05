@@ -14,9 +14,11 @@ Neither available means the request is served and logged as ``unknown``.
 
 **MCP requests** come from rally-mcp, which authenticates itself with a shared
 service secret (``RALLY_MCP_SERVICE_TOKEN``, held by rally-mcp alone) and names
-the household member it is acting for. A request that claims an MCP identity
+the connection the call arrived on and the household member (or, for a token
+connection, the token) it is acting for. A request that claims an MCP identity
 without the right secret is refused and logged — nothing else on the tailnet
-can impersonate rally-mcp.
+can impersonate rally-mcp. What the claim may then do is decided by
+``rally.connections``.
 """
 
 from __future__ import annotations
@@ -149,7 +151,12 @@ class McpClaim:
     service_token_ok: bool
     email: str | None
     jwt_subject: str | None
+    # The pre-created connection (``connections.id``) the call arrived on.
     connection_id: str | None
+    # One person's OAuth sign-in from one client (``mcp_connections.id``).
+    grant_id: str | None
+    # A token connection's bearer token, which Rally checks on every request.
+    connection_token: str | None
     client: str | None
     client_ip: str | None
     cf_ray: str | None
@@ -183,6 +190,8 @@ def mcp_claim(headers: dict[str, str]) -> McpClaim | None:
         email=(h("email") or "").lower() or None,
         jwt_subject=h("jwt-sub"),
         connection_id=h("connection-id"),
+        grant_id=h("grant-id"),
+        connection_token=h("connection-token"),
         client=h("client"),
         client_ip=h("client-ip"),
         cf_ray=h("cf-ray"),

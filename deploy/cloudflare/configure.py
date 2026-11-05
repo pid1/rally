@@ -24,6 +24,7 @@ import argparse
 import ipaddress
 import json
 import os
+import re
 import sys
 import tomllib
 import urllib.error
@@ -37,6 +38,13 @@ HOSTNAME = ""
 TEAM_DOMAIN = ""
 HOUSEHOLD_EMAILS: list[str] = []
 GITHUB_CLIENT_ID = ""
+# Token connections (Rally's Connections page) whose /mcp/c/<id> path skips
+# Access login: the bearer token is their credential, checked by Rally.
+TOKEN_CONNECTION_IDS: list[str] = []
+# Addresses besides Anthropic's that may reach the MCP paths at the edge,
+# e.g. a voice agent provider's. Each connection's own allowlist is still
+# enforced by rally-mcp and Rally behind this.
+EXTRA_MCP_IPS: list[str] = []
 CONFIG_FILE = Path(os.environ.get("RALLY_MCP_CF_CONFIG", Path(__file__).with_name("config.toml")))
 
 TUNNEL_NAME = "rally-mcp"
@@ -44,8 +52,16 @@ ORIGIN = "http://rally-mcp:8080"
 APP_NAME = "rally-mcp"
 POLICY_NAME = "rally-mcp household"
 IDP_NAME = "GitHub"
-ANTHROPIC_RANGE = "160.79.104.0/21"
+# Anthropic's published outbound ranges (Claude's MCP connectors call from
+# these). Source: https://platform.claude.com/docs/en/api/ip-addresses,
+# checked 2026-11-05. Kept in step with rally.connections.IP_PRESETS.
+ANTHROPIC_RANGES = ["160.79.104.0/21", "153.61.208.0/20"]
 MCP_PATH = "/mcp"
+# Each pre-created connection's endpoint is /mcp/c/<connection id>.
+CONNECTION_PREFIX = "/mcp/c/"
+TOKEN_APP_PREFIX = "rally-mcp token "
+BYPASS_POLICY_NAME = "rally-mcp token connections (bypass)"
+CONNECTION_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 # Paths Managed OAuth and Access serve on the protected hostname. Everything
 # else on the hostname is blocked at the edge (path lockdown). The authorize,
@@ -82,6 +98,14 @@ def load_config() -> None:
     except KeyError as exc:
         sys.exit(f"{CONFIG_FILE} is missing {exc}")
     GITHUB_CLIENT_ID = cfg.get("github_client_id", "")
+    global TOKEN_CONNECTION_IDS, EXTRA_MCP_IPS
+    TOKEN_CONNECTION_IDS = [str(i).strip() for i in cfg.get("token_connection_ids", [])]
+    bad = [i for i in TOKEN_CONNECTION_IDS if not CONNECTION_ID.match(i)]
+    if bad:
+        sys.exit(f"token_connection_ids holds something that is not a connection id: {bad}")
+    EXTRA_MCP_IPS = [
+        str(ipaddress.ip_network(n, strict=False)) for n in cfg.get("extra_mcp_ips", [])
+    ]
     if not HOUSEHOLD_EMAILS:
         sys.exit("household_emails must name at least one person")
 
@@ -284,25 +308,86 @@ def ensure_app(idp_id: str, policy_id: str) -> dict:
     return app
 
 
+def ensure_token_bypass() -> None:
+    """One Access application per token connection's path, with a Bypass policy.
+
+    Access matches the most specific application, so ``<hostname>/mcp/c/<id>``
+    for a listed id skips login while every other path, OAuth connections'
+    included, stays behind the household Allow policy. Bypass means *no*
+    Access check on that path: the token, verified by Rally on every request,
+    and the connection's IP allowlist are what guard it. Applications for ids
+    no longer listed are deleted, so revoking a token connection in Rally and
+    removing its id here closes the path at the edge too.
+    """
+    policies = f"/accounts/{ACCOUNT_ID}/access/policies"
+    body = {
+        "name": BYPASS_POLICY_NAME,
+        "decision": "bypass",
+        "include": [{"everyone": {}}],
+        "require": [],
+        "exclude": [],
+    }
+    found = [p for p in cf("GET", policies)["result"] if p["name"] == BYPASS_POLICY_NAME]
+    if found:
+        policy_id = found[0]["id"]
+        cf("PUT", f"{policies}/{policy_id}", body)
+    else:
+        policy_id = cf("POST", policies, body)["result"]["id"]
+
+    apps = f"/accounts/{ACCOUNT_ID}/access/apps"
+    existing = {
+        a["name"][len(TOKEN_APP_PREFIX) :]: a
+        for a in cf("GET", apps)["result"]
+        if a.get("name", "").startswith(TOKEN_APP_PREFIX)
+    }
+    for conn_id in TOKEN_CONNECTION_IDS:
+        path = f"{HOSTNAME}{CONNECTION_PREFIX}{conn_id}"
+        app_body = {
+            "name": f"{TOKEN_APP_PREFIX}{conn_id}",
+            "type": "self_hosted",
+            "domain": path,
+            "destinations": [{"type": "public", "uri": path}],
+            "app_launcher_visible": False,
+            "policies": [{"id": policy_id, "precedence": 1}],
+        }
+        if conn_id in existing:
+            cf("PUT", f"{apps}/{existing[conn_id]['id']}", app_body)
+        else:
+            cf("POST", apps, app_body)
+        log(f"Access bypass for token connection {conn_id} ({path})")
+    for conn_id, app in existing.items():
+        if conn_id not in TOKEN_CONNECTION_IDS:
+            cf("DELETE", f"{apps}/{app['id']}")
+            log(f"Access bypass removed for {conn_id} (no longer in token_connection_ids)")
+
+
+def _slash24s(ranges: list[str]) -> list[str]:
+    out = []
+    for net in map(ipaddress.ip_network, ranges):
+        out += [str(n) for n in net.subnets(new_prefix=24)] if net.prefixlen < 24 else [str(net)]
+    return out
+
+
 # --- Edge: IP access rule, WAF custom rules, rate limit ----------------------
 
 
 def ensure_ip_allow() -> None:
-    # IP Access Rules only accept /16 and /24 IPv4 ranges, so the /21 goes in
-    # as its eight /24 blocks.
+    # IP Access Rules only accept /16 and /24 IPv4 ranges, so each range goes
+    # in as its /24 blocks (8 for the /21, 16 for the /20).
     rules = f"/zones/{ZONE_ID}/firewall/access_rules/rules"
-    for net in ipaddress.ip_network(ANTHROPIC_RANGE).subnets(new_prefix=24):
+    blocks = _slash24s(ANTHROPIC_RANGES)
+    for net in blocks:
         found = cf("GET", f"{rules}?configuration.value={net}")["result"]
         body = {
             "mode": "whitelist",
-            "configuration": {"target": "ip_range", "value": str(net)},
-            "notes": f"Anthropic outbound {ANTHROPIC_RANGE} (Claude connectors) - rally-mcp",
+            "configuration": {"target": "ip_range", "value": net},
+            "notes": "Anthropic outbound (Claude connectors) - rally-mcp",
         }
         if found:
             cf("PATCH", f"{rules}/{found[0]['id']}", body)
         else:
             cf("POST", rules, body)
-    log(f"IP Access Rules allow {ANTHROPIC_RANGE} (as 8 x /24)")
+    log(f"IP Access Rules allow {', '.join(ANTHROPIC_RANGES)} (as {len(blocks)} x /24)")
 
 
 def _put_phase_rules(phase: str, ours: list[dict]) -> None:
@@ -320,11 +405,14 @@ def _put_phase_rules(phase: str, ours: list[dict]) -> None:
 
 def ensure_waf(dev_ips: list[str]) -> None:
     host = f'http.host eq "{HOSTNAME}"'
-    allowed_paths = " or ".join(
-        [f'http.request.uri.path eq "{MCP_PATH}"']
-        + [f'starts_with(http.request.uri.path, "{p}")' for p in OAUTH_PATH_PREFIXES]
+    mcp_paths = (
+        f'(http.request.uri.path eq "{MCP_PATH}" or '
+        f'starts_with(http.request.uri.path, "{CONNECTION_PREFIX}"))'
     )
-    mcp_ips = " ".join([ANTHROPIC_RANGE, *dev_ips])
+    allowed_paths = " or ".join(
+        [mcp_paths] + [f'starts_with(http.request.uri.path, "{p}")' for p in OAUTH_PATH_PREFIXES]
+    )
+    mcp_ips = " ".join([*ANTHROPIC_RANGES, *EXTRA_MCP_IPS, *dev_ips])
     rules = [
         {
             "ref": f"{RULE_REF_PREFIX}skip_challenges",
@@ -336,7 +424,7 @@ def ensure_waf(dev_ips: list[str]) -> None:
         },
         {
             "ref": f"{RULE_REF_PREFIX}path_lockdown",
-            "description": "rally-mcp: block everything but /mcp and OAuth endpoints",
+            "description": "rally-mcp: block everything but the MCP paths and OAuth endpoints",
             "expression": f"({host} and not ({allowed_paths}))",
             "action": "block",
         },
@@ -344,11 +432,8 @@ def ensure_waf(dev_ips: list[str]) -> None:
             "ref": f"{RULE_REF_PREFIX}mcp_ip_allowlist",
             # Only the MCP endpoint: the OAuth login/authorize pages must stay
             # reachable from your own browser.
-            "description": "rally-mcp: /mcp only from Anthropic (+ temporary dev IPs)",
-            "expression": (
-                f'({host} and http.request.uri.path eq "{MCP_PATH}" '
-                f"and not ip.src in {{{mcp_ips}}})"
-            ),
+            "description": "rally-mcp: MCP paths only from Anthropic, extra_mcp_ips, dev IPs",
+            "expression": f"({host} and {mcp_paths} and not ip.src in {{{mcp_ips}}})",
             "action": "block",
         },
     ]
@@ -361,7 +446,7 @@ def ensure_waf(dev_ips: list[str]) -> None:
             # The token endpoint is on the team domain, which Cloudflare runs
             # and rate limits itself; only /mcp is in this zone.
             "description": "rally-mcp: rate limit the MCP endpoint",
-            "expression": f'({host} and http.request.uri.path eq "{MCP_PATH}")',
+            "expression": f"({host} and {mcp_paths})",
             "action": "block",
             "ratelimit": {
                 "characteristics": ["cf.colo.id", "ip.src"],
@@ -372,7 +457,7 @@ def ensure_waf(dev_ips: list[str]) -> None:
         }
     ]
     _put_phase_rules("http_ratelimit", ratelimit)
-    log("rate limit set: 60 requests / 10s per IP on /mcp")
+    log("rate limit set: 60 requests / 10s per IP on /mcp and /mcp/c/*")
 
 
 def ensure_bots_off() -> None:
@@ -415,6 +500,7 @@ def main() -> None:
         sys.exit("Stopping before Access: no GitHub identity provider yet.")
     policy_id = ensure_policy(idp_id)
     ensure_app(idp_id, policy_id)
+    ensure_token_bypass()
 
 
 if __name__ == "__main__":

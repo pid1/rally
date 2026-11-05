@@ -59,6 +59,16 @@ def fetch_spec(
     raise RuntimeError(f"Could not fetch Rally's MCP OpenAPI document: {last}")
 
 
+def tool_scopes(spec: dict) -> dict[str, str]:
+    """Each generated tool's scope, as Rally's policy assigned it."""
+    return {
+        op["operationId"]: op[EXTENSION]["scope"]
+        for ops in spec.get("paths", {}).values()
+        for op in ops.values()
+        if op.get(EXTENSION, {}).get("scope")
+    }
+
+
 def untrusted_tools(spec: dict) -> set[str]:
     return {
         op["operationId"]
