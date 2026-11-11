@@ -187,6 +187,8 @@ The one substantive color change: `--ink-subtle` (#767676) replaced `--light-gra
 
 Three steps carry the headings — 1rem, 1.25rem, 1.5rem — so the four unrelated uppercase sizes collapsed to three related ones (C6): `.list-group-name` at base, `.card-header` and every modal `h3` at lg, page `h2` at xl.
 
+Headings are uppercase, with one exception (#334): a modal heading that is **entirely the user's own text** — the calendar's event detail view, headed by the event's title — takes `.modal-title--as-typed`, which keeps the casing it was typed in and tightens the tracking to `--tracking-normal`. A heading that mixes Rally's words with a name (`Schedule: <name>`, `Edit <name>`) stays uppercase.
+
 ### 2. Layout primitives
 
 - **`.page`** — the content column. Width is owned by `body` alone; the second `max-width` that put every desktop page 2px out of line with its own header is gone (A1).

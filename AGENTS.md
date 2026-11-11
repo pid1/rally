@@ -1182,7 +1182,10 @@ When touching the UI:
 - **Toolbars own their reset slot.** `Clear Filters` goes in `.toolbar-reset`
   as the toolbar's last child, never inside a `.toolbar-group`.
 - **Modals are `.modal-content > h3 + .modal-scroll > .modal-body`**, and the
-  page loads `/static/modal.js`.
+  page loads `/static/modal.js`. A modal `h3` that is **entirely the user's
+  own text** (the calendar's event detail view) is `.modal-title--as-typed`:
+  the casing as typed, `--tracking-normal`. One that mixes Rally's words with
+  a name (`Schedule: <name>`) stays uppercase (#334).
 - **A grouped list is `.list-group > .list-group-header +
   .list-container > .editable-item[data-id]`, written by `listGroupHtml()`
   in `/static/list_group.js`** rather than by hand; a reorderable one also

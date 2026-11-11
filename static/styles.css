@@ -1070,6 +1070,14 @@ label.weekday-label,
     flex-shrink: 0;
 }
 
+/* A modal heading that is entirely the user's own text (an event's title)
+   reads as it was typed. Uppercase is for Rally's own headings; one that mixes
+   Rally's words with a name (`Schedule: <name>`) keeps it. */
+.modal-title--as-typed {
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+}
+
 .modal-scroll {
     position: relative;
     flex: 1;
