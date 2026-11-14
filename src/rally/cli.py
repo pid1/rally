@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 from rally import packing_lists as packing_lists_logic
+from rally.calendars import reminders as event_reminders
 from rally.calendars import series_end_date
 from rally.calendars.inputs import resolve_event_times
 from rally.database import SessionLocal, init_db
@@ -175,8 +176,11 @@ def seed():
         # ago (an RRULE's first date has to match its BYDAY), so a series has
         # past occurrences as well as one in the next week.
         scouts = -14 - (today_date.weekday() - 1) % 7
+        # Reminders (#336): Scouts one, the dentist two, and the camping trip
+        # an all-day one, so every shape the event form reads is in the seed.
+        Reminder = event_reminders.Reminder
         event_specs = [
-            (dad, "Work conference", 1, "08:00", 57, None, "Convention center", [dad], None),
+            (dad, "Work conference", 1, "08:00", 57, None, "Convention center", [dad], []),
             (
                 mom,
                 "Scouts",
@@ -186,15 +190,35 @@ def seed():
                 "FREQ=WEEKLY;BYDAY=TU",
                 "Church hall",
                 [mom, jake],
-                60,
+                [Reminder(minutes_before=60)],
             ),
-            (dad, "Dentist — Emma", -7, "09:00", 1, None, "Dr. Kim", [dad, emma], 30),
-            (mom, "Book fair", 3, "11:30", 2, None, "School library", [mom, emma], None),
-            (dad, "Call the plumber", 4, "10:00", 0, None, "", [dad], None),
-            (emma, "Piano lesson", -5, "16:00", 1, None, "Studio B", [emma], None),
-            (jake, "Soccer practice", 5, "17:30", 2, None, "Field 4", [jake, dad], None),
-            (emma, "Sleepover", 5, "19:00", 14, None, "Olivia's house", [emma], None),
-            (dad, "Camping trip", 6, None, 3, None, "Beavers Bend", [mom, dad, emma, jake], None),
+            (
+                dad,
+                "Dentist — Emma",
+                -7,
+                "09:00",
+                1,
+                None,
+                "Dr. Kim",
+                [dad, emma],
+                [Reminder(minutes_before=30), Reminder(minutes_before=1440)],
+            ),
+            (mom, "Book fair", 3, "11:30", 2, None, "School library", [mom, emma], []),
+            (dad, "Call the plumber", 4, "10:00", 0, None, "", [dad], []),
+            (emma, "Piano lesson", -5, "16:00", 1, None, "Studio B", [emma], []),
+            (jake, "Soccer practice", 5, "17:30", 2, None, "Field 4", [jake, dad], []),
+            (emma, "Sleepover", 5, "19:00", 14, None, "Olivia's house", [emma], []),
+            (
+                dad,
+                "Camping trip",
+                6,
+                None,
+                3,
+                None,
+                "Beavers Bend",
+                [mom, dad, emma, jake],
+                [Reminder(days_before=1, at_time="09:00")],
+            ),
         ]
 
         events = []
@@ -207,7 +231,7 @@ def seed():
             rrule,
             location,
             attendees,
-            notify,
+            reminders,
         ) in event_specs:
             day = today_date + timedelta(days=offset)
             if start_time is None:
@@ -233,16 +257,16 @@ def seed():
                 location=location,
                 rrule=rrule,
                 series_end_date=series_end_date(rrule),
-                notify_minutes_before=notify,
                 **times,
             )
             db.add(event)
-            events.append((event, attendees))
+            events.append((event, attendees, reminders))
         db.commit()
 
-        for event, attendees in events:
+        for event, attendees, reminders in events:
             for member in attendees:
                 db.add(EventAttendee(event_id=event.id, family_member_id=member.id))
+            event_reminders.set_reminders(db, event.id, None, reminders)
 
         # Create sample settings
         sample_settings = [

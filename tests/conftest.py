@@ -385,6 +385,7 @@ def make_event(db_session: Session, make_native_calendar):
         tzid: str = "America/Chicago",
         rrule: str | None = None,
         notify_minutes_before: int | None = None,
+        reminders: list | None = None,
         attendees: list | None = None,
         calendar=None,
         location: str | None = None,
@@ -399,12 +400,22 @@ def make_event(db_session: Session, make_native_calendar):
             location=location,
             description=description,
             rrule=rrule,
-            notify_minutes_before=notify_minutes_before,
             **times,
         )
         db_session.add(event)
         db_session.commit()
         db_session.refresh(event)
+
+        # ``notify_minutes_before`` is shorthand for one timed reminder, the
+        # shape every event had before #336; ``reminders`` takes the list.
+        from rally.calendars.reminders import Reminder, set_reminders
+
+        wanted = list(reminders or [])
+        if notify_minutes_before is not None:
+            wanted.append(Reminder(minutes_before=notify_minutes_before))
+        if wanted:
+            set_reminders(db_session, event.id, None, wanted)
+            db_session.commit()
 
         for member in attendees or []:
             db_session.add(EventAttendee(event_id=event.id, family_member_id=member.id))

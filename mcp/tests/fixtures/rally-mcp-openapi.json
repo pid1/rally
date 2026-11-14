@@ -1070,17 +1070,6 @@
       ],
       "title": "Location"
      },
-     "notify_minutes_before": {
-      "anyOf": [
-       {
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Notify Minutes Before"
-     },
      "packing_list_template_ids": {
       "default": [],
       "items": {
@@ -1102,6 +1091,14 @@
        }
       ],
       "title": "Packing Lists"
+     },
+     "reminders": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/ReminderSpec"
+      },
+      "title": "Reminders",
+      "type": "array"
      },
      "rrule": {
       "anyOf": [
@@ -1250,6 +1247,11 @@
      "occurrence_date": {
       "title": "Occurrence Date",
       "type": "string"
+     },
+     "own_reminders": {
+      "default": false,
+      "title": "Own Reminders",
+      "type": "boolean"
      },
      "start_date": {
       "anyOf": [
@@ -1430,17 +1432,6 @@
       ],
       "title": "Location"
      },
-     "notify_minutes_before": {
-      "anyOf": [
-       {
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Notify Minutes Before"
-     },
      "overrides": {
       "default": [],
       "items": {
@@ -1461,6 +1452,14 @@
       "default": false,
       "title": "Pending Confirmation",
       "type": "boolean"
+     },
+     "reminders": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/ReminderResponse"
+      },
+      "title": "Reminders",
+      "type": "array"
      },
      "rrule": {
       "anyOf": [
@@ -1599,17 +1598,6 @@
       ],
       "title": "Location"
      },
-     "notify_minutes_before": {
-      "anyOf": [
-       {
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Notify Minutes Before"
-     },
      "packing_list_template_ids": {
       "anyOf": [
        {
@@ -1637,6 +1625,20 @@
        }
       ],
       "title": "Packing Lists"
+     },
+     "reminders": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ReminderSpec"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reminders"
      },
      "rrule": {
       "anyOf": [
@@ -3005,17 +3007,6 @@
       ],
       "title": "Member Color"
      },
-     "notify_minutes_before": {
-      "anyOf": [
-       {
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Notify Minutes Before"
-     },
      "occurrence_date": {
       "anyOf": [
        {
@@ -3050,11 +3041,27 @@
       "title": "Recurring",
       "type": "boolean"
      },
-     "reminder_display": {
-      "description": "``1 hour before``; empty when the event has no reminder.\n\nEmpty only for ``None``: a reminder of ``0`` still fires, at the start,\nand says so.",
+     "reminders": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/ReminderResponse"
+      },
+      "title": "Reminders",
+      "type": "array"
+     },
+     "reminders_display": {
+      "description": "Each reminder's label, shortest first: ``[\"1 hour before\", \"1 day\nbefore\"]``. Empty when the occurrence has none.",
+      "items": {
+       "type": "string"
+      },
       "readOnly": true,
-      "title": "Reminder Display",
-      "type": "string"
+      "title": "Reminders Display",
+      "type": "array"
+     },
+     "reminders_own": {
+      "default": false,
+      "title": "Reminders Own",
+      "type": "boolean"
      },
      "rrule": {
       "anyOf": [
@@ -3126,7 +3133,7 @@
      "description_html",
      "when_display",
      "start_date_display",
-     "reminder_display"
+     "reminders_display"
     ],
     "title": "OccurrenceResponse",
     "type": "object"
@@ -5917,6 +5924,98 @@
     "title": "RecurringTodoUpdate",
     "type": "object"
    },
+   "ReminderResponse": {
+    "description": "A reminder as stored, with its ``key`` and the ``label`` Rally words it\nas (``1 hour before``, ``1 day before at 9:00 AM``), so no client words one.",
+    "properties": {
+     "at_time": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "At Time"
+     },
+     "days_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Days Before"
+     },
+     "key": {
+      "title": "Key",
+      "type": "string"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "minutes_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Minutes Before"
+     }
+    },
+    "required": [
+     "key",
+     "label"
+    ],
+    "title": "ReminderResponse",
+    "type": "object"
+   },
+   "ReminderSpec": {
+    "description": "One reminder a write sends (#336).\n\nA timed event's is ``minutes_before`` its start, ``0`` to 35 days' worth;\nan all-day event's is ``days_before`` its first day (``0`` to ``35``) at\n``at_time`` (``HH:MM``, local). The other fields stay empty. The router\nchecks the list against the event's kind, since that can change in the\nsame write.",
+    "properties": {
+     "at_time": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "At Time"
+     },
+     "days_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Days Before"
+     },
+     "minutes_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Minutes Before"
+     }
+    },
+    "title": "ReminderSpec",
+    "type": "object"
+   },
    "ResolveRequest": {
     "description": "What rally-mcp learned about an incoming MCP request, for Rally to judge.",
     "properties": {
@@ -6732,6 +6831,58 @@
      }
     },
     "summary": "Describe Rule",
+    "tags": [
+     "events"
+    ],
+    "x-rally-mcp": {
+     "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+     },
+     "scope": "calendar:write",
+     "untrusted": false
+    }
+   }
+  },
+  "/api/events/describe-reminder": {
+   "post": {
+    "description": "Calendar: Describe Reminder.\n\nWord an **unsaved** reminder the way a saved one reads (#336).\n\nThe event form collapses a `Custom\u2026` row into a picked reminder as soon as\nit loses focus, and the label it shows has to be Rally's own\n(``lead_time_label`` / ``lead_days_label``) rather than a second copy of\nthe wording in JavaScript. Timed or all-day is read from which fields are\nsent. A reminder a save would refuse \u2014 over 35 days, below 0, a malformed\ntime \u2014 is a ``422`` in the same words, so the form shows them in place.",
+    "operationId": "event_describe_reminder",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReminderSpec"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReminderResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Describe Reminder",
     "tags": [
      "events"
     ],

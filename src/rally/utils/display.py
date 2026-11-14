@@ -30,7 +30,7 @@ meridiem is spelled out and the hour has no leading zero to trim.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal
 
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -44,6 +44,12 @@ RANGE_SEPARATOR = " – "
 
 MINUTES_PER_HOUR = 60
 MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+DAYS_PER_WEEK = 7
+MINUTES_PER_WEEK = DAYS_PER_WEEK * MINUTES_PER_DAY
+
+# How far ahead a day is still worth naming by weekday. Past a week "Tuesday"
+# stops meaning *this* Tuesday and starts being a riddle, so it reads as a date.
+WEEKDAY_HORIZON_DAYS = 7
 
 # What a reminder set to fire exactly at the start says. "0 minutes before" is
 # arithmetic rather than an answer, and "at the start" reads as a time.
@@ -193,28 +199,70 @@ def _count(number: int, unit: str) -> str:
 
 
 def lead_time_label(minutes: int) -> str:
-    """A reminder's lead time in days, hours and minutes.
+    """A reminder's lead time in weeks, days, hours and minutes.
 
     Each nonzero part is stated, largest first, singular or plural as needed:
     ``60`` -> ``1 hour before``, ``90`` -> ``1 hour 30 minutes before``,
-    ``3075`` -> ``2 days 3 hours 15 minutes before``. Any whole number is
-    worded, not only the values the edit form's select offers, because the API
-    accepts any.
+    ``3075`` -> ``2 days 3 hours 15 minutes before``, ``10080`` -> ``1 week
+    before``, ``14400`` -> ``1 week 3 days before``. Any whole number is
+    worded, not only the values the edit form offers, because the API accepts
+    any length within its limits.
 
     ``0`` reads ``When it starts`` (``AT_START_LABEL``): that is when the push
-    goes out. The API does not refuse a negative number either. One is worded
-    as the offset it is, ``-60`` -> ``1 hour after``, rather than raising, so a
-    single odd row cannot fail the calendar's response.
+    goes out. A negative number is worded as the offset it is, ``-60`` -> ``1
+    hour after``, rather than raising, so a single odd value cannot fail a
+    response.
     """
     if minutes == 0:
         return AT_START_LABEL
     direction = "before" if minutes > 0 else "after"
     remaining = abs(minutes)
+    weeks, remaining = divmod(remaining, MINUTES_PER_WEEK)
     days, remaining = divmod(remaining, MINUTES_PER_DAY)
     hours, remaining = divmod(remaining, MINUTES_PER_HOUR)
     parts = [
         _count(value, unit)
-        for value, unit in ((days, "day"), (hours, "hour"), (remaining, "minute"))
+        for value, unit in ((weeks, "week"), (days, "day"), (hours, "hour"), (remaining, "minute"))
         if value
     ]
     return f"{' '.join(parts)} {direction}"
+
+
+def lead_days_label(days: int, at: time) -> str:
+    """An all-day event's reminder: a number of days before, at a time of day.
+
+    ``(1, 09:00)`` -> ``1 day before at 9:00 AM``, ``(14, 18:00)`` -> ``2 weeks
+    before at 6:00 PM``, ``(10, 09:00)`` -> ``1 week 3 days before at 9:00 AM``.
+    Weeks and days follow ``lead_time_label``'s rule, and the time of day is
+    ``display_time``'s. ``0`` days is the day itself: ``On the day at 9:00 AM``.
+    """
+    clock = display_time(datetime.combine(date(2000, 1, 1), at))
+    if days == 0:
+        return f"On the day at {clock}"
+    weeks, rest = divmod(days, DAYS_PER_WEEK)
+    parts = [_count(value, unit) for value, unit in ((weeks, "week"), (rest, "day")) if value]
+    return f"{' '.join(parts)} before at {clock}"
+
+
+def relative_day_label(day: date, today: date, *, capitalized: bool = False) -> str:
+    """Which day ``day`` is, seen from ``today``, in the fewest words.
+
+    ``today``, ``tomorrow``, the weekday inside ``WEEKDAY_HORIZON_DAYS``
+    (``Saturday``), and past that the date, with its year only when it is not
+    this one (``Dec 5``, ``Jan 2, 2027``). A day already past reads as its date
+    too: what to say about lateness is the caller's.
+
+    Lowercase where the words allow it, so a caller can put them mid-sentence
+    (``All day tomorrow``); ``capitalized`` for the start of one. Reads no
+    clock: ``today`` is the caller's to say, in the Settings zone.
+    """
+    delta = (day - today).days
+    if delta == 0:
+        label = "today"
+    elif delta == 1:
+        label = "tomorrow"
+    elif 1 < delta < WEEKDAY_HORIZON_DAYS:
+        label = WEEKDAYS[day.weekday()]
+    else:
+        label = display_date(day.isoformat(), weekday=False, year="unless_this_year", today=today)
+    return label[:1].upper() + label[1:] if capitalized else label

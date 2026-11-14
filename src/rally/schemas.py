@@ -719,6 +719,29 @@ class OccurrencePackingList(BaseModel):
     day_ids: list[int] = []
 
 
+class ReminderSpec(BaseModel):
+    """One reminder a write sends (#336).
+
+    A timed event's is ``minutes_before`` its start, ``0`` to 35 days' worth;
+    an all-day event's is ``days_before`` its first day (``0`` to ``35``) at
+    ``at_time`` (``HH:MM``, local). The other fields stay empty. The router
+    checks the list against the event's kind, since that can change in the
+    same write.
+    """
+
+    minutes_before: int | None = None
+    days_before: int | None = None
+    at_time: str | None = None
+
+
+class ReminderResponse(ReminderSpec):
+    """A reminder as stored, with its ``key`` and the ``label`` Rally words it
+    as (``1 hour before``, ``1 day before at 9:00 AM``), so no client words one."""
+
+    key: str
+    label: str
+
+
 class EventBase(BaseModel):
     """The shape a form submits.
 
@@ -738,7 +761,7 @@ class EventBase(BaseModel):
     end: str | None = None
     tzid: str | None = None  # Defaults to the family's configured zone
     rrule: str | None = None  # RFC 5545 RRULE body; None means a single event
-    notify_minutes_before: int | None = None
+    reminders: list[ReminderSpec] = []  # Up to 5; see ReminderSpec
     attendee_ids: list[int] = []
     calendar_id: int | None = None  # Defaults to the family's first native calendar
     # The packing lists every occurrence brings, on its first day (#281).
@@ -763,7 +786,9 @@ class EventUpdate(BaseModel):
     end: str | None = UNSET
     tzid: str | None = None
     rrule: str | None = UNSET  # None clears the recurrence, making it a single event
-    notify_minutes_before: int | None = UNSET
+    # The list at the scope saved: the series' for `all` and `following`, the
+    # occurrence's own for `this`. None leaves it alone, as attendees do.
+    reminders: list[ReminderSpec] | None = None
     attendee_ids: list[int] | None = None
     calendar_id: int | None = None
     # The lists at the scope saved: the series' for `all` and `following`, the
@@ -783,6 +808,7 @@ class EventOverrideResponse(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     calendar_id: int | None = None  # None inherits the series' calendar
+    own_reminders: bool = False  # Keeps a reminder list of its own (#336)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -809,7 +835,7 @@ class EventResponse(BaseModel):
     tzid: str
     rrule: str | None = None
     series_end_date: str | None = None
-    notify_minutes_before: int | None = None
+    reminders: list[ReminderResponse] = []  # The series' own, shortest first
     attendee_ids: list[int] = []
     overrides: list[EventOverrideResponse] = []
     packing_lists: list[EventPackingListResponse] = []  # The series' own
@@ -855,7 +881,10 @@ class OccurrenceResponse(BaseModel):
     # copy of the vocabulary. Empty when there is no rule, or none Rally can see.
     recurrence_text: str = ""
     editable: bool = False
-    notify_minutes_before: int | None = None
+    # The reminders this occurrence sends, shortest first, and whether they are
+    # its own list rather than the series' (#336). Empty for an external one.
+    reminders: list[ReminderResponse] = []
+    reminders_own: bool = False
     # This occurrence's packing lists, A-Z. Always empty for an external one.
     packing_lists: list[OccurrencePackingList] = []
     # Booked through the busy-only tools: title, description and
@@ -924,15 +953,10 @@ class OccurrenceResponse(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def reminder_display(self) -> str:
-        """``1 hour before``; empty when the event has no reminder.
-
-        Empty only for ``None``: a reminder of ``0`` still fires, at the start,
-        and says so.
-        """
-        if self.notify_minutes_before is None:
-            return ""
-        return display.lead_time_label(self.notify_minutes_before)
+    def reminders_display(self) -> list[str]:
+        """Each reminder's label, shortest first: ``["1 hour before", "1 day
+        before"]``. Empty when the occurrence has none."""
+        return [reminder.label for reminder in self.reminders]
 
 
 class OccurrencePage(BaseModel):

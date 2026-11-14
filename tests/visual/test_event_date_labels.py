@@ -62,13 +62,13 @@ def test_a_timed_event_reads_its_date_and_reminder_in_words(page):
         page,
         start=f"{DAY.isoformat()}T16:00",
         end=f"{DAY.isoformat()}T16:30",
-        notify_minutes_before=60,
+        reminders=[{"minutes_before": 60}, {"minutes_before": 1440}],
     )
     _open(page, event)
     assert page.inner_text("#detail-value-when") == (
         f"{display_date(DAY.isoformat())} · 4:00 – 4:30 PM"
     )
-    assert page.inner_text("#detail-value-reminder") == "1 hour before"
+    assert page.inner_text("#detail-value-reminders") == "1 hour before · 1 day before"
 
 
 def test_an_odd_reminder_is_still_worded(page):
@@ -76,16 +76,16 @@ def test_an_odd_reminder_is_still_worded(page):
         page,
         start=f"{DAY.isoformat()}T09:00",
         end=f"{DAY.isoformat()}T10:00",
-        notify_minutes_before=3075,
+        reminders=[{"minutes_before": 3075}],
     )
     _open(page, event)
-    assert page.inner_text("#detail-value-reminder") == "2 days 3 hours 15 minutes before"
+    assert page.inner_text("#detail-value-reminders") == "2 days 3 hours 15 minutes before"
 
 
 def test_no_reminder_has_no_row(page):
     event = _event(page, start=f"{DAY.isoformat()}T09:00", end=f"{DAY.isoformat()}T10:00")
     _open(page, event)
-    assert page.query_selector("#detail-row-reminder") is None
+    assert page.query_selector("#detail-row-reminders") is None
 
 
 def test_an_all_day_event_across_several_days(page):

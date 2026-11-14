@@ -8,14 +8,16 @@ them. The notices' ``When:`` lines are pinned in ``tests/test_notifications.py``
 """
 
 import re
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from rally.calendars.occurrence import Occurrence
+from rally.calendars.reminders import Reminder
 from rally.routers.events import _occurrence_response
+from rally.schemas import ReminderResponse
 from rally.utils.display import (
     AT_START_LABEL,
     display_date,
@@ -24,7 +26,9 @@ from rally.utils.display import (
     display_time,
     display_time_range,
     iso_date,
+    lead_days_label,
     lead_time_label,
+    relative_day_label,
 )
 
 CHICAGO = ZoneInfo("America/Chicago")
@@ -237,9 +241,12 @@ def test_a_span_crossing_midnight_puts_each_time_beside_its_date(
         (2880, "2 days before"),
         (1530, "1 day 1 hour 30 minutes before"),
         (2 * 1440 + 2 * 60 + 2, "2 days 2 hours 2 minutes before"),
-        # Large values keep counting in days rather than switching unit.
-        (14 * 1440, "14 days before"),
-        (400 * 1440 + 59, "400 days 59 minutes before"),
+        # Seven days or more count in weeks too (#336).
+        (7 * 1440, "1 week before"),
+        (10 * 1440, "1 week 3 days before"),
+        (14 * 1440, "2 weeks before"),
+        (35 * 1440, "5 weeks before"),
+        (400 * 1440 + 59, "57 weeks 1 day 59 minutes before"),
     ],
 )
 def test_a_lead_time_reads_in_days_hours_and_minutes(minutes, label):
@@ -269,11 +276,63 @@ def test_any_lead_time_round_trips_through_its_words(minutes):
         return
     assert label.endswith(" before")
     words = label.removesuffix(" before").split()
-    units = {"day": 1440, "days": 1440, "hour": 60, "hours": 60, "minute": 1, "minutes": 1}
+    units = {
+        "week": 10080,
+        "weeks": 10080,
+        "day": 1440,
+        "days": 1440,
+        "hour": 60,
+        "hours": 60,
+        "minute": 1,
+        "minutes": 1,
+    }
     total = sum(int(words[i]) * units[words[i + 1]] for i in range(0, len(words), 2))
     assert total == minutes
     for i in range(0, len(words), 2):
         assert (int(words[i]) == 1) == (not words[i + 1].endswith("s"))
+
+
+# --- An all-day reminder, and which day (#336) --------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("days", "at", "label"),
+    [
+        (0, time(9, 0), "On the day at 9:00 AM"),
+        (1, time(9, 0), "1 day before at 9:00 AM"),
+        (2, time(18, 0), "2 days before at 6:00 PM"),
+        (7, time(0, 0), "1 week before at 12:00 AM"),
+        (10, time(12, 30), "1 week 3 days before at 12:30 PM"),
+        (35, time(9, 0), "5 weeks before at 9:00 AM"),
+    ],
+)
+def test_an_all_day_reminder_reads_as_days_before_at_a_time(days, at, label):
+    assert lead_days_label(days, at) == label
+
+
+TODAY = date(2026, 8, 11)  # A Tuesday
+
+
+@pytest.mark.parametrize(
+    ("day", "label"),
+    [
+        (date(2026, 8, 11), "today"),
+        (date(2026, 8, 12), "tomorrow"),
+        (date(2026, 8, 13), "Thursday"),
+        (date(2026, 8, 17), "Monday"),
+        # A week out is the same weekday as today, so it reads as a date.
+        (date(2026, 8, 18), "Aug 18"),
+        (date(2027, 1, 2), "Jan 2, 2027"),
+        (date(2026, 8, 10), "Aug 10"),
+    ],
+)
+def test_which_day_reads_in_the_fewest_words(day, label):
+    assert relative_day_label(day, TODAY) == label
+
+
+def test_which_day_can_start_a_sentence():
+    assert relative_day_label(date(2026, 8, 11), TODAY, capitalized=True) == "Today"
+    assert relative_day_label(date(2026, 8, 13), TODAY, capitalized=True) == "Thursday"
 
 
 # --- The labels on OccurrenceResponse ----------------------------------------------
@@ -289,9 +348,12 @@ def _response(*, start, end, start_date, end_date, all_day=False, notify=None):
         start_local_date=start_date,
         end_local_date=end_date,
         all_day=all_day,
-        notify_minutes_before=notify,
     )
-    return _occurrence_response(occurrence, CHICAGO)
+    response = _occurrence_response(occurrence, CHICAGO)
+    if notify is not None:
+        reminder = Reminder(minutes_before=notify)
+        response.reminders = [ReminderResponse(**reminder.as_dict())]
+    return response
 
 
 def _local(*args):
@@ -307,7 +369,7 @@ def test_a_timed_event_within_one_day():
         notify=60,
     )
     assert response.when_display == "Friday, Oct 30, 2026 · 4:00 – 4:30 PM"
-    assert response.reminder_display == "1 hour before"
+    assert response.reminders_display == ["1 hour before"]
     assert response.start_date_display == "Friday, Oct 30, 2026"
 
 
@@ -393,16 +455,16 @@ def test_dates_come_from_the_local_dates_never_the_instants():
     assert response.start_date_display == "Friday, Oct 30, 2026"
 
 
-def test_no_reminder_has_no_label_and_a_zero_one_does():
+def test_no_reminder_has_no_labels_and_a_zero_one_does():
     timed = {
         "start": _local(2026, 10, 30, 16, 0),
         "end": _local(2026, 10, 30, 16, 30),
         "start_date": "2026-10-30",
         "end_date": "2026-10-30",
     }
-    assert _response(**timed).reminder_display == ""
-    assert _response(**timed, notify=0).reminder_display == "When it starts"
-    assert _response(**timed, notify=3075).reminder_display == "2 days 3 hours 15 minutes before"
+    assert _response(**timed).reminders_display == []
+    assert _response(**timed, notify=0).reminders_display == ["When it starts"]
+    assert _response(**timed, notify=3075).reminders_display == ["2 days 3 hours 15 minutes before"]
 
 
 def test_the_labels_are_serialized():
@@ -416,7 +478,7 @@ def test_the_labels_are_serialized():
     dumped = response.model_dump()
     assert dumped["when_display"] == response.when_display
     assert dumped["start_date_display"] == "Friday, Oct 30, 2026"
-    assert dumped["reminder_display"] == "1 hour 30 minutes before"
+    assert dumped["reminders_display"] == ["1 hour 30 minutes before"]
 
 
 # --- Through the API ---------------------------------------------------------------
@@ -441,13 +503,13 @@ def test_the_api_sends_the_labels_the_page_shows(client):
             "title": "Soccer practice",
             "start": "2026-10-30T16:00",
             "end": "2026-10-30T16:30",
-            "notify_minutes_before": 60,
+            "reminders": [{"minutes_before": 60}],
         },
     )
     assert created.status_code == 201, created.text
     occurrence = _occurrence(client, "Soccer practice")
     assert occurrence["when_display"] == "Friday, Oct 30, 2026 · 4:00 – 4:30 PM"
-    assert occurrence["reminder_display"] == "1 hour before"
+    assert occurrence["reminders_display"] == ["1 hour before"]
     assert occurrence["start_date_display"] == "Friday, Oct 30, 2026"
 
 

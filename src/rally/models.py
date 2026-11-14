@@ -255,9 +255,8 @@ class Event(Base):
     series_end_date: Mapped[str | None] = mapped_column(
         String(10), nullable=True
     )  # Denormalized UNTIL; NULL means unbounded
-    notify_minutes_before: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )  # Push reminder lead time; NULL means no reminder
+    # Reminders live in ``event_reminders`` (#336); migration 045 dropped the
+    # single ``notify_minutes_before`` column that held one.
     # Migration 039 added ``packing_list_span`` (``first`` / ``every``) here.
     # Since #281 an event's packing lists go on an occurrence's first day only,
     # so nothing reads it; databases that have the column keep it, unused.
@@ -336,6 +335,10 @@ class EventOverride(Base):
     # the attendee fallback the member filter reads) follow the series unless
     # this says otherwise.
     calendar_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # This occurrence keeps a whole reminder list of its own (#336): it reads
+    # only the ``event_reminders`` rows on its date, an empty list meaning "no
+    # reminders this time". False reads the series'.
+    own_reminders: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(default=now_utc, onupdate=now_utc)
 
@@ -365,6 +368,10 @@ class EventNotification(Base):
     family_member_id: Mapped[int] = mapped_column(Integer)
     # reminder | manual | created | updated | deleted
     kind: Mapped[str] = mapped_column(String(20))
+    # Which reminder a ``reminder`` row is for (``m60``, ``d1@09:00``), so an
+    # occurrence with several reminders sends each once (#336). Empty for
+    # every other kind; never NULL, so the unique index needs no IFNULL.
+    reminder_key: Mapped[str] = mapped_column(String(20), default="", server_default="")
     status: Mapped[str] = mapped_column(String(20), default="sent")  # sent | failed
     detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_utc)
@@ -376,6 +383,46 @@ class EventNotification(Base):
             "occurrence_date",
             "family_member_id",
             "kind",
+            "reminder_key",
+            unique=True,
+        ),
+    )
+
+
+class EventReminder(Base):
+    """One reminder an event's attendees get before an occurrence (#336).
+
+    A timed event's reminder is ``minutes_before`` its start (``0`` is when it
+    starts). An all-day event's is ``days_before`` its first day at
+    ``at_time`` (``HH:MM``, local), because counting minutes back from a
+    midnight start fires at midnight.
+
+    ``occurrence_date`` is NULL for the series' reminders, or the original
+    date of one occurrence whose override has ``own_reminders``: that
+    occurrence reads only its own rows. The unique index is the no-duplicates
+    rule, over ``IFNULL`` because SQLite treats NULLs as distinct.
+    """
+
+    __tablename__ = "event_reminders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(Integer, index=True)  # FK to events.id
+    occurrence_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # YYYY-MM-DD, original local date; NULL for the whole series
+    minutes_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    days_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    at_time: Mapped[str | None] = mapped_column(String(5), nullable=True)  # HH:MM, local
+    created_at: Mapped[datetime] = mapped_column(default=now_utc)
+
+    __table_args__ = (
+        Index(
+            "ix_event_reminders_unique",
+            "event_id",
+            text("IFNULL(occurrence_date, '')"),
+            text("IFNULL(minutes_before, -1)"),
+            text("IFNULL(days_before, -1)"),
+            text("IFNULL(at_time, '')"),
             unique=True,
         ),
     )

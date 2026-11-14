@@ -37,7 +37,7 @@ from sqlalchemy.orm import Session
 
 from rally import notification_prefs
 from rally.models import FamilyMember, Setting, Todo
-from rally.utils.display import WEEKDAYS, display_date
+from rally.utils.display import display_date, relative_day_label
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import today_local
 
@@ -53,10 +53,6 @@ MAX_MESSAGE_CHARS = 1024
 # What a push says when there is nothing else true to say — no due date and no
 # description. Never an empty body: Pushover rejects one.
 BARE_BODY = "It's on your list."
-
-# How far ahead a due date is still worth naming by weekday. Past a week
-# "Due Tuesday" stops meaning *this* Tuesday and starts being a riddle.
-WEEKDAY_HORIZON_DAYS = 7
 
 
 def notifications_enabled(db: Session) -> bool:
@@ -87,16 +83,9 @@ def due_label(due_date: str | None, today: date) -> str | None:
     except ValueError:
         return None
 
-    delta = (due - today).days
-    if delta < 0:
+    if due < today:
         return f"Overdue since {_date_words(due, today)}"
-    if delta == 0:
-        return "Due today"
-    if delta == 1:
-        return "Due tomorrow"
-    if delta < WEEKDAY_HORIZON_DAYS:
-        return f"Due {WEEKDAYS[due.weekday()]}"
-    return f"Due {_date_words(due, today)}"
+    return f"Due {relative_day_label(due, today)}"
 
 
 def assignment_title(todo: Todo) -> str:

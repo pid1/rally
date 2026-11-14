@@ -31,6 +31,7 @@ from rally.calendars import (
     validate_rrule,
 )
 from rally.calendars import cache as calendar_cache
+from rally.calendars import reminders as event_reminders
 from rally.calendars.describe import describe_recurrence
 from rally.calendars.inputs import EventTimeError, local_form_values, resolve_event_times
 from rally.database import get_db
@@ -69,6 +70,8 @@ from rally.schemas import (
     OccurrenceResponse,
     RecurrenceDescribeRequest,
     RecurrenceDescribeResponse,
+    ReminderResponse,
+    ReminderSpec,
 )
 from rally.utils.display import display_date, display_time
 from rally.utils.settings import local_timezone_name
@@ -196,7 +199,10 @@ def _event_response(db: Session, event: Event) -> EventResponse:
         tzid=event.tzid,
         rrule=event.rrule,
         series_end_date=event.series_end_date,
-        notify_minutes_before=event.notify_minutes_before,
+        reminders=[
+            ReminderResponse(**reminder.as_dict())
+            for reminder in event_reminders.series_reminders(db, event.id)
+        ],
         attendee_ids=_attendee_ids(db, event.id),
         packing_lists=[
             EventPackingListResponse(
@@ -219,6 +225,7 @@ def _event_response(db: Session, event: Event) -> EventResponse:
                 start_date=override.start_date,
                 end_date=override.end_date,
                 calendar_id=override.calendar_id,
+                own_reminders=bool(override.own_reminders),
             )
             for override in _overrides(db, event.id)
         ],
@@ -256,12 +263,45 @@ def _occurrence_response(occurrence: Occurrence, tz: ZoneInfo) -> OccurrenceResp
         rrule=occurrence.rrule,
         recurrence_text=describe_recurrence(occurrence.rrule),
         editable=occurrence.editable,
-        notify_minutes_before=occurrence.notify_minutes_before,
         booked_by_connection=occurrence.booked_by_connection,
         pending_confirmation=occurrence.pending_confirmation,
         contact_name=occurrence.contact_name,
         contact_phone=occurrence.contact_phone,
     )
+
+
+def _with_reminders(db: Session, responses: list[OccurrenceResponse]) -> list[OccurrenceResponse]:
+    """Fill in each native occurrence's reminders, in one pass for the page (#336)."""
+    native = [response for response in responses if response.event_id is not None]
+    if not native:
+        return responses
+    series, own, owning = event_reminders.for_occurrences(
+        db, (response.event_id for response in native)
+    )
+    for response in native:
+        found, is_own = event_reminders.resolve(
+            series,
+            own,
+            owning,
+            response.event_id,
+            response.occurrence_date,
+            all_day=response.all_day,
+        )
+        response.reminders = [ReminderResponse(**reminder.as_dict()) for reminder in found]
+        response.reminders_own = is_own
+    return responses
+
+
+def _validated_reminders(raw, *, all_day: bool) -> list[event_reminders.Reminder] | None:
+    """A write's reminders checked against the kind of event they go on, or
+    ``None`` to leave them alone. A list the API refuses is a ``422`` whose
+    words the form shows under the field."""
+    if raw is None:
+        return None
+    try:
+        return event_reminders.validated(raw, all_day=bool(all_day))
+    except event_reminders.ReminderError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _with_packing_lists(
@@ -508,8 +548,11 @@ def list_occurrences(
         ]
 
     return OccurrencePage(
-        occurrences=_with_packing_lists(
-            db, [_occurrence_response(occurrence, tz) for occurrence in occurrences]
+        occurrences=_with_reminders(
+            db,
+            _with_packing_lists(
+                db, [_occurrence_response(occurrence, tz) for occurrence in occurrences]
+            ),
         ),
         failures=result.failures,
     )
@@ -583,6 +626,7 @@ def create_event(
         fields, start=payload.start, end=payload.end, all_day=payload.all_day, tzid=tz_name
     )
     rrule = _validated_rrule(payload.rrule)
+    reminders = _validated_reminders(payload.reminders, all_day=fields["all_day"]) or []
     specs = _list_specs(db, payload) or []
 
     event = Event(
@@ -593,7 +637,6 @@ def create_event(
         location=payload.location,
         rrule=rrule,
         series_end_date=series_end_date(rrule),
-        notify_minutes_before=payload.notify_minutes_before,
         **fields,
     )
     _reject_impossible_bound(db, event)
@@ -603,6 +646,7 @@ def create_event(
     db.flush()
 
     _set_attendees(db, event.id, payload.attendee_ids)
+    event_reminders.set_reminders(db, event.id, None, reminders)
     if specs:
         packing_lists.set_series_lists(db, event.id, specs)
         _sync_packing_lists(db, event, adopt=adopt, added={spec.key for spec in specs})
@@ -665,8 +709,11 @@ def list_event_occurrences(
         window_end=window_end,
         local_tz=tz,
     )
-    return _with_packing_lists(
-        db, [_occurrence_response(occurrence, tz) for occurrence in occurrences]
+    return _with_reminders(
+        db,
+        _with_packing_lists(
+            db, [_occurrence_response(occurrence, tz) for occurrence in occurrences]
+        ),
     )
 
 
@@ -794,14 +841,16 @@ def update_event(
 
 def _apply_event_fields(db: Session, event: Event, payload: EventUpdate, tz_name: str) -> None:
     """Fold an update payload onto a series row."""
+    was_all_day = bool(event.all_day)
+    all_day = was_all_day if payload.start is None or payload.all_day is None else payload.all_day
+    # Checked before anything is staged, so a refused list writes nothing.
+    reminders = _validated_reminders(payload.reminders, all_day=all_day)
     if payload.title is not None:
         event.title = payload.title.strip()
     if payload.description is not UNSET:
         event.description = payload.description
     if payload.location is not UNSET:
         event.location = payload.location
-    if payload.notify_minutes_before is not UNSET:
-        event.notify_minutes_before = payload.notify_minutes_before
     if payload.rrule is not UNSET:
         event.rrule = _validated_rrule(payload.rrule)
         event.series_end_date = series_end_date(event.rrule)
@@ -820,6 +869,13 @@ def _apply_event_fields(db: Session, event: Event, payload: EventUpdate, tz_name
     if payload.attendee_ids is not None:
         _set_attendees(db, event.id, payload.attendee_ids)
 
+    if reminders is not None:
+        event_reminders.set_reminders(db, event.id, None, reminders)
+    elif bool(event.all_day) != was_all_day:
+        # A minute offset and a day at a time of day do not convert one to one,
+        # so a change between timed and all-day clears them, as the form does.
+        event_reminders.set_reminders(db, event.id, None, [])
+
 
 def _update_single_occurrence(
     db: Session, event: Event, payload: EventUpdate, split_day: date, tz_name: str
@@ -834,6 +890,13 @@ def _update_single_occurrence(
         )
         .first()
     )
+    was_all_day = bool(
+        event.all_day if override is None or override.all_day is None else override.all_day
+    )
+    all_day = was_all_day if payload.start is None or payload.all_day is None else payload.all_day
+    # Checked before the override is staged, so a refused list writes nothing.
+    reminders = _validated_reminders(payload.reminders, all_day=all_day)
+
     if override is None:
         override = EventOverride(event_id=event.id, occurrence_date=split_day.isoformat())
         db.add(override)
@@ -864,10 +927,18 @@ def _update_single_occurrence(
         override.start_date = fields["start_date"]
         override.end_date = fields["end_date"]
 
-    # Attendees and reminders belong to the series: a per-occurrence recipient
-    # list is a second notification model, and nobody asked for one.
+    # Attendees belong to the series: a per-occurrence recipient list is a
+    # second notification model, and nobody asked for one.
     if payload.attendee_ids is not None:
         _set_attendees(db, event.id, payload.attendee_ids)
+
+    # Reminders do not (#336): the occurrence keeps a whole list of its own,
+    # which a later change to the series' list does not reach.
+    if reminders is None and bool(all_day) != was_all_day and override.own_reminders:
+        reminders = []
+    if reminders is not None:
+        override.own_reminders = True
+        event_reminders.set_reminders(db, event.id, split_day.isoformat(), reminders)
 
     db.flush()
 
@@ -912,6 +983,7 @@ def _split_series(
         new_end = (moved + duration).strftime("%Y-%m-%dT%H:%M")
 
     all_day = event.all_day if payload.all_day is None else payload.all_day
+    reminders = _validated_reminders(payload.reminders, all_day=all_day)
     fields: dict = {}
     _apply_times(fields, start=new_start, end=new_end, all_day=all_day, tzid=tz_name)
 
@@ -929,11 +1001,6 @@ def _split_series(
         location=(event.location if payload.location is UNSET else payload.location),
         rrule=rrule,
         series_end_date=series_end_date(rrule),
-        notify_minutes_before=(
-            event.notify_minutes_before
-            if payload.notify_minutes_before is UNSET
-            else payload.notify_minutes_before
-        ),
         **fields,
     )
     _reject_impossible_bound(db, tail)
@@ -950,6 +1017,14 @@ def _split_series(
     for override in _overrides(db, event.id):
         if override.occurrence_date >= split_day.isoformat():
             override.event_id = tail.id
+
+    # The tail starts with the series' reminders and takes the occurrences'
+    # own lists along with their overrides; the edit then applies to it.
+    event_reminders.split(db, event.id, tail.id, split_day.isoformat())
+    if reminders is not None:
+        event_reminders.set_reminders(db, tail.id, None, reminders)
+    elif bool(all_day) != bool(event.all_day):
+        event_reminders.set_reminders(db, tail.id, None, [])
 
     added: set[str] = set()
     removed: set[str] = set()
@@ -1065,6 +1140,7 @@ def _delete(db: Session, event: Event, scope: str, occurrence_date: str | None, 
             EventOverride.event_id == event.id,
             EventOverride.occurrence_date >= split,
         ).delete(synchronize_session=False)
+        event_reminders.delete(db, event.id, from_date=split)
         db.query(EventPackingList).filter(
             EventPackingList.event_id == event.id,
             EventPackingList.occurrence_date >= split,
@@ -1096,6 +1172,7 @@ def _delete(db: Session, event: Event, scope: str, occurrence_date: str | None, 
     db.query(EventNotification).filter(EventNotification.event_id == event.id).delete(
         synchronize_session=False
     )
+    event_reminders.delete(db, event.id)
     # Its packing lists come off every day from today on; past days stay.
     tz = _tz(db)
     try:
@@ -1159,6 +1236,21 @@ def notify_event(
         db, event, occurrence, kind=KIND_MANUAL, tz=tz, message=payload.message
     )
     return EventNotifyResponse(**outcome)
+
+
+@router.post("/describe-reminder", response_model=ReminderResponse)
+def describe_reminder(payload: ReminderSpec) -> ReminderResponse:
+    """Word an **unsaved** reminder the way a saved one reads (#336).
+
+    The event form collapses a `Custom…` row into a picked reminder as soon as
+    it loses focus, and the label it shows has to be Rally's own
+    (``lead_time_label`` / ``lead_days_label``) rather than a second copy of
+    the wording in JavaScript. Timed or all-day is read from which fields are
+    sent. A reminder a save would refuse — over 35 days, below 0, a malformed
+    time — is a ``422`` in the same words, so the form shows them in place.
+    """
+    reminder = _validated_reminders([payload], all_day=payload.days_before is not None)[0]
+    return ReminderResponse(**reminder.as_dict())
 
 
 @router.post("/describe-recurrence", response_model=RecurrenceDescribeResponse)

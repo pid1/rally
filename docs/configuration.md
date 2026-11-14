@@ -106,13 +106,15 @@ Five kinds of push, each with its own audience rule:
 
 | Kind | Fires when | Goes to | Default | Install-wide switch |
 |---|---|---|---|---|
-| Event reminders | An event's lead time arrives, or somebody presses **Notify attendees** | The event's attendees | On | — |
+| Event reminders | One of an event's reminders comes due, or somebody presses **Notify attendees** | The event's attendees | On | — |
 | Calendar additions and changes | A Rally event is added, changed or deleted | The event's attendees | On | — |
 | Task hand-offs | A task is created for somebody or handed to them | That one assignee | On | Settings → **Tasks** |
 | Preparedness refresh digest | Daily, at the configured time | Everybody with a key | On | Settings → **Preparedness** |
 | Shopping list additions | Items are added to the list | Whoever opted in | **Off** | Settings → **Shopping List** |
 
 The event kinds go to the event's **attendees** rather than to the whole household. Buzzing four phones about one child's appointment is how a family learns to ignore notifications.
+
+An event can have up to five reminders, set under **Reminders** when you add or edit it: the presets (`When it starts` up to `1 day before`), or `Custom…` for any number of minutes, hours, days or weeks, up to 35 days ahead. An all-day event's reminder is a number of days before at a time of day, like `1 day before at 9:00 AM`. Editing one occurrence of a repeating event with `This occurrence` gives that day its own reminders without changing the rest. A reminder's push says when the event is from the moment it arrives: `Tomorrow 3:30 PM`, `All day Saturday`.
 
 A task assignment goes to the assignee alone, once, at the moment the task becomes theirs. A task assigned to Everyone pushes to nobody, editing a task somebody already has is silent, and recurring instances are never announced — the hand-over happened when you wrote the recurring task, not every morning since.
 
