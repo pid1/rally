@@ -561,6 +561,12 @@ footer {
 
 /* A quiet link that behaves like `.btn--quiet` but is genuinely a link:
    the archive switches at the top of paired pages. */
+/* A display value outweighs the `hidden` attribute, so a component that
+   sets one says `hidden` still hides it. */
+.link-quiet[hidden] {
+    display: none;
+}
+
 .link-quiet {
     display: inline-flex;
     align-items: center;
@@ -1701,6 +1707,10 @@ html.modal-open {
 
 /* One editable row in a "Manage …" modal: stores, preparedness locations,
    packing list groups. Formerly `.store-manage-row`. */
+.manage-row[hidden] {
+    display: none;
+}
+
 .manage-row {
     display: flex;
     align-items: center;

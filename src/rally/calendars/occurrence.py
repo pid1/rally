@@ -80,7 +80,6 @@ class Occurrence:
     # the event, never an occurrence of it.
     rrule: str | None = None
     editable: bool = False
-    notify_minutes_before: int | None = None
     member_color: str | None = None
     # Native events booked through the busy-only tools (``/api/busy``).
     # ``booked_by_connection`` marks the title, description and contact fields as

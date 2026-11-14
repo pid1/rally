@@ -249,16 +249,13 @@
                         <div class="form-message" id="event-packing-message" role="alert" hidden></div>
                         <small>Packing lists go on the event's first day and follow it when it moves. Removing one, or deleting the event, asks whether to keep the list on its day. Add the trip's own items on the Packing Lists page.</small>
                     </div>
-                    <div class="form-group" id="event-notify-group">
-                        <label for="event-notify">Remind attendees</label>
-                        <select id="event-notify">
-                            <option value="">No reminder</option>
-                            <option value="10">10 minutes before</option>
-                            <option value="30">30 minutes before</option>
-                            <option value="60">1 hour before</option>
-                            <option value="120">2 hours before</option>
-                            <option value="1440">1 day before</option>
-                        </select>
+                    <div class="form-group" id="event-reminders-group">
+                        <label for="event-reminder-select">Reminders<span class="item-mark" id="event-reminders-changed" hidden> (changed)</span></label>
+                        <div class="picked-list" id="event-reminder-list"></div>
+                        <div class="manage-row" id="event-reminder-add-row">
+                            <select id="event-reminder-select" aria-label="Reminder to add"></select>
+                        </div>
+                        <div class="form-message" id="event-reminders-message" role="alert" hidden></div>
                         <small id="event-notify-help">Reminders are sent by Pushover.</small>
                     </div>
                 </form>
@@ -1191,8 +1188,11 @@
            fail silently later. */
         function updateNotifyHelp() {
             const help = document.getElementById('event-notify-help');
-            const minutes = document.getElementById('event-notify').value;
-            if (!minutes) {
+            if (remindersChosen.length >= MAX_REMINDERS) {
+                help.textContent = `Up to ${MAX_REMINDERS} reminders.`;
+                return;
+            }
+            if (!remindersChosen.length) {
                 help.textContent = 'Reminders are sent by Pushover.';
                 return;
             }
@@ -1216,6 +1216,270 @@
             // is refused under it (requireDate) like any required date.
             document.getElementById('event-start-time').required = !allDay;
             document.getElementById('event-start-date').required = allDay;
+        }
+
+        // --- Reminders (#336)
+
+        /* The presets, in the words the server gives them (`lead_time_label`,
+           `lead_days_label`), so a picked one reads the same before Save as
+           after. Anything else is `Custom…`, and a saved custom reminder reads
+           as the server words it: the page never words a length itself. */
+        const TIMED_PRESETS = [
+            { minutes_before: 0, label: 'When it starts' },
+            { minutes_before: 10, label: '10 minutes before' },
+            { minutes_before: 30, label: '30 minutes before' },
+            { minutes_before: 60, label: '1 hour before' },
+            { minutes_before: 120, label: '2 hours before' },
+            { minutes_before: 1440, label: '1 day before' },
+        ];
+        const ALL_DAY_PRESETS = [
+            { days_before: 1, at_time: '09:00', label: '1 day before at 9:00 AM' },
+        ];
+        const MAX_REMINDERS = 5;
+        const MAX_LEAD_DAYS = 35;
+        const MINUTES_PER_UNIT = { minutes: 1, hours: 60, days: 1440, weeks: 10080 };
+        const DEFAULT_REMINDER_TIME = '09:00';
+
+        // Saved and picked reminders carry `label`; one from `Custom…` is
+        // `composing` (an amount, a unit and, all-day, a time) until Save.
+        let remindersChosen = [];
+        let remindersOpened = [];
+
+        function eventIsAllDay() {
+            return document.getElementById('event-all-day').checked;
+        }
+
+        /* A composing row as the reminder it would save, or null while its
+           amount is missing. */
+        function composedReminder(reminder) {
+            if (!reminder.composing) return reminder;
+            if (reminder.amount === '' || reminder.amount == null) return null;
+            const amount = Number(reminder.amount);
+            if (!Number.isInteger(amount) || amount < 0) return null;
+            if (eventIsAllDay()) {
+                const days = amount * (reminder.unit === 'weeks' ? 7 : 1);
+                return { days_before: days, at_time: reminder.time || DEFAULT_REMINDER_TIME };
+            }
+            return { minutes_before: amount * MINUTES_PER_UNIT[reminder.unit] };
+        }
+
+        // The server's `key`: `m60`, `d1@09:00`.
+        function reminderKey(reminder) {
+            const found = composedReminder(reminder);
+            if (!found) return null;
+            return found.days_before != null
+                ? `d${found.days_before}@${found.at_time}`
+                : `m${found.minutes_before}`;
+        }
+
+        // An unfinished `Custom…` row sends nothing; `refuseReminders()`
+        // stops the save before it is sent.
+        function reminderAsSent(reminder) {
+            const found = composedReminder(reminder);
+            if (!found) return {};
+            return found.days_before != null
+                ? { days_before: found.days_before, at_time: found.at_time }
+                : { minutes_before: found.minutes_before };
+        }
+
+        // Shortest first, as the server orders them; `Custom…` rows last.
+        function reminderOrder(reminder) {
+            if (reminder.composing) return [2, 0, ''];
+            return reminder.days_before != null
+                ? [1, reminder.days_before, reminder.at_time]
+                : [0, reminder.minutes_before, ''];
+        }
+
+        function sortReminders() {
+            remindersChosen.sort((a, b) => {
+                const [x, y] = [reminderOrder(a), reminderOrder(b)];
+                return x[0] - y[0] || x[1] - y[1] || x[2].localeCompare(y[2]);
+            });
+        }
+
+        function reminderRowHtml(reminder, index) {
+            if (!reminder.composing) {
+                return `
+                <div class="manage-row">
+                    <div class="manage-row-text">${escapeHtml(reminder.label)}</div>
+                    <button type="button" class="btn btn--sm btn--quiet" data-remove-reminder="${index}"
+                            aria-label="Remove ${escapeAttr(reminder.label)}">Remove</button>
+                </div>`;
+            }
+            const allDay = eventIsAllDay();
+            const units = allDay ? ['days', 'weeks'] : ['minutes', 'hours', 'days', 'weeks'];
+            const unitNames = { minutes: 'Minutes', hours: 'Hours', days: 'Days', weeks: 'Weeks' };
+            const time = allDay ? `
+                    <div class="form-group">
+                        <label for="event-reminder-time-${index}">At</label>
+                        <input type="time" id="event-reminder-time-${index}" data-reminder-time="${index}"
+                               value="${escapeAttr(reminder.time)}">
+                    </div>` : '';
+            return `
+                <div class="manage-row manage-row--editing" data-reminder-row="${index}">
+                    <div class="form-group">
+                        <label for="event-reminder-amount-${index}">Before the event</label>
+                        <div class="custom-recurrence-row">
+                            <input type="number" id="event-reminder-amount-${index}" data-reminder-amount="${index}"
+                                   class="remind-days-input" min="0" step="1" inputmode="numeric"
+                                   value="${escapeAttr(reminder.amount)}">
+                            <select id="event-reminder-unit-${index}" data-reminder-unit="${index}" aria-label="Unit" style="flex:1;">
+                                ${units.map(unit => `<option value="${unit}"${unit === reminder.unit ? ' selected' : ''}>${unitNames[unit]}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>${time}
+                    <div class="manage-row-actions">
+                        <button type="button" class="btn btn--sm btn--quiet" data-remove-reminder="${index}">Remove</button>
+                    </div>
+                </div>`;
+        }
+
+        function renderReminders(focusId = null) {
+            document.getElementById('event-reminder-list').innerHTML =
+                remindersChosen.map((reminder, index) => reminderRowHtml(reminder, index)).join('');
+            const taken = new Set(remindersChosen.map(reminderKey).filter(Boolean));
+            const presets = (eventIsAllDay() ? ALL_DAY_PRESETS : TIMED_PRESETS)
+                .filter(preset => !taken.has(reminderKey(preset)));
+            const select = document.getElementById('event-reminder-select');
+            select.innerHTML = '<option value="">Add a reminder…</option>' +
+                presets.map(preset => `<option value="${reminderKey(preset)}">${escapeHtml(preset.label)}</option>`).join('') +
+                '<option value="custom">Custom…</option>';
+            document.getElementById('event-reminder-add-row').hidden = remindersChosen.length >= MAX_REMINDERS;
+            updateNotifyHelp();
+            if (focusId) {
+                const target = document.getElementById(focusId);
+                if (target) target.focus();
+            }
+        }
+
+        /* Opens on the occurrence's reminders: its own list when it has one,
+           marked `(changed)`, else the series'. */
+        function setRemindersForm(reminders, own = false) {
+            remindersChosen = reminders.map(reminder => ({ ...reminder }));
+            remindersOpened = reminders.map(reminderKey);
+            document.getElementById('event-reminders-changed').hidden = !own;
+            renderReminders();
+        }
+
+        function remindersOf(occurrence) {
+            return (occurrence.reminders || []).map(r => ({
+                minutes_before: r.minutes_before,
+                days_before: r.days_before,
+                at_time: r.at_time,
+                label: r.label,
+            }));
+        }
+
+        function sameReminders(keys, otherKeys) {
+            return JSON.stringify([...keys].sort()) === JSON.stringify([...otherKeys].sort());
+        }
+
+        /* Reminders travel only when they changed, the habit `packingChange()`
+           keeps: a title-only save must leave them exactly as they are. */
+        function remindersChange() {
+            const keys = remindersChosen.map(reminderKey);
+            return sameReminders(keys, remindersOpened)
+                ? {}
+                : { reminders: remindersChosen.map(reminderAsSent) };
+        }
+
+        /* `All events` and `This and following` change the series' list, and
+           the form shows one occurrence's. Apply what the form added and
+           removed to the series', as `seriesPackingLists()` does. */
+        function seriesReminders() {
+            const series = (editingEvent.reminders || []);
+            const opened = new Set(remindersOpened);
+            const chosen = new Set(remindersChosen.map(reminderKey));
+            const removed = new Set(remindersOpened.filter(key => !chosen.has(key)));
+            const inSeries = new Set(series.map(r => r.key));
+            return [
+                ...series.filter(r => !removed.has(r.key)),
+                ...remindersChosen.filter(r => !opened.has(reminderKey(r)) && !inSeries.has(reminderKey(r))),
+            ].map(reminderAsSent);
+        }
+
+        /* The checks the API makes, made first so the answer reads under the
+           field before the scope question. Returns true when it refused. */
+        /* What is wrong with one reminder on the list, in the words a save
+           would refuse it with, or '' when nothing is. */
+        function reminderProblem(reminder) {
+            const found = composedReminder(reminder);
+            if (!found) return 'Enter how long before the event.';
+            if ((found.days_before ?? found.minutes_before / 1440) > MAX_LEAD_DAYS) {
+                return `A reminder can be at most ${MAX_LEAD_DAYS} days before the event.`;
+            }
+            const key = reminderKey(reminder);
+            if (remindersChosen.some(other => other !== reminder && reminderKey(other) === key)) {
+                return 'That reminder is already on the list.';
+            }
+            return '';
+        }
+
+        function refuseReminders() {
+            for (const [index, reminder] of remindersChosen.entries()) {
+                const fieldId = `event-reminder-amount-${index}`;
+                const words = reminderProblem(reminder);
+                if (words) {
+                    showFormMessage('event-reminders-message', words);
+                    const target = document.getElementById(fieldId);
+                    if (target) target.focus();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /* A `Custom…` row folds into an ordinary row as soon as focus leaves
+           it, so several custom reminders read as a list rather than a stack
+           of open fields. The label is the server's (`describe-reminder`), the
+           words a saved reminder has. An empty row goes quietly; one a save
+           would refuse stays open with its reason under the field. */
+        async function collapseReminder(reminder) {
+            if (!reminder.composing || !remindersChosen.includes(reminder)) return;
+            if (reminder.amount === '' || reminder.amount == null) {
+                remindersChosen.splice(remindersChosen.indexOf(reminder), 1);
+                renderReminders();
+                return;
+            }
+            const words = reminderProblem(reminder);
+            if (words) {
+                showFormMessage('event-reminders-message', words);
+                return;
+            }
+            const response = await fetch('/api/events/describe-reminder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(reminderAsSent(reminder)),
+            });
+            const body = await response.json().catch(() => ({}));
+            // Edited, removed or saved meanwhile: this answer is not its own.
+            if (!remindersChosen.includes(reminder) || reminderKey(reminder) !== reminderKey(body)) {
+                if (!response.ok && typeof body.detail === 'string') {
+                    showFormMessage('event-reminders-message', body.detail);
+                }
+                return;
+            }
+            const index = remindersChosen.indexOf(reminder);
+            remindersChosen[index] = {
+                minutes_before: body.minutes_before,
+                days_before: body.days_before,
+                at_time: body.at_time,
+                label: body.label,
+            };
+            sortReminders();
+            renderReminders();
+        }
+
+        /* A minute offset and a day at a time of day do not convert one to
+           one, so a change between timed and all-day clears the list, and
+           says so. */
+        function clearRemindersForKindChange() {
+            if (remindersChosen.length) {
+                remindersChosen = [];
+                showFormMessage('event-reminders-message',
+                    'Reminders were cleared because the event changed between all-day and timed.', 'status');
+            }
+            renderReminders();
         }
 
         // --- What to pack
@@ -1496,6 +1760,7 @@
 
             applyRuleToForm(null, day);
             setPackingForm([]);
+            setRemindersForm([]);
 
             document.getElementById('btn-delete-event').style.display = 'none';
             rememberStartValues();
@@ -1524,7 +1789,6 @@
             document.getElementById('event-description').value = editingEvent.description || '';
             document.getElementById('event-location').value = editingEvent.location || '';
             document.getElementById('event-all-day').checked = editingEvent.all_day;
-            document.getElementById('event-notify').value = editingEvent.notify_minutes_before ?? '';
 
             /* The occurrence's own values, not the series'. Reading the series
                here is what made every occurrence after the first open on the
@@ -1561,6 +1825,7 @@
                 String(occurrence.calendar_id || editingEvent.calendar_id || '');
 
             setPackingForm(occurrencePackingLists(occurrence));
+            setRemindersForm(remindersOf(occurrence), occurrence.reminders_own);
 
             document.getElementById('btn-delete-event').style.display = '';
 
@@ -2002,7 +2267,6 @@
             const end = allDay
                 ? document.getElementById('event-end-date').value
                 : document.getElementById('event-end-time').value;
-            const notify = document.getElementById('event-notify').value;
             return {
                 title: document.getElementById('event-title').value.trim(),
                 description: document.getElementById('event-description').value.trim() || null,
@@ -2011,7 +2275,7 @@
                 start,
                 end,
                 ...rruleChange(document.getElementById('event-repeat').value, start, allDay),
-                notify_minutes_before: notify ? Number(notify) : null,
+                ...remindersChange(),
                 attendee_ids: checkedAttendeeIds(),
                 calendar_id: Number(document.getElementById('event-calendar').value) || null,
                 ...packingChange()
@@ -2059,6 +2323,7 @@
                 return false;
             }
             if (nativeCalendars.length && refuseNoCalendar()) return false;
+            if (refuseReminders()) return false;
             // A new list needs a name, or a template to be named after.
             const unnamed = packingChosen.findIndex(list => list.composing && !list.name.trim() && !list.template_ids.length);
             if (unnamed >= 0) {
@@ -2125,6 +2390,9 @@
             if (!eventFormReady(payload, scope)) return;
             if (editingEvent && scope !== 'this' && payload.packing_lists) {
                 payload.packing_lists = seriesPackingLists();
+            }
+            if (editingEvent && scope !== 'this' && payload.reminders) {
+                payload.reminders = seriesReminders();
             }
 
             /* An edit that did not touch the times says nothing about them, so
@@ -2328,8 +2596,12 @@
                    value here is text. */
                 ['notes', 'Notes', occurrence.description_html || '—', true]
             );
-            if (occurrence.reminder_display) {
-                rows.push(['reminder', 'Reminder', occurrence.reminder_display]);
+            /* Each label is the server's. An occurrence with a list of its own
+               says so, as a packing list marks a changed item. */
+            if ((occurrence.reminders_display || []).length) {
+                const changed = occurrence.reminders_own ? ' <span class="item-mark">(changed)</span>' : '';
+                rows.push(['reminders', 'Reminders',
+                    escapeHtml(occurrence.reminders_display.join(' · ')) + changed, true]);
             }
             if (!occurrence.editable) {
                 // Answering "why can't I change this?" on the screen where it
@@ -2556,7 +2828,56 @@
 
         document.getElementById('event-all-day').addEventListener('change', toggleAllDayFields);
         document.getElementById('event-all-day').addEventListener('change', refreshRecurrencePreview);
-        document.getElementById('event-notify').addEventListener('change', updateNotifyHelp);
+        document.getElementById('event-reminder-select').addEventListener('change', (e) => {
+            const value = e.target.value;
+            if (!value) return;
+            clearFormMessage('event-reminders-message');
+            if (value === 'custom') {
+                remindersChosen.push({
+                    composing: true,
+                    amount: '',
+                    unit: eventIsAllDay() ? 'days' : 'minutes',
+                    time: DEFAULT_REMINDER_TIME,
+                });
+                renderReminders(`event-reminder-amount-${remindersChosen.length - 1}`);
+                return;
+            }
+            const preset = (eventIsAllDay() ? ALL_DAY_PRESETS : TIMED_PRESETS)
+                .find(p => reminderKey(p) === value);
+            if (preset) remindersChosen.push({ ...preset });
+            sortReminders();
+            renderReminders('event-reminder-select');
+        });
+        const reminderList = document.getElementById('event-reminder-list');
+        reminderList.addEventListener('click', (e) => {
+            const remove = e.target.closest('[data-remove-reminder]');
+            if (!remove) return;
+            remindersChosen.splice(Number(remove.dataset.removeReminder), 1);
+            clearFormMessage('event-reminders-message');
+            renderReminders('event-reminder-select');
+        });
+        reminderList.addEventListener('focusout', (e) => {
+            const row = e.target.closest('[data-reminder-row]');
+            // Moving between the row's own fields, or to its Remove, is not
+            // leaving it.
+            if (!row || (e.relatedTarget && row.contains(e.relatedTarget))) return;
+            const reminder = remindersChosen[Number(row.dataset.reminderRow)];
+            const next = e.relatedTarget;
+            collapseReminder(reminder).then(() => {
+                // A re-render replaced the rows; keep focus where it was going.
+                if (next && !next.isConnected) document.getElementById('event-reminder-select').focus();
+            });
+        });
+        reminderList.addEventListener('input', (e) => {
+            const target = e.target;
+            const reminder = (key) => remindersChosen[Number(target.dataset[key])];
+            if (target.dataset.reminderAmount !== undefined) reminder('reminderAmount').amount = target.value;
+            else if (target.dataset.reminderUnit !== undefined) reminder('reminderUnit').unit = target.value;
+            else if (target.dataset.reminderTime !== undefined) reminder('reminderTime').time = target.value;
+            else return;
+            clearFormMessage('event-reminders-message');
+        });
+        document.getElementById('event-all-day').addEventListener('change', clearRemindersForKindChange);
         document.getElementById('event-repeat').addEventListener('change', updateRepeatGroups);
 
         /* Anything that changes the rule changes the sentence describing it, and

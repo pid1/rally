@@ -28,6 +28,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from rally import notification_prefs
+from rally.calendars import reminders as event_reminders
 from rally.calendars.describe import describe_recurrence
 from rally.calendars.native import expand_event
 from rally.models import (
@@ -40,12 +41,12 @@ from rally.models import (
     Setting,
 )
 from rally.utils.display import (
-    WEEKDAYS,
     display_date,
     display_date_range,
     display_dated_times,
     display_time,
     display_time_range,
+    relative_day_label,
 )
 from rally.utils.settings import local_timezone_name
 from rally.utils.timezone import now_utc
@@ -59,8 +60,10 @@ PUSHOVER_TIMEOUT_SECONDS = 10
 REMINDER_GRACE_MINUTES = 15
 
 # The furthest ahead a reminder can be scheduled, and therefore how far the
-# due-reminder scan has to expand recurrences.
-MAX_LEAD_MINUTES = 60 * 24 * 7
+# due-reminder scan has to expand recurrences. One more day than the longest
+# reminder, because an all-day reminder is a time of day on a date rather than
+# a count of minutes from the start.
+MAX_LEAD_MINUTES = event_reminders.MAX_LEAD_MINUTES + 24 * 60
 
 KIND_REMINDER = "reminder"
 KIND_MANUAL = "manual"
@@ -173,13 +176,24 @@ def recipients_for_event(db: Session, event_id: int) -> tuple[list[FamilyMember]
     return reachable, skipped
 
 
-def format_message(event: Event, occurrence, tz: ZoneInfo) -> str:
-    """The body of a push: when, and where if known."""
+def format_message(event: Event, occurrence, tz: ZoneInfo, now: datetime | None = None) -> str:
+    """The body of a push: when, and where if known.
+
+    The day is named relative to when the push goes out (#336): ``Tomorrow
+    3:30 PM``, ``All day Saturday``, ``Dec 5 2:00 PM``. A bare weekday read as
+    today when a week-ahead reminder arrived on the same weekday, and an
+    all-day event was ``All day today`` however early the push went.
+    """
+    today = (now or now_utc()).astimezone(tz).date()
     if occurrence.all_day:
-        when = "All day today" if occurrence.start_local_date else "All day"
+        if occurrence.start_local_date:
+            day = date.fromisoformat(occurrence.start_local_date)
+            when = f"All day {relative_day_label(day, today)}"
+        else:
+            when = "All day"
     else:
         local = occurrence.start.astimezone(tz)
-        when = f"{WEEKDAYS[local.weekday()]} {display_time(local)}"
+        when = f"{relative_day_label(local.date(), today, capitalized=True)} {display_time(local)}"
     parts = [when]
     if event.location:
         parts.append(f"at {event.location}")
@@ -282,6 +296,7 @@ def _record(
     kind: str,
     status: str,
     detail: str | None = None,
+    reminder_key: str = "",
 ) -> None:
     """Write the send-once row, rewriting a previous failure in place.
 
@@ -295,6 +310,7 @@ def _record(
             EventNotification.occurrence_date == occurrence_date,
             EventNotification.family_member_id == member_id,
             EventNotification.kind == kind,
+            EventNotification.reminder_key == reminder_key,
         )
         .first()
     )
@@ -310,6 +326,7 @@ def _record(
             occurrence_date=occurrence_date,
             family_member_id=member_id,
             kind=kind,
+            reminder_key=reminder_key,
             status=status,
             detail=detail,
         )
@@ -327,6 +344,7 @@ def _deliver(
     occurrence_date: str,
     skipped: Sequence[str] = (),
     record: bool = True,
+    reminder_key: str = "",
 ) -> dict:
     """Send one body to several people, recording each outcome.
 
@@ -381,6 +399,7 @@ def _deliver(
                     kind=kind,
                     status="failed",
                     detail=str(exc)[:200],
+                    reminder_key=reminder_key,
                 )
             result["failed"].append(member.name)
         else:
@@ -392,6 +411,7 @@ def _deliver(
                     member_id=member.id,
                     kind=kind,
                     status="sent",
+                    reminder_key=reminder_key,
                 )
             result["sent"].append(member.name)
 
@@ -407,6 +427,8 @@ def notify_occurrence(
     kind: str,
     tz: ZoneInfo,
     message: str | None = None,
+    reminder_key: str = "",
+    now: datetime | None = None,
 ) -> dict:
     """Push one occurrence to its attendees, recording each outcome.
 
@@ -418,12 +440,13 @@ def notify_occurrence(
     return _deliver(
         db,
         reachable,
-        body=message or format_message(event, occurrence, tz),
+        body=message or format_message(event, occurrence, tz, now),
         title=event.title,
         kind=kind,
         event_id=event.id,
         occurrence_date=occurrence.occurrence_date or occurrence.start_local_date,
         skipped=skipped,
+        reminder_key=reminder_key,
     )
 
 
@@ -590,8 +613,10 @@ def notify_event_change(
     )
 
 
-def _already_sent(db: Session, event_id: int, occurrence_date: str, member_ids: list[int]) -> bool:
-    """Whether every reachable attendee already has a successful reminder."""
+def _already_sent(
+    db: Session, event_id: int, occurrence_date: str, member_ids: list[int], reminder_key: str
+) -> bool:
+    """Whether every reachable attendee already has this reminder, successfully."""
     if not member_ids:
         return True
     sent = {
@@ -601,6 +626,7 @@ def _already_sent(db: Session, event_id: int, occurrence_date: str, member_ids: 
             EventNotification.event_id == event_id,
             EventNotification.occurrence_date == occurrence_date,
             EventNotification.kind == KIND_REMINDER,
+            EventNotification.reminder_key == reminder_key,
             EventNotification.status == "sent",
         )
         .all()
@@ -612,14 +638,18 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
     """Send every reminder whose moment has arrived. Returns the count sent.
 
     Pure over the database plus a clock, so the whole behavior is testable
-    without a scheduler: the caller decides what "now" is.
+    without a scheduler: the caller decides what "now" is. An occurrence can
+    have several reminders (#336); each one is due on its own, and the
+    send-once record is keyed on which reminder it was.
     """
     now = (now or now_utc()).astimezone(UTC)
     tz = ZoneInfo(local_timezone_name(db))
 
-    events = db.query(Event).filter(Event.notify_minutes_before.isnot(None)).all()
-    if not events:
+    event_ids = event_reminders.event_ids_with_reminders(db)
+    if not event_ids:
         return 0
+    events = db.query(Event).filter(Event.id.in_(event_ids)).all()
+    series, own, owning = event_reminders.for_occurrences(db, event_ids)
 
     calendars = {calendar.id: calendar for calendar in db.query(Calendar).all()}
     sent_count = 0
@@ -630,17 +660,6 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
     window_end = now + timedelta(minutes=MAX_LEAD_MINUTES)
 
     for event in events:
-        overrides = db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
-        calendar = calendars.get(event.calendar_id)
-        occurrences = expand_event(
-            event,
-            overrides=overrides,
-            window_start=window_start,
-            window_end=window_end,
-            local_tz=tz,
-            calendar_label=calendar.label if calendar else "Rally",
-        )
-
         reachable, _ = recipients_for_event(db, event.id)
         # Narrow to the attendees who still want reminders *before* the
         # send-once check. Counting a muted attendee as outstanding would leave
@@ -653,22 +672,45 @@ def check_due_reminders(db: Session, now: datetime | None = None) -> int:
             continue
         member_ids = [member.id for member in wanting]
 
+        overrides = db.query(EventOverride).filter(EventOverride.event_id == event.id).all()
+        calendar = calendars.get(event.calendar_id)
+        occurrences = expand_event(
+            event,
+            overrides=overrides,
+            window_start=window_start,
+            window_end=window_end,
+            local_tz=tz,
+            calendar_label=calendar.label if calendar else "Rally",
+        )
+
         for occurrence in occurrences:
-            # Subtracted from the *resolved occurrence*, never from the series
-            # start: a fixed offset from DTSTART is an hour wrong for half the
-            # year on any weekly event.
-            due_at = occurrence.start - timedelta(minutes=event.notify_minutes_before)
-            if due_at > now:
-                continue
-            if due_at < now - timedelta(minutes=REMINDER_GRACE_MINUTES):
-                continue
-
             occurrence_date = occurrence.occurrence_date or occurrence.start_local_date
-            if _already_sent(db, event.id, occurrence_date, member_ids):
-                continue
-
-            outcome = notify_occurrence(db, event, occurrence, kind=KIND_REMINDER, tz=tz)
-            sent_count += len(outcome["sent"])
+            reminders, _own = event_reminders.resolve(
+                series,
+                own,
+                owning,
+                event.id,
+                occurrence.occurrence_date,
+                all_day=occurrence.all_day,
+            )
+            for reminder in reminders:
+                due_at = reminder.due_at(occurrence, tz)
+                if due_at is None or due_at > now:
+                    continue
+                if due_at < now - timedelta(minutes=REMINDER_GRACE_MINUTES):
+                    continue
+                if _already_sent(db, event.id, occurrence_date, member_ids, reminder.key):
+                    continue
+                outcome = notify_occurrence(
+                    db,
+                    event,
+                    occurrence,
+                    kind=KIND_REMINDER,
+                    tz=tz,
+                    reminder_key=reminder.key,
+                    now=now,
+                )
+                sent_count += len(outcome["sent"])
 
     return sent_count
 

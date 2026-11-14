@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from rally import notification_prefs
+from rally.calendars.reminders import Reminder
 from rally.models import EventNotification, MemberNotificationPref, Setting
 from rally.notifications import (
     KIND_CREATED,
@@ -329,19 +330,22 @@ def test_a_failure_never_escapes_as_an_exception(
     assert check_due_reminders(db_session, now=_at("2026-08-11T08:30")) == 0  # no raise
 
 
-def test_all_day_reminder_message_says_all_day(
+def test_all_day_reminder_message_says_which_day(
     db_session, token, reachable, make_event, mock_pushover
 ):
+    """An all-day reminder is a time of day, and the push says when the day is
+    from where it arrives rather than ``All day today`` (#336)."""
     make_event(
         "Emma's birthday",
         start="2026-08-14",
         end="2026-08-14",
         all_day=True,
-        notify_minutes_before=60,
+        reminders=[Reminder(days_before=1, at_time="18:00")],
         attendees=[reachable],
     )
-    check_due_reminders(db_session, now=_at("2026-08-13T23:00"))
-    assert "All day" in mock_pushover.sent[0]["message"]
+    assert check_due_reminders(db_session, now=_at("2026-08-13T17:59")) == 0
+    assert check_due_reminders(db_session, now=_at("2026-08-13T18:00")) == 1
+    assert mock_pushover.sent[0]["message"] == "All day tomorrow"
 
 
 def test_location_is_included_when_known(db_session, token, reachable, make_event, mock_pushover):
@@ -843,7 +847,7 @@ def test_change_notices_do_not_consume_the_reminder_slot(
     created = _create(
         client, start="2026-08-11T13:00", end="2026-08-11T14:00", attendee_ids=[reachable.id]
     )
-    client.put(f"/api/events/{created['id']}", json={"notify_minutes_before": 30})
+    client.put(f"/api/events/{created['id']}", json={"reminders": [{"minutes_before": 30}]})
 
     assert check_due_reminders(db_session, now=_at("2026-08-11T12:30")) == 1
     kinds = {row.kind for row in db_session.query(EventNotification).all()}
@@ -881,7 +885,7 @@ def test_muting_reminders_leaves_change_notices_alone(
     created = _create(client, attendee_ids=[reachable.id])
     assert mock_pushover.sent == []
 
-    client.put(f"/api/events/{created['id']}", json={"notify_minutes_before": 30})
+    client.put(f"/api/events/{created['id']}", json={"reminders": [{"minutes_before": 30}]})
     assert mock_pushover.sent == []
 
     assert check_due_reminders(db_session, now=_at("2026-08-14T08:30")) == 1

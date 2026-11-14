@@ -830,7 +830,7 @@ _MEASURE = """
         dates: o.dates, calendar_id: 1, calendar_label: '',
         member: 'Mom', member_color: '#4a6741', attendees: [],
         event_id: 1, occurrence_date: null, recurring: false,
-        editable: true, notify_minutes_before: null,
+        editable: true, reminders: [], reminders_display: [], reminders_own: false,
     }));
     render();
     const hourEl = document.querySelector('.calendar-timegrid-hour');
