@@ -5,19 +5,19 @@ description = "Your family command center—coordinate, work hard, and make the 
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
-    "openai>=3.37.0",
-    "anthropic>=2.3.0",
-    "fastapi[standard]>=0.162.0",
+    "openai>=3.46.0",
+    "anthropic>=2.6.0",
+    "fastapi[standard]>=0.162.2",
     "requests>=2.34.2",
-    "ruff>=0.17.2",
-    "sqlalchemy>=2.1.6",
-    "pydantic>=2.14.1",
+    "ruff>=0.17.4",
+    "sqlalchemy>=2.1.8",
+    "pydantic>=2.14.3",
     "jinja2>=3.1.6",
     "icalendar>=7.3.0",
     "markdown-it-py>=4.2.0",
     "recurring-ical-events>=3.8.2",
-    "caldav>=3.6.0",
-    "fpdf2>=2.8.9",
+    "caldav>=3.7.0",
+    "fpdf2>=2.9.0",
 ]
 
 [project.scripts]
@@ -25,7 +25,7 @@ seed = "rally.cli:seed"
 
 [dependency-groups]
 dev = [
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
 ]
 # Design-system regression tests. Kept out of `dev` so the ordinary test run
