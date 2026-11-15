@@ -25,11 +25,14 @@ import sqlite3
 from pathlib import Path
 
 COLUMNS = (
-    ("source", "VARCHAR(200)"),
-    ("pending_confirmation", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("confirmation_hash", "VARCHAR(64)"),
-    ("contact_name", "VARCHAR(100)"),
-    ("contact_phone", "VARCHAR(32)"),
+    ("source", "ALTER TABLE events ADD COLUMN source VARCHAR(200)"),
+    (
+        "pending_confirmation",
+        "ALTER TABLE events ADD COLUMN pending_confirmation BOOLEAN NOT NULL DEFAULT 0",
+    ),
+    ("confirmation_hash", "ALTER TABLE events ADD COLUMN confirmation_hash VARCHAR(64)"),
+    ("contact_name", "ALTER TABLE events ADD COLUMN contact_name VARCHAR(100)"),
+    ("contact_phone", "ALTER TABLE events ADD COLUMN contact_phone VARCHAR(32)"),
 )
 INDEX = (
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_events_confirmation_hash ON events (confirmation_hash)"
@@ -66,9 +69,9 @@ def migrate():
         cursor.execute("PRAGMA table_info(events)")
         existing = {col[1] for col in cursor.fetchall()}
         added = []
-        for name, ddl in COLUMNS:
+        for name, statement in COLUMNS:
             if name not in existing:
-                cursor.execute(f"ALTER TABLE events ADD COLUMN {name} {ddl}")
+                cursor.execute(statement)
                 added.append(name)
         cursor.execute(INDEX)
         conn.commit()

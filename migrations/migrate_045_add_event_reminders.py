@@ -59,8 +59,8 @@ NOTIFICATION_INDEX = (
 
 
 def _columns(cursor, table: str) -> set[str]:
-    cursor.execute(f"PRAGMA table_info({table})")
-    return {col[1] for col in cursor.fetchall()}
+    cursor.execute("SELECT name FROM pragma_table_info(?)", (table,))
+    return {row[0] for row in cursor.fetchall()}
 
 
 def _table_exists(cursor, table: str) -> bool:
@@ -69,8 +69,8 @@ def _table_exists(cursor, table: str) -> bool:
 
 
 def _index_columns(cursor, index: str) -> list[str]:
-    cursor.execute(f"PRAGMA index_info({index})")
-    return [row[2] for row in cursor.fetchall()]
+    cursor.execute("SELECT name FROM pragma_index_info(?) ORDER BY seqno", (index,))
+    return [row[0] for row in cursor.fetchall()]
 
 
 def all_day_reminder(minutes: int) -> tuple[int, str]:
