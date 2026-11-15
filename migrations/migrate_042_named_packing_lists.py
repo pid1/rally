@@ -129,8 +129,8 @@ def _tables(cursor):
 
 
 def _columns(cursor, table):
-    cursor.execute(f"PRAGMA table_info({table})")
-    return {row[1] for row in cursor.fetchall()}
+    cursor.execute("SELECT name FROM pragma_table_info(?)", (table,))
+    return {row[0] for row in cursor.fetchall()}
 
 
 def _list_key(name):
