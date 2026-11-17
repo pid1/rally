@@ -328,8 +328,8 @@ def seed():
                     "Friday from 9am to noon, and the first Saturday of the month "
                     "from 10am to 2pm. Books can be renewed online up to three times "
                     "before they are due. Bring the library card, not a photo of it. "
-                    "Ask at the desk for Dana if the hold shelf is empty, or call "
-                    "800-555-0199. Parking is behind the building, off Elm Street."
+                    "Ask at the desk for Dana if the hold shelf is empty. Parking "
+                    "is behind the building, off Elm Street."
                 ),
                 assigned_to=mom.id,
                 completed=False,
