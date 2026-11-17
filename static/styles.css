@@ -1249,6 +1249,46 @@ html.modal-open {
     overflow-wrap: break-word;
 }
 
+/* A long description folded to its first sentences (`longTextHtml()` in
+   static/long_text.js). The whole text is the toggle, not only `View more`,
+   so a long one opens and closes without hunting for the button at its end;
+   the button is there for the keyboard and to say the text goes on. It sits
+   in the sentence, so it takes the line's size and italics like a phone link
+   does, and is exempt from the target size for the same reason. */
+.long-text {
+    display: block;
+    cursor: pointer;
+}
+
+.long-text-full,
+.long-text.is-expanded .long-text-short,
+.long-text-less,
+.long-text.is-expanded .long-text-more {
+    display: none;
+}
+
+.long-text.is-expanded .long-text-full,
+.long-text.is-expanded .long-text-less {
+    display: inline;
+}
+
+.long-text-toggle {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--ink-muted);
+    font-style: normal;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.long-text:hover .long-text-toggle {
+    color: var(--ink);
+}
+
 /* A row's title with a short detail beside it rather than under it, to keep
    the row one line shorter: "Goggles · Pool bag" on a packing list. The title
    stays its own element, so it still reads as the name alone; the detail is

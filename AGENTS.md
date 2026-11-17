@@ -714,6 +714,7 @@ rally/
 │   ├── recurrence_form.js   # The shared repeat controls (Daily/Weekly/Monthly/Custom): rule in, rule out, read-back line
 │   ├── device_member.js     # This browser's device token, who it belongs to, and its stored answers
 │   ├── archive_list.js      # The archive pages' shared search, results count and Load more
+│   ├── long_text.js         # longTextHtml(): a long description folded to its first sentences, with View more and click-anywhere to open
 │   └── meal_edit_modal.js   # Shared meal add/edit modal behavior
 ├── templates/
 │   ├── base.html            # The shared layout every page extends: <head>, header, menu button, sidebar
@@ -987,6 +988,7 @@ rally/
   - Completion tracking — a completed todo stays on `/todo` until the end of the local day it was completed
   - Integrated into LLM generator for schedule optimization
   - Luxury UI with inline editing
+  - **Long descriptions fold** (`static/long_text.js`, on `/todo` and `/todo/completed`): past about 210 characters a description shows up to the last sentence end within 235 (a word boundary and `…` when no sentence ends in reach), then an inline `View more`. A click anywhere on the description opens and closes it, except on a phone link or after selecting text; the open state is kept by task id across re-renders. Text that would hide fewer than 40 characters is shown whole. Rendered through `escapeHtmlWithPhoneLinks()`, so numbers stay links in both halves
 - ✅ Completed tasks history (`/todo/completed`)
   - Read-only archive of todos completed before today: no add, edit, delete, or completion checkbox
   - Mirrors the `/todo` layout (same heading, toolbar, and list styles) minus the Recurring Tasks section
