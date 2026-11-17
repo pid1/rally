@@ -147,12 +147,6 @@
         let state = null;
         let editingId = null;
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : String(text);
-            return div.innerHTML;
-        }
-
         function seenAt(value) {
             if (!value) return 'not yet';
             const date = parseTimestamp(value);

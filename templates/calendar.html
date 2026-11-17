@@ -456,17 +456,6 @@
             return Math.round((startOfDay(end) - startOfDay(start)) / 86400000);
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : text;
-            return div.innerHTML;
-        }
-
-        // For a value inside a double-quoted attribute.
-        function escapeAttr(text) {
-            return escapeHtml(text).replace(/"/g, '&quot;');
-        }
-
         /* Open a fragment in upper case without touching the rest of it.
            `describe_recurrence` returns words meant to sit mid-sentence, and the
            detail modal is the one place they head a value instead. Only the
@@ -538,14 +527,14 @@
         function renderMemberChips() {
             const chips = document.getElementById('filter-member-chips');
             chips.innerHTML = familyMembers
-                .map(m => `<button type="button" class="filter-chip${selectedMembers.has(m.name) ? ' active' : ''}" data-value="${escapeAttr(m.name)}">${escapeHtml(m.name)}</button>`)
+                .map(m => `<button type="button" class="filter-chip${selectedMembers.has(m.name) ? ' active' : ''}" data-value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`)
                 .join('');
         }
 
         function renderLegend() {
             const legend = document.getElementById('calendar-legend');
             legend.innerHTML = familyMembers
-                .map(m => `<span class="calendar-legend-item"><span class="calendar-dot" style="background:${escapeAttr(m.color)}"></span>${escapeHtml(m.name)}</span>`)
+                .map(m => `<span class="calendar-legend-item"><span class="calendar-dot" style="background:${escapeHtml(m.color)}"></span>${escapeHtml(m.name)}</span>`)
                 .join('');
         }
 
@@ -699,7 +688,7 @@
 
         function dotFor(occurrence) {
             const color = occurrence.member_color || '';
-            return `<span class="calendar-dot"${color ? ` style="background:${escapeAttr(color)}"` : ''}></span>`;
+            return `<span class="calendar-dot"${color ? ` style="background:${escapeHtml(color)}"` : ''}></span>`;
         }
 
         function monthHtml() {
@@ -739,7 +728,7 @@
                     const label = !occurrence.all_day && occurrence.start_date === iso
                         ? `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`
                         : '';
-                    html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}" data-occurrence="${index}" title="${escapeAttr(occurrence.title)}">${dotFor(occurrence)}${label}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
+                    html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}" data-occurrence="${index}" title="${escapeHtml(occurrence.title)}">${dotFor(occurrence)}${label}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
                 });
                 if (hidden > 0) {
                     html += `<button type="button" class="calendar-more" data-agenda-date="${iso}">+${hidden} more</button>`;
@@ -884,7 +873,7 @@
                 const last = covered[covered.length - 1];
                 bars.push(
                     `<button type="button" class="calendar-timegrid-allday-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}"`
-                    + ` data-occurrence="${index}" title="${escapeAttr(occurrence.title)}"`
+                    + ` data-occurrence="${index}" title="${escapeHtml(occurrence.title)}"`
                     + ` style="grid-column: ${first + 1} / ${last + 2}">`
                     + `${dotFor(occurrence)}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`
                 );
@@ -971,12 +960,12 @@
                     // would describe the minimum rather than the event.
                     const inner = short
                         ? `<span class="calendar-timegrid-event-tab" style="height:calc(var(--timegrid-hour) * ${(paint.tabMinutes / 60).toFixed(4)})`
-                            + `${color ? `;background:${escapeAttr(color)}` : ''}"></span>`
+                            + `${color ? `;background:${escapeHtml(color)}` : ''}"></span>`
                             + `<span class="calendar-timegrid-event-body">${label}</span>`
                         : label;
                     blocks += `<button type="button" class="calendar-timegrid-event${short ? ' is-short' : ''}${item.occurrence.editable ? '' : ' is-external'}${pendingClass(item.occurrence)}"`
                         + ` data-occurrence="${index}" style="${style}"`
-                        + ` title="${escapeAttr(`${time} · ${item.occurrence.title}`)}">`
+                        + ` title="${escapeHtml(`${time} · ${item.occurrence.title}`)}">`
                         + inner
                         + '</button>';
                 });
@@ -1149,7 +1138,7 @@
                 const options = owned
                     .map(c => `<option value="${c.id}">${escapeHtml(c.label)}</option>`)
                     .join('');
-                return `<optgroup label="${escapeAttr(member.name)}">${options}</optgroup>`;
+                return `<optgroup label="${escapeHtml(member.name)}">${options}</optgroup>`;
             }).join('');
             /* A calendar whose owner is no longer a family member would other-
                wise vanish from the picker while still holding events, so an
@@ -1303,7 +1292,7 @@
                 <div class="manage-row">
                     <div class="manage-row-text">${escapeHtml(reminder.label)}</div>
                     <button type="button" class="btn btn--sm btn--quiet" data-remove-reminder="${index}"
-                            aria-label="Remove ${escapeAttr(reminder.label)}">Remove</button>
+                            aria-label="Remove ${escapeHtml(reminder.label)}">Remove</button>
                 </div>`;
             }
             const allDay = eventIsAllDay();
@@ -1313,7 +1302,7 @@
                     <div class="form-group">
                         <label for="event-reminder-time-${index}">At</label>
                         <input type="time" id="event-reminder-time-${index}" data-reminder-time="${index}"
-                               value="${escapeAttr(reminder.time)}">
+                               value="${escapeHtml(reminder.time)}">
                     </div>` : '';
             return `
                 <div class="manage-row manage-row--editing" data-reminder-row="${index}">
@@ -1322,7 +1311,7 @@
                         <div class="custom-recurrence-row">
                             <input type="number" id="event-reminder-amount-${index}" data-reminder-amount="${index}"
                                    class="remind-days-input" min="0" step="1" inputmode="numeric"
-                                   value="${escapeAttr(reminder.amount)}">
+                                   value="${escapeHtml(reminder.amount)}">
                             <select id="event-reminder-unit-${index}" data-reminder-unit="${index}" aria-label="Unit" style="flex:1;">
                                 ${units.map(unit => `<option value="${unit}"${unit === reminder.unit ? ' selected' : ''}>${unitNames[unit]}</option>`).join('')}
                             </select>
@@ -1516,14 +1505,14 @@
                     <div class="manage-row">
                         <div class="manage-row-text">${escapeHtml(packingName(id))}</div>
                         <button type="button" class="btn btn--sm btn--quiet" data-uninclude-packing="${index}:${id}"
-                                aria-label="Remove ${escapeAttr(packingName(id))}">Remove</button>
+                                aria-label="Remove ${escapeHtml(packingName(id))}">Remove</button>
                     </div>`).join('');
             return `
                 <div class="manage-row manage-row--editing" data-packing-row="${index}">
                     <div class="form-group">
                         <label for="event-packing-name-${index}">Name</label>
                         <input type="text" id="event-packing-name-${index}" data-packing-name="${index}" maxlength="100"
-                               value="${escapeAttr(list.name)}" placeholder="e.g. Dad Goes to South Carolina">
+                               value="${escapeHtml(list.name)}" placeholder="e.g. Dad Goes to South Carolina">
                     </div>
                     <div class="form-group">
                         <label for="event-packing-include-${index}">Includes</label>
@@ -2362,7 +2351,8 @@
         /* The server's sentence with each list's name in bold. Names arrive in
            straight double quotes, so they are found after escaping. */
         function boldNames(text) {
-            return escapeHtml(text).replace(/"([^"]+)"/g, '"<strong>$1</strong>"');
+            // escapeHtml() writes each " as &quot;, so the names are found by that.
+            return escapeHtml(text).replace(/&quot;((?:(?!&quot;).)+)&quot;/g, '"<strong>$1</strong>"');
         }
 
         /* Lists this would take off days nobody else uses (#313): whether

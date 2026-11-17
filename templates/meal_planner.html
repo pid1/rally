@@ -177,12 +177,6 @@
             `;
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         // Modal — the shared MealEditModal (static/meal_edit_modal.js) owns the
         // add/edit/delete behavior. Called from the per-card Edit button.
         function openEditModal(id) {

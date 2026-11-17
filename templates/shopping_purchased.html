@@ -61,12 +61,6 @@
 
         const ANYWHERE = 'anywhere';
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         function storeName(storeId) {
             const store = stores.find(s => s.id === storeId);
             return store ? store.name : null;

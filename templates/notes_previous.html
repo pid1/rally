@@ -52,12 +52,6 @@
             });
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         // No chips and no sort, so there is nothing for a search to reset.
         const archive = new ArchiveList({
             endpoint: '/api/notes/previous',

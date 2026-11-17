@@ -77,12 +77,7 @@
         // value on this page that is meant to render. It comes from
         // rally.markdown, which escapes any tag handed to it, and the API
         // refuses to store markup in the first place. Everything else on the
-        // page still goes through escapeHtml().
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        // page still goes through escapeHtml() (static/escape.js).
 
         // ── Modal ──
         const OVERLAY_ID = 'note-modal-overlay';

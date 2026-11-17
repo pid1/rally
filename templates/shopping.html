@@ -123,19 +123,6 @@
         const suggestionMenu = document.getElementById('suggestion-menu');
         const modalBody = document.querySelector('#item-modal-overlay .modal-body');
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // textContent → innerHTML leaves quotes alone, which is fine in a text
-        // node but would break out of a quoted attribute. Store and item names
-        // are user-supplied, so attribute positions need the stricter escape.
-        function escapeAttr(text) {
-            return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        }
-
         function storeName(storeId) {
             const store = stores.find(s => s.id === storeId);
             return store ? store.name : null;
@@ -334,7 +321,7 @@
                 <div class="editable-item ${item.completed ? 'completed' : ''}" data-id="${item.id}">
                     <div class="item-checkbox">
                         <input type="checkbox" ${item.completed ? 'checked' : ''}
-                               aria-label="Mark ${escapeAttr(item.name)} as purchased"
+                               aria-label="Mark ${escapeHtml(item.name)} as purchased"
                                onchange="toggleComplete(${item.id}, this.checked)">
                     </div>
                     <div class="editable-item-content">
@@ -346,7 +333,7 @@
                         <button class="btn btn--sm" onclick="openEditModal(${item.id})">Edit</button>
                         ${item.completed ? '' : `
                         <button type="button" class="btn drag-handle"
-                                aria-label="Reorder ${escapeAttr(item.name)}"
+                                aria-label="Reorder ${escapeHtml(item.name)}"
                                 title="Drag to reorder or move to another store. Arrow keys work too.">
                             <span aria-hidden="true">⠿</span>
                         </button>`}
@@ -518,7 +505,7 @@
             // to stays typed while the message says why it was not saved.
             list.innerHTML = stores.map(s => `
                 <div class="manage-row" data-id="${s.id}">
-                    <input type="text" value="${escapeAttr(s.name)}" aria-label="Store name">
+                    <input type="text" value="${escapeHtml(s.name)}" aria-label="Store name">
                     <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
                     <button type="button" class="btn btn--sm" data-action="delete">Delete</button>
                 </div>

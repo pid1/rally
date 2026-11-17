@@ -833,6 +833,45 @@ def test_no_page_defines_a_shared_date_helper():
     assert not offenders, f"use static/dates.js rather than a copy: {offenders}"
 
 
+@pytest.mark.parametrize("path", DATE_PAGES)
+def test_every_page_carries_the_shared_escaper(client, path):
+    """#344: static/escape.js loads once on every page, from base.html, after
+    dates.js and not deferred, so the shared scripts and a page's own script
+    can escape text as they load."""
+    html = client.get(path).text
+    assert html.count("/static/escape.js") == 1
+    tag = re.search(r"<script[^>]*/static/escape\.js[^>]*>", html).group(0)
+    assert "defer" not in tag
+    assert html.index("/static/dates.js") < html.index("/static/escape.js")
+
+
+def test_no_page_defines_its_own_escaper():
+    """#344: escapeHtml() lives in static/escape.js alone. The copies each page
+    carried had drifted, and the ones that left quotes alone let an event title
+    break out of an attribute (#343). escapeAttr(), escapeText() and
+    escapeAttribute() are gone: the one escapeHtml() escapes quotes."""
+    definition = re.compile(
+        r"function\s+(?:escapeHtml|escapeAttr|escapeText|escapeAttribute)\s*\("
+        r"|(?:const|let|var)\s+(?:escapeHtml|escapeAttr|escapeText|escapeAttribute)\s*="
+        r"|\{[^}]*\bescape(?:Html|Attr)\b[^}]*\}\s*=\s*PackingLists"
+    )
+    offenders = [
+        path.name
+        for path in _page_sources()
+        if path.name != "escape.js" and definition.search(path.read_text())
+    ]
+    assert not offenders, f"use static/escape.js rather than a copy: {offenders}"
+
+
+def test_no_escaped_value_goes_into_a_script_string():
+    """#344: the browser decodes `&#39;` back into `'` before an inline handler
+    runs, so no HTML escaping keeps a value inside a JavaScript string in an
+    `on…` attribute. A value a handler needs rides in a `data-` attribute."""
+    handler = re.compile(r"""\son[a-z]+="[^"]*['`]\$\{escapeHtml\(""")
+    offenders = [path.name for path in _page_sources() if handler.search(path.read_text())]
+    assert not offenders, f"pass the value in a data- attribute instead: {offenders}"
+
+
 # The toLocale* calls outside dates.js that do not write a date, each as the
 # test reads it (receiver, call, first argument), so another call beside one is
 # still caught.

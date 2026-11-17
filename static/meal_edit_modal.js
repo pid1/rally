@@ -14,12 +14,6 @@
 
     const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
 
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
     // Today's date (YYYY-MM-DD) in the page's IANA timezone, by static/dates.js's
     // todayLocal(). Mirrors the backend's today_local() so the planner/history
     // day boundary agrees with the server.

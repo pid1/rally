@@ -167,12 +167,6 @@
             return formatDate(value, { weekday: true, month: 'short', year: 'never' });
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         // Event handlers
         document.getElementById('filter-assignee-chips').addEventListener('click', (e) => {
             const chip = e.target.closest('.filter-chip');
