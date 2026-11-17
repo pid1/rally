@@ -240,6 +240,17 @@ def test_pages_that_show_family_text_load_the_phone_linker(client, path):
     assert "/static/phone_links.js" in html
 
 
+@pytest.mark.parametrize("path", ["/todo", "/todo/completed"])
+def test_task_pages_fold_long_descriptions(client, path):
+    """A long task description shows its first sentences behind `View more`.
+
+    The folder is loaded after the phone linker, which it renders through.
+    """
+    html = client.get(path).text
+    assert html.index("/static/phone_links.js") < html.index("/static/long_text.js")
+    assert "longTextHtml(todo.description" in html
+
+
 def test_family_written_text_is_rendered_through_the_phone_linker():
     """A description, a note or a location is where a number to call gets written.
 

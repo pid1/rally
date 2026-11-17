@@ -4,6 +4,7 @@
 {% block subtitle %}Task Management{% endblock %}
 {% block head %}
 <script src="/static/phone_links.js?v={{ css_version }}"></script>
+<script src="/static/long_text.js?v={{ css_version }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -137,7 +138,7 @@
                     <div class="editable-item" data-id="${todo.id}">
                         <div class="editable-item-content">
                             <div class="editable-item-title">${escapeHtml(todo.title)} ${recurringIcon} ${assigneeHtml}</div>
-                            ${todo.description ? `<div class="editable-item-description">${escapeHtmlWithPhoneLinks(todo.description)}</div>` : ''}
+                            ${todo.description ? `<div class="editable-item-description">${longTextHtml(todo.description, `todo-${todo.id}`)}</div>` : ''}
                             ${dueDateHtml}
                             ${completedHtml}
                         </div>

@@ -1249,6 +1249,39 @@ html.modal-open {
     overflow-wrap: break-word;
 }
 
+/* A long description folded to its first sentences (`longTextHtml()` in
+   static/long_text.js). The whole text is the toggle, not only `View more`,
+   so a long one opens and closes without aiming for the button. `View more`
+   sits on its own line under the text and looks like every other View more
+   in Rally — the `.disclosure` summary's muted caret and words, a full
+   target tall (see `.disclosure > summary`, which it shares its rules with). */
+.long-text {
+    display: block;
+    cursor: pointer;
+}
+
+.long-text-full,
+.long-text.is-expanded .long-text-short,
+.long-text-less,
+.long-text.is-expanded .long-text-more {
+    display: none;
+}
+
+.long-text.is-expanded .long-text-full,
+.long-text.is-expanded .long-text-less {
+    display: inline;
+}
+
+/* On its own line, but only as wide as its words, so its focus ring and hit
+   area stay with them. Upright: the description above it is italic, and
+   every other View more is not. Scoped to `.long-text` so it outranks the
+   shared summary rule's `inline-flex` further down. */
+.long-text .long-text-toggle {
+    display: flex;
+    width: fit-content;
+    font-style: normal;
+}
+
 /* A row's title with a short detail beside it rather than under it, to keep
    the row one line shorter: "Goggles · Pool bag" on a packing list. The title
    stays its own element, so it still reads as the name alone; the detail is
@@ -1481,7 +1514,8 @@ html.modal-open {
    announced as expandable without any script. The summary is quiet muted text
    with a caret, not underlined, and a full-height target; its words swap when
    it opens, via `.disclosure-more` / `.disclosure-less`. */
-.disclosure > summary {
+.disclosure > summary,
+.long-text-toggle {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
@@ -1492,7 +1526,8 @@ html.modal-open {
     color: var(--ink-muted);
 }
 
-.disclosure > summary:hover {
+.disclosure > summary:hover,
+.long-text:hover .long-text-toggle {
     color: var(--ink);
 }
 
@@ -1504,12 +1539,14 @@ html.modal-open {
 }
 
 .disclosure > summary::before,
+.long-text-toggle::before,
 .list-group--collapsible > summary::before {
     content: '▸';
     display: inline-block;
 }
 
 .disclosure[open] > summary::before,
+.long-text.is-expanded .long-text-toggle::before,
 .list-group--collapsible[open] > summary::before {
     content: '▾';
 }

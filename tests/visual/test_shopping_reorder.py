@@ -191,7 +191,9 @@ def test_focus_follows_the_row_it_moved(shopping):
 def test_a_move_is_announced(shopping):
     grip(shopping, "Paper towels").focus()
     shopping.keyboard.press("ArrowDown")
-    shopping.wait_for_timeout(400)
+    # The announcement follows the save and the refetch, so it lands whenever
+    # the server answers; a fixed wait missed it on a slow CI runner.
+    shopping.wait_for_function("() => document.getElementById('reorder-status').textContent")
 
     assert shopping.locator("#reorder-status").text_content() == ("Paper towels, 2 of 2 in Costco")
 
