@@ -538,14 +538,14 @@
         function renderMemberChips() {
             const chips = document.getElementById('filter-member-chips');
             chips.innerHTML = familyMembers
-                .map(m => `<button type="button" class="filter-chip${selectedMembers.has(m.name) ? ' active' : ''}" data-value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`)
+                .map(m => `<button type="button" class="filter-chip${selectedMembers.has(m.name) ? ' active' : ''}" data-value="${escapeAttr(m.name)}">${escapeHtml(m.name)}</button>`)
                 .join('');
         }
 
         function renderLegend() {
             const legend = document.getElementById('calendar-legend');
             legend.innerHTML = familyMembers
-                .map(m => `<span class="calendar-legend-item"><span class="calendar-dot" style="background:${escapeHtml(m.color)}"></span>${escapeHtml(m.name)}</span>`)
+                .map(m => `<span class="calendar-legend-item"><span class="calendar-dot" style="background:${escapeAttr(m.color)}"></span>${escapeHtml(m.name)}</span>`)
                 .join('');
         }
 
@@ -699,7 +699,7 @@
 
         function dotFor(occurrence) {
             const color = occurrence.member_color || '';
-            return `<span class="calendar-dot"${color ? ` style="background:${escapeHtml(color)}"` : ''}></span>`;
+            return `<span class="calendar-dot"${color ? ` style="background:${escapeAttr(color)}"` : ''}></span>`;
         }
 
         function monthHtml() {
@@ -739,7 +739,7 @@
                     const label = !occurrence.all_day && occurrence.start_date === iso
                         ? `<span class="calendar-event-time">${escapeHtml(compactTime(occurrence.time_label))}</span>`
                         : '';
-                    html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}" data-occurrence="${index}" title="${escapeHtml(occurrence.title)}">${dotFor(occurrence)}${label}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
+                    html += `<button type="button" class="calendar-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}" data-occurrence="${index}" title="${escapeAttr(occurrence.title)}">${dotFor(occurrence)}${label}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`;
                 });
                 if (hidden > 0) {
                     html += `<button type="button" class="calendar-more" data-agenda-date="${iso}">+${hidden} more</button>`;
@@ -884,7 +884,7 @@
                 const last = covered[covered.length - 1];
                 bars.push(
                     `<button type="button" class="calendar-timegrid-allday-event${occurrence.editable ? '' : ' is-external'}${pendingClass(occurrence)}"`
-                    + ` data-occurrence="${index}" title="${escapeHtml(occurrence.title)}"`
+                    + ` data-occurrence="${index}" title="${escapeAttr(occurrence.title)}"`
                     + ` style="grid-column: ${first + 1} / ${last + 2}">`
                     + `${dotFor(occurrence)}${pendingMark(occurrence)}<span class="calendar-event-title">${escapeHtml(occurrence.title)}</span></button>`
                 );
@@ -971,12 +971,12 @@
                     // would describe the minimum rather than the event.
                     const inner = short
                         ? `<span class="calendar-timegrid-event-tab" style="height:calc(var(--timegrid-hour) * ${(paint.tabMinutes / 60).toFixed(4)})`
-                            + `${color ? `;background:${escapeHtml(color)}` : ''}"></span>`
+                            + `${color ? `;background:${escapeAttr(color)}` : ''}"></span>`
                             + `<span class="calendar-timegrid-event-body">${label}</span>`
                         : label;
                     blocks += `<button type="button" class="calendar-timegrid-event${short ? ' is-short' : ''}${item.occurrence.editable ? '' : ' is-external'}${pendingClass(item.occurrence)}"`
                         + ` data-occurrence="${index}" style="${style}"`
-                        + ` title="${escapeHtml(`${time} · ${item.occurrence.title}`)}">`
+                        + ` title="${escapeAttr(`${time} · ${item.occurrence.title}`)}">`
                         + inner
                         + '</button>';
                 });
@@ -1149,7 +1149,7 @@
                 const options = owned
                     .map(c => `<option value="${c.id}">${escapeHtml(c.label)}</option>`)
                     .join('');
-                return `<optgroup label="${escapeHtml(member.name)}">${options}</optgroup>`;
+                return `<optgroup label="${escapeAttr(member.name)}">${options}</optgroup>`;
             }).join('');
             /* A calendar whose owner is no longer a family member would other-
                wise vanish from the picker while still holding events, so an
