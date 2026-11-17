@@ -4,9 +4,9 @@
  * what to bring — and shown whole they push the rest of the list a screen
  * further down, on a phone most of all. So a long description shows roughly
  * its first two sentences, ending where a sentence ends rather than mid-word
- * at a hard count, with `View more` after it. The rest is one tap away, and
- * the tap can land anywhere on the description: on a long one the button is
- * the last thing in it, and nobody should have to hunt for it.
+ * at a hard count, with `View more` on its own line under it, looking like
+ * every other View more in Rally. The rest is one tap away, and the tap can
+ * land anywhere on the description, not only on the button.
  *
  * Call longTextHtml(text, key) where a template would call
  * escapeHtmlWithPhoneLinks() on a description. It escapes through that helper
@@ -104,7 +104,7 @@
             : '';
         return `<span class="long-text${open ? ' is-expanded' : ''}"${keyAttr}>`
             + `<span class="long-text-short">${escapeHtmlWithPhoneLinks(short)}</span>`
-            + `<span class="long-text-full">${escapeHtmlWithPhoneLinks(source)}</span> `
+            + `<span class="long-text-full">${escapeHtmlWithPhoneLinks(source)}</span>`
             + `<span class="long-text-toggle" role="button" tabindex="0" aria-expanded="${open}">`
             + '<span class="long-text-more">View more</span>'
             + '<span class="long-text-less">View less</span>'
@@ -138,10 +138,10 @@
         toggle(host);
     });
 
-    /* The toggle is a span with role=button rather than a <button>: a button
-       always lays out as an inline-block box, and this one has to sit in the
-       sentence like a phone link (WCAG 2.5.8's inline exception). So it takes
-       Enter and Space itself. */
+    /* The toggle is a span with role=button rather than a <button>, so it
+       carries no button styling to undo and looks exactly like the
+       `.disclosure` summary it shares its rules with. So it takes Enter and
+       Space itself. */
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         const button = event.target.closest && event.target.closest('.long-text-toggle');

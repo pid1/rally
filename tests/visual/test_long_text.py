@@ -122,3 +122,39 @@ def test_the_toggle_works_from_the_keyboard(page):
     assert toggle.get_attribute("aria-expanded") == "true"
     page.keyboard.press(" ")
     assert toggle.get_attribute("aria-expanded") == "false"
+
+
+def test_view_more_sits_under_the_text_and_looks_like_a_disclosure(page):
+    page.evaluate(
+        """(t) => {
+            const host = document.createElement('div');
+            host.id = 'long-text-layout';
+            host.className = 'editable-item-description';
+            host.innerHTML = longTextHtml(t, 'layout');
+            document.querySelector('main, body').prepend(host);
+        }""",
+        LONG,
+    )
+    text = page.locator("#long-text-layout .long-text-short").bounding_box()
+    toggle = page.locator("#long-text-layout .long-text-toggle")
+    box = toggle.bounding_box()
+    # Below the text's last line, not beside it, and a full target tall.
+    assert box["y"] >= text["y"] + text["height"] - 1
+    target = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--target-min')) * 16"
+    )
+    assert box["height"] >= target - 0.5
+    style = toggle.evaluate(
+        """(el) => {
+            const s = getComputedStyle(el);
+            return {
+                underline: s.textDecorationLine,
+                italic: s.fontStyle,
+                caret: getComputedStyle(el, '::before').content,
+            };
+        }"""
+    )
+    assert style == {"underline": "none", "italic": "normal", "caret": '"▸"'}
+    toggle.click()
+    assert toggle.evaluate("(el) => getComputedStyle(el, '::before').content") == '"▾"'

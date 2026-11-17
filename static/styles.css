@@ -1251,10 +1251,10 @@ html.modal-open {
 
 /* A long description folded to its first sentences (`longTextHtml()` in
    static/long_text.js). The whole text is the toggle, not only `View more`,
-   so a long one opens and closes without hunting for the button at its end;
-   the toggle is there for the keyboard and to say the text goes on. It sits
-   in the sentence, so it takes the line's size and italics like a phone link
-   does, and is exempt from the target size for the same reason. */
+   so a long one opens and closes without aiming for the button. `View more`
+   sits on its own line under the text and looks like every other View more
+   in Rally — the `.disclosure` summary's muted caret and words, a full
+   target tall (see `.disclosure > summary`, which it shares its rules with). */
 .long-text {
     display: block;
     cursor: pointer;
@@ -1272,17 +1272,14 @@ html.modal-open {
     display: inline;
 }
 
-.long-text-toggle {
-    color: var(--ink-muted);
+/* On its own line, but only as wide as its words, so its focus ring and hit
+   area stay with them. Upright: the description above it is italic, and
+   every other View more is not. Scoped to `.long-text` so it outranks the
+   shared summary rule's `inline-flex` further down. */
+.long-text .long-text-toggle {
+    display: flex;
+    width: fit-content;
     font-style: normal;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.long-text:hover .long-text-toggle {
-    color: var(--ink);
 }
 
 /* A row's title with a short detail beside it rather than under it, to keep
@@ -1517,7 +1514,8 @@ html.modal-open {
    announced as expandable without any script. The summary is quiet muted text
    with a caret, not underlined, and a full-height target; its words swap when
    it opens, via `.disclosure-more` / `.disclosure-less`. */
-.disclosure > summary {
+.disclosure > summary,
+.long-text-toggle {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
@@ -1528,7 +1526,8 @@ html.modal-open {
     color: var(--ink-muted);
 }
 
-.disclosure > summary:hover {
+.disclosure > summary:hover,
+.long-text:hover .long-text-toggle {
     color: var(--ink);
 }
 
@@ -1540,12 +1539,14 @@ html.modal-open {
 }
 
 .disclosure > summary::before,
+.long-text-toggle::before,
 .list-group--collapsible > summary::before {
     content: '▸';
     display: inline-block;
 }
 
 .disclosure[open] > summary::before,
+.long-text.is-expanded .long-text-toggle::before,
 .list-group--collapsible[open] > summary::before {
     content: '▾';
 }

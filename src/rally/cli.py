@@ -334,6 +334,21 @@ def seed():
                 assigned_to=mom.id,
                 completed=False,
             ),
+            # Its first sentence runs past the fold, so it folds at a word
+            # and ends in "…" rather than at a sentence end.
+            Todo(
+                title="Drop off Jake's school things",
+                description=(
+                    "Drop off the permission slip, the field trip money in the "
+                    "labeled envelope, the spare inhaler with the pharmacy label "
+                    "still on it, the signed reading log for October, and the box "
+                    "of tissues the teacher asked every family to send in before "
+                    "the end of the month, then check whether the lost and found "
+                    "has Jake's blue jacket. The office closes at 3:30 on Fridays."
+                ),
+                assigned_to=dad.id,
+                completed=False,
+            ),
         ]
 
         for todo in todos:
