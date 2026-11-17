@@ -104,3 +104,21 @@ def test_clicking_the_text_toggles_it_and_a_phone_link_does_not(page):
     page.locator("#long-text-probe .long-text-short").click()
     html = page.evaluate("(t) => longTextHtml(t, 'probe')", text)
     assert "long-text is-expanded" in html
+
+
+def test_the_toggle_works_from_the_keyboard(page):
+    page.evaluate(
+        """(t) => {
+            const host = document.createElement('div');
+            host.id = 'long-text-keys';
+            host.innerHTML = longTextHtml(t, 'keys');
+            document.querySelector('main, body').prepend(host);
+        }""",
+        LONG,
+    )
+    toggle = page.locator("#long-text-keys .long-text-toggle")
+    toggle.focus()
+    page.keyboard.press("Enter")
+    assert toggle.get_attribute("aria-expanded") == "true"
+    page.keyboard.press(" ")
+    assert toggle.get_attribute("aria-expanded") == "false"

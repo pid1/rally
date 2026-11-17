@@ -1252,7 +1252,7 @@ html.modal-open {
 /* A long description folded to its first sentences (`longTextHtml()` in
    static/long_text.js). The whole text is the toggle, not only `View more`,
    so a long one opens and closes without hunting for the button at its end;
-   the button is there for the keyboard and to say the text goes on. It sits
+   the toggle is there for the keyboard and to say the text goes on. It sits
    in the sentence, so it takes the line's size and italics like a phone link
    does, and is exempt from the target size for the same reason. */
 .long-text {
@@ -1273,10 +1273,6 @@ html.modal-open {
 }
 
 .long-text-toggle {
-    padding: 0;
-    border: none;
-    background: none;
-    font: inherit;
     color: var(--ink-muted);
     font-style: normal;
     text-decoration: underline;

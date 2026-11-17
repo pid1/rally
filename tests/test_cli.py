@@ -48,7 +48,7 @@ EXPECTED_COUNTS = {
     "events": 10,
     "event_attendees": 19,
     "settings": 5,
-    "todos": 6,
+    "todos": 7,
     "recurring_todos": 3,
     "dinner": 16,  # 6 upcoming + 10 past
     "snapshots": 1,

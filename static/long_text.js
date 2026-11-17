@@ -105,10 +105,10 @@
         return `<span class="long-text${open ? ' is-expanded' : ''}"${keyAttr}>`
             + `<span class="long-text-short">${escapeHtmlWithPhoneLinks(short)}</span>`
             + `<span class="long-text-full">${escapeHtmlWithPhoneLinks(source)}</span> `
-            + `<button type="button" class="long-text-toggle" aria-expanded="${open}">`
+            + `<span class="long-text-toggle" role="button" tabindex="0" aria-expanded="${open}">`
             + '<span class="long-text-more">View more</span>'
             + '<span class="long-text-less">View less</span>'
-            + '</button></span>';
+            + '</span></span>';
     }
 
     function toggle(host) {
@@ -136,6 +136,18 @@
             if (selection && !selection.isCollapsed && host.contains(selection.anchorNode)) return;
         }
         toggle(host);
+    });
+
+    /* The toggle is a span with role=button rather than a <button>: a button
+       always lays out as an inline-block box, and this one has to sit in the
+       sentence like a phone link (WCAG 2.5.8's inline exception). So it takes
+       Enter and Space itself. */
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const button = event.target.closest && event.target.closest('.long-text-toggle');
+        if (!button) return;
+        event.preventDefault();
+        toggle(button.closest('.long-text'));
     });
 
     window.longTextHtml = longTextHtml;

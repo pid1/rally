@@ -319,6 +319,21 @@ def seed():
                 assigned_to=jake.id,
                 completed=False,
             ),
+            # Long enough to fold behind `View more` on /todo
+            # (static/long_text.js), so the demo shows it.
+            Todo(
+                title="Return the library books",
+                description=(
+                    "The library is open Monday through Thursday from 9am to 6pm, "
+                    "Friday from 9am to noon, and the first Saturday of the month "
+                    "from 10am to 2pm. Books can be renewed online up to three times "
+                    "before they are due. Bring the library card, not a photo of it. "
+                    "Ask at the desk for Dana if the hold shelf is empty, or call "
+                    "800-555-0199. Parking is behind the building, off Elm Street."
+                ),
+                assigned_to=mom.id,
+                completed=False,
+            ),
         ]
 
         for todo in todos:
