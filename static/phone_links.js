@@ -37,15 +37,9 @@
 (function () {
     'use strict';
 
-    const ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-
     /* A run of digits and the characters people set between them. Deliberately
        loose — every real decision is made by dialable() below. */
     const RUN = /\+?\(?\d[\d\s().-]*\d/g;
-
-    function escapeHtml(text) {
-        return text.replace(/[&<>"']/g, (char) => ENTITIES[char]);
-    }
 
     /* The number to dial, or null when this run of digits is not one.
        The returned number is always E.164, which is what a dialer wants and

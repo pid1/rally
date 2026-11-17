@@ -30,12 +30,6 @@
 
     const DEBOUNCE_MS = 150;
 
-    function escapeText(text) {
-        const div = document.createElement('div');
-        div.textContent = text == null ? '' : String(text);
-        return div.innerHTML;
-    }
-
     function attachAutocomplete(config) {
         const { input, menu, source, label, onAccept, onForget, scrollBox } = config;
         const enabled = config.enabled || (() => true);
@@ -63,10 +57,10 @@
                 return `
                     <div class="autocomplete-option ${index === active ? 'active' : ''}"
                          role="option" aria-selected="${index === active}" data-index="${index}">
-                        <span class="autocomplete-name">${escapeText(name)}</span>
-                        ${detail ? `<span class="autocomplete-detail">${escapeText(detail)}</span>` : ''}
+                        <span class="autocomplete-name">${escapeHtml(name)}</span>
+                        ${detail ? `<span class="autocomplete-detail">${escapeHtml(detail)}</span>` : ''}
                         ${onForget ? `<button type="button" class="autocomplete-dismiss" data-dismiss="${index}"
-                                aria-label="Forget ${escapeText(name).replace(/"/g, '&quot;')}">×</button>` : ''}
+                                aria-label="Forget ${escapeHtml(name)}">×</button>` : ''}
                     </div>
                 `;
             }).join('');

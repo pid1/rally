@@ -33,19 +33,9 @@
 (function () {
     'use strict';
 
-    function escapeText(text) {
-        const div = document.createElement('div');
-        div.textContent = text == null ? '' : String(text);
-        return div.innerHTML;
-    }
-
-    function escapeAttribute(text) {
-        return escapeText(text).replace(/"/g, '&quot;');
-    }
-
     function listGroupHtml({ key, name, countLabel, rowsHtml, leadHtml, emptyText, collapsible = false, open = false }) {
         // A group headed by lead rows is not empty, so it shows no notice.
-        const rows = rowsHtml || (leadHtml ? '' : `<div class="container-empty-state">${escapeText(emptyText || 'Nothing here right now.')}</div>`);
+        const rows = rowsHtml || (leadHtml ? '' : `<div class="container-empty-state">${escapeHtml(emptyText || 'Nothing here right now.')}</div>`);
         const lead = leadHtml ? `
                 <div class="list-group-lead">${leadHtml}</div>` : '';
         // A group with no header has nothing to open it by.
@@ -53,19 +43,19 @@
         const headerTag = folds ? 'summary' : 'div';
         const header = name == null ? '' : `
                 <${headerTag} class="list-group-header">
-                    <span class="list-group-name">${escapeText(name)}</span>
+                    <span class="list-group-name">${escapeHtml(name)}</span>
                     <span class="list-group-rule"></span>
-                    ${countLabel ? `<span class="list-group-count">${escapeText(countLabel)}</span>` : ''}
+                    ${countLabel ? `<span class="list-group-count">${escapeHtml(countLabel)}</span>` : ''}
                 </${headerTag}>`;
         if (folds) {
             return `
-            <details class="list-group list-group--collapsible" data-group="${escapeAttribute(key)}"${open ? ' open' : ''}>${header}${lead}
+            <details class="list-group list-group--collapsible" data-group="${escapeHtml(key)}"${open ? ' open' : ''}>${header}${lead}
                 <div class="list-container">${rows}</div>
             </details>
         `;
         }
         return `
-            <section class="list-group" data-group="${escapeAttribute(key)}">${header}${lead}
+            <section class="list-group" data-group="${escapeHtml(key)}">${header}${lead}
                 <div class="list-container">${rows}</div>
             </section>
         `;

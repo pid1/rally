@@ -392,12 +392,6 @@
             return `<div class="todo-due-date${overdueClass}">Due ${due}</div>`;
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         // Modal
         function toggleRemindGroup() {
             const hasDue = !!document.getElementById('todo-due-date').value;

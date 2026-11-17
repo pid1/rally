@@ -29,16 +29,6 @@
     // The key of the group for no owner, or no bag.
     const NONE_KEY = 'none';
 
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text == null ? '' : String(text);
-        return div.innerHTML;
-    }
-
-    function escapeAttr(text) {
-        return escapeHtml(text).replace(/"/g, '&quot;');
-    }
-
     /* Names in a sentence, quoted, with the Oxford comma (the server's
      * `join_names`). */
     function joinQuoted(names) {
@@ -229,7 +219,7 @@
                 <label class="item-checkbox">
                     <input type="checkbox" ${bag.checked ? 'checked' : ''} ${readOnly ? 'disabled' : ''}
                            data-day="${day.id}" data-bag="${bag.id}"
-                           aria-label="Grabbed ${escapeAttr(name)}">
+                           aria-label="Grabbed ${escapeHtml(name)}">
                 </label>` : '';
         return `
             <div class="editable-item ${day && bag.checked ? 'completed' : ''} ${readOnly ? 'is-read-only' : ''}" data-bag-row="${bag.id}">${box}
@@ -292,7 +282,7 @@
         if (item.source !== 'template' || plainTemplate(day)) return '';
         const template = (day.templates || []).find(t => t.id === item.packing_list_template_id);
         if (!template) return '';
-        return ` <span class="item-source" title="From the packing list template ${escapeAttr(template.name)}">`
+        return ` <span class="item-source" title="From the packing list template ${escapeHtml(template.name)}">`
             + `<span aria-hidden="true">${TEMPLATE_GLYPH}</span> ${escapeHtml(template.name)}</span>`;
     }
 
@@ -311,7 +301,7 @@
                     <button type="button" class="btn btn--sm" data-edit-day-item="${item.id}"
                             data-source="${item.source}" data-day="${day.id}">Edit</button>
                     <button type="button" class="btn drag-handle"
-                            aria-label="Reorder ${escapeAttr(item.name)}"
+                            aria-label="Reorder ${escapeHtml(item.name)}"
                             title="Drag to reorder, or onto another owner or bag to move it there. Arrow keys work too.">
                         <span aria-hidden="true">⠿</span>
                     </button>
@@ -321,7 +311,7 @@
                 <label class="item-checkbox">
                     <input type="checkbox" ${item.checked ? 'checked' : ''} ${readOnly ? 'disabled' : ''}
                            data-day="${day.id}" data-item="${item.id}" data-source="${item.source}"
-                           aria-label="Packed ${escapeAttr(item.name)}">
+                           aria-label="Packed ${escapeHtml(item.name)}">
                 </label>
                 <div class="editable-item-content">
                     <div class="editable-item-title-line">
@@ -375,7 +365,7 @@
         // an `Includes:` line names them.
         const templates = day.templates || [];
         const fromTemplate = templates.length
-            ? ` <span class="title-indicator" title="Includes ${escapeAttr(joinQuoted(templates.map(t => t.name)))}">${TEMPLATE_GLYPH}</span>`
+            ? ` <span class="title-indicator" title="Includes ${escapeHtml(joinQuoted(templates.map(t => t.name)))}">${TEMPLATE_GLYPH}</span>`
             : '';
         const includesLine = templates.length && !namedAfterTemplate(day)
             ? `<div class="editable-item-meta">Includes: ${templates.map(t => escapeHtml(t.name)).join(' · ')}</div>`
@@ -532,8 +522,6 @@
     window.PackingLists = {
         EVERYONE,
         NO_BAG,
-        escapeHtml,
-        escapeAttr,
         weekdayOf,
         itemCount,
         packDaysLabel,

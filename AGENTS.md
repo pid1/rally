@@ -705,6 +705,7 @@ rally/
 │   ├── modal.js             # Shared modal chassis: scroll fade, show/hide, and the page scroll lock behind an open modal
 │   ├── dialogs.js           # Rally's own confirm/alert (confirmModal, alertModal), in-place form messages and joinNames(); loaded by base.html
 │   ├── dates.js             # How every page reads, steps and writes dates: parseIsoDate, isoDate, addDays, shiftIsoDate, todayLocal(zone), ordinal, the name lists, formatDate(value, options), formatDateRange, formatTime, parseTimestamp and formatUtcTimestamp; reads no clock for "today" (the page hands it in); loaded by base.html
+│   ├── escape.js            # escapeHtml(): the one escaper for text going into markup, safe between tags and in a quoted attribute (`&`, `<`, `>`, `"`, and `'`; null and undefined are empty); loaded by base.html
 │   ├── sidebar.js           # The site menu: opening and closing the right-hand sidebar
 │   ├── inline_separators.js # Marks a quiet button that starts a wrapped line, so the · between quiet buttons never opens a line
 │   ├── drag_reorder.js      # Pointer-events drag-to-reorder for grouped lists, optionally fenced to a `scope`
@@ -1152,7 +1153,16 @@ When touching the UI:
   a note's date, a packing list's date, template or start) clears them all when it changes, through
   `clearFormMessagesOn(controls, scope)`, never a page's own listener.
   `base.html` loads
-  `modal.js`, `dialogs.js` and `dates.js` on every page, so a page never adds its own tag.
+  `modal.js`, `dialogs.js`, `dates.js`, and `escape.js` on every page, so a page never adds its own tag.
+- **Text going into markup goes through `escapeHtml()` in `static/escape.js`
+  (#344), never a page's own copy.** It escapes `"` and `'` as well as `&`,
+  `<`, and `>`, so the same call is right between tags and inside a quoted
+  attribute; there is no `escapeAttr()`. It cannot protect a value inside a
+  JavaScript string in an `on…` attribute (the browser decodes `&#39;` before
+  the script runs), so a value a handler needs goes in a `data-` attribute.
+  `tests/test_pages.py` refuses a page or script that defines `escapeHtml`,
+  `escapeAttr`, `escapeText`, or `escapeAttribute` again, and an escaped value
+  inside an inline handler's string.
 - **Dates in the browser go through `static/dates.js` (#305), never a page's own
   helper.** A `YYYY-MM-DD` is read with `parseIsoDate()` (local midnight, never
   `new Date(value)` or a `T00:00:00` suffix), stepped with `addDays()` (a `Date`)

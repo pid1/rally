@@ -144,12 +144,6 @@
             return formatDate(dateStr, { weekday: true, month: 'short', year: 'always' });
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         // Build star display HTML
         function renderStars(rating) {
             if (!rating) return '<span class="no-review-text">Not yet rated</span>';

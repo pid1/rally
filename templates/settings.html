@@ -669,12 +669,6 @@
         })();
 
         // Helpers
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
         function truncateUrl(url, maxLen) {
             if (!url || url.length <= maxLen) return url || '';
             return url.substring(0, maxLen) + '…';
@@ -954,10 +948,14 @@
                         <div class="assignee-label">${escapeHtml(deviceSummary(device))}</div>
                     </div>
                     <div class="editable-item-actions">
-                        <button class="btn btn--sm" onclick="confirmForgetDevice('${escapeHtml(device.id)}')">Forget</button>
+                        <button class="btn btn--sm" data-forget-device>Forget</button>
                     </div>
                 </div>`;
             }).join('');
+            // The id rides on the row as data, never inside an onclick string,
+            // where no escaping could keep it from ending the script (#344).
+            container.querySelectorAll('[data-forget-device]').forEach(button => button.addEventListener(
+                'click', () => confirmForgetDevice(button.closest('[data-device-id]').dataset.deviceId)));
         }
 
         async function confirmForgetDevice(deviceId) {

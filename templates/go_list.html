@@ -41,12 +41,6 @@
             });
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : text;
-            return div.innerHTML;
-        }
-
         function renderRow(item) {
             const qty = item.quantity ? `<span class="prep-qty"> — ${escapeHtml(item.quantity)}</span>` : '';
             const bits = [];

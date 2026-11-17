@@ -177,18 +177,6 @@
             });
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : text;
-            return div.innerHTML;
-        }
-
-        // textContent → innerHTML leaves quotes alone, which is fine in a text
-        // node but would break out of a quoted attribute.
-        function escapeAttr(text) {
-            return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        }
-
         // ── API ──
         function itemsQuery() {
             const p = new URLSearchParams();
@@ -453,7 +441,7 @@
         function renderLocationManageList() {
             const html = locations.map(l => `
                 <div class="manage-row" data-id="${l.id}">
-                    <input type="text" value="${escapeAttr(l.name)}" aria-label="Location name">
+                    <input type="text" value="${escapeHtml(l.name)}" aria-label="Location name">
                     <button type="button" class="btn btn--sm" data-action="rename">Rename</button>
                     <button type="button" class="btn btn--sm" data-action="delete">Delete</button>
                 </div>
