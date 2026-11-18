@@ -53,6 +53,11 @@
 
     {% block content %}{% endblock %}
 
+    {#- The one polite live region, written by announce() in dialogs.js: an
+        item added while a modal stays open, a row moved by its grip. Both
+        are otherwise silent to a screen reader. -#}
+    <div class="sr-only" id="live-status" role="status" aria-live="polite"></div>
+
     {#- After the content, so it draws over any page modal: every overlay
         shares one z-index, and the later one in the document is on top. -#}
     {% include "_dialog_modal.html" %}

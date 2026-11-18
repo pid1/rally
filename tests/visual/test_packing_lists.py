@@ -2011,6 +2011,96 @@ def test_enter_on_a_blank_name_says_so_and_saves_nothing(browser, live_server, p
         context.close()
 
 
+def ordinal_date(iso: str) -> str:
+    """A date as the item form's "added" message words it (`formatDate()` with
+    `ordinal`, the year only when it is not this one): `Friday, December 11th`.
+    "This year" is the browser's, which is the runner's own clock."""
+    day = date.fromisoformat(iso)
+    n = day.day
+    suffix = "th" if 11 <= n % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    text = f"{day:%A}, {day:%B} {n}{suffix}"
+    return text if day.year == date.today().year else f"{text}, {day.year}"
+
+
+# --- Saying what Save & Add Another added (#342) ---------------------------------------------
+
+
+def test_save_and_add_another_on_a_template_says_what_it_added(browser, live_server, packing_list):
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        page.fill("#item-name", "Sun hat")
+        page.click("#btn-save-add-another")
+        message = page.locator("#item-name-message")
+        message.wait_for(state="visible")
+        # A template has no date, so the message names only the template.
+        assert message.inner_text() == '"Sun hat" added to Browser test trip.'
+        # A status, which a screen reader reads, so nothing is announced twice.
+        assert message.get_attribute("role") == "status"
+        assert page.locator("#live-status").text_content() == ""
+    finally:
+        context.close()
+
+
+def test_save_and_add_another_on_a_day_names_the_list_and_its_date(
+    browser, live_server, packing_list
+):
+    first, _ = packing_list["days"]
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_card(page, first["id"]).locator("[data-add-day-item]").click()
+        page.fill("#item-name", "Field trip form")
+        page.press("#item-name", "Enter")
+        message = page.locator("#item-name-message")
+        message.wait_for(state="visible")
+        assert message.inner_text() == (
+            f'"Field trip form" added to Browser test trip on {ordinal_date(first["date"])}.'
+        )
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["name", "note", "bag", "owner"],
+)
+def test_any_change_to_the_item_form_clears_the_added_message(
+    browser, live_server, packing_list, change
+):
+    """The message is about the last save, so it goes once the form moves on."""
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        page.fill("#item-name", f"Probe {change}")
+        page.click("#btn-save-add-another")
+        message = page.locator("#item-name-message")
+        message.wait_for(state="visible")
+        if change == "name":
+            page.type("#item-name", "x")
+        elif change == "note":
+            page.type("#item-note", "x")
+        elif change == "bag":
+            page.type("#item-bag", "x")
+        else:
+            page.select_option("#item-owner", str(packing_list["members"]["Dad"]))
+        assert not message.is_visible()
+    finally:
+        context.close()
+
+
+def test_a_plain_save_that_adds_is_announced(browser, live_server, packing_list):
+    """Save closes the modal, so the list says it, and a screen reader hears it
+    through the one live region (`announce()`)."""
+    context, page = open_page(browser, f"{live_server}/packing-lists")
+    try:
+        open_row(page, packing_list["id"]).locator("[data-add-item]").click()
+        page.fill("#item-name", "Lip balm")
+        save_item(page)
+        assert page.locator("#live-status").text_content() == "Added Lip balm."
+    finally:
+        context.close()
+
+
 def test_enter_while_editing_an_item_saves_and_closes(browser, live_server, packing_list):
     context, page = open_page(browser, f"{live_server}/packing-lists")
     try:

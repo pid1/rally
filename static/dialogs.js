@@ -47,6 +47,14 @@
  *       spaces, so there is no check to call.
  *   joinNames(names)
  *       Names in a sentence, quoted, with the Oxford comma.
+ *   enterSubmitsWith(input, button, { when })
+ *       Enter in `input` submits its form as `button` (Save & Add Another)
+ *       rather than as the form's first button, while `when()` says so (add
+ *       mode). Register it after any attachAutocomplete() on the same input.
+ *   announce(text)
+ *       Say something to a screen reader through the one polite live region,
+ *       `#live-status` in base.html: an item added while a modal stays open,
+ *       a row moved by its grip.
  *
  * `messageHtml` and each choice's `labelHtml` are inserted as markup, so the
  * caller escapes every name in them before wrapping it in <strong>.
@@ -266,6 +274,32 @@
         return `${quoted.slice(0, -1).join(', ')}, and ${quoted[quoted.length - 1]}`;
     }
 
+    /* Enter in a field that is how a list is entered from the keyboard (an
+       item's name) runs Save & Add Another, not the form's first button
+       (Save), which would close the modal after every entry. Only while
+       `when()` is true: in edit mode Enter is left to the browser, which
+       submits as Save. An Enter already taken (`defaultPrevented`, which is
+       how attachAutocomplete() accepts a highlighted suggestion) or still
+       composing is left alone, so this must be registered after any
+       autocomplete on the same input. `requestSubmit()` runs the browser's
+       required-field check and the submit handler, so a missing name is
+       refused exactly as Save refuses it. */
+    function enterSubmitsWith(input, button, { when = () => true } = {}) {
+        field(input).addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing || !when()) return;
+            e.preventDefault();
+            button.form.requestSubmit(button);
+        });
+    }
+
+    /* The one polite live region every page shares (`#live-status`, in
+       base.html). Something that changes only behind a modal, or only by
+       moving, is otherwise silent to a screen reader. */
+    function announce(text) {
+        const region = part('live-status');
+        if (region) region.textContent = text;
+    }
+
     window.confirmModal = confirmModal;
     window.alertModal = alertModal;
     window.showFormMessage = showFormMessage;
@@ -277,4 +311,6 @@
     window.requireChoice = requireChoice;
     window.requireDate = requireDate;
     window.joinNames = joinNames;
+    window.enterSubmitsWith = enterSubmitsWith;
+    window.announce = announce;
 })();

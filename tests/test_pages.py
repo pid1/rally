@@ -443,11 +443,12 @@ def test_a_missing_value_is_refused_through_the_shared_component():
 
 def test_the_meal_modal_refuses_a_missing_name_in_place(client):
     """The shared meal modal refuses a missing Meal Name under it, on both
-    pages it is on, and clears the message whenever it opens."""
+    pages it is on, and clears the message whenever it opens and after a
+    save (which may then say what it added)."""
     js = (STATIC / "meal_edit_modal.js").read_text()
     assert "requireText('plan-text', 'plan-text-message', \"A name can't be empty.\")" in js
     assert "if (this.refuseBlankName()) return;" in js
-    assert js.count("clearFormMessages('modal-overlay');") == 2
+    assert js.count("clearFormMessages('modal-overlay');") == 3
     for path in ("/meal-planner", "/meal-planner/previous"):
         html = client.get(path).text
         assert '<div class="form-message" id="plan-text-message" role="alert" hidden></div>' in html
@@ -861,6 +862,74 @@ def test_no_page_defines_its_own_escaper():
         if path.name != "escape.js" and definition.search(path.read_text())
     ]
     assert not offenders, f"use static/escape.js rather than a copy: {offenders}"
+
+
+@pytest.mark.parametrize("path", DATE_PAGES)
+def test_every_page_carries_the_shared_live_region(client, path):
+    """#342: one polite live region, `#live-status`, in base.html, written by
+    announce() in static/dialogs.js."""
+    html = client.get(path).text
+    region = re.findall(r"<div[^>]*\bid=\"live-status\"[^>]*>", html)
+    assert len(region) == 1
+    assert 'role="status"' in region[0] and 'aria-live="polite"' in region[0]
+
+
+def test_no_page_keeps_its_own_hidden_live_region():
+    """#342: a page announces through announce(), not a region of its own
+    (Shopping and Packing Lists each had a `#reorder-status`)."""
+    own = re.compile(r'class="sr-only"[^>]*aria-live|aria-live[^>]*class="sr-only"')
+    offenders = [
+        path.name
+        for path in sorted(TEMPLATES.glob("*.html"))
+        if path.name != "base.html" and own.search(path.read_text())
+    ]
+    assert not offenders, f"use announce() in static/dialogs.js: {offenders}"
+
+
+def test_save_and_add_another_is_the_shared_button_row():
+    """#342: Save, Save & Add Another, Cancel and Delete are written once, in
+    templates/_add_edit_actions.html, and every modal offering the button
+    includes it."""
+    offenders = [
+        path.name
+        for path in sorted(TEMPLATES.glob("*.html"))
+        if path.name != "_add_edit_actions.html" and 'id="btn-save-add-another"' in path.read_text()
+    ]
+    assert not offenders, f"include _add_edit_actions.html: {offenders}"
+
+
+@pytest.mark.parametrize(
+    ("path", "cancel_id", "delete_id"),
+    [
+        ("/shopping", "btn-cancel-item", "btn-delete-item"),
+        ("/meal-planner", "btn-cancel", "btn-delete-plan"),
+        ("/meal-planner/previous", "btn-cancel", "btn-delete-plan"),
+        ("/packing-lists", "btn-cancel-item", "btn-delete-item"),
+    ],
+)
+def test_add_edit_modals_render_the_shared_button_row(client, path, cancel_id, delete_id):
+    """#342: each modal's row is Save, Save & Add Another, Cancel, then a
+    hidden Delete, with the page's own Cancel and Delete ids."""
+    html = client.get(path).text
+    start = html.index('id="btn-save-add-another"')
+    row = html[html.rindex('<div class="modal-actions">', 0, start) :]
+    row = row[: row.index("</div>")]
+    ids = re.findall(r'<button type="(?:submit|button)"[^>]*>', row)
+    assert len(ids) == 4
+    assert "btn--primary" in ids[0] and 'type="submit"' in ids[0]
+    assert 'id="btn-save-add-another"' in ids[1] and 'type="submit"' in ids[1]
+    assert f'id="{cancel_id}"' in ids[2]
+    assert f'id="{delete_id}"' in ids[3] and "display:none" in ids[3]
+
+
+def test_shopping_save_and_add_another_submits_the_item_form(client):
+    """#342: Shopping's buttons sit outside its form, so both submit buttons
+    name it."""
+    html = client.get("/shopping").text
+    start = html.index('id="btn-save-add-another"')
+    row = html[html.rindex('<div class="modal-actions">', 0, start) :]
+    row = row[: row.index("</div>")]
+    assert row.count('type="submit" form="item-form"') == 2
 
 
 def test_no_escaped_value_goes_into_a_script_string():

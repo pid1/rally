@@ -53,6 +53,17 @@
             this.refuseBlankName = requireText('plan-text', 'plan-text-message', "A name can't be empty.");
             requireDate('plan-date', 'plan-date-message');
             this._bindEvents();
+            // Enter in Meal Name is Save & Add Another in add mode, so a week
+            // of meals is entered as type, Enter, type, Enter. In edit mode
+            // (always, on Previous Meals) it stays Save.
+            enterSubmitsWith('plan-text', this.addAnotherBtn, { when: () => !this.editingId });
+            // The "scheduled for" message after Save & Add Another describes
+            // the last save, so any change to the form clears it: a keystroke
+            // in a text field, or a change to any other field
+            // (`clearFormMessagesOn()` in dialogs.js; a keystroke in Meal
+            // Name already clears it through `requireText()`).
+            clearFormMessagesOn('plan-notes', 'modal-overlay', 'input');
+            clearFormMessagesOn(['plan-date', 'plan-meal-type', 'attendee-checkboxes', 'plan-cook'], 'modal-overlay');
         }
 
         _bindEvents() {
@@ -125,6 +136,10 @@
             document.getElementById('btn-delete-plan').style.display = 'none';
             this.addAnotherBtn.style.display = '';
             showModalOverlay('modal-overlay');
+            // The cursor starts in the first field, Date, so the form can
+            // be filled in by Tab from the top. Save & Add Another puts it
+            // back there too.
+            document.getElementById('plan-date').focus();
         }
 
         openEdit(plan) {
@@ -147,6 +162,8 @@
             document.getElementById('btn-delete-plan').style.display = '';
             this.addAnotherBtn.style.display = 'none';
             showModalOverlay('modal-overlay');
+            // As in Add: the cursor starts in Date.
+            document.getElementById('plan-date').focus();
         }
 
         close() {
@@ -192,9 +209,22 @@
                     await this._request('/api/meal-planner', 'POST',
                         { date, meal_type, plan, notes, attendee_ids, cook_id });
                 }
+                clearFormMessages('modal-overlay');
                 if (addAnother) {
                     this._resetForNextEntry();
+                    // The planner is behind the modal, so the add is said
+                    // under Meal Name. It is a status message, so a screen
+                    // reader reads it, and announce() would read it twice.
+                    const when = formatDate(date, {
+                        weekday: true, month: 'long', ordinal: true,
+                        year: 'unlessThisYear', today: todayIn(this.getTimezone()),
+                    });
+                    showFormMessage('plan-text-message',
+                        `"${plan.trim()}" scheduled for ${meal_type} on ${when}.`, 'status');
                 } else {
+                    // The modal closes, so the planner says it; a screen
+                    // reader hears it through announce() in dialogs.js.
+                    if (!this.editingId) announce(`Added ${plan.trim()}.`);
                     this.close();
                 }
                 await this.onSaved();
@@ -212,10 +242,11 @@
         // Only ever called after a save has succeeded. A failed save leaves the
         // text in place so it can be corrected and retried.
         _resetForNextEntry() {
-            const text = document.getElementById('plan-text');
-            text.value = '';
+            document.getElementById('plan-text').value = '';
             document.getElementById('plan-notes').value = '';
-            text.focus();
+            // Back to the first field, as on every open, so the next meal is
+            // entered by Tab from the top.
+            document.getElementById('plan-date').focus();
         }
 
         async _confirmDelete() {
