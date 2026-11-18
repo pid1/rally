@@ -1,0 +1,24 @@
+{#- The button row of an add/edit modal that offers Save & Add Another:
+    Save, Save & Add Another, Cancel, and Delete. Shared by the Meal Planner's
+    meal modal, Shopping's item modal and Packing Lists' item modal.
+
+    Set actions_cancel_id and actions_delete_id: the pages name their own
+    Cancel and Delete. Set actions_form to the form's id when the row sits
+    outside the form (Shopping), so both submit buttons still submit it.
+
+    Order is deliberate: Save first as the primary and the ordinary way out,
+    Save & Add Another second as the variant of it, then Cancel. The two
+    saving actions stay adjacent, and the button that discards sits past both
+    of them rather than between them.
+
+    Save & Add Another is for add mode only: the page hides it when it opens
+    the modal to edit, and shows Delete instead. It is a submit button rather
+    than a plain one so the browser's required-field check runs for both, and
+    the submit handler tells them apart by `event.submitter`. Its id,
+    `btn-save-add-another`, is how the pages and their tests reach it. -#}
+<div class="modal-actions">
+    <button type="submit"{% if actions_form %} form="{{ actions_form }}"{% endif %} class="btn btn--primary">Save</button>
+    <button type="submit"{% if actions_form %} form="{{ actions_form }}"{% endif %} class="btn" id="btn-save-add-another">Save &amp; Add Another</button>
+    <button type="button" class="btn" id="{{ actions_cancel_id }}">Cancel</button>
+    <button type="button" class="btn modal-delete" id="{{ actions_delete_id }}" style="display:none">Delete</button>
+</div>

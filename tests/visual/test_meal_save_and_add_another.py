@@ -39,6 +39,11 @@ MEASURE_JS = r"""() => {
     cook: document.getElementById('plan-cook').value,
     attendees: Array.from(document.querySelectorAll('.attendee-cb:checked')).map((cb) => cb.value),
     focused: document.activeElement ? document.activeElement.id : null,
+    message: (() => {
+      const m = document.getElementById('plan-text-message');
+      return { shown: !m.hidden, text: m.textContent, role: m.getAttribute('role') };
+    })(),
+    announced: document.getElementById('live-status').textContent,
     addAnother: box(addAnother),
     addAnotherShown: getComputedStyle(addAnother).display !== 'none',
     actions: box(document.querySelector('.modal-actions')),
@@ -112,9 +117,25 @@ def test_the_modal_stays_open_with_only_the_menu_cleared(batch):
     assert after_first["overlayShown"], "Save & Add Another closed the modal"
     assert after_first["text"] == "", "the menu text was not cleared for the next entry"
     assert after_first["notes"] == "", "notes were not cleared for the next entry"
-    assert after_first["focused"] == "plan-text", (
-        "the next menu should be typeable without reaching for the mouse"
+    # Back to the first field, as on every open, so the next meal is entered
+    # by Tab from the top.
+    assert after_first["focused"] == "plan-date"
+
+
+def test_save_and_add_another_says_what_it_scheduled(batch):
+    """The planner is behind the modal, so the add is said under Meal Name,
+    as a status a screen reader reads, and not announced a second time."""
+    after_first, after_second, _ = batch
+
+    assert after_first["message"] == {
+        "shown": True,
+        "text": f'"{FIRST_MEAL}" scheduled for Lunch on Wednesday, March 4th, 2099.',
+        "role": "status",
+    }
+    assert after_second["message"]["text"] == (
+        f'"{SECOND_MEAL}" scheduled for Lunch on Wednesday, March 4th, 2099.'
     )
+    assert after_second["announced"] == ""
 
 
 def test_the_action_row_reads_save_then_the_variant_then_cancel(batch):
@@ -272,4 +293,123 @@ def test_meal_day_boxes_have_no_hairline_between_meals(browser, live_server):
         page.wait_for_selector(".day-box")
         assert page.locator(".day-box--divided").count() == 0
     finally:
+        context.close()
+
+
+def _open_add(page, live_server):
+    page.goto(live_server + "/meal-planner", wait_until="networkidle")
+    page.click("#btn-add-meal")
+    page.wait_for_selector("#modal-overlay", state="visible")
+
+
+@pytest.mark.parametrize("change", ["name", "notes", "date", "meal_type", "eater", "cook"])
+def test_any_change_to_the_form_clears_the_scheduled_message(browser, live_server, change):
+    """The message is about the last save, so it goes once the form moves on."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        _open_add(page, live_server)
+        page.fill("#plan-date", PLAN_DATE)
+        page.fill("#plan-text", f"{MARKER} clears on {change}")
+        page.click("#btn-save-add-another")
+        message = page.locator("#plan-text-message")
+        message.wait_for(state="visible")
+        if change == "name":
+            page.type("#plan-text", "x")
+        elif change == "notes":
+            page.type("#plan-notes", "x")
+        elif change == "date":
+            page.fill("#plan-date", "2099-03-05")
+        elif change == "meal_type":
+            page.select_option("#plan-meal-type", "Breakfast")
+        elif change == "eater":
+            page.check(".attendee-cb >> nth=0")
+        else:
+            page.select_option("#plan-cook", index=1)
+        assert not message.is_visible()
+    finally:
+        page.close()
+        context.close()
+        _delete_probe_plans(live_server)
+
+
+def test_enter_in_meal_name_is_save_and_add_another(browser, live_server):
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        _open_add(page, live_server)
+        page.fill("#plan-date", PLAN_DATE)
+        page.fill("#plan-text", f"{MARKER} by enter")
+        with page.expect_response("**/api/meal-planner"):
+            page.press("#plan-text", "Enter")
+        page.wait_for_function("() => document.getElementById('plan-text').value === ''")
+        state = page.evaluate(MEASURE_JS)
+        assert state["overlayShown"], "Enter closed the modal"
+        assert state["date"] == PLAN_DATE
+        assert [p for p in _plans(live_server) if p["plan"] == f"{MARKER} by enter"]
+    finally:
+        page.close()
+        context.close()
+        _delete_probe_plans(live_server)
+
+
+def test_enter_in_notes_is_a_line_break(browser, live_server):
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        _open_add(page, live_server)
+        page.fill("#plan-text", f"{MARKER} notes")
+        page.click("#plan-notes")
+        page.keyboard.type("one")
+        page.keyboard.press("Enter")
+        page.keyboard.type("two")
+        assert page.input_value("#plan-notes") == "one\ntwo"
+        assert page.evaluate(MEASURE_JS)["overlayShown"]
+    finally:
+        page.close()
+        context.close()
+        _delete_probe_plans(live_server)
+
+
+def test_enter_while_editing_saves_and_closes(browser, live_server):
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        _open_add(page, live_server)
+        page.fill("#plan-date", PLAN_DATE)
+        page.fill("#plan-text", f"{MARKER} to edit")
+        page.click("#plan-form button[type=submit]:not(#btn-save-add-another)")
+        page.wait_for_selector("#modal-overlay", state="hidden")
+        plan = next(p for p in _plans(live_server) if p["plan"] == f"{MARKER} to edit")
+        page.evaluate(f"mealModal.openEdit({json.dumps(plan)})")
+        page.fill("#plan-text", f"{MARKER} edited")
+        page.press("#plan-text", "Enter")
+        page.wait_for_selector("#modal-overlay", state="hidden")
+        assert [p for p in _plans(live_server) if p["plan"] == f"{MARKER} edited"]
+    finally:
+        page.close()
+        context.close()
+        _delete_probe_plans(live_server)
+
+
+@pytest.mark.parametrize("path", ["/meal-planner", "/meal-planner/previous"])
+def test_the_modal_opens_with_the_cursor_in_date(browser, live_server, path):
+    """Add and Edit start in the first field, so the form is filled in by Tab
+    from the top."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        if path == "/meal-planner":
+            _open_add(page, live_server)
+            assert page.evaluate("document.activeElement.id") == "plan-date"
+            page.click("#btn-cancel")
+        else:
+            page.goto(live_server + path, wait_until="networkidle")
+        page.get_by_role("button", name="Edit", exact=True).first.click()
+        page.wait_for_function(
+            "() => document.getElementById('modal-title').textContent === 'Edit Meal Plan'"
+        )
+        assert page.evaluate("document.activeElement.id") == "plan-date"
+    finally:
+        page.close()
         context.close()

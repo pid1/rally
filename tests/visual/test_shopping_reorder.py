@@ -193,9 +193,9 @@ def test_a_move_is_announced(shopping):
     shopping.keyboard.press("ArrowDown")
     # The announcement follows the save and the refetch, so it lands whenever
     # the server answers; a fixed wait missed it on a slow CI runner.
-    shopping.wait_for_function("() => document.getElementById('reorder-status').textContent")
+    shopping.wait_for_function("() => document.getElementById('live-status').textContent")
 
-    assert shopping.locator("#reorder-status").text_content() == ("Paper towels, 2 of 2 in Costco")
+    assert shopping.locator("#live-status").text_content() == ("Paper towels, 2 of 2 in Costco")
 
 
 def test_a_group_emptied_by_dragging_is_still_a_drop_target(shopping):

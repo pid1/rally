@@ -48,23 +48,9 @@
                     <option value="">— nobody assigned —</option>
                 </select>
             </div>
-            <div class="modal-actions">
-                <button type="submit" class="btn btn--primary">Save</button>
-                <!--
-                  Add mode only (hidden by openEdit), and a submit button rather
-                  than a plain button so the browser's own required-field check
-                  still runs: the submit handler tells the two apart by
-                  `event.submitter`.
-
-                  Order is deliberate: Save first as the primary and the ordinary
-                  way out, this second as the variant of it, then Cancel. The two
-                  saving actions stay adjacent, and the button that discards sits
-                  past both of them rather than between them.
-                -->
-                <button type="submit" class="btn" id="btn-save-add-another">Save &amp; Add Another</button>
-                <button type="button" class="btn" id="btn-cancel">Cancel</button>
-                <button type="button" class="btn modal-delete" id="btn-delete-plan" style="display:none">Delete</button>
-            </div>
+            {%- set actions_cancel_id = "btn-cancel" %}
+            {%- set actions_delete_id = "btn-delete-plan" %}
+            {% include "_add_edit_actions.html" %}
         </form>
         </div>
         </div>

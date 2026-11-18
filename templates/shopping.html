@@ -36,10 +36,6 @@
         <div id="groups-container">
             <div class="container-loading-state">Loading shopping list…</div>
         </div>
-
-        <!-- Reordering is otherwise a purely visual event: a screen reader
-             following the grip button hears nothing when the row moves. -->
-        <div class="sr-only" id="reorder-status" role="status" aria-live="polite"></div>
     </div>
 
     <!-- Modal for adding and editing an item — one modal, two modes, exactly as
@@ -72,11 +68,10 @@
                         </select>
                     </div>
                 </form>
-                <div class="modal-actions">
-                    <button type="submit" form="item-form" class="btn btn--primary">Save</button>
-                    <button type="button" class="btn" id="btn-cancel-item">Cancel</button>
-                    <button type="button" class="btn modal-delete" id="btn-delete-item" style="display:none">Delete</button>
-                </div>
+                {%- set actions_form = "item-form" %}
+                {%- set actions_cancel_id = "btn-cancel-item" %}
+                {%- set actions_delete_id = "btn-delete-item" %}
+                {% include "_add_edit_actions.html" %}
             </div>
             </div>
         </div>
@@ -122,6 +117,7 @@
         const storeSelect = document.getElementById('item-store');
         const suggestionMenu = document.getElementById('suggestion-menu');
         const modalBody = document.querySelector('#item-modal-overlay .modal-body');
+        const addAnotherBtn = document.getElementById('btn-save-add-another');
 
         function storeName(storeId) {
             const store = stores.find(s => s.id === storeId);
@@ -141,6 +137,9 @@
             renderItems();
         }
 
+        // `created` is false when the item was already open in that store: the
+        // server answers 200 with the existing item and adds nothing (201 when
+        // it adds one).
         async function createItem(data) {
             const response = await fetch('/api/shopping/items', {
                 method: 'POST',
@@ -148,7 +147,7 @@
                 body: JSON.stringify(data)
             });
             if (!response.ok) throw new Error('Failed to add item');
-            return response.json();
+            return { item: await response.json(), created: response.status === 201 };
         }
 
         async function updateItem(id, data) {
@@ -387,6 +386,12 @@
             },
         });
 
+        // Enter in Item is Save & Add Another in add mode, so a list is
+        // entered as type, Enter, type, Enter; in edit mode it stays Save.
+        // After the autocomplete, so Enter on a highlighted suggestion only
+        // accepts it.
+        enterSubmitsWith(nameInput, addAnotherBtn, { when: () => !editingItemId });
+
         // ── Item actions ──
         async function toggleComplete(id, completed) {
             try {
@@ -408,6 +413,12 @@
         const BLANK_NAME = "A name can't be empty.";
         const refuseBlankItemName = requireText('item-name', 'item-name-message', BLANK_NAME);
         const refuseBlankStoreName = requireText('store-add-name', 'store-add-message', BLANK_NAME);
+        // A message under Item ("already on the Costco list", "added to the
+        // Costco list") is about what was just saved, so a change of Store or
+        // a keystroke in Note clears it, as one in Item does
+        // (`clearFormMessagesOn()`).
+        clearFormMessagesOn(storeSelect, 'item-modal-overlay');
+        clearFormMessagesOn('item-note', 'item-modal-overlay', 'input');
 
         // Store reads "Anywhere" on every open, whatever the chips say — matching
         // openAddModal() on /todo, which resets the assignee and ignores the
@@ -420,6 +431,7 @@
             clearFormMessages('item-modal-overlay');
             storeSelect.value = '';
             document.getElementById('btn-delete-item').style.display = 'none';
+            addAnotherBtn.style.display = '';
             nameAutocomplete.close();
             showModalOverlay('item-modal-overlay');
             nameInput.focus();
@@ -435,6 +447,7 @@
             document.getElementById('item-note').value = item.note || '';
             storeSelect.value = item.store_id ? String(item.store_id) : '';
             document.getElementById('btn-delete-item').style.display = '';
+            addAnotherBtn.style.display = 'none';
             nameAutocomplete.close();
             showModalOverlay('item-modal-overlay');
         }
@@ -445,11 +458,14 @@
             editingItemId = null;
         }
 
-        // Save closes the modal in both modes. Adding a second item means opening
-        // it again — the same trade every other add button in Rally makes.
+        // Save closes the modal; Save & Add Another (add mode only) keeps it
+        // open for the next item, as on the Meal Planner and Packing Lists. A
+        // shopping list is entered in a burst, often for one store, so the
+        // store just used stays chosen.
         document.getElementById('item-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             if (refuseBlankItemName()) return;
+            const another = e.submitter === addAnotherBtn;
             const name = nameInput.value.trim();
             const storeValue = storeSelect.value;
             const storeId = storeValue ? parseInt(storeValue, 10) : null;
@@ -457,10 +473,41 @@
             try {
                 if (editingItemId) {
                     await updateItem(editingItemId, { name, note, store_id: storeId });
-                } else {
-                    await createItem({ name, note, store_id: storeId });
+                    closeItemModal();
+                    await fetchItems();
+                    return;
                 }
-                closeItemModal();
+                const { created } = await createItem({ name, note, store_id: storeId });
+                if (!created) {
+                    // Already open in that store, so nothing was added. From
+                    // either button the modal stays open with everything as
+                    // typed, so the name can be corrected and no note is lost.
+                    // The message clears on the next keystroke in Item or
+                    // Note, a change of Store, or the next add.
+                    const where = storeName(storeId) || 'Anywhere';
+                    showFormMessage('item-name-message', `"${name}" is already on the ${where} list.`, 'status');
+                    nameInput.focus();
+                    return;
+                }
+                const where = storeName(storeId) || 'Anywhere';
+                clearFormMessages('item-modal-overlay');
+                if (another) {
+                    // The list is behind the modal, so the add is said under
+                    // Item, where the duplicate message goes. It is a status
+                    // message, so a screen reader reads it and announce()
+                    // would read it twice. It clears on the next keystroke in
+                    // Item or Note, a change of Store, or the next add.
+                    nameInput.value = '';
+                    document.getElementById('item-note').value = '';
+                    nameAutocomplete.close();
+                    showFormMessage('item-name-message', `"${name}" added to the ${where} list.`, 'status');
+                    nameInput.focus();
+                } else {
+                    // The modal closes, so the list says it; a screen reader
+                    // hears it through announce() in dialogs.js.
+                    announce(`Added ${name}.`);
+                    closeItemModal();
+                }
                 await fetchItems();
             } catch (error) {
                 console.error('Error saving item:', error);
@@ -632,9 +679,7 @@
             groupKey: (group) => group.dataset.group,
             groupLabel: (group) => groupLabel(group.dataset.group),
             itemLabel: (row) => row.querySelector('.editable-item-title').textContent,
-            announce: (message) => {
-                document.getElementById('reorder-status').textContent = message;
-            },
+            announce,
             onReorder: async (key, itemIds) => {
                 try {
                     await reorderItems(key === ANYWHERE ? null : parseInt(key, 10), itemIds);

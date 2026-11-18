@@ -95,10 +95,6 @@
                 <div class="container-loading-state">Loading packing list templates…</div>
             </div>
         </section>
-
-        <!-- Reordering is otherwise a purely visual event: a screen reader
-             following the grip button hears nothing when the row moves. -->
-        <div class="sr-only" id="reorder-status" role="status" aria-live="polite"></div>
     </div>
 
     <!-- Add Packing List: the one way to put a packing list on a single day.
@@ -341,14 +337,9 @@
                         <textarea id="item-note" rows="2" placeholder="Which one, how many, where it's kept"></textarea>
                     </div>
                     <div class="form-message" id="item-actions-message" role="alert" hidden></div>
-                    <div class="modal-actions">
-                        <button type="submit" class="btn btn--primary">Save</button>
-                        <!-- Add mode only. A submit button, so the required-field
-                             check runs for both; `submitter` tells them apart. -->
-                        <button type="submit" class="btn" id="btn-save-add-another">Save &amp; Add Another</button>
-                        <button type="button" class="btn" id="btn-cancel-item">Cancel</button>
-                        <button type="button" class="btn modal-delete" id="btn-delete-item" style="display:none">Delete</button>
-                    </div>
+                    {%- set actions_cancel_id = "btn-cancel-item" %}
+                    {%- set actions_delete_id = "btn-delete-item" %}
+                    {% include "_add_edit_actions.html" %}
                 </form>
             </div>
             </div>
@@ -1338,25 +1329,20 @@
         });
 
         // Enter in the name or the bag is how a list is entered from the
-        // keyboard: in add mode it is Save & Add Another, not the form's first
-        // button (Save), which would close the modal after every item.
-        // Registered after both autocompletes, so Enter on a highlighted
-        // suggestion has already been taken (`defaultPrevented`) and only
-        // accepts it. A missing name is refused under the name, as Save
-        // refuses it (from the bag too, where the name is not the field in
-        // hand).
-        function enterSavesItem(e) {
-            if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing || !itemContext) return;
-            if (refuseBlankItemName()) {
-                e.preventDefault();
-                return;
-            }
-            if (itemContext.item) return; // Edit: Enter is Save, as the browser has it
-            e.preventDefault();
-            itemForm.requestSubmit(addAnotherBtn);
-        }
-        nameInput.addEventListener('keydown', enterSavesItem);
-        bagInput.addEventListener('keydown', enterSavesItem);
+        // keyboard: in add mode it is Save & Add Another (`enterSubmitsWith()`
+        // in dialogs.js), and in edit mode Save. Registered after both
+        // autocompletes, so Enter on a highlighted suggestion only accepts it.
+        // A missing name is refused under the name, as Save refuses it (from
+        // the bag too, where the name is not the field in hand).
+        const addingItem = () => Boolean(itemContext) && !itemContext.item;
+        enterSubmitsWith(nameInput, addAnotherBtn, { when: addingItem });
+        enterSubmitsWith(bagInput, addAnotherBtn, { when: addingItem });
+        // The "added to" message after Save & Add Another describes the last
+        // save, so any change to the form clears it: a keystroke in Notes or
+        // the bag, or a new owner (`clearFormMessagesOn()` in dialogs.js; a
+        // keystroke in the name already clears it through `requireText()`).
+        clearFormMessagesOn(['item-note', bagInput], 'item-modal-overlay', 'input');
+        clearFormMessagesOn([ownerSelect, bagInput], 'item-modal-overlay');
 
         function openItemModal(context) {
             itemContext = context;
@@ -1392,6 +1378,15 @@
             if (!item) document.getElementById('item-name').focus();
         }
 
+        // What Save & Add Another says it did: the template's name, or a
+        // day's list and its date.
+        function addedMessage(name) {
+            if (itemContext.scope !== 'day') return `"${name}" added to ${itemContext.template.name}.`;
+            const day = itemContext.day;
+            const when = formatDate(day.date, { ...LONG_DATE, ordinal: true, today: isoDate(new Date()) });
+            return `"${name}" added to ${day.name} on ${when}.`;
+        }
+
         function closeItemModal() {
             hideModalOverlay('item-modal-overlay');
             itemContext = null;
@@ -1417,6 +1412,7 @@
             if (!itemContext) return;
             if (refuseBlankItemName()) return;
             const another = e.submitter === addAnotherBtn;
+            const adding = !itemContext.item;
             const payload = {
                 name: nameInput.value,
                 note: document.getElementById('item-note').value || null,
@@ -1443,14 +1439,21 @@
                 await refresh();
                 itemContext.template = templateById(itemContext.template.id) || itemContext.template;
             }
+            clearFormMessages('item-modal-overlay');
             if (another) {
                 // Keep the owner and bag: a packing list is entered one
                 // person's (or one bag's) things at a time.
                 document.getElementById('item-name').value = '';
                 document.getElementById('item-note').value = '';
+                // The list is behind the modal, so the add is said under the
+                // name. It is a status message, so a screen reader reads it,
+                // and announce() would read it twice.
+                showFormMessage('item-name-message', addedMessage(payload.name.trim()), 'status');
                 document.getElementById('item-name').focus();
-                document.getElementById('reorder-status').textContent = `Added ${payload.name}.`;
             } else {
+                // The modal closes, so the list says it; a screen reader
+                // hears it through announce() in dialogs.js.
+                if (adding) announce(`Added ${payload.name.trim()}.`);
                 closeItemModal();
             }
         });
@@ -1557,9 +1560,7 @@
             groupKey: (group) => group.dataset.group,
             groupLabel: (group) => groupName(parseGroupKey(group.dataset.group).id),
             itemLabel: (row) => row.querySelector('.editable-item-title').textContent,
-            announce: (message) => {
-                document.getElementById('reorder-status').textContent = message;
-            },
+            announce,
             onReorder: async (key, itemIds) => {
                 const { templateId, id } = parseGroupKey(key);
                 try {
@@ -1598,9 +1599,7 @@
             groupKey: (group) => group.dataset.group,
             groupLabel: (group) => groupName(parseDayGroupKey(group.dataset.group).id),
             itemLabel: (row) => row.querySelector('.editable-item-title').firstChild.textContent.trim(),
-            announce: (message) => {
-                document.getElementById('reorder-status').textContent = message;
-            },
+            announce,
             onReorder: async (key, rowIds) => {
                 const { dayId, id } = parseDayGroupKey(key);
                 const items = rowIds.map(rowId => {
