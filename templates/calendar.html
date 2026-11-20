@@ -358,6 +358,10 @@
         let packingOpened = [];
         // The date the now tick last saw, so it can notice midnight passing.
         let tickDate = todayIso();
+        // The start, in minutes after midnight, of a timed event just added or
+        // moved, while the calendar lands on it (#348). The time grid opens on
+        // it instead of on now; `null` the rest of the time.
+        let savedEventMinutes = null;
 
         // The rolling ranges: a window of N days from the anchor, not a slice
         // of a week or month.
@@ -999,8 +1003,13 @@
                hours of empty morning away. Hour-aligned rather than exactly
                sixty minutes back, so the top of the viewport is always an hour
                label. Clamped between midnight and 1 AM, where there is nothing
-               above it to show. */
-            const scrollTo = Math.max(0, (Math.floor(nowMinutes() / 60) - 1) * 60);
+               above it to show.
+
+               Right after a timed event is added or moved, the same rule is
+               applied to the event's start instead of now (#348), so what was
+               just saved is on screen. */
+            const openAt = savedEventMinutes !== null ? savedEventMinutes : nowMinutes();
+            const scrollTo = Math.max(0, (Math.floor(openAt / 60) - 1) * 60);
             // `--multi` is the many-columns case, which is the only one whose
             // day headings are width-starved. Day has one column and all the
             // room it needs, so it must not inherit the narrow treatment.
@@ -2456,9 +2465,74 @@
                 }
                 return;
             }
+            /* An add, or an edit that sent a start (one that left the times
+               alone sent none, above), lands on the event: the person sees it
+               where it went (#348). Anything else reloads in place. */
+            const saved = await response.json();
+            const adding = !editingEvent;
             closeEventModal();
             fetchPackingTemplates();
-            load();
+            if (adding || payload.start) {
+                landOnSavedEvent(saved, payload, adding);
+            } else {
+                load();
+            }
+        }
+
+        /* Whether a date is on screen. In `Calendar` + `Month` only the
+           anchored month counts, not the days the 42-cell grid borrows from
+           the months either side: the same reading defaultEventDate() takes. */
+        function dateShown(dateIso) {
+            const date = parseIsoDate(dateIso);
+            if (mode === 'calendar' && range === 'month') {
+                return date.getFullYear() === anchor.getFullYear()
+                    && date.getMonth() === anchor.getMonth();
+            }
+            const shown = currentRange();
+            return date >= shown.start && date < shown.end;
+        }
+
+        /* After an add or a move, go to the event's day when it is not shown,
+           keeping View and Range (#348). The day is the start the form sent:
+           for a series that is its first occurrence, the edited occurrence or
+           the new tail — and the response cannot say which, since `this`
+           returns the series. A time grid opens on the event's hour, a member
+           filter that would hide the event is cleared, and the save is
+           announced either way. */
+        async function landOnSavedEvent(saved, payload, adding) {
+            const [dateIso, time] = payload.start.split('T');
+            if (!dateShown(dateIso)) anchor = anchorFor(parseIsoDate(dateIso));
+            if (!payload.all_day && time) {
+                const [hours, minutes] = time.split(':').map(Number);
+                savedEventMinutes = hours * 60 + minutes;
+            }
+            try {
+                await load();
+                const found = () => occurrences.some(
+                    o => o.event_id === saved.id && (o.dates || [o.start_date]).includes(dateIso));
+                let cleared = false;
+                if (selectedMembers.size && !found()) {
+                    selectedMembers.clear();
+                    renderMemberChips();
+                    cleared = true;
+                    await load();
+                }
+                announce(savedEventMessage(payload, dateIso, time, adding)
+                    + (cleared ? ' Filters cleared.' : ''));
+            } finally {
+                savedEventMinutes = null;
+            }
+        }
+
+        function savedEventMessage(payload, dateIso, time, adding) {
+            const date = formatDate(dateIso, {
+                weekday: true, month: 'long', year: 'unlessThisYear', today: todayIso(),
+            });
+            if (adding) return `Added ${payload.title} on ${date}.`;
+            if (payload.all_day || !time) return `Moved ${payload.title} to ${date}.`;
+            const [hours, minutes] = time.split(':').map(Number);
+            const at = formatTime(new Date(2000, 0, 1, hours, minutes));
+            return `Moved ${payload.title} to ${date} at ${at}.`;
         }
 
         function deleteParams(scope) {
