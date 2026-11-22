@@ -5,16 +5,16 @@ description = "Your family command center—coordinate, work hard, and make the 
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
-    "openai>=3.46.0",
-    "anthropic>=2.6.0",
-    "fastapi[standard]>=0.162.2",
+    "openai>=3.51.0",
+    "anthropic>=2.8.0",
+    "fastapi[standard]>=0.163.1",
     "requests>=2.34.2",
-    "ruff>=0.17.4",
+    "ruff>=0.17.5",
     "sqlalchemy>=2.1.8",
     "pydantic>=2.14.3",
     "jinja2>=3.1.6",
     "icalendar>=7.3.0",
-    "markdown-it-py>=4.2.0",
+    "markdown-it-py>=4.3.0",
     "recurring-ical-events>=3.8.2",
     "caldav>=3.7.0",
     "fpdf2>=2.9.0",
@@ -31,7 +31,7 @@ dev = [
 # Design-system regression tests. Kept out of `dev` so the ordinary test run
 # needs no browser download; tests/visual skips itself when this is absent.
 visual = [
-    "playwright>=1.64.1",
+    "playwright>=1.65.2",
 ]
 
 [tool.pytest.ini_options]
