@@ -1666,10 +1666,10 @@ The README is Rally's homepage, with the guides in docs/ that it links to. The r
 Don't auto-merge. Facts, upkeep and issue PRs all need review.
 
 ### Build and test
-- Install with `uv sync`. Run the tests with `uv run pytest`: 3226 passed and 1 skipped on 2026-11-15, in about 90 seconds locally and 2.5 minutes on a GitHub-hosted runner. The visual suite in `tests/visual` skips itself without Playwright.
+- Install with `uv sync`. Run the tests with `uv run pytest`: 3269 passed and 1 skipped on 2026-11-22, in about 140 seconds locally and 2.3 minutes on a GitHub-hosted runner. The visual suite in `tests/visual` skips itself without Playwright.
 - Check style with `uv run ruff check .` and `uv run ruff format --check .`. Both pass on the default branch. CI runs these three commands.
-- rally-mcp in `mcp/` is its own uv project: `cd mcp && uv sync --frozen && uv run pytest` (202 passed on 2026-11-15), then `uv run ruff check .` and `uv run ruff format --check .`.
-- The visual suite needs `uv sync --group visual` and `uv run playwright install --with-deps chromium`. Then `uv run pytest tests/visual`: 720 passed and 20 skipped on 2026-11-15.
+- rally-mcp in `mcp/` is its own uv project: `cd mcp && uv sync --frozen && uv run pytest` (202 passed on 2026-11-22), then `uv run ruff check .` and `uv run ruff format --check .`.
+- The visual suite needs `uv sync --group visual` and `uv run playwright install --with-deps chromium`. Then `uv run pytest tests/visual`: 777 passed and 20 skipped on 2026-11-22.
 - `devenv` is not needed to run these commands. Sadr runs them with `uv` directly.
 
 ### Toolchain
